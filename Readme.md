@@ -97,6 +97,7 @@ Replace “remembering Docker commands” with clear actions.
 - Displays status (running / success / failed / stopped)
 - Allows stopping long-running commands
 - Provides access to logs/output
+- Supports quick copy/export of output for sharing or debugging
 
 **Why this exists**
 So you never wonder:
@@ -143,6 +144,8 @@ This is a **developer tool**, not a background daemon.
 - Create and run saved commands
 - See Docker containers and logs
 - View and stop running commands
+- View run history with output access
+- Edit simple project notes (ports, URLs, reminders)
 
 If V1 feels good, the app succeeds.
 

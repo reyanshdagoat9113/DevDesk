@@ -37,7 +37,8 @@ The preload layer only exposes channels explicitly listed in the `validChannels`
 1. **Project Manager**: Auto-detects project type (node/python/rust/go) from presence of package.json, pyproject.toml, Cargo.toml, go.mod
 2. **Command Vault**: Stores terminal commands with variables support (`{{container}}` syntax). Can run globally or in project context.
 3. **Containers**: Docker CLI wrapper. Lists, starts, stops containers. Must gracefully degrade if Docker not installed.
-4. **Run History**: Tracks command execution status (running/success/failed/stopped). Allows stopping long-running commands.
+4. **Run History**: Tracks command execution status (running/success/failed/stopped). Allows stopping long-running commands and viewing output.
+5. **Project Notes**: Lightweight notes for ports, URLs, and reminders tied to a project.
 
 ### Key Constraints
 
@@ -45,6 +46,15 @@ The preload layer only exposes channels explicitly listed in the `validChannels`
 - **Safe by default**: Destructive actions require user confirmation
 - **Platform targets**: macOS + Windows (Linux is post-MVP)
 - **Don't overbuild**: MVP is defined in README. Future enhancements are explicitly optional.
+
+### MVP Scope
+
+- Add and list projects
+- Create and run saved commands
+- See Docker containers and logs
+- View and stop running commands
+- View run history with output access
+- Edit simple project notes (ports, URLs, reminders)
 
 ### TypeScript Configuration
 

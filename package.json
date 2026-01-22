@@ -10,24 +10,32 @@
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder"
   },
-  "keywords": ["electron", "developer-tools", "docker", "project-manager"],
+  "keywords": [
+    "electron",
+    "developer-tools",
+    "docker",
+    "project-manager"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.6",
-    "@types/react": "^18.3.18",
-    "@types/react-dom": "^18.3.5",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@types/node": "^25.0.0",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
     "concurrently": "^9.1.2",
-    "electron": "^34.2.0",
-    "electron-builder": "^25.1.8",
+    "electron": "^35.7.5",
+    "electron-builder": "^26.4.1",
     "typescript": "^5.7.2",
-    "vite": "^6.0.7",
+    "vite": "^7.3.1",
     "vite-plugin-electron": "^0.29.0",
-    "wait-on": "^8.0.1"
+    "wait-on": "^9.0.3"
+  },
+  "overrides": {
+    "tar": "^7.5.4"
   }
 }
