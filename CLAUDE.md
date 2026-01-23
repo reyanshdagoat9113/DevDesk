@@ -1,3 +1,7 @@
+# Rules 
+1. If todo.md is mentioned in a prompt and if it is said so to finish dash task mentioned in todo.md, once completed kindly put the task as completed in todo.md. 
+
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -72,3 +76,4 @@ The build process:
 ### Non-Goals
 
 Do not add: AI features, team collaboration, cloud sync, full terminal replacement, heavy analytics. These are explicitly called out as anti-patterns in the README.
+

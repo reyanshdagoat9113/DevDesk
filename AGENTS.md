@@ -1,3 +1,7 @@
+# Rules 
+1. If todo.md is mentioned in a prompt and if it is said so to finish dash task mentioned in todo.md, once completed kindly put the task as completed in todo.md.
+
+
 # Repository Guidelines
 
 ## Project Structure & Module Organization
@@ -46,3 +50,6 @@
 ## Security & Configuration Tips
 - Keep `nodeIntegration` disabled and `contextIsolation` enabled (already set).
 - Treat shell execution as explicit user intent; avoid implicit command runs.
+
+
+
