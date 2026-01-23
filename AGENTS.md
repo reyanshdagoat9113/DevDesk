@@ -5,9 +5,12 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/main/`: Electron main process (Node.js + TypeScript). Creates the window and handles IPC/system access.
-- `src/main/preload.ts`: Preload bridge that exposes a small, whitelisted API to the renderer.
-- `src/renderer/`: React UI (TypeScript). Entry is `src/renderer/main.tsx` and the main view is `src/renderer/App.tsx`.
+- `src/main/`: Electron main process (Node.js + TypeScript). App lifecycle and system access.
+- `src/main/app/`: Window creation and app boot helpers.
+- `src/main/preload.ts`: Preload bridge entry (contextBridge + IPC whitelist).
+- `src/main/projects/`: Project-related utilities (e.g., type detection).
+- `src/renderer/`: React UI (TypeScript). Entry is `src/renderer/main.tsx`.
+- `src/renderer/app/`: UI shell and feature-level types/components (e.g., `src/renderer/app/App.tsx`).
 - `src/renderer/index.css`: Global styles for the renderer.
 - `dist/`: Build output for main and renderer bundles.
 - Root config files: `vite.config.ts`, `tsconfig.json` (renderer), `tsconfig.main.json` (main).
@@ -50,6 +53,5 @@
 ## Security & Configuration Tips
 - Keep `nodeIntegration` disabled and `contextIsolation` enabled (already set).
 - Treat shell execution as explicit user intent; avoid implicit command runs.
-
 
 

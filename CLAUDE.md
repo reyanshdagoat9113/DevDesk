@@ -24,6 +24,8 @@ DevDesk is an Electron app with a three-layer architecture:
 - **Renderer Process** (`src/renderer/`): TypeScript + React. UI only. Cannot access Node APIs directly. Sends intent-based requests via IPC.
 - **Preload Layer** (`src/main/preload.ts`): Context bridge that exposes a whitelist of safe APIs to the renderer. Enforces security boundaries.
 
+Implementation note: keep `src/main/index.ts` as a thin bootstrap and put most main-process logic into submodules (e.g., `src/main/app/`, `src/main/projects/`) to avoid a single large entry file.
+
 ### Communication Flow
 
 ```
@@ -76,4 +78,3 @@ The build process:
 ### Non-Goals
 
 Do not add: AI features, team collaboration, cloud sync, full terminal replacement, heavy analytics. These are explicitly called out as anti-patterns in the README.
-

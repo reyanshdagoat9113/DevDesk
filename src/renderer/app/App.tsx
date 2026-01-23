@@ -1,26 +1,5 @@
 import { useState } from 'react';
-
-// Types for our core features
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  type: 'node' | 'python' | 'rust' | 'go' | 'unknown';
-}
-
-interface Command {
-  id: string;
-  name: string;
-  command: string;
-  description: string;
-  tags: string[];
-}
-
-interface Container {
-  id: string;
-  name: string;
-  state: 'running' | 'stopped' | 'paused';
-}
+import type { Command, Container, Project } from './types';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'projects' | 'commands' | 'containers' | 'history'>('projects');
