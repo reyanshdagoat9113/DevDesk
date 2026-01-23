@@ -8,7 +8,11 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "outDir": "dist/main",
-    "rootDir": "src/main"
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["src/shared/*"]
+    }
   },
-  "include": ["src/main"]
+  "include": ["src/main", "src/shared"]
 }

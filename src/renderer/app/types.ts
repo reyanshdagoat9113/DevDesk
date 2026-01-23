@@ -1,21 +1,16 @@
-export interface Project {
-  id: string;
-  name: string;
-  path: string;
-  type: 'node' | 'python' | 'rust' | 'go' | 'unknown';
-}
-
-export interface Command {
-  id: string;
-  name: string;
-  command: string;
-  description: string;
-  tags: string[];
-}
-
-export interface Container {
-  id: string;
-  name: string;
-  state: 'running' | 'stopped' | 'paused';
-}
+/**
+ * Re-export types from shared IPC module.
+ * This keeps the renderer app types in sync with the IPC contract.
+ */
+export type {
+  Project,
+  ProjectType,
+  Command,
+  Container,
+  RunHistoryEntry,
+  RunStatus,
+  ProjectNotes,
+  RunOutputEvent,
+  RunStatusEvent,
+} from '../../shared/ipc';
 

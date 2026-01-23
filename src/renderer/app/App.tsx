@@ -1,11 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Command, Container, Project } from './types';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'projects' | 'commands' | 'containers' | 'history'>('projects');
   const [projects] = useState<Project[]>([]);
   const [commands] = useState<Command[]>([]);
-  const [containers] = useState<Container[]>([]);
+  const [containers, setContainers] = useState<Container[]>([]);
+  const [isLoadingContainers, setIsLoadingContainers] = useState(false);
+  const [containersError, setContainersError] = useState<string | null>(null);
+
+  // Load containers when containers tab is active or refresh is clicked
+  const loadContainers = async () => {
+    setIsLoadingContainers(true);
+    setContainersError(null);
+    try {
+      const response = await window.electronAPI.containers.list();
+      setContainers(response.containers);
+    } catch (error) {
+      console.error('Failed to load containers:', error);
+      setContainersError(error instanceof Error ? error.message : 'Failed to load containers');
+    } finally {
+      setIsLoadingContainers(false);
+    }
+  };
+
+  // Load containers when switching to containers tab
+  useEffect(() => {
+    if (activeTab === 'containers') {
+      loadContainers();
+    }
+  }, [activeTab]);
 
   return (
     <div className="app">
@@ -97,11 +121,26 @@ function App() {
           <div className="view">
             <header className="view-header">
               <h2>Containers</h2>
-              <button className="btn-secondary">Refresh</button>
+              <button
+                className="btn-secondary"
+                onClick={loadContainers}
+                disabled={isLoadingContainers}
+              >
+                {isLoadingContainers ? 'Loading...' : 'Refresh'}
+              </button>
             </header>
+            {containersError && (
+              <div className="error-banner" style={{ padding: '8px 16px', background: '#fee', color: '#c33', margin: '0 16px' }}>
+                {containersError}
+              </div>
+            )}
             <div className="container-list">
               {containers.length === 0 ? (
-                <p className="empty-state">No containers found. Docker might not be running.</p>
+                <p className="empty-state">
+                  {isLoadingContainers
+                    ? 'Loading containers...'
+                    : 'No containers found. Docker might not be running.'}
+                </p>
               ) : (
                 containers.map((c) => (
                   <div key={c.id} className="container-card">

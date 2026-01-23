@@ -1,5 +1,6 @@
 # Rules 
 1. If todo.md is mentioned in a prompt and if it is said so to finish dash task mentioned in todo.md, once completed kindly put the task as completed in todo.md. 
+2. Keep the current organized folder and file structure.
 
 
 # CLAUDE.md
