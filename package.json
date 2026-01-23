@@ -4,10 +4,10 @@
   "description": "A local-first Electron desktop app for developers",
   "main": "dist/main/index.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "cross-env NODE_ENV=development vite",
     "build": "tsc -p tsconfig.main.json && vite build",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build && electron-builder"
   },
   "keywords": [
@@ -28,6 +28,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
     "electron": "^35.7.5",
     "electron-builder": "^26.4.1",
     "typescript": "^5.7.2",
