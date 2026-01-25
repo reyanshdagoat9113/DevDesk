@@ -1,0 +1,40 @@
+export interface Project {
+  id: string
+  path: string
+  name: string
+  type: 'node' | 'python' | 'rust' | 'go' | 'unknown'
+  icon: string
+}
+
+export interface Command {
+  id: string
+  name: string
+  command: string
+  description?: string
+  tags?: string[]
+}
+
+export interface Container {
+  id: string
+  name: string
+  image: string
+  state: 'running' | 'stopped' | 'paused'
+  ports: string[]
+}
+
+export interface RunHistoryEntry {
+  id: string
+  commandId: string
+  projectId?: string
+  status: 'running' | 'success' | 'failed' | 'stopped'
+  startTime: string
+  endTime?: string
+  output?: string
+}
+
+export interface ProjectNotes {
+  projectId: string
+  ports: string
+  urls: string
+  reminders: string
+}

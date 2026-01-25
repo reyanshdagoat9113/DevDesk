@@ -1,7 +1,4 @@
-# Rules 
-1. If todo.md is mentioned in a prompt and if it is said so to finish dash task mentioned in todo.md, once completed kindly put the task as completed in todo.md. 
-2. Keep the current organized folder and file structure.
-3. While committing changes, if a task in TODO.md has been completed, mention it. For example, "completed X task from TODO.md." Then add the task's description and then mention other things in the commit.
+
 
 
 # CLAUDE.md
