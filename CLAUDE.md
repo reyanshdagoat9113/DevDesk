@@ -10,34 +10,32 @@
 ## Common Commands
 
 ```bash
-npm install              # Install dependencies
-npm run dev              # Start Vite dev server
-npm run build            # Build main process TypeScript and bundle renderer
+# No runtime/build commands yet; implementation code has been removed.
 ```
 
 ## Architecture
 
-DevDesk is an Electron app with a three-layer architecture:
+DevDesk is intended to be an Electron app with a three-layer architecture when implementation resumes:
 
 ### Process Boundaries
 
-- **Main Process** (`src/main/`): Node.js + TypeScript. Has full system access. Runs shell commands, talks to Docker CLI, reads filesystem, persists data.
-- **Renderer Process** (`src/renderer/`): TypeScript + React. UI only. Cannot access Node APIs directly. Sends intent-based requests via IPC.
-- **Preload Layer** (`src/main/preload.ts`): Context bridge that exposes a whitelist of safe APIs to the renderer. Enforces security boundaries.
+- **Main Process**: Node.js + TypeScript. Full system access. Runs commands, talks to Docker CLI, reads filesystem, persists data.
+- **Renderer Process**: TypeScript + React. UI only. Cannot access Node APIs directly. Sends intent-based requests via IPC.
+- **Preload Layer**: Context bridge that exposes a whitelist of safe APIs to the renderer. Enforces security boundaries.
 
-Implementation note: keep `src/main/index.ts` as a thin bootstrap and put most main-process logic into submodules (e.g., `src/main/app/`, `src/main/projects/`) to avoid a single large entry file.
+Implementation note: keep the main entry thin and push logic into submodules to avoid a single large file.
 
 ### Communication Flow
 
 ```
 Renderer (React UI)
-    → window.electronAPI.send()
-    → IPC (via preload)
+    → window.electronAPI (via preload)
+    → IPC handlers
     → Main Process handlers
     → System (Docker CLI, shell, fs)
 ```
 
-The preload layer only exposes channels explicitly listed in the `validChannels` array. New IPC channels must be added to both the preload script and main process handlers.
+The preload layer should only expose explicitly defined channels. New IPC channels must be added to both the preload script and main process handlers.
 
 ### Core Features
 
@@ -66,15 +64,15 @@ The preload layer only exposes channels explicitly listed in the `validChannels`
 ### TypeScript Configuration
 
 Two separate configs:
-- `tsconfig.json` → Renderer (React, ESNext with bundler module resolution)
-- `tsconfig.main.json` → Main process (CommonJS for Electron, outputs to `dist/main/`)
+- Renderer config (React, ESNext with bundler module resolution)
+- Main process config (CommonJS for Electron)
 
 ### Building
 
 The build process:
-1. Compiles main process TypeScript to `dist/main/`
-2. Vite bundles renderer and builds to `dist/renderer/`
-3. Preload script is bundled separately
+1. Compile main process TypeScript
+2. Bundle renderer
+3. Bundle preload script
 
 ### Non-Goals
 

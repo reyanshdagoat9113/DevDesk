@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "outDir": "./dist/shared",
-    "moduleResolution": "bundler"
-  },
-  "include": ["src/shared/**/*"],
-  "exclude": ["node_modules"]
-}

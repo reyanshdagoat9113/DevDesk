@@ -1,5 +1,9 @@
 # DevDesk — Electron App Overview
 
+## Status
+
+Implementation code has been removed to restart the project. This repository currently holds product and design documentation only. UI library usage notes live in `docs/ui-libraries.md`.
+
 A **local-first Electron desktop app for developers** that combines a **Project Manager**, **Command Vault**, and **Docker/Compose Manager** into one clean, fast workspace.
 
 - **Tech stack:** Node.js + TypeScript (backend), TypeScript + React (frontend)
