@@ -12,5 +12,5 @@ export type {
   ProjectNotes,
   RunOutputEvent,
   RunStatusEvent,
-} from '../../shared/ipc';
+} from '../../../packages/shared/ipc';
 

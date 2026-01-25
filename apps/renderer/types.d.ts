@@ -40,7 +40,7 @@ import type {
   UpdateProjectNotesResponse,
   RunOutputEvent,
   RunStatusEvent,
-} from '../shared/ipc';
+} from '../../packages/shared/ipc';
 
 // ============================================================================
 // API Modules

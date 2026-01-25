@@ -45,7 +45,7 @@ import {
   type UpdateProjectNotesResponse,
   type RunOutputEvent,
   type RunStatusEvent,
-} from '../../shared/ipc';
+} from '../../../packages/shared/ipc';
 
 // ============================================================================
 // Error Serialization

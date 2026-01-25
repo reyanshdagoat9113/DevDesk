@@ -7,24 +7,24 @@ export default defineConfig({
     react(),
     electron([
       {
-        entry: 'src/main/index.ts',
+        entry: 'apps/desktop/index.ts',
         onstart({ startup }) {
           startup();
         },
         vite: {
           build: {
-            outDir: 'dist/main',
+            outDir: 'dist/desktop',
           },
         },
       },
       {
-        entry: 'src/main/preload.ts',
+        entry: 'apps/desktop/preload.ts',
         onstart({ startup }) {
           startup();
         },
         vite: {
           build: {
-            outDir: 'dist/main',
+            outDir: 'dist/desktop',
           },
         },
       },

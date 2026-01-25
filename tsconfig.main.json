@@ -7,12 +7,12 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
-    "outDir": "dist/main",
+    "outDir": "dist/desktop",
     "rootDir": ".",
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["packages/shared/*"]
     }
   },
-  "include": ["src/main", "src/shared"]
+  "include": ["apps/desktop", "packages/shared"]
 }

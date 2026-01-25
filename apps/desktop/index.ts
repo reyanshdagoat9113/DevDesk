@@ -4,6 +4,11 @@ import { registerIpcHandlers } from './ipc/registerIpc';
 
 let mainWindow: BrowserWindow | null = null;
 
+const isWsl = Boolean(process.env.WSL_DISTRO_NAME) || Boolean(process.env.WSLENV);
+if (isWsl) {
+  app.disableHardwareAcceleration();
+}
+
 app.whenReady().then(() => {
   // Register IPC handlers before creating windows
   registerIpcHandlers();

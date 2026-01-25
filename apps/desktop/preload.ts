@@ -37,7 +37,7 @@ import {
   type UpdateProjectNotesResponse,
   type RunOutputEvent,
   type RunStatusEvent,
-} from '../shared/ipc';
+} from '../../packages/shared/ipc';
 
 // Valid channels for request/response (invoke/handle)
 const VALID_INVOKE_CHANNELS = Object.values(IPC_CHANNELS).filter(
