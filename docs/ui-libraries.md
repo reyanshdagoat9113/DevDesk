@@ -8,7 +8,7 @@ This project previously used shadcn/ui component patterns and Radix UI primitive
 - Keep component APIs small and consistent.
 
 ## Recommended structure
-- `apps/renderer/components/ui/` for shadcn-style wrappers (Button, Tabs, Card, Alert, Badge).
+- `apps/renderer/app/components/ui/` for shadcn-style wrappers (Button, Tabs, Card, Alert, Badge).
 - `apps/renderer/lib/utils.ts` for a `cn(...)` helper using `clsx` + `tailwind-merge`.
 
 ## Component pattern

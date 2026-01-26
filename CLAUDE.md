@@ -7,7 +7,10 @@
 ## Common Commands
 
 ```bash
-# No runtime/build commands yet; implementation code has been removed.
+npm run dev
+npm run build
+npm run lint
+npm run typecheck
 ```
 
 ## Architecture
@@ -33,6 +36,13 @@ Renderer (React UI)
 ```
 
 The preload layer should only expose explicitly defined channels. New IPC channels must be added to both the preload script and main process handlers.
+
+### UI Libraries
+
+- Use shadcn/ui component patterns with Radix UI primitives.
+- Components live in `apps/renderer/app/components/ui`.
+- shadcn CLI config is `components.json`.
+  - Aliases map to `@/app/components` and `@/app/components/ui`.
 
 ### Core Features
 
@@ -70,6 +80,8 @@ The build process:
 1. Compile main process TypeScript
 2. Bundle renderer
 3. Bundle preload script
+
+Renderer output is `dist/renderer`, and production loads `../../renderer/index.html` from the main process build directory.
 
 ### Non-Goals
 
