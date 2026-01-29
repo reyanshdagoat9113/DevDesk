@@ -19,3 +19,9 @@ Screenshot*.png
 *Screenshot*.png
 *.screenshot.png
 
+# Claude Code local settings
+.claude/
+
+# Error files (Windows nul device accidentally created as file)
+nul
+
