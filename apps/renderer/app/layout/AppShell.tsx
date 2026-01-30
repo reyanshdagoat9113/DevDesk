@@ -9,7 +9,7 @@ interface NavItem {
 }
 
 interface AppShellProps {
-  navItems: NavItem[]
+  navItems: ReadonlyArray<NavItem>
   activeNav: string
   onNavChange: (value: string) => void
   title: string

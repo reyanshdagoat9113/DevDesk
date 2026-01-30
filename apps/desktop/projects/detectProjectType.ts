@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-export type ProjectType = 'node' | 'python' | 'rust' | 'go' | 'unknown'
+import type { ProjectType } from '../data/model'
 
 export function detectProjectType(projectPath: string): ProjectType {
   try {

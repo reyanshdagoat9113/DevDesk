@@ -1,0 +1,54 @@
+export type ProjectType = 'node' | 'python' | 'rust' | 'go' | 'unknown'
+
+export interface Project {
+  id: string
+  path: string
+  name: string
+  type: ProjectType
+  icon: string
+}
+
+export interface Command {
+  id: string
+  name: string
+  command: string
+  description?: string
+  tags?: string[]
+}
+
+export interface Container {
+  id: string
+  name: string
+  image: string
+  state: 'running' | 'stopped' | 'paused'
+  ports: string[]
+}
+
+export type RunStatus = 'running' | 'success' | 'failed' | 'stopped'
+
+export interface RunHistoryEntry {
+  id: string
+  commandId: string
+  projectId?: string
+  status: RunStatus
+  startTime: string
+  endTime?: string
+  output?: string
+}
+
+export interface ProjectNotes {
+  projectId: string
+  ports: string
+  urls: string
+  reminders: string
+}
+
+export const DATA_VERSION = 1 as const
+
+export interface DataStore {
+  version: typeof DATA_VERSION
+  projects: Project[]
+  commands: Command[]
+  runHistory: RunHistoryEntry[]
+  notes: Record<string, ProjectNotes>
+}

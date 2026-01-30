@@ -1,10 +1,10 @@
 # DevDesk TODO
 
 ## Now
-- [ ] Define data model for projects, commands, containers, run history, notes.
+- [x] Define data model for projects, commands, containers, run history, notes.
 - [ ] Wire renderer to preload API (replace mock data).
-- [ ] Implement IPC handlers for CRUD + run/stop commands.
-- [ ] Add persistence layer (local JSON or sqlite).
+- [x] Implement IPC handlers for CRUD + run/stop commands.
+- [x] Add persistence layer (local JSON or sqlite).
 - [ ] Verify renderer build output loads in production.
 
 ## Next
