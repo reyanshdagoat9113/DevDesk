@@ -1,9 +1,15 @@
-import type { Command, Container, Project, ProjectNotes, RunHistoryEntry } from '../types'
+import type { AppPreferences, Command, Container, Project, ProjectNotes, RunHistoryEntry } from '../types'
 
 export interface ElectronAPI {
   getProjects: () => Promise<Project[]>
   addProject: (path: string) => Promise<Project>
   removeProject: (id: string) => Promise<{ success: boolean }>
+  openProjectFolderDialog: () => Promise<{ canceled: boolean; path?: string }>
+  openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
+  openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
+  openProjectInTerminal: (id: string) => Promise<{ success: boolean; error?: string }>
+  getPreferences: () => Promise<AppPreferences>
+  updatePreferences: (preferences: Partial<AppPreferences>) => Promise<{ success: boolean }>
 
   getCommands: () => Promise<Command[]>
   addCommand: (command: { name: string; command: string; description?: string; tags?: string[] }) => Promise<Command>

@@ -2,23 +2,29 @@ import { useEffect, useMemo, useState } from 'react'
 import { Play } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
+import { Label } from '../components/ui/Label'
 import { SectionLayout } from '../layout/SectionLayout'
-import type { Command } from '../types'
+import type { Command, Project } from '../types'
 
 const panelClass = 'flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card'
 
 export function CommandsSection({
   commands,
+  projects,
   isLoading,
   error,
   onRunCommand,
 }: {
   commands: Command[]
+  projects: Project[]
   isLoading?: boolean
   error?: string | null
-  onRunCommand?: (commandId: string) => void
+  onRunCommand?: (commandId: string, projectId: string) => Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(commands[0]?.id ?? null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null)
+  const [runError, setRunError] = useState<string | null>(null)
+  const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'started'>('idle')
 
   useEffect(() => {
     if (!commands.length) {
@@ -30,10 +36,44 @@ export function CommandsSection({
     }
   }, [commands, selectedId])
 
+  useEffect(() => {
+    if (!projects.length) {
+      setSelectedProjectId(null)
+      return
+    }
+    if (!selectedProjectId || !projects.some((project) => project.id === selectedProjectId)) {
+      setSelectedProjectId(projects[0].id)
+    }
+  }, [projects, selectedProjectId])
+
   const selectedCommand = useMemo(() => {
     if (!commands.length) return null
     return commands.find((command) => command.id === selectedId) ?? commands[0]
   }, [commands, selectedId])
+
+  const selectedProject = useMemo(() => {
+    if (!projects.length) return null
+    return projects.find((project) => project.id === selectedProjectId) ?? projects[0]
+  }, [projects, selectedProjectId])
+
+  const handleRun = async () => {
+    if (!selectedCommand || !selectedProject || !onRunCommand || runStatus === 'running') {
+      if (!selectedProject) {
+        setRunError('Select a project to run this command.')
+      }
+      return
+    }
+    setRunError(null)
+    setRunStatus('running')
+    try {
+      await onRunCommand(selectedCommand.id, selectedProject.id)
+      setRunStatus('started')
+      setTimeout(() => setRunStatus('idle'), 1500)
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : 'Failed to run command.')
+      setRunStatus('idle')
+    }
+  }
 
   return (
     <SectionLayout
@@ -106,17 +146,45 @@ export function CommandsSection({
                     ))}
                   </div>
                 ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="run-project">Project</Label>
+                  {projects.length ? (
+                    <select
+                      id="run-project"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={selectedProject?.id ?? ''}
+                      onChange={(event) => setSelectedProjectId(event.target.value)}
+                    >
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Add a project to run this command.</p>
+                  )}
+                  {selectedProject ? (
+                    <p className="text-xs text-muted-foreground">{selectedProject.path}</p>
+                  ) : null}
+                </div>
               </div>
               <div className="mt-auto">
                 <Button
                   size="sm"
                   className="gap-2"
-                  onClick={() => selectedCommand && onRunCommand?.(selectedCommand.id)}
-                  disabled={!selectedCommand}
+                  onClick={handleRun}
+                  disabled={!selectedCommand || !selectedProject || runStatus === 'running'}
                 >
                   <Play className="h-4 w-4" />
-                  Run Command
+                  {runStatus === 'running' ? 'Starting...' : 'Run Command'}
                 </Button>
+                {runStatus === 'started' ? (
+                  <p className="mt-2 text-xs text-muted-foreground">Run started. Check History for output.</p>
+                ) : null}
+                {runError ? (
+                  <p className="mt-2 text-xs text-destructive">{runError}</p>
+                ) : null}
               </div>
             </div>
           ) : (

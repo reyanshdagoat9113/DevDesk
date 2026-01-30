@@ -38,3 +38,13 @@ export interface ProjectNotes {
   urls: string
   reminders: string
 }
+
+export interface AppPreference {
+  id: string
+  command?: string
+}
+
+export interface AppPreferences {
+  editor: AppPreference
+  terminal: AppPreference
+}

@@ -1,11 +1,11 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getStore, updateStore } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
-import type { RunStatus } from '../data/model'
+import type { AppPreference, AppPreferences, RunStatus } from '../data/model'
 
 type RunningCommand = {
   process: ChildProcessWithoutNullStreams
@@ -21,6 +21,105 @@ function broadcast(channel: string, payload: unknown) {
   }
 }
 
+const MAC_EDITOR_APPS: Record<string, string> = {
+  vscode: 'Visual Studio Code',
+  cursor: 'Cursor',
+  webstorm: 'WebStorm',
+  intellij: 'IntelliJ IDEA',
+  sublime: 'Sublime Text',
+  xcode: 'Xcode',
+}
+
+const MAC_TERMINAL_APPS: Record<string, string> = {
+  terminal: 'Terminal',
+  iterm: 'iTerm',
+  warp: 'Warp',
+  hyper: 'Hyper',
+}
+
+const WINDOWS_EDITOR_COMMANDS: Record<string, { command: string; args: (projectPath: string) => string[] }> = {
+  vscode: { command: 'code', args: (projectPath) => [projectPath] },
+  'visual-studio': { command: 'devenv', args: (projectPath) => [projectPath] },
+}
+
+const WINDOWS_TERMINAL_COMMANDS: Record<string, { command: string; args: (projectPath: string) => string[] }> = {
+  'windows-terminal': { command: 'wt', args: (projectPath) => ['-d', projectPath] },
+  powershell: {
+    command: 'powershell',
+    args: (projectPath) => ['-NoExit', '-Command', `Set-Location -LiteralPath "${projectPath}"`],
+  },
+  cmd: { command: 'cmd.exe', args: (projectPath) => ['/k', `cd /d "${projectPath}"`] },
+}
+
+async function getProjectPath(projectId: string): Promise<string> {
+  if (!projectId) {
+    throw new Error('Project not found.')
+  }
+  const store = await getStore()
+  const project = store.projects.find((entry) => entry.id === projectId)
+  if (!project) {
+    throw new Error('Project not found.')
+  }
+  if (!fs.existsSync(project.path)) {
+    throw new Error('Project path does not exist.')
+  }
+  return project.path
+}
+
+async function getPreferences(): Promise<AppPreferences> {
+  const store = await getStore()
+  return store.preferences
+}
+
+function spawnDetached(command: string, args: string[]) {
+  return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    try {
+      const child = spawn(command, args, {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      })
+      child.on('error', (error) => resolve({ success: false, error: error.message }))
+      child.on('spawn', () => {
+        child.unref()
+        resolve({ success: true })
+      })
+    } catch (error) {
+      resolve({ success: false, error: error instanceof Error ? error.message : 'Failed to start process.' })
+    }
+  })
+}
+
+function spawnShellDetached(command: string) {
+  return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    try {
+      const child = spawn(command, {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+        shell: true,
+      })
+      child.on('error', (error) => resolve({ success: false, error: error.message }))
+      child.on('spawn', () => {
+        child.unref()
+        resolve({ success: true })
+      })
+    } catch (error) {
+      resolve({ success: false, error: error instanceof Error ? error.message : 'Failed to start process.' })
+    }
+  })
+}
+
+function resolveCustomCommand(preference: AppPreference, projectPath: string) {
+  if (!preference.command) {
+    return { success: false, error: 'Custom command is required.' }
+  }
+  const command = preference.command.includes('{path}')
+    ? preference.command.split('{path}').join(`"${projectPath}"`)
+    : `${preference.command} "${projectPath}"`
+  return spawnShellDetached(command)
+}
+
 function getProjectName(projectPath: string): string {
   const normalized = projectPath.endsWith(path.sep) ? projectPath.slice(0, -1) : projectPath
   return path.basename(normalized)
@@ -28,6 +127,22 @@ function getProjectName(projectPath: string): string {
 
 // Register all IPC handlers
 export function registerIpcHandlers() {
+  ipcMain.handle('dialog:open-folder', async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    const options: OpenDialogOptions = {
+      title: 'Select Project Folder',
+      properties: ['openDirectory'],
+    }
+    const result = focusedWindow
+      ? await dialog.showOpenDialog(focusedWindow, options)
+      : await dialog.showOpenDialog(options)
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { canceled: true }
+    }
+
+    return { canceled: false, path: result.filePaths[0] }
+  })
   // Projects
   ipcMain.handle('projects:get', async () => {
     const store = await getStore()
@@ -79,6 +194,72 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
+  ipcMain.handle('preferences:get', async () => {
+    return getPreferences()
+  })
+
+  ipcMain.handle('preferences:update', async (_event, updates: Partial<AppPreferences>) => {
+    await updateStore((draft) => {
+      const current = draft.preferences
+      draft.preferences = {
+        editor: {
+          id: updates?.editor?.id ?? current.editor.id,
+          command: updates?.editor?.command ?? current.editor.command,
+        },
+        terminal: {
+          id: updates?.terminal?.id ?? current.terminal.id,
+          command: updates?.terminal?.command ?? current.terminal.command,
+        },
+      }
+    })
+    return { success: true }
+  })
+
+  ipcMain.handle('projects:open-folder', async (_event, _id: string) => {
+    const projectPath = await getProjectPath(_id)
+    const result = await shell.openPath(projectPath)
+    if (result) {
+      return { success: false, error: result }
+    }
+    return { success: true }
+  })
+
+  ipcMain.handle('projects:open-editor', async (_event, _id: string) => {
+    const projectPath = await getProjectPath(_id)
+    const preferences = await getPreferences()
+    const preference = preferences.editor
+    if (preference.id === 'custom') {
+      return resolveCustomCommand(preference, projectPath)
+    }
+    if (process.platform === 'darwin') {
+      const appName = MAC_EDITOR_APPS[preference.id] ?? MAC_EDITOR_APPS.vscode
+      return spawnDetached('open', ['-a', appName, projectPath])
+    }
+    if (process.platform === 'win32') {
+      const command = WINDOWS_EDITOR_COMMANDS[preference.id] ?? WINDOWS_EDITOR_COMMANDS.vscode
+      return spawnDetached(command.command, command.args(projectPath))
+    }
+    return spawnDetached('code', [projectPath])
+  })
+
+  ipcMain.handle('projects:open-terminal', async (_event, _id: string) => {
+    const projectPath = await getProjectPath(_id)
+    const preferences = await getPreferences()
+    const preference = preferences.terminal
+    if (preference.id === 'custom') {
+      return resolveCustomCommand(preference, projectPath)
+    }
+    if (process.platform === 'darwin') {
+      const appName = MAC_TERMINAL_APPS[preference.id] ?? MAC_TERMINAL_APPS.terminal
+      return spawnDetached('open', ['-a', appName, projectPath])
+    }
+    if (process.platform === 'win32') {
+      const command = WINDOWS_TERMINAL_COMMANDS[preference.id] ?? WINDOWS_TERMINAL_COMMANDS['windows-terminal']
+      return spawnDetached(command.command, command.args(projectPath))
+    }
+    return spawnDetached('x-terminal-emulator', ['--working-directory', projectPath])
+  })
+
   // Commands
   ipcMain.handle('commands:get', async () => {
     const store = await getStore()
@@ -112,6 +293,9 @@ export function registerIpcHandlers() {
   )
 
   ipcMain.handle('commands:run', async (_event, _id: string, _projectId?: string) => {
+    if (!_projectId) {
+      throw new Error('Project is required to run a command.')
+    }
     const store = await getStore()
     const command = store.commands.find((entry) => entry.id === _id)
     if (!command) {

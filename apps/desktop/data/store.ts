@@ -2,9 +2,28 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { app } from 'electron'
 
-import { DATA_VERSION, type DataStore, type ProjectNotes } from './model'
+import { DATA_VERSION, type AppPreferences, type DataStore, type ProjectNotes } from './model'
 
 const STORE_FILENAME = 'devdesk-store.json'
+
+const createDefaultPreferences = (): AppPreferences => {
+  if (process.platform === 'win32') {
+    return {
+      editor: { id: 'vscode' },
+      terminal: { id: 'windows-terminal' },
+    }
+  }
+  if (process.platform === 'darwin') {
+    return {
+      editor: { id: 'vscode' },
+      terminal: { id: 'terminal' },
+    }
+  }
+  return {
+    editor: { id: 'vscode' },
+    terminal: { id: 'terminal' },
+  }
+}
 
 const createDefaultStore = (): DataStore => ({
   version: DATA_VERSION,
@@ -12,6 +31,7 @@ const createDefaultStore = (): DataStore => ({
   commands: [],
   runHistory: [],
   notes: {},
+  preferences: createDefaultPreferences(),
 })
 
 let cachedStore: DataStore | null = null
@@ -36,12 +56,26 @@ function normalizeStore(value: unknown): DataStore {
       ? (store.notes as Record<string, ProjectNotes>)
       : {}
 
+  const preferences = store.preferences && typeof store.preferences === 'object'
+    ? (store.preferences as Partial<AppPreferences>)
+    : undefined
+
   return {
     version: DATA_VERSION,
     projects: Array.isArray(store.projects) ? store.projects : [],
     commands: Array.isArray(store.commands) ? store.commands : [],
     runHistory: Array.isArray(store.runHistory) ? store.runHistory : [],
     notes,
+    preferences: {
+      editor: {
+        id: preferences?.editor?.id ?? createDefaultPreferences().editor.id,
+        command: preferences?.editor?.command,
+      },
+      terminal: {
+        id: preferences?.terminal?.id ?? createDefaultPreferences().terminal.id,
+        command: preferences?.terminal?.command,
+      },
+    },
   }
 }
 

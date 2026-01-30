@@ -5,6 +5,15 @@ interface ElectronAPI {
   getProjects: () => Promise<unknown[]>
   addProject: (path: string) => Promise<{ id: string; path: string }>
   removeProject: (id: string) => Promise<{ success: boolean }>
+  openProjectFolderDialog: () => Promise<{ canceled: boolean; path?: string }>
+  openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
+  openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
+  openProjectInTerminal: (id: string) => Promise<{ success: boolean; error?: string }>
+  getPreferences: () => Promise<{ editor: { id: string; command?: string }; terminal: { id: string; command?: string } }>
+  updatePreferences: (preferences: {
+    editor?: { id: string; command?: string }
+    terminal?: { id: string; command?: string }
+  }) => Promise<{ success: boolean }>
 
   getCommands: () => Promise<unknown[]>
   addCommand: (command: { name: string; command: string; description?: string; tags?: string[] }) => Promise<{ id: string }>
@@ -31,6 +40,13 @@ const electronAPI: ElectronAPI = {
   getProjects: () => ipcRenderer.invoke('projects:get'),
   addProject: (path: string) => ipcRenderer.invoke('projects:add', path),
   removeProject: (id: string) => ipcRenderer.invoke('projects:remove', id),
+  openProjectFolderDialog: () => ipcRenderer.invoke('dialog:open-folder'),
+  openProjectFolder: (id: string) => ipcRenderer.invoke('projects:open-folder', id),
+  openProjectInEditor: (id: string) => ipcRenderer.invoke('projects:open-editor', id),
+  openProjectInTerminal: (id: string) => ipcRenderer.invoke('projects:open-terminal', id),
+  getPreferences: () => ipcRenderer.invoke('preferences:get'),
+  updatePreferences: (preferences: { editor?: { id: string; command?: string }; terminal?: { id: string; command?: string } }) =>
+    ipcRenderer.invoke('preferences:update', preferences),
 
   // Commands
   getCommands: () => ipcRenderer.invoke('commands:get'),

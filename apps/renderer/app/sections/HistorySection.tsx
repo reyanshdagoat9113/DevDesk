@@ -59,6 +59,7 @@ export function HistorySection({
 
   const selectedEntryId = selectedEntry?.id ?? null
   const selectedEntryOutput = selectedEntry?.output ?? ''
+  const selectedEntryStatus = selectedEntry?.status
 
   useEffect(() => {
     if (!selectedEntryId) {
@@ -68,7 +69,19 @@ export function HistorySection({
       return
     }
 
-    if (!onLoadOutput) return
+    if (selectedEntryOutput) {
+      setOutputText(selectedEntryOutput)
+      setOutputError(null)
+      setOutputLoading(false)
+      return
+    }
+
+    if (!onLoadOutput || selectedEntryStatus === 'running') {
+      setOutputText(selectedEntryOutput)
+      setOutputError(null)
+      setOutputLoading(false)
+      return
+    }
 
     setOutputLoading(true)
     setOutputError(null)
@@ -82,13 +95,7 @@ export function HistorySection({
       .finally(() => {
         setOutputLoading(false)
       })
-  }, [onLoadOutput, selectedEntryId])
-
-  useEffect(() => {
-    if (selectedEntryId) {
-      setOutputText(selectedEntryOutput)
-    }
-  }, [selectedEntryId, selectedEntryOutput])
+  }, [onLoadOutput, selectedEntryId, selectedEntryOutput, selectedEntryStatus])
 
   const handleCopy = async () => {
     if (!outputText) return

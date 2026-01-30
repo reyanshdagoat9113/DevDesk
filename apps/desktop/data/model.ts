@@ -43,6 +43,16 @@ export interface ProjectNotes {
   reminders: string
 }
 
+export interface AppPreference {
+  id: string
+  command?: string
+}
+
+export interface AppPreferences {
+  editor: AppPreference
+  terminal: AppPreference
+}
+
 export const DATA_VERSION = 1 as const
 
 export interface DataStore {
@@ -51,4 +61,5 @@ export interface DataStore {
   commands: Command[]
   runHistory: RunHistoryEntry[]
   notes: Record<string, ProjectNotes>
+  preferences: AppPreferences
 }

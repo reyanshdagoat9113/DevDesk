@@ -19,7 +19,7 @@ import { ContainersSection } from './sections/ContainersSection'
 import { HistorySection } from './sections/HistorySection'
 import { NotesSection } from './sections/NotesSection'
 import { ProjectsSection } from './sections/ProjectsSection'
-import type { Command, Container as ContainerType, Project, ProjectNotes, RunHistoryEntry } from './types'
+import type { AppPreferences, Command, Container as ContainerType, Project, ProjectNotes, RunHistoryEntry } from './types'
 
 type TabValue = 'projects' | 'commands' | 'containers' | 'history' | 'notes'
 
@@ -43,6 +43,7 @@ function App() {
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [history, setHistory] = useState<RunHistoryEntry[]>([])
   const [notes, setNotes] = useState<Record<string, ProjectNotes>>({})
+  const [preferences, setPreferences] = useState<AppPreferences | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -50,6 +51,7 @@ function App() {
   const [projectPath, setProjectPath] = useState('')
   const [projectError, setProjectError] = useState<string | null>(null)
   const [isSavingProject, setIsSavingProject] = useState(false)
+  const [isPickingProject, setIsPickingProject] = useState(false)
 
   const [commandDialogOpen, setCommandDialogOpen] = useState(false)
   const [commandName, setCommandName] = useState('')
@@ -66,17 +68,19 @@ function App() {
     setIsLoading(true)
     setLoadError(null)
     try {
-      const [nextProjects, nextCommands, nextContainers, nextHistory] = await Promise.all([
+      const [nextProjects, nextCommands, nextContainers, nextHistory, nextPreferences] = await Promise.all([
         window.electronAPI.getProjects(),
         window.electronAPI.getCommands(),
         window.electronAPI.getContainers(),
         window.electronAPI.getRunHistory(),
+        window.electronAPI.getPreferences(),
       ])
 
       setProjects(nextProjects)
       setCommands(nextCommands)
       setContainers(nextContainers)
       setHistory(nextHistory)
+      setPreferences(nextPreferences)
 
       const notesEntries = await Promise.all(
         nextProjects.map((project) => window.electronAPI.getNotes(project.id))
@@ -158,6 +162,21 @@ function App() {
     }
   }
 
+  const handlePickProject = async () => {
+    setProjectError(null)
+    setIsPickingProject(true)
+    try {
+      const result = await window.electronAPI.openProjectFolderDialog()
+      if (!result.canceled && result.path) {
+        setProjectPath(result.path)
+      }
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : 'Failed to open folder picker.')
+    } finally {
+      setIsPickingProject(false)
+    }
+  }
+
   const handleAddCommand = async () => {
     const trimmedName = commandName.trim()
     const trimmedCommand = commandValue.trim()
@@ -191,14 +210,16 @@ function App() {
     }
   }
 
-  const handleRunCommand = async (commandId: string) => {
+  const handleRunCommand = async (commandId: string, projectId: string) => {
+    setLoadError(null)
     try {
-      const run = await window.electronAPI.runCommand(commandId)
+      const run = await window.electronAPI.runCommand(commandId, projectId)
       const startTime = new Date().toISOString()
       setHistory((prev) => [
         {
           id: run.runId,
           commandId,
+          projectId,
           status: 'running',
           startTime,
           output: '',
@@ -206,7 +227,9 @@ function App() {
         ...prev,
       ])
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Failed to run command.')
+      const message = error instanceof Error ? error.message : 'Failed to run command.'
+      setLoadError(message)
+      throw new Error(message)
     }
   }
 
@@ -256,6 +279,11 @@ function App() {
     }
   }
 
+  const handleSavePreferences = async (next: AppPreferences) => {
+    await window.electronAPI.updatePreferences(next)
+    setPreferences(next)
+  }
+
   return (
     <>
       <AppShell
@@ -280,11 +308,18 @@ function App() {
       >
         <div className="h-full">
           {activeTab === 'projects' && (
-            <ProjectsSection projects={projects} isLoading={isLoading} error={loadError} />
+            <ProjectsSection
+              projects={projects}
+              isLoading={isLoading}
+              error={loadError}
+              preferences={preferences}
+              onSavePreferences={handleSavePreferences}
+            />
           )}
           {activeTab === 'commands' && (
             <CommandsSection
               commands={commands}
+              projects={projects}
               isLoading={isLoading}
               error={loadError}
               onRunCommand={handleRunCommand}
@@ -323,12 +358,22 @@ function App() {
           <div className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="project-path">Project path</Label>
-              <Input
-                id="project-path"
-                value={projectPath}
-                onChange={(event) => setProjectPath(event.target.value)}
-                placeholder="C:\\Users\\name\\project"
-              />
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="project-path"
+                  value={projectPath}
+                  onChange={(event) => setProjectPath(event.target.value)}
+                  placeholder="Select a folder"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePickProject}
+                  disabled={isPickingProject}
+                >
+                  {isPickingProject ? 'Opening...' : 'Browse'}
+                </Button>
+              </div>
             </div>
             {projectError ? (
               <Alert variant="destructive">
