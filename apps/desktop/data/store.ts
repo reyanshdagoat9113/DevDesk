@@ -123,3 +123,15 @@ export async function updateStore(updater: (draft: DataStore) => void): Promise<
 
   return writeQueue
 }
+
+export async function reconcileRunHistory(): Promise<void> {
+  const now = new Date().toISOString()
+  await updateStore((draft) => {
+    draft.runHistory.forEach((entry) => {
+      if (entry.status === 'running') {
+        entry.status = 'stopped'
+        entry.endTime = entry.endTime ?? now
+      }
+    })
+  })
+}

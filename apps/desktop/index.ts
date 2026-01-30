@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { createMainWindow } from './app/createWindow'
+import { reconcileRunHistory } from './data/store'
 import { registerIpcHandlers } from './ipc/registerIpc'
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -7,7 +8,8 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 // Register IPC handlers before app is ready
 registerIpcHandlers()
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await reconcileRunHistory()
   createMainWindow(isDev)
 
   app.on('activate', () => {

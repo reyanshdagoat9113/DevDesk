@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/ui/Button'
 import { Label } from '../components/ui/Label'
 import { Textarea } from '../components/ui/Textarea'
@@ -10,11 +10,31 @@ const panelClass = 'flex h-full flex-col overflow-hidden rounded-lg border borde
 export function NotesSection({
   projects,
   notes,
+  isLoading,
+  error,
+  onSaveNotes,
 }: {
   projects: Project[]
   notes: Record<string, ProjectNotes>
+  isLoading?: boolean
+  error?: string | null
+  onSaveNotes?: (projectId: string, updates: Partial<ProjectNotes>) => Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
+  const [draft, setDraft] = useState({ ports: '', urls: '', reminders: '' })
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!projects.length) {
+      setSelectedId(null)
+      return
+    }
+    if (!selectedId || !projects.some((project) => project.id === selectedId)) {
+      setSelectedId(projects[0].id)
+    }
+  }, [projects, selectedId])
 
   const selectedProject = useMemo(() => {
     if (!projects.length) return null
@@ -22,6 +42,30 @@ export function NotesSection({
   }, [projects, selectedId])
 
   const selectedNotes = selectedProject ? notes[selectedProject.id] : null
+
+  useEffect(() => {
+    setDraft({
+      ports: selectedNotes?.ports ?? '',
+      urls: selectedNotes?.urls ?? '',
+      reminders: selectedNotes?.reminders ?? '',
+    })
+    setIsEditing(false)
+    setSaveError(null)
+  }, [selectedNotes?.projectId, selectedNotes?.ports, selectedNotes?.reminders, selectedNotes?.urls])
+
+  const handleSave = async () => {
+    if (!selectedProject || !onSaveNotes) return
+    setIsSaving(true)
+    setSaveError(null)
+    try {
+      await onSaveNotes(selectedProject.id, draft)
+      setIsEditing(false)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to save notes.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <SectionLayout
@@ -31,7 +75,15 @@ export function NotesSection({
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Notes</p>
           </div>
           <div className="flex-1 overflow-auto">
-            {projects.length === 0 ? (
+            {isLoading ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+                Loading notes...
+              </div>
+            ) : error ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-destructive">
+                {error}
+              </div>
+            ) : projects.length === 0 ? (
               <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
                 No projects available.
               </div>
@@ -73,30 +125,49 @@ export function NotesSection({
                 <div className="space-y-2">
                   <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Ports</Label>
                   <Textarea
-                    value={selectedNotes?.ports ?? ''}
+                    value={draft.ports}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, ports: event.target.value }))}
                     placeholder="Ports, one per line."
-                    readOnly
+                    readOnly={!isEditing}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Urls</Label>
                   <Textarea
-                    value={selectedNotes?.urls ?? ''}
+                    value={draft.urls}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, urls: event.target.value }))}
                     placeholder="URLs, one per line."
-                    readOnly
+                    readOnly={!isEditing}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Reminders</Label>
                   <Textarea
-                    value={selectedNotes?.reminders ?? ''}
+                    value={draft.reminders}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, reminders: event.target.value }))}
                     placeholder="Reminders."
-                    readOnly
+                    readOnly={!isEditing}
                   />
                 </div>
               </div>
               <div className="mt-auto">
-                <Button size="sm" variant="outline">Edit Notes</Button>
+                {saveError ? (
+                  <p className="mb-2 text-xs text-destructive">{saveError}</p>
+                ) : null}
+                {isEditing ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={isSaving}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={isSaving}>
+                      {isSaving ? 'Saving...' : 'Save Notes'}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                    Edit Notes
+                  </Button>
+                )}
               </div>
             </div>
           ) : (

@@ -7,9 +7,11 @@ interface ElectronAPI {
   removeProject: (id: string) => Promise<{ success: boolean }>
 
   getCommands: () => Promise<unknown[]>
-  addCommand: (command: { name: string; command: string; description?: string }) => Promise<{ id: string }>
+  addCommand: (command: { name: string; command: string; description?: string; tags?: string[] }) => Promise<{ id: string }>
   runCommand: (id: string, projectId?: string) => Promise<{ runId: string; status: string }>
   stopCommand: (runId: string) => Promise<{ success: boolean }>
+  onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => () => void
+  onRunStatus: (handler: (payload: { runId: string; status: string }) => void) => () => void
 
   getContainers: () => Promise<unknown[]>
   startContainer: (id: string) => Promise<{ success: boolean }>
@@ -32,11 +34,25 @@ const electronAPI: ElectronAPI = {
 
   // Commands
   getCommands: () => ipcRenderer.invoke('commands:get'),
-  addCommand: (command: { name: string; command: string; description?: string }) =>
+  addCommand: (command: { name: string; command: string; description?: string; tags?: string[] }) =>
     ipcRenderer.invoke('commands:add', command),
   runCommand: (id: string, projectId?: string) =>
     ipcRenderer.invoke('commands:run', id, projectId),
   stopCommand: (runId: string) => ipcRenderer.invoke('commands:stop', runId),
+  onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: { runId: string; chunk: string }) => {
+      handler(payload)
+    }
+    ipcRenderer.on('runs:output', listener)
+    return () => ipcRenderer.removeListener('runs:output', listener)
+  },
+  onRunStatus: (handler: (payload: { runId: string; status: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: { runId: string; status: string }) => {
+      handler(payload)
+    }
+    ipcRenderer.on('runs:status', listener)
+    return () => ipcRenderer.removeListener('runs:status', listener)
+  },
 
   // Containers
   getContainers: () => ipcRenderer.invoke('containers:get'),

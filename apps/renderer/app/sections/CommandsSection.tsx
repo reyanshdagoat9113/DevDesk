@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Play } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -7,8 +7,28 @@ import type { Command } from '../types'
 
 const panelClass = 'flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card'
 
-export function CommandsSection({ commands }: { commands: Command[] }) {
+export function CommandsSection({
+  commands,
+  isLoading,
+  error,
+  onRunCommand,
+}: {
+  commands: Command[]
+  isLoading?: boolean
+  error?: string | null
+  onRunCommand?: (commandId: string) => void
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(commands[0]?.id ?? null)
+
+  useEffect(() => {
+    if (!commands.length) {
+      setSelectedId(null)
+      return
+    }
+    if (!selectedId || !commands.some((command) => command.id === selectedId)) {
+      setSelectedId(commands[0].id)
+    }
+  }, [commands, selectedId])
 
   const selectedCommand = useMemo(() => {
     if (!commands.length) return null
@@ -23,7 +43,15 @@ export function CommandsSection({ commands }: { commands: Command[] }) {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Commands</p>
           </div>
           <div className="flex-1 overflow-auto">
-            {commands.length === 0 ? (
+            {isLoading ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+                Loading commands...
+              </div>
+            ) : error ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-destructive">
+                {error}
+              </div>
+            ) : commands.length === 0 ? (
               <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
                 No commands saved yet.
               </div>
@@ -80,7 +108,12 @@ export function CommandsSection({ commands }: { commands: Command[] }) {
                 ) : null}
               </div>
               <div className="mt-auto">
-                <Button size="sm" className="gap-2">
+                <Button
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => selectedCommand && onRunCommand?.(selectedCommand.id)}
+                  disabled={!selectedCommand}
+                >
                   <Play className="h-4 w-4" />
                   Run Command
                 </Button>

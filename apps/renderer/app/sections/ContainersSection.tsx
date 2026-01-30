@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Square, Power, Logs } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { SectionLayout } from '../layout/SectionLayout'
@@ -12,8 +12,32 @@ const statusStyles: Record<Container['state'], string> = {
   paused: 'bg-amber-400',
 }
 
-export function ContainersSection({ containers }: { containers: Container[] }) {
+export function ContainersSection({
+  containers,
+  isLoading,
+  error,
+  onStartContainer,
+  onStopContainer,
+  onViewLogs,
+}: {
+  containers: Container[]
+  isLoading?: boolean
+  error?: string | null
+  onStartContainer?: (containerId: string) => void
+  onStopContainer?: (containerId: string) => void
+  onViewLogs?: (containerId: string) => void
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(containers[0]?.id ?? null)
+
+  useEffect(() => {
+    if (!containers.length) {
+      setSelectedId(null)
+      return
+    }
+    if (!selectedId || !containers.some((container) => container.id === selectedId)) {
+      setSelectedId(containers[0].id)
+    }
+  }, [containers, selectedId])
 
   const selectedContainer = useMemo(() => {
     if (!containers.length) return null
@@ -28,7 +52,15 @@ export function ContainersSection({ containers }: { containers: Container[] }) {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Containers</p>
           </div>
           <div className="flex-1 overflow-auto">
-            {containers.length === 0 ? (
+            {isLoading ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+                Loading containers...
+              </div>
+            ) : error ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-destructive">
+                {error}
+              </div>
+            ) : containers.length === 0 ? (
               <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
                 No containers detected.
               </div>
@@ -82,17 +114,34 @@ export function ContainersSection({ containers }: { containers: Container[] }) {
               <div className="flex flex-wrap gap-2">
                 {selectedContainer.state === 'running' ? (
                   <>
-                    <Button size="sm" variant="outline" className="gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => onViewLogs?.(selectedContainer.id)}
+                      disabled={!onViewLogs}
+                    >
                       <Logs className="h-4 w-4" />
                       Logs
                     </Button>
-                    <Button size="sm" variant="destructive" className="gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="gap-1.5"
+                      onClick={() => onStopContainer?.(selectedContainer.id)}
+                      disabled={!onStopContainer}
+                    >
                       <Square className="h-4 w-4" />
                       Stop
                     </Button>
                   </>
                 ) : (
-                  <Button size="sm" className="gap-1.5">
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => onStartContainer?.(selectedContainer.id)}
+                    disabled={!onStartContainer}
+                  >
                     <Power className="h-4 w-4" />
                     Start
                   </Button>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Terminal } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -7,8 +7,26 @@ import type { Project } from '../types'
 
 const panelClass = 'flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card'
 
-export function ProjectsSection({ projects }: { projects: Project[] }) {
+export function ProjectsSection({
+  projects,
+  isLoading,
+  error,
+}: {
+  projects: Project[]
+  isLoading?: boolean
+  error?: string | null
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
+
+  useEffect(() => {
+    if (!projects.length) {
+      setSelectedId(null)
+      return
+    }
+    if (!selectedId || !projects.some((project) => project.id === selectedId)) {
+      setSelectedId(projects[0].id)
+    }
+  }, [projects, selectedId])
 
   const selectedProject = useMemo(() => {
     if (!projects.length) return null
@@ -23,7 +41,15 @@ export function ProjectsSection({ projects }: { projects: Project[] }) {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Projects</p>
           </div>
           <div className="flex-1 overflow-auto">
-            {projects.length === 0 ? (
+            {isLoading ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+                Loading projects...
+              </div>
+            ) : error ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-destructive">
+                {error}
+              </div>
+            ) : projects.length === 0 ? (
               <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
                 No projects added yet.
               </div>
@@ -71,11 +97,11 @@ export function ProjectsSection({ projects }: { projects: Project[] }) {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" className="gap-1.5">
+                <Button size="sm" variant="secondary" className="gap-1.5" disabled>
                   <ExternalLink className="h-4 w-4" />
                   Open Folder
                 </Button>
-                <Button size="sm" variant="outline" className="gap-1.5">
+                <Button size="sm" variant="outline" className="gap-1.5" disabled>
                   <Terminal className="h-4 w-4" />
                   Run Command
                 </Button>

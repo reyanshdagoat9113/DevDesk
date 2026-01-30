@@ -85,7 +85,12 @@ export function registerIpcHandlers() {
     return store.commands
   })
 
-  ipcMain.handle('commands:add', async (_event, command: { name: string; command: string; description?: string }) => {
+  ipcMain.handle(
+    'commands:add',
+    async (
+      _event,
+      command: { name: string; command: string; description?: string; tags?: string[] }
+    ) => {
     if (!command?.name || !command?.command) {
       throw new Error('Command name and command are required.')
     }
@@ -95,6 +100,7 @@ export function registerIpcHandlers() {
       name: command.name,
       command: command.command,
       description: command.description,
+      tags: command.tags,
     }
 
     await updateStore((draft) => {
@@ -102,7 +108,8 @@ export function registerIpcHandlers() {
     })
 
     return nextCommand
-  })
+    }
+  )
 
   ipcMain.handle('commands:run', async (_event, _id: string, _projectId?: string) => {
     const store = await getStore()

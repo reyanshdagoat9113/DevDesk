@@ -1,0 +1,31 @@
+import type { Command, Container, Project, ProjectNotes, RunHistoryEntry } from '../types'
+
+export interface ElectronAPI {
+  getProjects: () => Promise<Project[]>
+  addProject: (path: string) => Promise<Project>
+  removeProject: (id: string) => Promise<{ success: boolean }>
+
+  getCommands: () => Promise<Command[]>
+  addCommand: (command: { name: string; command: string; description?: string; tags?: string[] }) => Promise<Command>
+  runCommand: (id: string, projectId?: string) => Promise<{ runId: string; status: string }>
+  stopCommand: (runId: string) => Promise<{ success: boolean }>
+  onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => () => void
+  onRunStatus: (handler: (payload: { runId: string; status: string }) => void) => () => void
+
+  getContainers: () => Promise<Container[]>
+  startContainer: (id: string) => Promise<{ success: boolean }>
+  stopContainer: (id: string) => Promise<{ success: boolean }>
+  getContainerLogs: (id: string) => Promise<string>
+
+  getRunHistory: () => Promise<RunHistoryEntry[]>
+  getRunOutput: (runId: string) => Promise<string>
+
+  getNotes: (projectId: string) => Promise<ProjectNotes>
+  updateNotes: (projectId: string, notes: Partial<ProjectNotes>) => Promise<{ success: boolean }>
+}
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI
+  }
+}

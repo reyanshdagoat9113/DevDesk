@@ -4,3 +4,13 @@ export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
 export { Badge, badgeVariants, type BadgeProps } from './Badge'
 export { Alert, AlertTitle, AlertDescription } from './Alert'
 export { Label } from './Label'
+export {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from './Dialog'
