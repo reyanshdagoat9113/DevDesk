@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, Menu } from 'electron'
 import path from 'node:path'
 
 export function createMainWindow(isDev: boolean): BrowserWindow {
@@ -15,6 +15,12 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
       contextIsolation: true,
     },
   })
+
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null)
+    mainWindow.setMenuBarVisibility(false)
+    mainWindow.removeMenu()
+  }
 
   // Load the app
   if (isDev) {

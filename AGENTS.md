@@ -1,4 +1,5 @@
-
+#Rules:
+1. For UI changes, try to use tailwind, shadcn and radix wherever you can and should.
 
 
 # Repository Guidelines
