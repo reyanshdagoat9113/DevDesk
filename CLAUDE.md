@@ -1,8 +1,4 @@
-
-
-
 # CLAUDE.md
-
 
 ## Common Commands
 
@@ -15,74 +11,37 @@ npm run typecheck
 
 ## Architecture
 
-DevDesk is intended to be an Electron app with a three-layer architecture when implementation resumes:
+DevDesk is an Electron app with a three-layer architecture:
 
-### Process Boundaries
+- Main process: Node.js + TypeScript in `apps/desktop`. Handles IPC, command execution, persistence, and project detection.
+- Renderer: TypeScript + React in `apps/renderer`. UI only.
+- Preload: `apps/desktop/preload.ts` exposes a small, explicit API as `window.electronAPI`.
 
-- **Main Process**: Node.js + TypeScript. Full system access. Runs commands, talks to Docker CLI, reads filesystem, persists data.
-- **Renderer Process**: TypeScript + React. UI only. Cannot access Node APIs directly. Sends intent-based requests via IPC.
-- **Preload Layer**: Context bridge that exposes a whitelist of safe APIs to the renderer. Enforces security boundaries.
+Implementation notes:
+- IPC channels use kebab-case (e.g. `projects:add`, `commands:run`).
+- The data store is JSON in userData as `devdesk-store.json`. Schema lives in `apps/desktop/data/model.ts`.
+- `reconcileRunHistory()` marks any "running" entries as "stopped" on startup.
 
-Implementation note: keep the main entry thin and push logic into submodules to avoid a single large file.
+## Current Feature Coverage
 
-### Communication Flow
+Implemented:
+- Projects: add, remove (IPC), open folder/editor/terminal, type detection.
+- Preferences: editor/terminal selection with custom command support (`{path}`).
+- Commands: create, run, stop, tags + description.
+- Run history: status + output streaming + output retrieval.
+- Notes: per-project ports/urls/reminders.
 
-```
-Renderer (React UI)
-    → window.electronAPI (via preload)
-    → IPC handlers
-    → Main Process handlers
-    → System (Docker CLI, shell, fs)
-```
+Not implemented yet:
+- Docker integration (containers IPC is stubbed).
+- Command edit/delete and search UI.
+- Project removal UI.
 
-The preload layer should only expose explicitly defined channels. New IPC channels must be added to both the preload script and main process handlers.
+## Key Constraints
+- Local-first only. No cloud, no accounts, no AI.
+- Safe by default. Destructive actions require confirmation.
+- Platform targets: macOS + Windows (Linux post-MVP).
 
-### UI Libraries
-
-- Use shadcn/ui component patterns with Radix UI primitives.
-- Components live in `apps/renderer/app/components/ui`.
-- shadcn CLI config is `components.json`.
-  - Aliases map to `@/app/components` and `@/app/components/ui`.
-
-### Core Features
-
-1. **Project Manager**: Auto-detects project type (node/python/rust/go) from presence of package.json, pyproject.toml, Cargo.toml, go.mod
-2. **Command Vault**: Stores terminal commands with variables support (`{{container}}` syntax). Can run globally or in project context.
-3. **Containers**: Docker CLI wrapper. Lists, starts, stops containers. Must gracefully degrade if Docker not installed.
-4. **Run History**: Tracks command execution status (running/success/failed/stopped). Allows stopping long-running commands and viewing output.
-5. **Project Notes**: Lightweight notes for ports, URLs, and reminders tied to a project.
-
-### Key Constraints
-
-- **Local-first only**: No cloud, no accounts, no AI
-- **Safe by default**: Destructive actions require user confirmation
-- **Platform targets**: macOS + Windows (Linux is post-MVP)
-- **Don't overbuild**: MVP is defined in README. Future enhancements are explicitly optional.
-
-### MVP Scope
-
-- Add and list projects
-- Create and run saved commands
-- See Docker containers and logs
-- View and stop running commands
-- View run history with output access
-- Edit simple project notes (ports, URLs, reminders)
-
-### TypeScript Configuration
-
-Two separate configs:
-- Renderer config (React, ESNext with bundler module resolution)
-- Main process config (CommonJS for Electron)
-
-### Building
-
-The build process:
-1. Compile main process TypeScript
-2. Bundle renderer
-3. Bundle preload script
-
-Renderer output is `dist/renderer`, and production loads `../../renderer/index.html` from the main process build directory.
-
-### Non-Goals
-
-Do not add: AI features, team collaboration, cloud sync, full terminal replacement, heavy analytics. These are explicitly called out as anti-patterns in the README.
+## Build Outputs
+- Renderer output: `dist/renderer`
+- Main/preload output: `dist/main`, `dist/preload` (tsc)
+- Production loads `../../renderer/index.html` from main process build output.

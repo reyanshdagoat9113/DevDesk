@@ -14,6 +14,8 @@ export interface Command {
   command: string
   description?: string
   tags?: string[]
+  projectId?: string
+  workingDirectory?: string
 }
 
 export interface Container {
@@ -38,8 +40,8 @@ export interface RunHistoryEntry {
 
 export interface ProjectNotes {
   projectId: string
-  ports: string
-  urls: string
+  setupSteps: string
+  todos: string
   reminders: string
 }
 
@@ -53,7 +55,7 @@ export interface AppPreferences {
   terminal: AppPreference
 }
 
-export const DATA_VERSION = 1 as const
+export const DATA_VERSION = 2 as const
 
 export interface DataStore {
   version: typeof DATA_VERSION

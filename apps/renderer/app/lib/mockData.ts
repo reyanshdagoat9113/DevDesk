@@ -139,26 +139,26 @@ export const mockRunHistory: RunHistoryEntry[] = [
 export const mockNotes: Record<string, ProjectNotes> = {
   '1': {
     projectId: '1',
-    ports: '5173 (Vite dev), 3000 (API)',
-    urls: 'http://localhost:5173',
+    setupSteps: 'Install deps\nnpm install\n\nRun dev\nnpm run dev',
+    todos: 'Finish search UI\nClean up command tags',
     reminders: 'Remember to rebuild Docker image after dependency changes',
   },
   '2': {
     projectId: '2',
-    ports: '3000 (API), 9229 (Debugger)',
-    urls: 'http://localhost:3000\nhttp://localhost:3000/docs',
+    setupSteps: 'pnpm install\npnpm db:migrate\npnpm dev',
+    todos: 'Add healthcheck endpoint\nReview auth scopes',
     reminders: '',
   },
   '3': {
     projectId: '3',
-    ports: '8888 (Jupyter)',
-    urls: 'http://localhost:8888/lab',
+    setupSteps: 'conda env create -f env.yml\nconda activate ml\njupyter lab',
+    todos: 'Document dataset sources\nRe-run baseline model',
     reminders: 'GPU requirements: need CUDA 11.8',
   },
   '4': {
     projectId: '4',
-    ports: '',
-    urls: '',
+    setupSteps: '',
+    todos: '',
     reminders: 'Still in early development',
   },
 }

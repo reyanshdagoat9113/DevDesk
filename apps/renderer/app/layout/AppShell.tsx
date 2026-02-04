@@ -1,11 +1,15 @@
 import type { ReactNode } from 'react'
 import { Sparkles } from 'lucide-react'
+import { Badge } from '../components/ui/Badge'
 import { ScrollArea } from '../components/ui/ScrollArea'
+import { Separator } from '../components/ui/Separator'
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/Tabs'
 
 interface NavItem {
   value: string
   label: string
   icon: React.ComponentType<{ className?: string }>
+  count?: number
 }
 
 interface AppShellProps {
@@ -19,8 +23,8 @@ interface AppShellProps {
 
 export function AppShell({ navItems, activeNav, onNavChange, title, action, children }: AppShellProps) {
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <aside className="flex w-56 flex-col border-r border-border bg-card">
+    <div className="flex h-screen bg-gradient-to-br from-background via-background to-muted/20 text-foreground">
+      <aside className="flex w-60 flex-col border-r border-border/60 bg-card/80 backdrop-blur">
         <div className="px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -32,32 +36,45 @@ export function AppShell({ navItems, activeNav, onNavChange, title, action, chil
             </div>
           </div>
         </div>
-        <ScrollArea className="flex-1 px-2 pb-4">
-          <nav className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive = activeNav === item.value
-              return (
-                <button
-                  key={item.value}
-                  onClick={() => onNavChange(item.value)}
-                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </button>
-              )
-            })}
-          </nav>
+        <Separator />
+        <ScrollArea className="flex-1 px-2 py-3">
+          <Tabs
+            value={activeNav}
+            onValueChange={onNavChange}
+            orientation="vertical"
+            className="flex h-full flex-col"
+          >
+            <TabsList className="h-auto w-full flex-col items-stretch gap-1 bg-transparent p-0">
+              {navItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <TabsTrigger
+                    key={item.value}
+                    value={item.value}
+                    className="group w-full justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icon className="h-4 w-4 text-muted-foreground transition-colors group-data-[state=active]:text-foreground" />
+                      <span>{item.label}</span>
+                    </span>
+                    {typeof item.count === 'number' ? (
+                      <Badge
+                        variant="secondary"
+                        className="min-w-[26px] justify-center px-2 text-[10px] font-semibold"
+                      >
+                        {item.count}
+                      </Badge>
+                    ) : null}
+                  </TabsTrigger>
+                )
+              })}
+            </TabsList>
+          </Tabs>
         </ScrollArea>
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b border-border bg-background px-6 py-4">
+        <header className="flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-4 backdrop-blur">
           <h1 className="text-base font-semibold">{title}</h1>
           {action ? <div className="flex items-center gap-2">{action}</div> : null}
         </header>

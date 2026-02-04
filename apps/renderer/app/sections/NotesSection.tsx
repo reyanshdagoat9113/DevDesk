@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/ui/Button'
 import { Label } from '../components/ui/Label'
 import { Textarea } from '../components/ui/Textarea'
+import { Separator } from '../components/ui/Separator'
 import { SectionLayout } from '../layout/SectionLayout'
 import type { Project, ProjectNotes } from '../types'
 
-const panelClass = 'flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card'
+const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm'
 
 export function NotesSection({
   projects,
@@ -21,7 +22,7 @@ export function NotesSection({
   onSaveNotes?: (projectId: string, updates: Partial<ProjectNotes>) => Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
-  const [draft, setDraft] = useState({ ports: '', urls: '', reminders: '' })
+  const [draft, setDraft] = useState({ setupSteps: '', todos: '', reminders: '' })
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -45,13 +46,13 @@ export function NotesSection({
 
   useEffect(() => {
     setDraft({
-      ports: selectedNotes?.ports ?? '',
-      urls: selectedNotes?.urls ?? '',
+      setupSteps: selectedNotes?.setupSteps ?? '',
+      todos: selectedNotes?.todos ?? '',
       reminders: selectedNotes?.reminders ?? '',
     })
     setIsEditing(false)
     setSaveError(null)
-  }, [selectedNotes?.projectId, selectedNotes?.ports, selectedNotes?.reminders, selectedNotes?.urls])
+  }, [selectedNotes?.projectId, selectedNotes?.setupSteps, selectedNotes?.todos, selectedNotes?.reminders])
 
   const handleSave = async () => {
     if (!selectedProject || !onSaveNotes) return
@@ -71,7 +72,7 @@ export function NotesSection({
     <SectionLayout
       list={
         <div className={panelClass}>
-          <div className="border-b border-border px-4 py-3">
+          <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Notes</p>
           </div>
           <div className="flex-1 overflow-auto">
@@ -94,8 +95,11 @@ export function NotesSection({
                   <button
                     key={project.id}
                     onClick={() => setSelectedId(project.id)}
-                    className={`flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-b-0 ${
-                      isActive ? 'bg-accent text-foreground' : 'hover:bg-accent/60'
+                    aria-pressed={isActive}
+                    className={`group relative flex w-full items-center gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring last:border-b-0 ${
+                      isActive
+                        ? "bg-accent/70 text-foreground before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:bg-primary before:content-['']"
+                        : 'hover:bg-accent/60'
                     }`}
                   >
                     <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
@@ -121,32 +125,44 @@ export function NotesSection({
                 <h2 className="mt-3 text-lg font-semibold">{selectedProject.name}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{selectedProject.path}</p>
               </div>
+              <Separator />
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Ports</Label>
+                  <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Setup Steps / Runbook
+                  </Label>
                   <Textarea
-                    value={draft.ports}
-                    onChange={(event) => setDraft((prev) => ({ ...prev, ports: event.target.value }))}
-                    placeholder="Ports, one per line."
-                    readOnly={!isEditing}
+                    value={draft.setupSteps}
+                    onChange={(event) => {
+                      if (!isEditing) setIsEditing(true)
+                      setDraft((prev) => ({ ...prev, setupSteps: event.target.value }))
+                    }}
+                    onFocus={() => setIsEditing(true)}
+                    placeholder="Setup steps, commands, or runbook notes."
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Urls</Label>
+                  <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Todos</Label>
                   <Textarea
-                    value={draft.urls}
-                    onChange={(event) => setDraft((prev) => ({ ...prev, urls: event.target.value }))}
-                    placeholder="URLs, one per line."
-                    readOnly={!isEditing}
+                    value={draft.todos}
+                    onChange={(event) => {
+                      if (!isEditing) setIsEditing(true)
+                      setDraft((prev) => ({ ...prev, todos: event.target.value }))
+                    }}
+                    onFocus={() => setIsEditing(true)}
+                    placeholder="Todos, one per line."
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Reminders</Label>
                   <Textarea
                     value={draft.reminders}
-                    onChange={(event) => setDraft((prev) => ({ ...prev, reminders: event.target.value }))}
+                    onChange={(event) => {
+                      if (!isEditing) setIsEditing(true)
+                      setDraft((prev) => ({ ...prev, reminders: event.target.value }))
+                    }}
+                    onFocus={() => setIsEditing(true)}
                     placeholder="Reminders."
-                    readOnly={!isEditing}
                   />
                 </div>
               </div>

@@ -5,6 +5,7 @@ interface ElectronAPI {
   getProjects: () => Promise<unknown[]>
   addProject: (path: string) => Promise<{ id: string; path: string }>
   removeProject: (id: string) => Promise<{ success: boolean }>
+  updateProject: (id: string, updates: { name: string }) => Promise<{ id: string; name: string }>
   openProjectFolderDialog: () => Promise<{ canceled: boolean; path?: string }>
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
@@ -16,7 +17,10 @@ interface ElectronAPI {
   }) => Promise<{ success: boolean }>
 
   getCommands: () => Promise<unknown[]>
-  addCommand: (command: { name: string; command: string; description?: string; tags?: string[] }) => Promise<{ id: string }>
+  addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) => Promise<{ id: string }>
+  updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) => Promise<{ id: string }>
+  removeCommand: (id: string) => Promise<{ success: boolean }>
+  getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
   runCommand: (id: string, projectId?: string) => Promise<{ runId: string; status: string }>
   stopCommand: (runId: string) => Promise<{ success: boolean }>
   onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => () => void
@@ -29,9 +33,10 @@ interface ElectronAPI {
 
   getRunHistory: () => Promise<unknown[]>
   getRunOutput: (runId: string) => Promise<string>
+  clearRunHistory: () => Promise<{ success: boolean }>
 
-  getNotes: (projectId: string) => Promise<{ ports: string; urls: string; reminders: string }>
-  updateNotes: (projectId: string, notes: { ports?: string; urls?: string; reminders?: string }) => Promise<{ success: boolean }>
+  getNotes: (projectId: string) => Promise<{ setupSteps: string; todos: string; reminders: string }>
+  updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) => Promise<{ success: boolean }>
 }
 
 // Expose a safe API to the renderer process
@@ -40,6 +45,8 @@ const electronAPI: ElectronAPI = {
   getProjects: () => ipcRenderer.invoke('projects:get'),
   addProject: (path: string) => ipcRenderer.invoke('projects:add', path),
   removeProject: (id: string) => ipcRenderer.invoke('projects:remove', id),
+  updateProject: (id: string, updates: { name: string }) =>
+    ipcRenderer.invoke('projects:update', id, updates),
   openProjectFolderDialog: () => ipcRenderer.invoke('dialog:open-folder'),
   openProjectFolder: (id: string) => ipcRenderer.invoke('projects:open-folder', id),
   openProjectInEditor: (id: string) => ipcRenderer.invoke('projects:open-editor', id),
@@ -50,8 +57,13 @@ const electronAPI: ElectronAPI = {
 
   // Commands
   getCommands: () => ipcRenderer.invoke('commands:get'),
-  addCommand: (command: { name: string; command: string; description?: string; tags?: string[] }) =>
+  addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) =>
     ipcRenderer.invoke('commands:add', command),
+  updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) =>
+    ipcRenderer.invoke('commands:update', id, updates),
+  removeCommand: (id: string) => ipcRenderer.invoke('commands:remove', id),
+  getProjectDirectories: (projectId: string, relativePath?: string) =>
+    ipcRenderer.invoke('commands:get-directories', projectId, relativePath),
   runCommand: (id: string, projectId?: string) =>
     ipcRenderer.invoke('commands:run', id, projectId),
   stopCommand: (runId: string) => ipcRenderer.invoke('commands:stop', runId),
@@ -79,10 +91,11 @@ const electronAPI: ElectronAPI = {
   // Run History
   getRunHistory: () => ipcRenderer.invoke('history:get'),
   getRunOutput: (runId: string) => ipcRenderer.invoke('history:output', runId),
+  clearRunHistory: () => ipcRenderer.invoke('history:clear'),
 
   // Notes
   getNotes: (projectId: string) => ipcRenderer.invoke('notes:get', projectId),
-  updateNotes: (projectId: string, notes: { ports?: string; urls?: string; reminders?: string }) =>
+  updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) =>
     ipcRenderer.invoke('notes:update', projectId, notes),
 }
 

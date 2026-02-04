@@ -1,6 +1,6 @@
 # Data Model (MVP)
 
-This is the minimal, stable data model for the first functionality pass.
+This is the current data model used by the app. It matches `apps/desktop/data/model.ts`.
 
 ## Core Entities
 
@@ -36,18 +36,23 @@ This is the minimal, stable data model for the first functionality pass.
 
 ### Project Notes
 - `projectId`
-- `ports`
-- `urls`
-- `reminders`
+- `ports`: string (multiline, one per line)
+- `urls`: string (multiline, one per line)
+- `reminders`: string (multiline)
+
+### App Preferences
+- `editor`: `{ id: string, command?: string }`
+- `terminal`: `{ id: string, command?: string }`
 
 ## Persisted Store
 
-Stored locally as a single versioned object:
+Stored locally as a single versioned object in userData (`devdesk-store.json`):
 
 - `version`: 1
 - `projects`: Project[]
 - `commands`: Command[]
 - `runHistory`: RunHistoryEntry[]
 - `notes`: Record<string, ProjectNotes>
+- `preferences`: AppPreferences
 
 Containers are fetched from Docker at runtime and are not persisted in the store.

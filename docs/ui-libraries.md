@@ -1,15 +1,15 @@
 # UI Libraries: shadcn/ui + Radix UI
 
-This project previously used shadcn/ui component patterns and Radix UI primitives. When the UI is rebuilt, use this baseline to keep the system consistent.
+DevDesk uses shadcn/ui component patterns on top of Radix UI primitives.
 
 ## Goals
 - Use Radix primitives for accessibility and behavior.
 - Wrap primitives with Tailwind classes and cva variants.
 - Keep component APIs small and consistent.
 
-## Recommended structure
+## Structure
 - `apps/renderer/app/components/ui/` for shadcn-style wrappers (Button, Tabs, Card, Alert, Badge).
-- `apps/renderer/lib/utils.ts` for a `cn(...)` helper using `clsx` + `tailwind-merge`.
+- `apps/renderer/lib/utils.ts` for the `cn(...)` helper using `clsx` + `tailwind-merge`.
 
 ## Component pattern
 - Use `class-variance-authority` for variant and size styles.
@@ -50,14 +50,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   }
 )
 ```
-
-## Tabs pattern
-- Use `@radix-ui/react-tabs` Root/List/Trigger/Content.
-- Style active state via `data-[state=active]` classes.
-
-## Alerts, cards, badges
-- Use `cva` for variant coloring.
-- Keep typography in the wrapper component.
 
 ## Notes
 - Keep styles in Tailwind classes; avoid inline styles.

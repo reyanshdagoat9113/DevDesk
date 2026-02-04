@@ -1,205 +1,134 @@
-# DevDesk — Electron App Overview
+# DevDesk - Electron App Overview
 
-## Status
+A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, and Docker/Compose Manager into one clean, fast workspace.
 
-Implementation code has been removed to restart the project. This repository currently holds product and design documentation only. UI library usage notes live in `docs/ui-libraries.md`.
+## Status (2026-01-30)
 
-## UI Libraries
+Implemented:
+- Electron shell + Vite renderer, shadcn/ui + Radix components.
+- JSON persistence in userData (`devdesk-store.json`).
+- Projects: add, detect type, open folder/IDE/terminal.
+- Preferences for editor/terminal (custom command support).
+- Command Vault: create/run/stop commands with tags + description.
+- Run history with live output streaming + full output viewer.
+- Project notes (ports/URLs/reminders).
 
-The renderer UI is built with shadcn/ui component patterns on top of Radix UI primitives. Components live in `apps/renderer/app/components/ui`, and the shadcn CLI is configured via `components.json`.
+In progress:
+- Docker container integration (UI present, IPC stubbed).
+- Command edit/delete + search UI.
+- Project removal UI.
+- Production build verification.
 
-A **local-first Electron desktop app for developers** that combines a **Project Manager**, **Command Vault**, and **Docker/Compose Manager** into one clean, fast workspace.
+## Quick Start
 
-- **Tech stack:** Node.js + TypeScript (backend), TypeScript + React (frontend)
-- **No AI, no cloud, no accounts**
-- **Target platforms:** macOS + Windows (Linux later)
-
-This document is intentionally **high-level**. It describes *what the app does* and *how pieces fit together*, without locking you into heavy schemas or file layouts.
-
----
+- `npm run dev` - build main/preload, start Vite, launch Electron.
+- `npm run build` - build main/preload and renderer bundle.
 
 ## Purpose
 
 DevDesk exists to remove daily developer friction:
+- Jump into projects without remembering commands.
+- Reuse complex terminal commands safely.
+- Control Docker containers and compose stacks visually.
+- Keep a simple history of what you ran and when.
 
-- Jump into projects without remembering commands
-- Reuse complex terminal commands safely
-- Control Docker containers and compose stacks visually
-- Keep a simple history of what you ran and when
-
-If it saves even **5 minutes per day**, it’s doing its job.
-
----
+If it saves even 5 minutes per day, it is doing its job.
 
 ## Core Principles
 
-- **Local-first**: everything runs on your machine
-- **Deterministic**: buttons do predictable things
-- **Opinionated**: optimized for solo dev workflows
-- **Safe by default**: destructive actions require intent
-- **Fast UI**: keyboard-first, minimal clicks
+- Local-first: everything runs on your machine.
+- Deterministic: buttons do predictable things.
+- Opinionated: optimized for solo dev workflows.
+- Safe by default: destructive actions require intent.
+- Fast UI: keyboard-first, minimal clicks.
 
----
-
-## Core Features (The “Combo”)
+## Core Features (The Combo)
 
 ### 1) Project Manager
-
-**What it does**
-- Add local project folders
-- Automatically recognize project type from common files
-- Acts as the “home screen” of the app
-
-**Typical actions**
-- Open project in editor (VS Code / Cursor)
-- Open terminal in project directory
-- Run a saved command in project context
-- Show project notes (ports, URLs, reminders)
-
-**Why it matters**
-This removes the mental overhead of:
-> “Where is this project and how do I start it again?”
-
----
+- Add local project folders and detect project type.
+- Open in editor/terminal or reveal in file explorer.
+- Acts as the home screen of the app.
 
 ### 2) Command Vault
-
-**What it does**
-- Store frequently used terminal commands
-- Add short explanations for *future you*
-- Tag, search, favorite, and reuse commands
-
-**Command behavior**
-- Can run globally or inside a selected project
-- Supports simple variables (e.g. `{{container}}`)
-- Can be linked to one or more projects as presets
-
-**Example use cases**
-- Docker cleanup commands
-- Git recovery one-liners
-- Rare WSL / system fix commands
-
----
+- Store frequently used terminal commands.
+- Add descriptions and tags.
+- Run commands in project context.
 
 ### 3) Containers (Docker + Compose)
-
-**What it does**
-- List running and stopped containers
-- Start, stop, restart containers
-- View and follow logs
-- Manage compose stacks per project
-
-**Implementation approach**
-- Uses Docker CLI under the hood
-- If Docker isn’t installed, the app degrades gracefully
-
-**Goal**
-Replace “remembering Docker commands” with clear actions.
-
----
+- List running and stopped containers.
+- Start, stop, and view logs.
+- Graceful fallback when Docker is missing.
 
 ### 4) Run History
+- Shows what commands were run.
+- Displays status (running / success / failed / stopped).
+- Allows stopping long-running commands.
+- Provides access to output for sharing or debugging.
 
-**What it does**
-- Shows what commands were run
-- Displays status (running / success / failed / stopped)
-- Allows stopping long-running commands
-- Provides access to logs/output
-- Supports quick copy/export of output for sharing or debugging
-
-**Why this exists**
-So you never wonder:
-> “Did I already run this?”  
-> “Why did it fail last time?”
-
----
-
+### 5) Project Notes
+- Lightweight notes for ports, URLs, and reminders tied to a project.
 
 ## How the App Works (High-Level)
 
-- **Main process (Node.js + TypeScript)**
-  - Runs commands
-  - Talks to Docker
-  - Reads the filesystem
-  - Persists data locally
+- Main process (Node.js + TypeScript)
+  - Runs commands.
+  - Talks to Docker.
+  - Reads the filesystem.
+  - Persists data locally.
 
-- **Renderer (TypeScript + React)**
-  - Displays UI
-  - Sends intent-based requests (run, stop, list, etc.)
-  - Never accesses Node APIs directly
+- Renderer (TypeScript + React)
+  - Displays UI.
+  - Sends intent-based requests (run, stop, list, etc.).
+  - Never accesses Node APIs directly.
 
-- **Preload layer**
-  - Exposes a small, safe API to the renderer
-  - Enforces security boundaries
+- Preload layer
+  - Exposes a small, safe API to the renderer.
+  - Enforces security boundaries.
 
----
+## Data Storage
 
-## Safety & Trust
+Data lives in a single JSON store in the Electron userData directory:
+- File: `devdesk-store.json`
+- Schema: `apps/desktop/data/model.ts`
 
-- Node APIs are isolated from the UI
-- Commands marked as “dangerous” require confirmation
-- Shell execution is explicit, not implicit
-- All destructive actions are reversible where possible
+Containers are runtime-only and not persisted.
 
-This is a **developer tool**, not a background daemon.
+## MVP Scope (Target)
 
----
-
-## MVP Scope (Keep It Fun)
-
-**Version 1 should include only:**
-- Add and list projects
-- Create and run saved commands
-- See Docker containers and logs
-- View and stop running commands
-- View run history with output access
-- Edit simple project notes (ports, URLs, reminders)
-
-If V1 feels good, the app succeeds.
-
----
+- Add and list projects.
+- Create and run saved commands.
+- See Docker containers and logs.
+- View and stop running commands.
+- View run history with output access.
+- Edit simple project notes (ports, URLs, reminders).
 
 ## Possible Future Enhancements (Optional)
 
-- Command presets per project
-- Port usage inspector
-- Lightweight Git status per project
-- Tray mode with quick actions
-- Export/import configuration
-- Profiles for different machines
-
-None of these are required to ship.
-
----
+- Command presets per project.
+- Port usage inspector.
+- Lightweight Git status per project.
+- Tray mode with quick actions.
+- Export/import configuration.
+- Profiles for different machines.
 
 ## Non-Goals
 
-- AI features or assistants
-- Team collaboration
-- Cloud sync
-- Full terminal replacement
-- Heavy analytics
+- AI features or assistants.
+- Team collaboration.
+- Cloud sync.
+- Full terminal replacement.
+- Heavy analytics.
 
-Simplicity beats ambition.
-
----
-
-## Definition of “Done” (V1)
+## Definition of Done (V1)
 
 - You can open DevDesk and immediately:
   - pick a project
   - run a command
   - manage a container
-- No setup wizard required
-- App feels fast and predictable
-- You would *actually keep it installed*
-
----
+- No setup wizard required.
+- App feels fast and predictable.
+- You would actually keep it installed.
 
 ## Final Note
 
-DevDesk is not about doing *everything*.
-
-It’s about becoming the **one place you open before the terminal**.
-
-Build it slowly. Ship it early. Use it daily.
+DevDesk is not about doing everything. It is about becoming the one place you open before the terminal.

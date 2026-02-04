@@ -45,16 +45,54 @@ function getStorePath(): string {
   return path.join(app.getPath('userData'), STORE_FILENAME)
 }
 
+function normalizeNotes(value: unknown): Record<string, ProjectNotes> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+  return entries.reduce<Record<string, ProjectNotes>>((acc, [projectId, note]) => {
+    if (!note || typeof note !== 'object') {
+      acc[projectId] = { projectId, setupSteps: '', todos: '', reminders: '' }
+      return acc
+    }
+
+    const raw = note as Record<string, unknown>
+    const setupSteps = typeof raw.setupSteps === 'string' ? raw.setupSteps : ''
+    const todos = typeof raw.todos === 'string' ? raw.todos : ''
+    const reminders = typeof raw.reminders === 'string' ? raw.reminders : ''
+    const ports = typeof raw.ports === 'string' ? raw.ports : ''
+    const urls = typeof raw.urls === 'string' ? raw.urls : ''
+
+    let mergedSetupSteps = setupSteps
+    if (!mergedSetupSteps && (ports || urls)) {
+      const sections: string[] = []
+      if (ports) {
+        sections.push(`Ports:\n${ports}`)
+      }
+      if (urls) {
+        sections.push(`URLs:\n${urls}`)
+      }
+      mergedSetupSteps = sections.join('\n\n')
+    }
+
+    acc[projectId] = {
+      projectId,
+      setupSteps: mergedSetupSteps,
+      todos,
+      reminders,
+    }
+    return acc
+  }, {})
+}
+
 function normalizeStore(value: unknown): DataStore {
   if (!value || typeof value !== 'object') {
     return createDefaultStore()
   }
 
   const store = value as Partial<DataStore>
-  const notes =
-    store.notes && typeof store.notes === 'object' && !Array.isArray(store.notes)
-      ? (store.notes as Record<string, ProjectNotes>)
-      : {}
+  const notes = normalizeNotes(store.notes)
 
   const preferences = store.preferences && typeof store.preferences === 'object'
     ? (store.preferences as Partial<AppPreferences>)

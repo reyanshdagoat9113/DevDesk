@@ -1,26 +1,31 @@
 # DevDesk TODO
 
 ## Now
-- [x] Define data model for projects, commands, containers, run history, notes.
-- [x] Wire renderer to preload API (replace mock data).
-- [x] Implement IPC handlers for CRUD + run/stop commands.
-- [x] Add persistence layer (local JSON or sqlite).
-- [ ] Verify renderer build output loads in production.
+- [ ] Verify production build output loads in a packaged app.
+- [ ] Implement Docker container integration (list/start/stop/logs via Docker CLI).
+- [ ] Add project removal UI + confirmation.
+- [ ] Add command edit/delete and basic search/filter by tag.
+- [ ] Show command + project names in run history (not just ids).
 
 ## Next
-- [ ] Projects: add/remove, type detection, open in editor/terminal.
-- [ ] Command Vault: create/run/stop, tags, search.
-- [ ] Containers: list/start/stop/logs with graceful Docker-missing state.
-- [x] Run History: store output, status, view output.
-- [x] Notes: edit/save ports, URLs, reminders per project.
-
-## Later
 - [ ] Variables in commands (e.g. {{container}}).
+- [ ] Command presets per project.
 - [ ] Favorites/pinning for projects and commands.
 - [ ] Export/import config.
+
+## Later
 - [ ] Tray quick actions.
+- [ ] Compose stack awareness per project.
+- [ ] Lightweight git status per project.
 
 ## Done
 - [x] Base Electron + Vite setup.
 - [x] shadcn/ui + Radix UI component wrappers.
 - [x] Tailwind theme tokens and utilities.
+- [x] Data model for projects, commands, containers, run history, notes, preferences.
+- [x] JSON persistence in userData (`devdesk-store.json`).
+- [x] IPC handlers for projects/commands/history/notes/preferences.
+- [x] Renderer wired to preload API (no mock data).
+- [x] Command execution with run history + output streaming.
+- [x] Notes editor (ports, URLs, reminders).
+- [x] Project launch preferences (editor/terminal + custom command).

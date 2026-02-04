@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Container, FolderKanban, History, Plus, StickyNote, Terminal } from 'lucide-react'
+import { Container, FolderKanban, History, Plus, StickyNote, Terminal, Folder, Globe } from 'lucide-react'
 import { Button } from './components/ui/Button'
 import { Input } from './components/ui/Input'
 import { Label } from './components/ui/Label'
@@ -13,6 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from './components/ui/Dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './components/ui/Select'
 import { AppShell } from './layout/AppShell'
 import { CommandsSection } from './sections/CommandsSection'
 import { ContainersSection } from './sections/ContainersSection'
@@ -36,6 +43,8 @@ const actionLabels: Partial<Record<TabValue, string>> = {
   commands: 'New Command',
 }
 
+const GLOBAL_COMMAND_VALUE = '__global__'
+
 function App() {
   const [activeTab, setActiveTab] = useState<TabValue>('projects')
   const [projects, setProjects] = useState<Project[]>([])
@@ -46,6 +55,7 @@ function App() {
   const [preferences, setPreferences] = useState<AppPreferences | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [containerError, setContainerError] = useState<string | null>(null)
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const [projectPath, setProjectPath] = useState('')
@@ -58,38 +68,100 @@ function App() {
   const [commandValue, setCommandValue] = useState('')
   const [commandDescription, setCommandDescription] = useState('')
   const [commandTags, setCommandTags] = useState('')
+  const [commandProjectId, setCommandProjectId] = useState<string>(GLOBAL_COMMAND_VALUE)
+  const [commandWorkingDirectory, setCommandWorkingDirectory] = useState<string>('')
+  const [availableDirectories, setAvailableDirectories] = useState<string[]>([])
+  const [isLoadingDirectories, setIsLoadingDirectories] = useState(false)
+  const [directorySelectKey, setDirectorySelectKey] = useState<string>('0')
   const [commandError, setCommandError] = useState<string | null>(null)
   const [isSavingCommand, setIsSavingCommand] = useState(false)
 
   const title = useMemo(() => navItems.find((item) => item.value === activeTab)?.label ?? '', [activeTab])
   const actionLabel = actionLabels[activeTab]
+  const navItemsWithCounts = useMemo(() => {
+    const counts: Record<TabValue, number> = {
+      projects: projects.length,
+      commands: commands.length,
+      containers: containers.length,
+      history: history.length,
+      notes: projects.length,
+    }
+    return navItems.map((item) => ({
+      ...item,
+      count: counts[item.value],
+    }))
+  }, [projects.length, commands.length, containers.length, history.length])
 
   const loadAll = useCallback(async () => {
     setIsLoading(true)
     setLoadError(null)
+    setContainerError(null)
     try {
-      const [nextProjects, nextCommands, nextContainers, nextHistory, nextPreferences] = await Promise.all([
-        window.electronAPI.getProjects(),
-        window.electronAPI.getCommands(),
-        window.electronAPI.getContainers(),
-        window.electronAPI.getRunHistory(),
-        window.electronAPI.getPreferences(),
-      ])
+      const [projectsResult, commandsResult, containersResult, historyResult, preferencesResult] =
+        await Promise.allSettled([
+          window.electronAPI.getProjects(),
+          window.electronAPI.getCommands(),
+          window.electronAPI.getContainers(),
+          window.electronAPI.getRunHistory(),
+          window.electronAPI.getPreferences(),
+        ])
 
-      setProjects(nextProjects)
-      setCommands(nextCommands)
-      setContainers(nextContainers)
-      setHistory(nextHistory)
-      setPreferences(nextPreferences)
+      const errors: string[] = []
 
-      const notesEntries = await Promise.all(
-        nextProjects.map((project) => window.electronAPI.getNotes(project.id))
-      )
-      const notesMap = notesEntries.reduce<Record<string, ProjectNotes>>((acc, entry) => {
-        acc[entry.projectId] = entry
-        return acc
-      }, {})
-      setNotes(notesMap)
+      if (projectsResult.status === 'fulfilled') {
+        setProjects(projectsResult.value)
+      } else {
+        errors.push(projectsResult.reason instanceof Error ? projectsResult.reason.message : 'Failed to load projects.')
+        setProjects([])
+      }
+
+      if (commandsResult.status === 'fulfilled') {
+        setCommands(commandsResult.value)
+      } else {
+        errors.push(commandsResult.reason instanceof Error ? commandsResult.reason.message : 'Failed to load commands.')
+        setCommands([])
+      }
+
+      if (containersResult.status === 'fulfilled') {
+        setContainers(containersResult.value)
+      } else {
+        setContainerError(containersResult.reason instanceof Error ? containersResult.reason.message : 'Failed to load containers.')
+        setContainers([])
+      }
+
+      if (historyResult.status === 'fulfilled') {
+        setHistory(historyResult.value)
+      } else {
+        errors.push(historyResult.reason instanceof Error ? historyResult.reason.message : 'Failed to load history.')
+        setHistory([])
+      }
+
+      if (preferencesResult.status === 'fulfilled') {
+        setPreferences(preferencesResult.value)
+      } else {
+        errors.push(preferencesResult.reason instanceof Error ? preferencesResult.reason.message : 'Failed to load preferences.')
+        setPreferences(null)
+      }
+
+      if (projectsResult.status === 'fulfilled') {
+        try {
+          const notesEntries = await Promise.all(
+            projectsResult.value.map((project) => window.electronAPI.getNotes(project.id))
+          )
+          const notesMap = notesEntries.reduce<Record<string, ProjectNotes>>((acc, entry) => {
+            acc[entry.projectId] = entry
+            return acc
+          }, {})
+          setNotes(notesMap)
+        } catch (error) {
+          errors.push(error instanceof Error ? error.message : 'Failed to load notes.')
+          setNotes({})
+        }
+      } else {
+        setNotes({})
+      }
+
+      setLoadError(errors.length ? errors[0] : null)
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Failed to load data.')
     } finally {
@@ -162,6 +234,36 @@ function App() {
     }
   }
 
+  const handleUpdateProject = async (projectId: string, updates: { name: string }) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.updateProject(projectId, updates)
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? updated : project)))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update project.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRemoveProject = async (projectId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.removeProject(projectId)
+      setProjects((prev) => prev.filter((project) => project.id !== projectId))
+      setHistory((prev) => prev.filter((entry) => entry.projectId !== projectId))
+      setNotes((prev) => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove project.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
   const handlePickProject = async () => {
     setProjectError(null)
     setIsPickingProject(true)
@@ -196,17 +298,103 @@ function App() {
         command: trimmedCommand,
         description: commandDescription.trim() || undefined,
         tags: tags.length ? tags : undefined,
+        projectId: commandProjectId === GLOBAL_COMMAND_VALUE ? undefined : commandProjectId,
+        workingDirectory: commandWorkingDirectory === '__root__' || !commandWorkingDirectory.trim()
+          ? undefined
+          : commandWorkingDirectory.trim(),
       })
       setCommands((prev) => [command, ...prev])
+      // Reset form
       setCommandName('')
       setCommandValue('')
       setCommandDescription('')
       setCommandTags('')
+      setCommandProjectId(GLOBAL_COMMAND_VALUE)
+      setCommandWorkingDirectory('')
+      setAvailableDirectories([])
+      setDirectorySelectKey('0')
       setCommandDialogOpen(false)
     } catch (error) {
       setCommandError(error instanceof Error ? error.message : 'Failed to add command.')
     } finally {
       setIsSavingCommand(false)
+    }
+  }
+
+  const handleUpdateCommand = async (
+    commandId: string,
+    updates: { name: string; command: string; description?: string; tags?: string[] }
+  ) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.updateCommand(commandId, updates)
+      setCommands((prev) => prev.map((command) => (command.id === commandId ? updated : command)))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update command.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRemoveCommand = async (commandId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.removeCommand(commandId)
+      setCommands((prev) => prev.filter((command) => command.id !== commandId))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove command.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleProjectChange = async (projectId: string) => {
+    setCommandProjectId(projectId)
+    setCommandWorkingDirectory('')
+    setAvailableDirectories([])
+    setDirectorySelectKey(String(Date.now())) // Force Select to re-render
+    if (projectId !== GLOBAL_COMMAND_VALUE && window.electronAPI.getProjectDirectories) {
+      setIsLoadingDirectories(true)
+      try {
+        const dirs = await window.electronAPI.getProjectDirectories(projectId)
+        setAvailableDirectories(dirs)
+      } catch (error) {
+        console.error('Failed to load directories:', error)
+        setAvailableDirectories([])
+      } finally {
+        setIsLoadingDirectories(false)
+      }
+    }
+  }
+
+  const handleWorkingDirectoryChange = async (dir: string) => {
+    // Convert __root__ to empty string for storage, but keep __root__ for UI
+    const actualDir = dir === '__root__' ? '' : dir
+    setCommandWorkingDirectory(dir) // Keep the UI value
+    // Load subdirectories if a non-empty directory is selected
+    if (commandProjectId !== GLOBAL_COMMAND_VALUE && actualDir && window.electronAPI.getProjectDirectories) {
+      setIsLoadingDirectories(true)
+      try {
+        const subdirs = await window.electronAPI.getProjectDirectories(commandProjectId, actualDir)
+        setAvailableDirectories(subdirs)
+      } catch (error) {
+        console.error('Failed to load subdirectories:', error)
+        setAvailableDirectories([])
+      } finally {
+        setIsLoadingDirectories(false)
+      }
+    } else if (commandProjectId !== GLOBAL_COMMAND_VALUE && !actualDir) {
+      // Reset to root directories when "Project root" is selected
+      setIsLoadingDirectories(true)
+      try {
+        const dirs = await window.electronAPI.getProjectDirectories(commandProjectId)
+        setAvailableDirectories(dirs)
+      } catch (error) {
+        console.error('Failed to load directories:', error)
+        setAvailableDirectories([])
+      } finally {
+        setIsLoadingDirectories(false)
+      }
     }
   }
 
@@ -261,6 +449,18 @@ function App() {
     }
   }
 
+  const handleClearHistory = async () => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.clearRunHistory()
+      setHistory([])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to clear history.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
   const handleSaveNotes = async (projectId: string, updates: Partial<ProjectNotes>) => {
     try {
       await window.electronAPI.updateNotes(projectId, updates)
@@ -268,8 +468,8 @@ function App() {
         ...prev,
         [projectId]: {
           projectId,
-          ports: updates.ports ?? prev[projectId]?.ports ?? '',
-          urls: updates.urls ?? prev[projectId]?.urls ?? '',
+          setupSteps: updates.setupSteps ?? prev[projectId]?.setupSteps ?? '',
+          todos: updates.todos ?? prev[projectId]?.todos ?? '',
           reminders: updates.reminders ?? prev[projectId]?.reminders ?? '',
         },
       }))
@@ -284,10 +484,46 @@ function App() {
     setPreferences(next)
   }
 
+  const handleStartContainer = async (containerId: string) => {
+    setContainerError(null)
+    try {
+      await window.electronAPI.startContainer(containerId)
+      const nextContainers = await window.electronAPI.getContainers()
+      setContainers(nextContainers)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to start container.'
+      setContainerError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleStopContainer = async (containerId: string) => {
+    setContainerError(null)
+    try {
+      await window.electronAPI.stopContainer(containerId)
+      const nextContainers = await window.electronAPI.getContainers()
+      setContainers(nextContainers)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to stop container.'
+      setContainerError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleViewContainerLogs = async (containerId: string) => {
+    try {
+      return await window.electronAPI.getContainerLogs(containerId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load container logs.'
+      setContainerError(message)
+      throw new Error(message)
+    }
+  }
+
   return (
     <>
       <AppShell
-        navItems={navItems}
+        navItems={navItemsWithCounts}
         activeNav={activeTab}
         onNavChange={(value) => setActiveTab(value as TabValue)}
         title={title}
@@ -314,6 +550,8 @@ function App() {
               error={loadError}
               preferences={preferences}
               onSavePreferences={handleSavePreferences}
+              onUpdateProject={handleUpdateProject}
+              onRemoveProject={handleRemoveProject}
             />
           )}
           {activeTab === 'commands' && (
@@ -323,10 +561,19 @@ function App() {
               isLoading={isLoading}
               error={loadError}
               onRunCommand={handleRunCommand}
+              onUpdateCommand={handleUpdateCommand}
+              onRemoveCommand={handleRemoveCommand}
             />
           )}
           {activeTab === 'containers' && (
-            <ContainersSection containers={containers} isLoading={isLoading} error={loadError} />
+            <ContainersSection
+              containers={containers}
+              isLoading={isLoading}
+              error={containerError}
+              onStartContainer={handleStartContainer}
+              onStopContainer={handleStopContainer}
+              onViewLogs={handleViewContainerLogs}
+            />
           )}
           {activeTab === 'history' && (
             <HistorySection
@@ -335,6 +582,7 @@ function App() {
               error={loadError}
               onStopRun={handleStopRun}
               onLoadOutput={handleLoadOutput}
+              onClearHistory={handleClearHistory}
             />
           )}
           {activeTab === 'notes' && (
@@ -428,6 +676,99 @@ function App() {
                 placeholder="Run tests in watch mode"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="command-project">Project</Label>
+              <Select value={commandProjectId} onValueChange={handleProjectChange}>
+                <SelectTrigger id="command-project" className="w-full">
+                  <SelectValue placeholder="Global command (runs on any project)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={GLOBAL_COMMAND_VALUE} displayValue="Global command">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex flex-col">
+                        <span>Global command</span>
+                        <span className="text-xs text-muted-foreground">Runs on any project</span>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  {projects.length > 0 ? (
+                    projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id} displayValue={project.name}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{project.icon}</span>
+                          <div className="flex flex-col">
+                            <span>{project.name}</span>
+                            <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+                              {project.path}
+                            </span>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      No projects added yet. Add a project first.
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {commandProjectId !== GLOBAL_COMMAND_VALUE
+                  ? `Bound to ${projects.find((p) => p.id === commandProjectId)?.name ?? 'project'}`
+                  : 'Global commands can be run on any project'}
+              </p>
+            </div>
+            {commandProjectId !== GLOBAL_COMMAND_VALUE && (
+              <div className="space-y-2">
+                <Label htmlFor="command-directory">Working Directory</Label>
+                <Select
+                  key={directorySelectKey}
+                  value={commandWorkingDirectory}
+                  onValueChange={handleWorkingDirectoryChange}
+                >
+                  <SelectTrigger id="command-directory" className="w-full">
+                    <SelectValue placeholder="Project root" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__root__" displayValue="Project root">
+                      <div className="flex items-center gap-2">
+                        <Folder className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex flex-col">
+                          <span>Project root</span>
+                          <span className="text-xs text-muted-foreground">
+                            {projects.find((p) => p.id === commandProjectId)?.name}
+                          </span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                    {isLoadingDirectories ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+                        <span className="h-4 w-4 animate-spin">⟳</span>
+                        Loading directories...
+                      </div>
+                    ) : availableDirectories.length > 0 ? (
+                      availableDirectories.map((dir) => (
+                        <SelectItem key={dir} value={dir} displayValue={dir}>
+                          <div className="flex items-center gap-2">
+                            <Folder className="h-4 w-4 text-muted-foreground" />
+                            <span>{dir}</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        No subdirectories found in project root.
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Command will run in: {projects.find((p) => p.id === commandProjectId)?.name}
+                  {commandWorkingDirectory && commandWorkingDirectory !== '__root__' ? ` / ${commandWorkingDirectory}` : ''}
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="command-tags">Tags (comma separated)</Label>
               <Input

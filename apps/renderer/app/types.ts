@@ -12,6 +12,8 @@ export interface Command {
   command: string
   description?: string
   tags?: string[]
+  projectId?: string
+  workingDirectory?: string
 }
 
 export interface Container {
@@ -34,8 +36,8 @@ export interface RunHistoryEntry {
 
 export interface ProjectNotes {
   projectId: string
-  ports: string
-  urls: string
+  setupSteps: string
+  todos: string
   reminders: string
 }
 
