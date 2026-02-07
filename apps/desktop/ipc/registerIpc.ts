@@ -370,9 +370,12 @@ function sanitizeShellMessage(message: string) {
 function isDockerDaemonError(message: string) {
   const normalized = sanitizeShellMessage(message).toLowerCase()
   return (
+    normalized.includes('failed to connect to the docker api') ||
     normalized.includes('cannot connect to the docker daemon') ||
     normalized.includes('is the docker daemon running') ||
-    normalized.includes('error during connect')
+    normalized.includes('error during connect') ||
+    normalized.includes('dial unix') ||
+    normalized.includes('docker.sock')
   )
 }
 
@@ -380,8 +383,7 @@ function isDockerNotFoundError(message: string) {
   const normalized = sanitizeShellMessage(message).toLowerCase()
   return (
     normalized.includes('command not found') ||
-    normalized.includes('not recognized as an internal or external command') ||
-    normalized.includes('no such file or directory')
+    normalized.includes('not recognized as an internal or external command')
   )
 }
 
@@ -487,6 +489,10 @@ async function runDockerCommand(args: string[]) {
 
     if (isNotFound) {
       throw new Error('Docker CLI not found. Install Docker Desktop to enable containers.')
+    }
+
+    if (isDaemonError) {
+      throw new Error('Docker daemon is not running. Start Docker Desktop and try again.')
     }
     
     throw new Error(message)

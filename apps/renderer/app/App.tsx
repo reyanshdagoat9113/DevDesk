@@ -48,6 +48,39 @@ const actionLabels: Partial<Record<TabValue, string>> = {
 
 const GLOBAL_COMMAND_VALUE = '__global__'
 
+function unwrapIpcErrorMessage(error: unknown, fallbackMessage: string) {
+  const raw = error instanceof Error ? error.message : fallbackMessage
+  let message = raw.trim()
+  message = message.replace(/^Error invoking remote method '[^']+':\s*/i, '')
+  message = message.replace(/^Error:\s*/i, '')
+  return message || fallbackMessage
+}
+
+function toUserContainerError(error: unknown, fallbackMessage: string) {
+  const message = unwrapIpcErrorMessage(error, fallbackMessage)
+  const normalized = message.toLowerCase()
+
+  if (
+    normalized.includes('docker daemon') ||
+    normalized.includes('failed to connect to the docker api') ||
+    normalized.includes('cannot connect to the docker daemon') ||
+    normalized.includes('dial unix') ||
+    normalized.includes('error during connect')
+  ) {
+    return 'Docker is not running. Start Docker Desktop (or the Docker daemon) and try again.'
+  }
+
+  if (
+    normalized.includes('docker cli not found') ||
+    normalized.includes('command not found') ||
+    normalized.includes('not recognized as an internal or external command')
+  ) {
+    return 'Docker CLI is not available. Install Docker Desktop and try again.'
+  }
+
+  return message
+}
+
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('devdesk-theme')
@@ -195,7 +228,7 @@ function App() {
       setContainers(nextContainers)
       setHasLoadedContainers(true)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load containers.'
+      const message = toUserContainerError(error, 'Failed to load containers.')
       setContainerError(message)
       throw new Error(message)
     } finally {
@@ -612,7 +645,7 @@ function App() {
       await loadContainers()
       return result
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to start dev stack.'
+      const message = toUserContainerError(error, 'Failed to start dev stack.')
       setContainerError(message)
       throw new Error(message)
     }
@@ -624,7 +657,7 @@ function App() {
       await loadContainers()
       return result
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to stop dev stack.'
+      const message = toUserContainerError(error, 'Failed to stop dev stack.')
       setContainerError(message)
       throw new Error(message)
     }
@@ -636,7 +669,7 @@ function App() {
       await action()
       await loadContainers()
     } catch (error) {
-      const message = error instanceof Error ? error.message : fallbackMessage
+      const message = toUserContainerError(error, fallbackMessage)
       setContainerError(message)
       throw new Error(message)
     }
@@ -649,7 +682,7 @@ function App() {
     try {
       return await window.electronAPI.getContainerLogs(containerId)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load container logs.'
+      const message = toUserContainerError(error, 'Failed to load container logs.')
       setContainerError(message)
       throw new Error(message)
     }
