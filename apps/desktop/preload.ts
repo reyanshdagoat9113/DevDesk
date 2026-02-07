@@ -37,6 +37,7 @@ interface ElectronAPI {
   getContainerLogs: (id: string) => Promise<string>
 
   getRunHistory: () => Promise<unknown[]>
+  listRecentHistory: (limit?: number) => Promise<{ id: string; commandId: string; projectId?: string; status: string; startTime: string; endTime?: string }[]>
   getRunOutput: (runId: string) => Promise<string>
   clearRunHistory: () => Promise<{ success: boolean }>
 
@@ -100,6 +101,7 @@ const electronAPI: ElectronAPI = {
 
   // Run History
   getRunHistory: () => ipcRenderer.invoke('history:get'),
+  listRecentHistory: (limit?: number) => ipcRenderer.invoke('history:listRecent', limit),
   getRunOutput: (runId: string) => ipcRenderer.invoke('history:output', runId),
   clearRunHistory: () => ipcRenderer.invoke('history:clear'),
 

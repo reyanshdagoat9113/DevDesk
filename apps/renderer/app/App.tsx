@@ -27,6 +27,7 @@ import { HistorySection } from './sections/HistorySection'
 import { NotesSection } from './sections/NotesSection'
 import { ProjectsSection } from './sections/ProjectsSection'
 import type { AppPreferences, Command, Container as ContainerType, Project, ProjectNotes, RunHistoryEntry } from './types'
+import { CommandPalette } from './components/CommandPalette'
 
 type TabValue = 'projects' | 'commands' | 'containers' | 'history' | 'notes'
 
@@ -79,6 +80,7 @@ function App() {
   const [directorySelectKey, setDirectorySelectKey] = useState<string>('0')
   const [commandError, setCommandError] = useState<string | null>(null)
   const [isSavingCommand, setIsSavingCommand] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
 
   const title = useMemo(() => navItems.find((item) => item.value === activeTab)?.label ?? '', [activeTab])
   const actionLabel = actionLabels[activeTab]
@@ -814,6 +816,35 @@ function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        projects={projects}
+        commands={commands}
+        containers={containers}
+        history={history}
+        onNavigate={setActiveTab}
+        onOpenProjectInEditor={async (id) => {
+          const result = await window.electronAPI.openProjectInEditor(id)
+          if (!result.success) throw new Error(result.error || 'Failed to open editor')
+        }}
+        onOpenProjectInTerminal={async (id) => {
+          const result = await window.electronAPI.openProjectInTerminal(id)
+          if (!result.success) throw new Error(result.error || 'Failed to open terminal')
+        }}
+        onOpenProjectFolder={async (id) => {
+          const result = await window.electronAPI.openProjectFolder(id)
+          if (!result.success) throw new Error(result.error || 'Failed to open folder')
+        }}
+        onRunCommand={handleRunCommand}
+        onStartContainer={handleStartContainer}
+        onStopContainer={handleStopContainer}
+        onRestartContainer={handleRestartContainer}
+        onPauseContainer={handlePauseContainer}
+        onUnpauseContainer={handleUnpauseContainer}
+        onError={(message) => setLoadError(message)}
+      />
 
       <Dialog open={commandDialogOpen} onOpenChange={setCommandDialogOpen}>
         <DialogContent>

@@ -1,4 +1,4 @@
-import type { AppPreferences, Command, Container, Project, ProjectNotes, RunHistoryEntry } from '../types'
+import type { AppPreferences, Command, Container, Project, ProjectNotes, RunHistoryEntry, RunStatus } from '../types'
 
 export interface ElectronAPI {
   getProjects: () => Promise<Project[]>
@@ -33,6 +33,7 @@ export interface ElectronAPI {
   getContainerLogs: (id: string) => Promise<string>
 
   getRunHistory: () => Promise<RunHistoryEntry[]>
+  listRecentHistory: (limit?: number) => Promise<{ id: string; commandId: string; projectId?: string; status: RunStatus; startTime: string; endTime?: string }[]>
   getRunOutput: (runId: string) => Promise<string>
   clearRunHistory: () => Promise<{ success: boolean }>
 

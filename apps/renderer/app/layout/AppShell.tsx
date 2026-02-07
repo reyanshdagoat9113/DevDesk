@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Command } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { Separator } from '../components/ui/Separator'
@@ -76,7 +76,14 @@ export function AppShell({ navItems, activeNav, onNavChange, title, action, chil
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-4 backdrop-blur">
           <h1 className="text-base font-semibold">{title}</h1>
-          {action ? <div className="flex items-center gap-2">{action}</div> : null}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/60 px-2 py-1 rounded-md">
+              <Command className="h-3 w-3" />
+              <span>+</span>
+              <span>K</span>
+            </div>
+            {action ? <div className="flex items-center gap-2">{action}</div> : null}
+          </div>
         </header>
         <main className="flex-1 overflow-hidden">
           <div className="h-full p-4 lg:p-6">{children}</div>

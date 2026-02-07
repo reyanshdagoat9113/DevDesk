@@ -41,8 +41,8 @@
 - Renderer build output is `dist/renderer`; main process loads `../../renderer/index.html` in production.
 
 ## Current MVP Status
-- Implemented: projects add/edit/remove, command create/edit/delete/run, run history with output + clear, notes editing, app preferences, Docker containers with Windows + WSL fallback.
-- Pending: command search/filter, run history shows command + project names, production build verification.
+- Implemented: projects add/edit/remove, command create/edit/delete/run, run history with output + clear, notes editing, app preferences, Docker containers with Windows + WSL fallback, Global Command Palette (Cmd/Ctrl+K) with fuzzy search.
+- Pending: run history shows command + project names, production build verification.
 
 ## Security & Configuration Tips
 - Keep `nodeIntegration` disabled and `contextIsolation` enabled (already set).

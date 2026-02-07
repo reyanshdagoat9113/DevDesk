@@ -28,11 +28,13 @@ export interface Container {
   command?: string
 }
 
+export type RunStatus = 'running' | 'success' | 'failed' | 'stopped'
+
 export interface RunHistoryEntry {
   id: string
   commandId: string
   projectId?: string
-  status: 'running' | 'success' | 'failed' | 'stopped'
+  status: RunStatus
   startTime: string
   endTime?: string
   output?: string

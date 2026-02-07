@@ -1101,6 +1101,19 @@ export function registerIpcHandlers() {
     return store.runHistory
   })
 
+  ipcMain.handle('history:listRecent', async (_event, limit?: number) => {
+    const store = await getStore()
+    const cap = Math.min(Math.max(1, limit ?? 20), 100)
+    return store.runHistory.slice(0, cap).map((entry) => ({
+      id: entry.id,
+      commandId: entry.commandId,
+      projectId: entry.projectId,
+      status: entry.status,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+    }))
+  })
+
   ipcMain.handle('history:clear', async () => {
     await updateStore((draft) => {
       draft.runHistory = []
