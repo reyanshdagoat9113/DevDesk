@@ -43,7 +43,7 @@ import { Separator } from '../components/ui/Separator'
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/Tabs'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
-import type { Container } from '../types'
+import type { Container, Project } from '../types'
 
 const statusStyles: Record<Container['state'], string> = {
   running: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]',
@@ -74,6 +74,7 @@ const getCreatedTimestamp = (value?: string) => {
 
 export function ContainersSection({
   containers,
+  projects,
   isLoading,
   error,
   onStartContainer,
@@ -86,6 +87,7 @@ export function ContainersSection({
   onRefreshContainers,
 }: {
   containers: Container[]
+  projects: Project[]
   isLoading?: boolean
   error?: string | null
   onStartContainer?: (containerId: string) => Promise<void>
@@ -173,6 +175,22 @@ export function ContainersSection({
     if (!sortedContainers.length) return null
     return sortedContainers.find((container) => container.id === selectedId) ?? sortedContainers[0]
   }, [sortedContainers, selectedId])
+
+  const linkedProjectsByContainerName = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const project of projects) {
+      const uniqueNames = new Set((project.linkedContainerNames ?? []).map((name) => name.trim().toLowerCase()).filter(Boolean))
+      for (const name of uniqueNames) {
+        const current = map.get(name)
+        if (current) {
+          current.push(project.name)
+        } else {
+          map.set(name, [project.name])
+        }
+      }
+    }
+    return map
+  }, [projects])
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const visibleIds = useMemo(() => sortedContainers.map((container) => container.id), [sortedContainers])
@@ -359,6 +377,9 @@ export function ContainersSection({
 
   const composeProject = labelMap.get('com.docker.compose.project')
   const composeService = labelMap.get('com.docker.compose.service')
+  const selectedLinkedProjects = selectedContainer
+    ? linkedProjectsByContainerName.get(selectedContainer.name.trim().toLowerCase()) ?? []
+    : []
 
   const removePreview = removeTargets.slice(0, 4)
   const removeOverflow = Math.max(0, removeTargets.length - removePreview.length)
@@ -548,6 +569,7 @@ export function ContainersSection({
                     const isSelected = selectedIdSet.has(container.id)
                     const isBusy = actionLoading?.endsWith(`:${container.id}`)
                     const statusText = container.status || container.state
+                    const linkedProjectNames = linkedProjectsByContainerName.get(container.name.trim().toLowerCase()) ?? []
 
                     return (
                       <div
@@ -584,6 +606,34 @@ export function ContainersSection({
                                 <span className="truncate italic opacity-80">{statusText}</span>
                               </>
                             )}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {linkedProjectNames.length > 0 ? (
+                              linkedProjectNames.slice(0, 2).map((projectName) => (
+                                <Badge
+                                  key={`${container.id}:${projectName}`}
+                                  variant="outline"
+                                  className="h-4 px-1 text-[8px] font-bold uppercase tracking-tighter"
+                                >
+                                  {projectName}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="h-4 px-1 text-[8px] uppercase tracking-tighter text-muted-foreground/70"
+                              >
+                                unlinked
+                              </Badge>
+                            )}
+                            {linkedProjectNames.length > 2 ? (
+                              <Badge
+                                variant="outline"
+                                className="h-4 px-1 text-[8px] uppercase tracking-tighter text-muted-foreground/70"
+                              >
+                                +{linkedProjectNames.length - 2}
+                              </Badge>
+                            ) : null}
                           </div>
                         </div>
 
@@ -727,6 +777,29 @@ export function ContainersSection({
                           Standalone Container
                         </div>
                       )}
+
+                      <div className="pt-3 border-t border-border/10">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">
+                          Linked Projects
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedLinkedProjects.length > 0 ? (
+                            selectedLinkedProjects.map((projectName) => (
+                              <Badge
+                                key={`linked-project-${selectedContainer.id}-${projectName}`}
+                                variant="outline"
+                                className="text-[10px] font-semibold"
+                              >
+                                {projectName}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-[11px] italic text-muted-foreground/40 font-medium">
+                              No linked projects
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       
                       <div className="pt-3 border-t border-border/10">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">Mapped Ports</p>

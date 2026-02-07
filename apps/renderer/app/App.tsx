@@ -208,7 +208,8 @@ function App() {
   }, [loadAll])
 
   useEffect(() => {
-    if (activeTab !== 'containers' || hasAttemptedContainersLoad || isContainersLoading) {
+    const needsContainers = activeTab === 'containers' || activeTab === 'projects'
+    if (!needsContainers || hasAttemptedContainersLoad || isContainersLoading) {
       return
     }
     void loadContainers()
@@ -330,6 +331,19 @@ function App() {
       setProjects((prev) => prev.map((project) => (project.id === projectId ? updated : project)))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update project.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleSetProjectLinkedContainers = async (projectId: string, linkedContainerNames: string[]) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.setProjectLinkedContainers(projectId, linkedContainerNames)
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? updated : project)))
+      return updated
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update linked containers.'
       setLoadError(message)
       throw new Error(message)
     }
@@ -592,6 +606,30 @@ function App() {
     await loadContainers()
   }
 
+  const handleStartDevStack = async (projectId: string) => {
+    try {
+      const result = await window.electronAPI.startProjectDevStack(projectId)
+      await loadContainers()
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to start dev stack.'
+      setContainerError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleStopDevStack = async (projectId: string) => {
+    try {
+      const result = await window.electronAPI.stopProjectDevStack(projectId)
+      await loadContainers()
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to stop dev stack.'
+      setContainerError(message)
+      throw new Error(message)
+    }
+  }
+
   const runContainerAction = async (action: () => Promise<{ success: boolean }>, fallbackMessage: string) => {
     setContainerError(null)
     try {
@@ -644,11 +682,18 @@ function App() {
           {activeTab === 'projects' && (
             <ProjectsSection
               projects={projects}
+              containers={containers}
               isLoading={isLoading}
               error={loadError}
+              containersLoading={isContainersLoading && !hasLoadedContainers}
+              containersError={containerError}
               preferences={preferences}
               onSavePreferences={handleSavePreferences}
               onUpdateProject={handleUpdateProject}
+              onSetLinkedContainers={handleSetProjectLinkedContainers}
+              onStartDevStack={handleStartDevStack}
+              onStopDevStack={handleStopDevStack}
+              onRefreshContainers={handleRefreshContainers}
               onRemoveProject={handleRemoveProject}
             />
           )}
@@ -666,6 +711,7 @@ function App() {
           {activeTab === 'containers' && (
             <ContainersSection
               containers={containers}
+              projects={projects}
               isLoading={containersSectionLoading}
               error={containerError}
               onStartContainer={handleStartContainer}

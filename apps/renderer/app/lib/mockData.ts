@@ -7,6 +7,7 @@ export const mockProjects: Project[] = [
     name: 'devdesk',
     type: 'node',
     icon: '⚡',
+    linkedContainerNames: [],
   },
   {
     id: '2',
@@ -14,6 +15,7 @@ export const mockProjects: Project[] = [
     name: 'my-api',
     type: 'node',
     icon: '⚡',
+    linkedContainerNames: [],
   },
   {
     id: '3',
@@ -21,6 +23,7 @@ export const mockProjects: Project[] = [
     name: 'ml-experiments',
     type: 'python',
     icon: '🐍',
+    linkedContainerNames: [],
   },
   {
     id: '4',
@@ -28,6 +31,7 @@ export const mockProjects: Project[] = [
     name: 'rust-cli',
     type: 'rust',
     icon: '🦀',
+    linkedContainerNames: [],
   },
 ]
 

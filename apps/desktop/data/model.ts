@@ -6,6 +6,7 @@ export interface Project {
   name: string
   type: ProjectType
   icon: string
+  linkedContainerNames: string[]
 }
 
 export interface Command {
@@ -59,7 +60,7 @@ export interface AppPreferences {
   terminal: AppPreference
 }
 
-export const DATA_VERSION = 2 as const
+export const DATA_VERSION = 3 as const
 
 export interface DataStore {
   version: typeof DATA_VERSION

@@ -1,11 +1,15 @@
 import type { AppPreferences, Command, Container, Project, ProjectNotes, RunHistoryEntry, RunStatus } from '../types'
 
 export interface ElectronAPI {
+  platform: string
   getProjects: () => Promise<Project[]>
   listWslDistros: () => Promise<string[]>
   addProject: (path: string) => Promise<Project>
   removeProject: (id: string) => Promise<{ success: boolean }>
   updateProject: (id: string, updates: { name: string }) => Promise<Project>
+  setProjectLinkedContainers: (id: string, linkedContainerNames: string[]) => Promise<Project>
+  startProjectDevStack: (id: string) => Promise<{ success: boolean; started: string[]; resumed: string[]; alreadyRunning: string[]; missing: string[] }>
+  stopProjectDevStack: (id: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
   openProjectFolderDialog: (startPath?: string) => Promise<{ canceled: boolean; path?: string }>
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
@@ -31,6 +35,11 @@ export interface ElectronAPI {
   unpauseContainer: (id: string) => Promise<{ success: boolean }>
   removeContainer: (id: string, force?: boolean) => Promise<{ success: boolean }>
   getContainerLogs: (id: string) => Promise<string>
+  subscribeContainerLogs: (id: string, tail?: number) => Promise<{ subscriptionId: string }>
+  unsubscribeContainerLogs: (subscriptionId: string) => Promise<{ success: boolean }>
+  onContainerLogsData: (handler: (payload: { subscriptionId: string; containerId: string; chunk: string }) => void) => () => void
+  onContainerLogsEnd: (handler: (payload: { subscriptionId: string; containerId: string; code: number | null }) => void) => () => void
+  onContainerLogsError: (handler: (payload: { subscriptionId: string; containerId: string; error: string }) => void) => () => void
 
   getRunHistory: () => Promise<RunHistoryEntry[]>
   listRecentHistory: (limit?: number) => Promise<{ id: string; commandId: string; projectId?: string; status: RunStatus; startTime: string; endTime?: string }[]>

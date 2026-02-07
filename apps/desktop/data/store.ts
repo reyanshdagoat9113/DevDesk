@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { app } from 'electron'
 
-import { DATA_VERSION, type AppPreferences, type DataStore, type ProjectNotes } from './model'
+import { DATA_VERSION, type AppPreferences, type DataStore, type Project, type ProjectNotes } from './model'
 
 const STORE_FILENAME = 'devdesk-store.json'
 
@@ -86,6 +86,46 @@ function normalizeNotes(value: unknown): Record<string, ProjectNotes> {
   }, {})
 }
 
+function normalizeProjects(value: unknown): Project[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null
+      }
+
+      const raw = entry as Partial<Project> & { linkedContainerNames?: unknown }
+      if (
+        typeof raw.id !== 'string' ||
+        typeof raw.path !== 'string' ||
+        typeof raw.name !== 'string' ||
+        typeof raw.type !== 'string' ||
+        typeof raw.icon !== 'string'
+      ) {
+        return null
+      }
+      const validTypes = new Set(['node', 'python', 'rust', 'go', 'unknown'])
+      if (!validTypes.has(raw.type)) {
+        return null
+      }
+
+      return {
+        id: raw.id,
+        path: raw.path,
+        name: raw.name,
+        type: raw.type,
+        icon: raw.icon,
+        linkedContainerNames: Array.isArray(raw.linkedContainerNames)
+          ? raw.linkedContainerNames.filter((name): name is string => typeof name === 'string' && Boolean(name.trim()))
+          : [],
+      } satisfies Project
+    })
+    .filter((project): project is Project => Boolean(project))
+}
+
 function normalizeStore(value: unknown): DataStore {
   if (!value || typeof value !== 'object') {
     return createDefaultStore()
@@ -100,7 +140,7 @@ function normalizeStore(value: unknown): DataStore {
 
   return {
     version: DATA_VERSION,
-    projects: Array.isArray(store.projects) ? store.projects : [],
+    projects: normalizeProjects(store.projects),
     commands: Array.isArray(store.commands) ? store.commands : [],
     runHistory: Array.isArray(store.runHistory) ? store.runHistory : [],
     notes,

@@ -16,6 +16,13 @@ type RunningCommand = {
 
 const runningCommands = new Map<string, RunningCommand>()
 
+type RunningDockerLogSubscription = {
+  process: ChildProcessWithoutNullStreams
+  containerId: string
+}
+
+const runningDockerLogSubscriptions = new Map<string, RunningDockerLogSubscription>()
+
 type WslProjectLocation = {
   distro: string
   linuxPath: string
@@ -555,12 +562,113 @@ function parseDockerContainers(output: string): Container[] {
   return containers
 }
 
+function sanitizeLinkedContainerNames(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const seen = new Set<string>()
+  const next: string[] = []
+  for (const raw of value) {
+    if (typeof raw !== 'string') {
+      continue
+    }
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      continue
+    }
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    next.push(trimmed)
+  }
+
+  return next
+}
+
+async function listDockerContainers(): Promise<Container[]> {
+  const output = await runDockerCommand(['ps', '-a', '--no-trunc', '--format', '{{json .}}'])
+  return parseDockerContainers(output)
+}
+
 function requireContainerId(input: string) {
   const containerId = input.trim()
   if (!containerId) {
     throw new Error('Container id is required.')
   }
   return containerId
+}
+
+function getContainerByLinkedName(containers: Container[], linkedName: string): Container | null {
+  const key = linkedName.trim().toLowerCase()
+  if (!key) {
+    return null
+  }
+  return containers.find((container) => container.name.trim().toLowerCase() === key) ?? null
+}
+
+function getWslDockerLaunchArgs(args: string[]) {
+  return ['-e', 'bash', '-lc', buildDockerShellCommand(args)]
+}
+
+function getWslDistroDockerLaunchArgs(distro: string, args: string[]) {
+  return ['-d', distro, ...getWslDockerLaunchArgs(args)]
+}
+
+async function resolveDockerStreamLaunch(args: string[]): Promise<{ command: string; args: string[] }> {
+  if (process.platform !== 'win32') {
+    return { command: 'docker', args }
+  }
+
+  try {
+    await runDockerCommandWith('docker', ['version', '--format', '{{.Server.Version}}'])
+    return { command: 'docker', args }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Docker not available.'
+    if (!isRecoverableWslDockerError(message)) {
+      throw error
+    }
+  }
+
+  try {
+    await runDockerCommandWith(WSL_EXECUTABLE_PATH, getWslDockerLaunchArgs(['version', '--format', '{{.Server.Version}}']))
+    return {
+      command: WSL_EXECUTABLE_PATH,
+      args: getWslDockerLaunchArgs(args),
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Docker not available in WSL.'
+    if (!isRecoverableWslDockerError(message)) {
+      throw error
+    }
+  }
+
+  const distros = await listWslDistros()
+  for (const distro of distros) {
+    try {
+      await runDockerCommandWith(
+        WSL_EXECUTABLE_PATH,
+        getWslDistroDockerLaunchArgs(distro, ['version', '--format', '{{.Server.Version}}'])
+      )
+      return {
+        command: WSL_EXECUTABLE_PATH,
+        args: getWslDistroDockerLaunchArgs(distro, args),
+      }
+    } catch {
+      // Try next distro
+    }
+  }
+
+  throw new Error('Docker is not available. Install Docker Desktop or enable Docker inside WSL.')
+}
+
+async function spawnDockerCommandStream(args: string[]): Promise<ChildProcessWithoutNullStreams> {
+  const launch = await resolveDockerStreamLaunch(args)
+  return spawn(launch.command, launch.args, {
+    windowsHide: true,
+  })
 }
 
 function broadcast(channel: string, payload: unknown) {
@@ -581,6 +689,7 @@ const MAC_EDITOR_APPS: Record<string, string> = {
 const MAC_TERMINAL_APPS: Record<string, string> = {
   terminal: 'Terminal',
   iterm: 'iTerm',
+  ghostty: 'Ghostty',
   warp: 'Warp',
   hyper: 'Hyper',
 }
@@ -781,6 +890,7 @@ export function registerIpcHandlers() {
       name: getProjectName(normalizedPath),
       type,
       icon: getProjectIcon(type),
+      linkedContainerNames: [],
     }
 
     await updateStore((draft) => {
@@ -830,6 +940,125 @@ export function registerIpcHandlers() {
     }
 
     return updatedProject
+  })
+
+  ipcMain.handle('projects:set-linked-containers', async (_event, projectId: string, linkedContainerNames: unknown) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const sanitized = sanitizeLinkedContainerNames(linkedContainerNames)
+
+    let updatedProject: Project | null = null
+    await updateStore((draft) => {
+      const index = draft.projects.findIndex((project) => project.id === projectId)
+      if (index === -1) {
+        return
+      }
+      const current = draft.projects[index]
+      updatedProject = {
+        ...current,
+        linkedContainerNames: sanitized,
+      }
+      draft.projects[index] = updatedProject
+    })
+
+    if (!updatedProject) {
+      throw new Error('Project not found.')
+    }
+
+    return updatedProject
+  })
+
+  ipcMain.handle('projects:start-dev-stack', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const store = await getStore()
+    const project = store.projects.find((entry) => entry.id === projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const linkedNames = sanitizeLinkedContainerNames(project.linkedContainerNames)
+    if (!linkedNames.length) {
+      return { success: true, started: [], resumed: [], alreadyRunning: [], missing: [] }
+    }
+
+    const containers = await listDockerContainers()
+    const started: string[] = []
+    const resumed: string[] = []
+    const alreadyRunning: string[] = []
+    const missing: string[] = []
+
+    for (const linkedName of linkedNames) {
+      const container = getContainerByLinkedName(containers, linkedName)
+      if (!container) {
+        missing.push(linkedName)
+        continue
+      }
+
+      if (container.state === 'running') {
+        alreadyRunning.push(container.name)
+        continue
+      }
+
+      if (container.state === 'paused') {
+        await runDockerCommand(['unpause', container.id])
+        resumed.push(container.name)
+        continue
+      }
+
+      await runDockerCommand(['start', container.id])
+      started.push(container.name)
+    }
+
+    return { success: true, started, resumed, alreadyRunning, missing }
+  })
+
+  ipcMain.handle('projects:stop-dev-stack', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const store = await getStore()
+    const project = store.projects.find((entry) => entry.id === projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const linkedNames = sanitizeLinkedContainerNames(project.linkedContainerNames)
+    if (!linkedNames.length) {
+      return { success: true, stopped: [], alreadyStopped: [], missing: [] }
+    }
+
+    const containers = await listDockerContainers()
+    const stopped: string[] = []
+    const alreadyStopped: string[] = []
+    const missing: string[] = []
+
+    for (const linkedName of linkedNames) {
+      const container = getContainerByLinkedName(containers, linkedName)
+      if (!container) {
+        missing.push(linkedName)
+        continue
+      }
+
+      if (container.state === 'stopped') {
+        alreadyStopped.push(container.name)
+        continue
+      }
+
+      if (container.state === 'paused') {
+        await runDockerCommand(['unpause', container.id])
+      }
+
+      await runDockerCommand(['stop', container.id])
+      stopped.push(container.name)
+    }
+
+    return { success: true, stopped, alreadyStopped, missing }
   })
 
   ipcMain.handle('preferences:get', async () => {
@@ -1128,8 +1357,7 @@ export function registerIpcHandlers() {
 
   // Containers
   ipcMain.handle('containers:get', async () => {
-    const output = await runDockerCommand(['ps', '-a', '--no-trunc', '--format', '{{json .}}'])
-    return parseDockerContainers(output)
+    return listDockerContainers()
   })
 
   ipcMain.handle('containers:start', async (_event, _id: string) => {
@@ -1177,6 +1405,81 @@ export function registerIpcHandlers() {
     const containerId = requireContainerId(_id)
     const output = await runDockerCommand(['logs', '--tail', '200', containerId])
     return output
+  })
+
+  ipcMain.handle('docker:list', async () => {
+    return listDockerContainers()
+  })
+
+  ipcMain.handle('docker:start', async (_event, _id: string) => {
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['start', containerId])
+    return { success: true }
+  })
+
+  ipcMain.handle('docker:stop', async (_event, _id: string) => {
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['stop', containerId])
+    return { success: true }
+  })
+
+  ipcMain.handle('docker:logs:subscribe', async (_event, _id: string, tail?: number) => {
+    const containerId = requireContainerId(_id)
+    const subscriptionId = randomUUID()
+    const tailCount = Number.isFinite(tail) ? Math.max(1, Math.min(2000, Math.floor(tail as number))) : 200
+    const stream = await spawnDockerCommandStream(['logs', '--follow', '--tail', String(tailCount), containerId])
+
+    runningDockerLogSubscriptions.set(subscriptionId, {
+      process: stream,
+      containerId,
+    })
+
+    const pushChunk = (chunk: Buffer) => {
+      broadcast('docker:logs:data', {
+        subscriptionId,
+        containerId,
+        chunk: chunk.toString(),
+      })
+    }
+
+    stream.stdout.on('data', pushChunk)
+    stream.stderr.on('data', pushChunk)
+
+    stream.on('error', (error) => {
+      runningDockerLogSubscriptions.delete(subscriptionId)
+      broadcast('docker:logs:error', {
+        subscriptionId,
+        containerId,
+        error: error.message,
+      })
+    })
+
+    stream.on('close', (code) => {
+      runningDockerLogSubscriptions.delete(subscriptionId)
+      broadcast('docker:logs:end', {
+        subscriptionId,
+        containerId,
+        code,
+      })
+    })
+
+    return { subscriptionId }
+  })
+
+  ipcMain.handle('docker:logs:unsubscribe', async (_event, subscriptionId: string) => {
+    const id = subscriptionId?.trim()
+    if (!id) {
+      return { success: false }
+    }
+
+    const running = runningDockerLogSubscriptions.get(id)
+    if (!running) {
+      return { success: false }
+    }
+
+    running.process.kill()
+    runningDockerLogSubscriptions.delete(id)
+    return { success: true }
   })
 
   // Run History

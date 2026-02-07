@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Code2, Pencil, Terminal, Trash2, FolderGit2, Monitor } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Code2, Pencil, Terminal, Trash2, FolderGit2, Monitor, Link2, RefreshCw, Activity, Trash } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import {
@@ -19,9 +19,10 @@ import {
 } from '../components/ui/Dialog'
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
+import { ScrollArea } from '../components/ui/ScrollArea'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
-import type { AppPreferences, Project } from '../types'
+import type { AppPreferences, Container, Project } from '../types'
 
 const selectClass =
   'flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
@@ -49,6 +50,7 @@ const windowsEditorOptions = [
 const macTerminalOptions = [
   { id: 'terminal', label: 'Terminal' },
   { id: 'iterm', label: 'iTerm' },
+  { id: 'ghostty', label: 'Ghostty' },
   { id: 'warp', label: 'Warp' },
   { id: 'hyper', label: 'Hyper' },
   { id: 'custom', label: 'Custom command' },
@@ -61,21 +63,51 @@ const windowsTerminalOptions = [
   { id: 'custom', label: 'Custom command' },
 ]
 
+const linuxEditorOptions = [
+  { id: 'vscode', label: 'Visual Studio Code' },
+  { id: 'custom', label: 'Custom command' },
+]
+
+const linuxTerminalOptions = [
+  { id: 'terminal', label: 'Terminal' },
+  { id: 'custom', label: 'Custom command' },
+]
+
+const containerStateBadge: Record<Container['state'], 'success' | 'warning' | 'outline'> = {
+  running: 'success',
+  paused: 'warning',
+  stopped: 'outline',
+}
+
 export function ProjectsSection({
   projects,
+  containers,
   isLoading,
   error,
+  containersLoading,
+  containersError,
   preferences,
   onSavePreferences,
   onUpdateProject,
+  onSetLinkedContainers,
+  onStartDevStack,
+  onStopDevStack,
+  onRefreshContainers,
   onRemoveProject,
 }: {
   projects: Project[]
+  containers: Container[]
   isLoading?: boolean
   error?: string | null
+  containersLoading?: boolean
+  containersError?: string | null
   preferences?: AppPreferences | null
   onSavePreferences?: (next: AppPreferences) => Promise<void>
   onUpdateProject?: (projectId: string, updates: { name: string }) => Promise<void>
+  onSetLinkedContainers?: (projectId: string, linkedContainerNames: string[]) => Promise<Project>
+  onStartDevStack?: (projectId: string) => Promise<{ success: boolean; started: string[]; resumed: string[]; alreadyRunning: string[]; missing: string[] }>
+  onStopDevStack?: (projectId: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
+  onRefreshContainers?: () => Promise<void>
   onRemoveProject?: (projectId: string) => Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
@@ -91,6 +123,19 @@ export function ProjectsSection({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [linkedContainerToAdd, setLinkedContainerToAdd] = useState('')
+  const [linkingError, setLinkingError] = useState<string | null>(null)
+  const [stackActionLoading, setStackActionLoading] = useState<'start' | 'stop' | null>(null)
+  const [stackActionError, setStackActionError] = useState<string | null>(null)
+  const [stackActionMessage, setStackActionMessage] = useState<string | null>(null)
+  const [stopStackDialogOpen, setStopStackDialogOpen] = useState(false)
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false)
+  const [liveLogsTarget, setLiveLogsTarget] = useState<string | null>(null)
+  const [liveLogsText, setLiveLogsText] = useState('')
+  const [liveLogsError, setLiveLogsError] = useState<string | null>(null)
+  const [liveLogsConnecting, setLiveLogsConnecting] = useState(false)
+  const [liveLogsClosed, setLiveLogsClosed] = useState(false)
+  const liveLogsSubscriptionIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!projects.length) {
@@ -119,6 +164,264 @@ export function ProjectsSection({
   useEffect(() => {
     setEditName(selectedProject?.name ?? '')
   }, [selectedProject?.id, selectedProject?.name])
+
+  const linkedContainerNames = useMemo(
+    () => selectedProject?.linkedContainerNames ?? [],
+    [selectedProject?.linkedContainerNames]
+  )
+
+  const containersByName = useMemo(() => {
+    const map = new Map<string, Container>()
+    for (const container of containers) {
+      map.set(container.name.trim().toLowerCase(), container)
+    }
+    return map
+  }, [containers])
+
+  const linkedContainers = useMemo(
+    () =>
+      linkedContainerNames.map((name) => ({
+        linkedName: name,
+        container: containersByName.get(name.trim().toLowerCase()) ?? null,
+      })),
+    [containersByName, linkedContainerNames]
+  )
+
+  const linkableContainers = useMemo(() => {
+    const linked = new Set(linkedContainerNames.map((name) => name.trim().toLowerCase()))
+    return containers.filter((container) => !linked.has(container.name.trim().toLowerCase()))
+  }, [containers, linkedContainerNames])
+
+  useEffect(() => {
+    setLinkedContainerToAdd((current) => {
+      if (!current) {
+        return linkableContainers[0]?.name ?? ''
+      }
+      return linkableContainers.some((container) => container.name === current)
+        ? current
+        : linkableContainers[0]?.name ?? ''
+    })
+  }, [linkableContainers])
+
+  useEffect(() => {
+    setLinkingError(null)
+    setStackActionError(null)
+    setStackActionMessage(null)
+  }, [selectedProject?.id])
+
+  const unsubscribeLiveLogs = useCallback(async () => {
+    const subscriptionId = liveLogsSubscriptionIdRef.current
+    if (!subscriptionId) {
+      return
+    }
+    liveLogsSubscriptionIdRef.current = null
+    try {
+      await window.electronAPI.unsubscribeContainerLogs(subscriptionId)
+    } catch {
+      // Best-effort cleanup
+    }
+  }, [])
+
+  useEffect(() => {
+    const unsubscribeData = window.electronAPI.onContainerLogsData(({ subscriptionId, chunk }) => {
+      if (subscriptionId !== liveLogsSubscriptionIdRef.current) {
+        return
+      }
+      setLiveLogsText((prev) => `${prev}${chunk}`)
+    })
+
+    const unsubscribeEnd = window.electronAPI.onContainerLogsEnd(({ subscriptionId }) => {
+      if (subscriptionId !== liveLogsSubscriptionIdRef.current) {
+        return
+      }
+      setLiveLogsClosed(true)
+      void unsubscribeLiveLogs()
+    })
+
+    const unsubscribeError = window.electronAPI.onContainerLogsError(({ subscriptionId, error }) => {
+      if (subscriptionId !== liveLogsSubscriptionIdRef.current) {
+        return
+      }
+      setLiveLogsError(error || 'Live log stream failed.')
+      void unsubscribeLiveLogs()
+    })
+
+    return () => {
+      unsubscribeData()
+      unsubscribeEnd()
+      unsubscribeError()
+    }
+  }, [unsubscribeLiveLogs])
+
+  useEffect(() => {
+    if (logsDialogOpen) {
+      return
+    }
+    setLiveLogsTarget(null)
+    setLiveLogsText('')
+    setLiveLogsError(null)
+    setLiveLogsConnecting(false)
+    setLiveLogsClosed(false)
+    void unsubscribeLiveLogs()
+  }, [logsDialogOpen, unsubscribeLiveLogs])
+
+  useEffect(() => {
+    return () => {
+      void unsubscribeLiveLogs()
+    }
+  }, [unsubscribeLiveLogs])
+
+  const persistLinkedContainers = useCallback(
+    async (nextLinkedNames: string[]) => {
+      if (!selectedProject || !onSetLinkedContainers) {
+        return
+      }
+      setLinkingError(null)
+      await onSetLinkedContainers(selectedProject.id, nextLinkedNames)
+    },
+    [onSetLinkedContainers, selectedProject]
+  )
+
+  const handleAddLinkedContainer = async () => {
+    if (!selectedProject || !onSetLinkedContainers) {
+      return
+    }
+
+    const nextName = linkedContainerToAdd.trim()
+    if (!nextName) {
+      setLinkingError('Select a container to link.')
+      return
+    }
+
+    const deduped = Array.from(
+      new Set([...linkedContainerNames, nextName].map((entry) => entry.trim()).filter(Boolean))
+    )
+
+    try {
+      await persistLinkedContainers(deduped)
+      setStackActionMessage(`Linked ${nextName} to ${selectedProject.name}.`)
+      setLinkingError(null)
+    } catch (error) {
+      setLinkingError(error instanceof Error ? error.message : 'Failed to link container.')
+    }
+  }
+
+  const handleRemoveLinkedContainer = async (linkedName: string) => {
+    if (!selectedProject || !onSetLinkedContainers) {
+      return
+    }
+
+    const next = linkedContainerNames.filter((entry) => entry.trim().toLowerCase() !== linkedName.trim().toLowerCase())
+    try {
+      await persistLinkedContainers(next)
+      setStackActionMessage(`Unlinked ${linkedName} from ${selectedProject.name}.`)
+      setLinkingError(null)
+    } catch (error) {
+      setLinkingError(error instanceof Error ? error.message : 'Failed to unlink container.')
+    }
+  }
+
+  const formatStackSummary = (values: string[], label: string) => {
+    if (!values.length) {
+      return null
+    }
+    return `${label}: ${values.join(', ')}`
+  }
+
+  const handleStartDevStack = async () => {
+    if (!selectedProject || !onStartDevStack || stackActionLoading) {
+      return
+    }
+    setStackActionLoading('start')
+    setStackActionError(null)
+    setStackActionMessage(null)
+    try {
+      const result = await onStartDevStack(selectedProject.id)
+      const summary = [
+        formatStackSummary(result.started, 'Started'),
+        formatStackSummary(result.resumed, 'Resumed'),
+        formatStackSummary(result.alreadyRunning, 'Already running'),
+        formatStackSummary(result.missing, 'Missing links'),
+      ]
+        .filter(Boolean)
+        .join(' | ')
+      setStackActionMessage(summary || 'No linked containers to start.')
+    } catch (error) {
+      setStackActionError(error instanceof Error ? error.message : 'Failed to start dev stack.')
+    } finally {
+      setStackActionLoading(null)
+    }
+  }
+
+  const handleStopDevStack = async () => {
+    if (!selectedProject || !onStopDevStack || stackActionLoading) {
+      return
+    }
+    setStackActionLoading('stop')
+    setStackActionError(null)
+    setStackActionMessage(null)
+    try {
+      const result = await onStopDevStack(selectedProject.id)
+      const summary = [
+        formatStackSummary(result.stopped, 'Stopped'),
+        formatStackSummary(result.alreadyStopped, 'Already stopped'),
+        formatStackSummary(result.missing, 'Missing links'),
+      ]
+        .filter(Boolean)
+        .join(' | ')
+      setStackActionMessage(summary || 'No linked containers to stop.')
+      setStopStackDialogOpen(false)
+    } catch (error) {
+      setStackActionError(error instanceof Error ? error.message : 'Failed to stop dev stack.')
+    } finally {
+      setStackActionLoading(null)
+    }
+  }
+
+  const startLiveLogs = useCallback(
+    async (linkedName: string) => {
+      const container = containersByName.get(linkedName.trim().toLowerCase())
+      setLiveLogsTarget(linkedName)
+      setLiveLogsText('')
+      setLiveLogsError(null)
+      setLiveLogsClosed(false)
+
+      if (!container) {
+        setLiveLogsConnecting(false)
+        setLiveLogsError(`Container "${linkedName}" is not available in Docker right now.`)
+        return
+      }
+
+      setLiveLogsConnecting(true)
+      await unsubscribeLiveLogs()
+      try {
+        const { subscriptionId } = await window.electronAPI.subscribeContainerLogs(container.id, 200)
+        liveLogsSubscriptionIdRef.current = subscriptionId
+      } catch (error) {
+        setLiveLogsError(error instanceof Error ? error.message : 'Failed to subscribe to container logs.')
+      } finally {
+        setLiveLogsConnecting(false)
+      }
+    },
+    [containersByName, unsubscribeLiveLogs]
+  )
+
+  const handleOpenLiveLogs = async (linkedName: string) => {
+    setLogsDialogOpen(true)
+    await startLiveLogs(linkedName)
+  }
+
+  const handleRefreshLinkedContainers = async () => {
+    if (!onRefreshContainers) {
+      return
+    }
+    setStackActionError(null)
+    try {
+      await onRefreshContainers()
+    } catch (error) {
+      setStackActionError(error instanceof Error ? error.message : 'Failed to refresh containers.')
+    }
+  }
 
   const handleOpen = async (action: 'folder' | 'editor' | 'terminal') => {
     if (!selectedProject || actionLoading) return
@@ -172,9 +475,11 @@ export function ProjectsSection({
     }
   }
 
-  const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac')
-  const editorOptions = isMac ? macEditorOptions : windowsEditorOptions
-  const terminalOptions = isMac ? macTerminalOptions : windowsTerminalOptions
+  const platform = window.electronAPI.platform
+  const isMac = platform === 'darwin'
+  const isWindows = platform === 'win32'
+  const editorOptions = isMac ? macEditorOptions : isWindows ? windowsEditorOptions : linuxEditorOptions
+  const terminalOptions = isMac ? macTerminalOptions : isWindows ? windowsTerminalOptions : linuxTerminalOptions
 
   const handleSaveEdit = async () => {
     if (!selectedProject || !onUpdateProject || isSavingEdit) return
@@ -349,6 +654,179 @@ export function ProjectsSection({
                     )}
                   </div>
 
+                  {/* Dev Stack */}
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                        Dev Stack
+                      </h3>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 px-2.5 text-[10px]"
+                        onClick={() => void handleRefreshLinkedContainers()}
+                        disabled={!onRefreshContainers || containersLoading}
+                      >
+                        <RefreshCw className={cn('h-3.5 w-3.5', containersLoading && 'animate-spin')} />
+                        Refresh
+                      </Button>
+                    </div>
+
+                    <div className="rounded-xl border border-border/40 bg-muted/5 p-5 space-y-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                          Linked: {linkedContainerNames.length}
+                        </Badge>
+                        <Badge
+                          variant="success"
+                          className={cn('text-[10px] uppercase tracking-wider', !linkedContainers.some(({ container }) => container?.state === 'running') && 'opacity-50')}
+                        >
+                          Running: {linkedContainers.filter(({ container }) => container?.state === 'running').length}
+                        </Badge>
+                        <Badge
+                          variant="warning"
+                          className={cn('text-[10px] uppercase tracking-wider', !linkedContainers.some(({ container }) => container?.state === 'paused') && 'opacity-50')}
+                        >
+                          Paused: {linkedContainers.filter(({ container }) => container?.state === 'paused').length}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={cn('text-[10px] uppercase tracking-wider', !linkedContainers.some(({ container }) => !container || container.state === 'stopped') && 'opacity-50')}
+                        >
+                          Stopped/Missing: {linkedContainers.filter(({ container }) => !container || container.state === 'stopped').length}
+                        </Badge>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-8 gap-2 text-[11px] font-semibold"
+                          onClick={() => void handleStartDevStack()}
+                          disabled={!onStartDevStack || linkedContainerNames.length === 0 || stackActionLoading !== null}
+                        >
+                          <Activity className="h-3.5 w-3.5" />
+                          {stackActionLoading === 'start' ? 'Starting...' : 'Start Dev Stack'}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-8 gap-2 text-[11px] font-semibold"
+                          onClick={() => setStopStackDialogOpen(true)}
+                          disabled={!onStopDevStack || linkedContainerNames.length === 0 || stackActionLoading !== null}
+                        >
+                          <Trash className="h-3.5 w-3.5" />
+                          Stop Dev Stack
+                        </Button>
+                      </div>
+
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                        <div className="space-y-2">
+                          <Label htmlFor="link-container-select" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                            Link Container
+                          </Label>
+                          <select
+                            id="link-container-select"
+                            className={cn(selectClass, 'bg-background shadow-sm')}
+                            value={linkedContainerToAdd}
+                            onChange={(event) => setLinkedContainerToAdd(event.target.value)}
+                            disabled={linkableContainers.length === 0 || !onSetLinkedContainers}
+                          >
+                            {linkableContainers.length > 0 ? (
+                              linkableContainers.map((container) => (
+                                <option key={container.id} value={container.name}>
+                                  {container.name} ({container.state})
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">No additional containers found</option>
+                            )}
+                          </select>
+                        </div>
+                        <div className="flex items-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 gap-2 text-[11px] font-semibold"
+                            onClick={() => void handleAddLinkedContainer()}
+                            disabled={!onSetLinkedContainers || !linkedContainerToAdd.trim() || linkableContainers.length === 0}
+                          >
+                            <Link2 className="h-3.5 w-3.5" />
+                            Link
+                          </Button>
+                        </div>
+                      </div>
+
+                      {containersError ? (
+                        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
+                          {containersError}
+                        </div>
+                      ) : null}
+                      {linkingError ? (
+                        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
+                          {linkingError}
+                        </div>
+                      ) : null}
+                      {stackActionError ? (
+                        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
+                          {stackActionError}
+                        </div>
+                      ) : null}
+                      {stackActionMessage ? (
+                        <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-[11px] text-primary/90">
+                          {stackActionMessage}
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        {linkedContainers.length === 0 ? (
+                          <div className="rounded-lg border border-dashed border-border/40 px-3 py-5 text-center text-[11px] text-muted-foreground">
+                            Link containers to this project to enable one-click dev stack controls.
+                          </div>
+                        ) : (
+                          linkedContainers.map(({ linkedName, container }) => (
+                            <div
+                              key={linkedName}
+                              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold">{linkedName}</p>
+                                <p className="truncate text-[10px] text-muted-foreground font-mono">
+                                  {container ? container.image : 'Container not found in current Docker list'}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant={container ? containerStateBadge[container.state] : 'outline'}
+                                  className="text-[10px] uppercase tracking-wider"
+                                >
+                                  {container?.state ?? 'missing'}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[10px]"
+                                  onClick={() => void handleOpenLiveLogs(linkedName)}
+                                >
+                                  Live Logs
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-[10px] text-destructive hover:text-destructive"
+                                  onClick={() => void handleRemoveLinkedContainer(linkedName)}
+                                  disabled={!onSetLinkedContainers}
+                                >
+                                  Unlink
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Preferences */}
                   <div className="space-y-5">
                     <div className="flex items-center justify-between">
@@ -489,6 +967,90 @@ export function ProjectsSection({
           )
         }
       />
+      <Dialog
+        open={stopStackDialogOpen}
+        onOpenChange={(open) => {
+          setStopStackDialogOpen(open)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Stop linked dev stack?</DialogTitle>
+            <DialogDescription>
+              This will stop all linked running containers for {selectedProject?.name ?? 'this project'}.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStopStackDialogOpen(false)} disabled={stackActionLoading === 'stop'}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => void handleStopDevStack()} disabled={stackActionLoading === 'stop'}>
+              {stackActionLoading === 'stop' ? 'Stopping...' : 'Stop Dev Stack'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={logsDialogOpen}
+        onOpenChange={(open) => {
+          setLogsDialogOpen(open)
+        }}
+      >
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Live Container Logs</DialogTitle>
+            <DialogDescription>
+              {liveLogsTarget
+                ? `Streaming logs for ${liveLogsTarget}.`
+                : 'Select a linked container to stream logs.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {linkedContainers.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {linkedContainers.map(({ linkedName, container }) => (
+                  <Button
+                    key={`logs-target-${linkedName}`}
+                    size="sm"
+                    variant={linkedName === liveLogsTarget ? 'default' : 'outline'}
+                    className="h-7 px-2 text-[10px]"
+                    onClick={() => void startLiveLogs(linkedName)}
+                    disabled={!container}
+                  >
+                    {linkedName}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            {liveLogsError ? (
+              <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {liveLogsError}
+              </div>
+            ) : null}
+            {liveLogsClosed ? (
+              <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-500">
+                Log stream ended.
+              </div>
+            ) : null}
+            <div className="rounded-lg border border-border/40 bg-black text-green-300">
+              <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 text-[10px] uppercase tracking-widest text-white/60">
+                <span>{liveLogsTarget ?? 'No container selected'}</span>
+                <span>{liveLogsConnecting ? 'Connecting...' : 'Streaming'}</span>
+              </div>
+              <ScrollArea className="h-[380px]">
+                <pre className="whitespace-pre-wrap px-3 py-2 text-xs leading-relaxed">
+                  {liveLogsText || (liveLogsConnecting ? 'Connecting to log stream...' : 'No log output yet.')}
+                </pre>
+              </ScrollArea>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogsDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={editDialogOpen}
         onOpenChange={(open) => {

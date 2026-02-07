@@ -2,11 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 // Define the API interface
 interface ElectronAPI {
+  platform: string
   getProjects: () => Promise<unknown[]>
   listWslDistros: () => Promise<string[]>
   addProject: (path: string) => Promise<{ id: string; path: string }>
   removeProject: (id: string) => Promise<{ success: boolean }>
   updateProject: (id: string, updates: { name: string }) => Promise<{ id: string; name: string }>
+  setProjectLinkedContainers: (id: string, linkedContainerNames: string[]) => Promise<unknown>
+  startProjectDevStack: (id: string) => Promise<{ success: boolean; started: string[]; resumed: string[]; alreadyRunning: string[]; missing: string[] }>
+  stopProjectDevStack: (id: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
   openProjectFolderDialog: (startPath?: string) => Promise<{ canceled: boolean; path?: string }>
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
@@ -35,6 +39,11 @@ interface ElectronAPI {
   unpauseContainer: (id: string) => Promise<{ success: boolean }>
   removeContainer: (id: string, force?: boolean) => Promise<{ success: boolean }>
   getContainerLogs: (id: string) => Promise<string>
+  subscribeContainerLogs: (id: string, tail?: number) => Promise<{ subscriptionId: string }>
+  unsubscribeContainerLogs: (subscriptionId: string) => Promise<{ success: boolean }>
+  onContainerLogsData: (handler: (payload: { subscriptionId: string; containerId: string; chunk: string }) => void) => () => void
+  onContainerLogsEnd: (handler: (payload: { subscriptionId: string; containerId: string; code: number | null }) => void) => () => void
+  onContainerLogsError: (handler: (payload: { subscriptionId: string; containerId: string; error: string }) => void) => () => void
 
   getRunHistory: () => Promise<unknown[]>
   listRecentHistory: (limit?: number) => Promise<{ id: string; commandId: string; projectId?: string; status: string; startTime: string; endTime?: string }[]>
@@ -52,6 +61,7 @@ interface ElectronAPI {
 
 // Expose a safe API to the renderer process
 const electronAPI: ElectronAPI = {
+  platform: process.platform,
   // Projects
   getProjects: () => ipcRenderer.invoke('projects:get'),
   listWslDistros: () => ipcRenderer.invoke('wsl:list-distros'),
@@ -59,6 +69,10 @@ const electronAPI: ElectronAPI = {
   removeProject: (id: string) => ipcRenderer.invoke('projects:remove', id),
   updateProject: (id: string, updates: { name: string }) =>
     ipcRenderer.invoke('projects:update', id, updates),
+  setProjectLinkedContainers: (id: string, linkedContainerNames: string[]) =>
+    ipcRenderer.invoke('projects:set-linked-containers', id, linkedContainerNames),
+  startProjectDevStack: (id: string) => ipcRenderer.invoke('projects:start-dev-stack', id),
+  stopProjectDevStack: (id: string) => ipcRenderer.invoke('projects:stop-dev-stack', id),
   openProjectFolderDialog: (startPath?: string) => ipcRenderer.invoke('dialog:open-folder', startPath),
   openProjectFolder: (id: string) => ipcRenderer.invoke('projects:open-folder', id),
   openProjectInEditor: (id: string) => ipcRenderer.invoke('projects:open-editor', id),
@@ -103,6 +117,39 @@ const electronAPI: ElectronAPI = {
   unpauseContainer: (id: string) => ipcRenderer.invoke('containers:unpause', id),
   removeContainer: (id: string, force?: boolean) => ipcRenderer.invoke('containers:remove', id, force),
   getContainerLogs: (id: string) => ipcRenderer.invoke('containers:logs', id),
+  subscribeContainerLogs: (id: string, tail?: number) => ipcRenderer.invoke('docker:logs:subscribe', id, tail),
+  unsubscribeContainerLogs: (subscriptionId: string) =>
+    ipcRenderer.invoke('docker:logs:unsubscribe', subscriptionId),
+  onContainerLogsData: (handler: (payload: { subscriptionId: string; containerId: string; chunk: string }) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { subscriptionId: string; containerId: string; chunk: string }
+    ) => {
+      handler(payload)
+    }
+    ipcRenderer.on('docker:logs:data', listener)
+    return () => ipcRenderer.removeListener('docker:logs:data', listener)
+  },
+  onContainerLogsEnd: (handler: (payload: { subscriptionId: string; containerId: string; code: number | null }) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { subscriptionId: string; containerId: string; code: number | null }
+    ) => {
+      handler(payload)
+    }
+    ipcRenderer.on('docker:logs:end', listener)
+    return () => ipcRenderer.removeListener('docker:logs:end', listener)
+  },
+  onContainerLogsError: (handler: (payload: { subscriptionId: string; containerId: string; error: string }) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { subscriptionId: string; containerId: string; error: string }
+    ) => {
+      handler(payload)
+    }
+    ipcRenderer.on('docker:logs:error', listener)
+    return () => ipcRenderer.removeListener('docker:logs:error', listener)
+  },
 
   // Run History
   getRunHistory: () => ipcRenderer.invoke('history:get'),

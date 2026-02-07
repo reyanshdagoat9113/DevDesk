@@ -4,6 +4,7 @@ export interface Project {
   name: string
   type: 'node' | 'python' | 'rust' | 'go' | 'unknown'
   icon: string
+  linkedContainerNames: string[]
 }
 
 export interface Command {
