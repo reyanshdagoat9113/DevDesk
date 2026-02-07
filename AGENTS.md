@@ -34,14 +34,15 @@
 
 ## Architecture Overview
 - Electron main process + preload bridge + renderer UI is implemented.
-- Local JSON persistence lives in the userData directory as `devdesk-store.json`.
+- Current persistence: local JSON in userData as `devdesk-store.json`.
+- Planned persistence: local SQLite using `better-sqlite3` in userData as `devdesk.db` with WAL.
 - Core features: projects, command vault, containers, run history, and project notes.
 - Local-first: avoid cloud services, analytics, or background daemons.
 - Renderer build output is `dist/renderer`; main process loads `../../renderer/index.html` in production.
 
 ## Current MVP Status
-- Implemented: projects add/open, command create/run/stop, run history with output, notes editing, app preferences.
-- Pending: Docker container integration, command editing/search, project removal UI, production build verification.
+- Implemented: projects add/edit/remove, command create/edit/delete/run, run history with output + clear, notes editing, app preferences, Docker containers with Windows + WSL fallback.
+- Pending: command search/filter, run history shows command + project names, production build verification.
 
 ## Security & Configuration Tips
 - Keep `nodeIntegration` disabled and `contextIsolation` enabled (already set).

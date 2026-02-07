@@ -62,6 +62,10 @@ function App() {
   const [projectError, setProjectError] = useState<string | null>(null)
   const [isSavingProject, setIsSavingProject] = useState(false)
   const [isPickingProject, setIsPickingProject] = useState(false)
+  const [wslDistros, setWslDistros] = useState<string[]>([])
+  const [selectedWslDistro, setSelectedWslDistro] = useState('')
+  const [wslDistroInput, setWslDistroInput] = useState('')
+  const [isLoadingWslDistros, setIsLoadingWslDistros] = useState(false)
 
   const [commandDialogOpen, setCommandDialogOpen] = useState(false)
   const [commandName, setCommandName] = useState('')
@@ -207,6 +211,54 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!projectDialogOpen) {
+      return
+    }
+
+    let canceled = false
+    const loadWslDistros = async () => {
+      setIsLoadingWslDistros(true)
+      try {
+        const distros = await window.electronAPI.listWslDistros()
+        if (canceled) {
+          return
+        }
+        setWslDistros(distros)
+        const nextSelected = distros[0] ?? ''
+        setSelectedWslDistro((current) => (current && distros.includes(current) ? current : nextSelected))
+        setWslDistroInput((current) => {
+          const trimmed = current.trim()
+          if (trimmed && distros.includes(trimmed)) {
+            return trimmed
+          }
+          return nextSelected || trimmed
+        })
+      } catch {
+        if (canceled) {
+          return
+        }
+        setWslDistros([])
+        setSelectedWslDistro('')
+        setWslDistroInput((current) => (current.trim() ? current : 'Ubuntu'))
+      } finally {
+        if (!canceled) {
+          setIsLoadingWslDistros(false)
+        }
+      }
+    }
+
+    void loadWslDistros()
+    return () => {
+      canceled = true
+    }
+  }, [projectDialogOpen])
+
+  const handleWslDistroSelect = (distro: string) => {
+    setSelectedWslDistro(distro)
+    setWslDistroInput(distro)
+  }
+
   const handleAddProject = async () => {
     const trimmed = projectPath.trim()
     if (!trimmed) {
@@ -277,6 +329,31 @@ function App() {
     } finally {
       setIsPickingProject(false)
     }
+  }
+
+  const getWslStartPath = () => {
+    const distro = selectedWslDistro.trim() || wslDistroInput.trim() || 'Ubuntu'
+    return `\\\\wsl.localhost\\${distro}\\home\\`
+  }
+
+  const handlePickWslProject = async () => {
+    setProjectError(null)
+    setIsPickingProject(true)
+    try {
+      const result = await window.electronAPI.openProjectFolderDialog(getWslStartPath())
+      if (!result.canceled && result.path) {
+        setProjectPath(result.path)
+      }
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : 'Failed to open WSL folder picker.')
+    } finally {
+      setIsPickingProject(false)
+    }
+  }
+
+  const handlePrefillWslPath = () => {
+    setProjectError(null)
+    setProjectPath(getWslStartPath())
   }
 
   const handleAddCommand = async () => {
@@ -485,26 +562,67 @@ function App() {
   }
 
   const handleStartContainer = async (containerId: string) => {
+    await runContainerAction(
+      () => window.electronAPI.startContainer(containerId),
+      'Failed to start container.'
+    )
+  }
+
+  const handleStopContainer = async (containerId: string) => {
+    await runContainerAction(
+      () => window.electronAPI.stopContainer(containerId),
+      'Failed to stop container.'
+    )
+  }
+
+  const handleRestartContainer = async (containerId: string) => {
+    await runContainerAction(
+      () => window.electronAPI.restartContainer(containerId),
+      'Failed to restart container.'
+    )
+  }
+
+  const handlePauseContainer = async (containerId: string) => {
+    await runContainerAction(
+      () => window.electronAPI.pauseContainer(containerId),
+      'Failed to pause container.'
+    )
+  }
+
+  const handleUnpauseContainer = async (containerId: string) => {
+    await runContainerAction(
+      () => window.electronAPI.unpauseContainer(containerId),
+      'Failed to unpause container.'
+    )
+  }
+
+  const handleRemoveContainer = async (containerId: string, force?: boolean) => {
+    await runContainerAction(
+      () => window.electronAPI.removeContainer(containerId, force),
+      'Failed to remove container.'
+    )
+  }
+
+  const handleRefreshContainers = async () => {
     setContainerError(null)
     try {
-      await window.electronAPI.startContainer(containerId)
       const nextContainers = await window.electronAPI.getContainers()
       setContainers(nextContainers)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to start container.'
+      const message = error instanceof Error ? error.message : 'Failed to refresh containers.'
       setContainerError(message)
       throw new Error(message)
     }
   }
 
-  const handleStopContainer = async (containerId: string) => {
+  const runContainerAction = async (action: () => Promise<{ success: boolean }>, fallbackMessage: string) => {
     setContainerError(null)
     try {
-      await window.electronAPI.stopContainer(containerId)
+      await action()
       const nextContainers = await window.electronAPI.getContainers()
       setContainers(nextContainers)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to stop container.'
+      const message = error instanceof Error ? error.message : fallbackMessage
       setContainerError(message)
       throw new Error(message)
     }
@@ -572,12 +690,19 @@ function App() {
               error={containerError}
               onStartContainer={handleStartContainer}
               onStopContainer={handleStopContainer}
+              onRestartContainer={handleRestartContainer}
+              onPauseContainer={handlePauseContainer}
+              onUnpauseContainer={handleUnpauseContainer}
+              onRemoveContainer={handleRemoveContainer}
               onViewLogs={handleViewContainerLogs}
+              onRefreshContainers={handleRefreshContainers}
             />
           )}
           {activeTab === 'history' && (
             <HistorySection
               history={history}
+              commands={commands}
+              projects={projects}
               isLoading={isLoading}
               error={loadError}
               onStopRun={handleStopRun}
@@ -601,7 +726,7 @@ function App() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Project</DialogTitle>
-            <DialogDescription>Enter a local folder path to track.</DialogDescription>
+            <DialogDescription>Enter a local or WSL folder path to track.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
@@ -611,7 +736,7 @@ function App() {
                   id="project-path"
                   value={projectPath}
                   onChange={(event) => setProjectPath(event.target.value)}
-                  placeholder="Select a folder"
+                  placeholder="Select a folder (Windows or WSL)"
                 />
                 <Button
                   type="button"
@@ -621,7 +746,56 @@ function App() {
                 >
                   {isPickingProject ? 'Opening...' : 'Browse'}
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePickWslProject}
+                  disabled={isPickingProject}
+                >
+                  {isPickingProject ? 'Opening...' : 'Browse WSL'}
+                </Button>
               </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Select
+                  value={selectedWslDistro}
+                  onValueChange={handleWslDistroSelect}
+                  disabled={isLoadingWslDistros || wslDistros.length === 0 || isPickingProject}
+                >
+                  <SelectTrigger className="w-full sm:flex-1">
+                    <SelectValue
+                      placeholder={isLoadingWslDistros ? 'Loading WSL distros...' : 'No WSL distro found'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {wslDistros.length > 0 ? (
+                      wslDistros.map((distro) => (
+                        <SelectItem key={distro} value={distro} displayValue={distro}>
+                          {distro}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        No WSL distro detected.
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={wslDistroInput}
+                  onChange={(event) => setWslDistroInput(event.target.value)}
+                  placeholder="WSL distro (e.g. Ubuntu-24.04)"
+                  disabled={isPickingProject}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePrefillWslPath}
+                  disabled={isPickingProject}
+                >
+                  Prefill WSL Home
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Use Prefill WSL Home to auto-fill `\\wsl.localhost\distro\home\` (manual distro entry is supported).</p>
             </div>
             {projectError ? (
               <Alert variant="destructive">

@@ -12,7 +12,7 @@ import {
 } from '../components/ui/Dialog'
 import { Separator } from '../components/ui/Separator'
 import { SectionLayout } from '../layout/SectionLayout'
-import type { RunHistoryEntry } from '../types'
+import type { Command, Project, RunHistoryEntry } from '../types'
 
 const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm'
 
@@ -25,6 +25,8 @@ const statusStyles: Record<RunHistoryEntry['status'], string> = {
 
 export function HistorySection({
   history,
+  commands,
+  projects,
   isLoading,
   error,
   onStopRun,
@@ -32,6 +34,8 @@ export function HistorySection({
   onClearHistory,
 }: {
   history: RunHistoryEntry[]
+  commands: Command[]
+  projects: Project[]
   isLoading?: boolean
   error?: string | null
   onStopRun?: (runId: string) => void
@@ -58,10 +62,33 @@ export function HistorySection({
     }
   }, [history, selectedId])
 
+  const commandById = useMemo(() => {
+    return commands.reduce<Record<string, Command>>((acc, command) => {
+      acc[command.id] = command
+      return acc
+    }, {})
+  }, [commands])
+
+  const projectById = useMemo(() => {
+    return projects.reduce<Record<string, Project>>((acc, project) => {
+      acc[project.id] = project
+      return acc
+    }, {})
+  }, [projects])
+
   const selectedEntry = useMemo(() => {
     if (!history.length) return null
     return history.find((entry) => entry.id === selectedId) ?? history[0]
   }, [history, selectedId])
+
+  const getCommandName = (commandId: string): string => {
+    return commandById[commandId]?.name ?? 'Removed command'
+  }
+
+  const getProjectName = (projectId?: string): string => {
+    if (!projectId) return 'Global'
+    return projectById[projectId]?.name ?? 'Removed project'
+  }
 
   const selectedEntryId = selectedEntry?.id ?? null
   const selectedEntryOutput = selectedEntry?.output ?? ''
@@ -191,9 +218,9 @@ export function HistorySection({
                   >
                     <span className={`mt-1 h-2.5 w-2.5 rounded-full ${statusStyles[entry.status]}`} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">Command #{entry.commandId}</p>
+                      <p className="truncate text-sm font-medium">{getCommandName(entry.commandId)}</p>
                         <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {new Date(entry.startTime).toLocaleString()}
+                          {getProjectName(entry.projectId)} • {new Date(entry.startTime).toLocaleString()}
                         </p>
                       </div>
                       <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
@@ -212,9 +239,9 @@ export function HistorySection({
               <div className="flex h-full flex-col gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Run</p>
-                  <h2 className="mt-3 text-lg font-semibold">Command #{selectedEntry.commandId}</h2>
+                  <h2 className="mt-3 text-lg font-semibold">{getCommandName(selectedEntry.commandId)}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {new Date(selectedEntry.startTime).toLocaleString()}
+                    {getProjectName(selectedEntry.projectId)} • {new Date(selectedEntry.startTime).toLocaleString()}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -275,7 +302,9 @@ export function HistorySection({
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Run Output</DialogTitle>
-            <DialogDescription>Full output for Command #{selectedEntry?.commandId}</DialogDescription>
+            <DialogDescription>
+              {selectedEntry ? `Full output for ${getCommandName(selectedEntry.commandId)} (${getProjectName(selectedEntry.projectId)})` : 'Full output'}
+            </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border border-border bg-muted/60">
             <ScrollArea className="h-[50vh]">

@@ -3,10 +3,11 @@ import { contextBridge, ipcRenderer } from 'electron'
 // Define the API interface
 interface ElectronAPI {
   getProjects: () => Promise<unknown[]>
+  listWslDistros: () => Promise<string[]>
   addProject: (path: string) => Promise<{ id: string; path: string }>
   removeProject: (id: string) => Promise<{ success: boolean }>
   updateProject: (id: string, updates: { name: string }) => Promise<{ id: string; name: string }>
-  openProjectFolderDialog: () => Promise<{ canceled: boolean; path?: string }>
+  openProjectFolderDialog: (startPath?: string) => Promise<{ canceled: boolean; path?: string }>
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInTerminal: (id: string) => Promise<{ success: boolean; error?: string }>
@@ -29,6 +30,10 @@ interface ElectronAPI {
   getContainers: () => Promise<unknown[]>
   startContainer: (id: string) => Promise<{ success: boolean }>
   stopContainer: (id: string) => Promise<{ success: boolean }>
+  restartContainer: (id: string) => Promise<{ success: boolean }>
+  pauseContainer: (id: string) => Promise<{ success: boolean }>
+  unpauseContainer: (id: string) => Promise<{ success: boolean }>
+  removeContainer: (id: string, force?: boolean) => Promise<{ success: boolean }>
   getContainerLogs: (id: string) => Promise<string>
 
   getRunHistory: () => Promise<unknown[]>
@@ -43,11 +48,12 @@ interface ElectronAPI {
 const electronAPI: ElectronAPI = {
   // Projects
   getProjects: () => ipcRenderer.invoke('projects:get'),
+  listWslDistros: () => ipcRenderer.invoke('wsl:list-distros'),
   addProject: (path: string) => ipcRenderer.invoke('projects:add', path),
   removeProject: (id: string) => ipcRenderer.invoke('projects:remove', id),
   updateProject: (id: string, updates: { name: string }) =>
     ipcRenderer.invoke('projects:update', id, updates),
-  openProjectFolderDialog: () => ipcRenderer.invoke('dialog:open-folder'),
+  openProjectFolderDialog: (startPath?: string) => ipcRenderer.invoke('dialog:open-folder', startPath),
   openProjectFolder: (id: string) => ipcRenderer.invoke('projects:open-folder', id),
   openProjectInEditor: (id: string) => ipcRenderer.invoke('projects:open-editor', id),
   openProjectInTerminal: (id: string) => ipcRenderer.invoke('projects:open-terminal', id),
@@ -86,6 +92,10 @@ const electronAPI: ElectronAPI = {
   getContainers: () => ipcRenderer.invoke('containers:get'),
   startContainer: (id: string) => ipcRenderer.invoke('containers:start', id),
   stopContainer: (id: string) => ipcRenderer.invoke('containers:stop', id),
+  restartContainer: (id: string) => ipcRenderer.invoke('containers:restart', id),
+  pauseContainer: (id: string) => ipcRenderer.invoke('containers:pause', id),
+  unpauseContainer: (id: string) => ipcRenderer.invoke('containers:unpause', id),
+  removeContainer: (id: string, force?: boolean) => ipcRenderer.invoke('containers:remove', id, force),
   getContainerLogs: (id: string) => ipcRenderer.invoke('containers:logs', id),
 
   // Run History

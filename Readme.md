@@ -2,21 +2,21 @@
 
 A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, and Docker/Compose Manager into one clean, fast workspace.
 
-## Status (2026-01-30)
+## Status (2026-02-04)
 
 Implemented:
 - Electron shell + Vite renderer, shadcn/ui + Radix components.
 - JSON persistence in userData (`devdesk-store.json`).
-- Projects: add, detect type, open folder/IDE/terminal.
+- Projects: add, edit, remove, detect type, open folder/IDE/terminal.
 - Preferences for editor/terminal (custom command support).
-- Command Vault: create/run/stop commands with tags + description.
-- Run history with live output streaming + full output viewer.
-- Project notes (ports/URLs/reminders).
+- Command Vault: create/edit/delete/run commands with tags + description, project binding, working directory.
+- Run history with live output streaming + full output viewer + clear history.
+- Project notes (setup steps/todos/reminders).
+- Docker containers: list/start/stop/logs with Windows + WSL fallback.
 
 In progress:
-- Docker container integration (UI present, IPC stubbed).
-- Command edit/delete + search UI.
-- Project removal UI.
+- Command search/filter by tag.
+- Run history shows command + project names (not just ids).
 - Production build verification.
 
 ## Quick Start
@@ -52,12 +52,13 @@ If it saves even 5 minutes per day, it is doing its job.
 ### 2) Command Vault
 - Store frequently used terminal commands.
 - Add descriptions and tags.
-- Run commands in project context.
+- Bind commands to a project or run globally.
+- Support project-relative working directories.
 
 ### 3) Containers (Docker + Compose)
 - List running and stopped containers.
 - Start, stop, and view logs.
-- Graceful fallback when Docker is missing.
+- Graceful fallback when Docker is missing; Windows + WSL support.
 
 ### 4) Run History
 - Shows what commands were run.
@@ -66,7 +67,7 @@ If it saves even 5 minutes per day, it is doing its job.
 - Provides access to output for sharing or debugging.
 
 ### 5) Project Notes
-- Lightweight notes for ports, URLs, and reminders tied to a project.
+- Lightweight notes for setup steps, todos, and reminders tied to a project.
 
 ## How the App Works (High-Level)
 
@@ -87,9 +88,15 @@ If it saves even 5 minutes per day, it is doing its job.
 
 ## Data Storage
 
-Data lives in a single JSON store in the Electron userData directory:
+Current: data lives in a single JSON store in the Electron userData directory:
 - File: `devdesk-store.json`
 - Schema: `apps/desktop/data/model.ts`
+
+Planned: migrate to a local SQLite store using `better-sqlite3` for reliability and performance.
+- File: `devdesk.db` (same userData directory)
+- Migration: one-time import from `devdesk-store.json` if the DB does not exist
+- Mode: WAL enabled, single-writer from the main process
+- No backend required; app remains local-first
 
 Containers are runtime-only and not persisted.
 
@@ -100,7 +107,7 @@ Containers are runtime-only and not persisted.
 - See Docker containers and logs.
 - View and stop running commands.
 - View run history with output access.
-- Edit simple project notes (ports, URLs, reminders).
+- Edit simple project notes (setup steps, todos, reminders).
 
 ## Possible Future Enhancements (Optional)
 

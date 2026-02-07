@@ -20,6 +20,10 @@ const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border borde
 const selectClass =
   'flex h-9 w-full rounded-md border border-input bg-background/70 px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
 
+function isWslPath(projectPath: string) {
+  return /^\\\\wsl(?:\.localhost|\$)\\/i.test(projectPath)
+}
+
 const macEditorOptions = [
   { id: 'vscode', label: 'Visual Studio Code' },
   { id: 'cursor', label: 'Cursor' },
@@ -99,7 +103,7 @@ export function ProjectsSection({
 
   useEffect(() => {
     setPrefsDraft(preferences ?? null)
-  }, [preferences?.editor.id, preferences?.editor.command, preferences?.terminal.id, preferences?.terminal.command])
+  }, [preferences])
 
   const selectedProject = useMemo(() => {
     if (!projects.length) return null
@@ -223,6 +227,7 @@ export function ProjectsSection({
               ) : (
                 projects.map((project) => {
                   const isActive = selectedProject?.id === project.id
+                  const isWslProject = isWslPath(project.path)
                   return (
                     <button
                       key={project.id}
@@ -241,9 +246,16 @@ export function ProjectsSection({
                         <p className="truncate text-sm font-medium">{project.name}</p>
                         <p className="truncate text-xs text-muted-foreground">{project.path}</p>
                       </div>
-                      <Badge variant="secondary" className="text-[10px] font-medium uppercase tracking-wide">
-                        {project.type}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        {isWslProject ? (
+                          <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
+                            🐧
+                          </Badge>
+                        ) : null}
+                        <Badge variant="secondary" className="text-[10px] font-medium uppercase tracking-wide">
+                          {project.type}
+                        </Badge>
+                      </div>
                     </button>
                   )
                 })
@@ -262,6 +274,11 @@ export function ProjectsSection({
                     <p className="mt-1 text-sm text-muted-foreground">{selectedProject.path}</p>
                   </div>
                   <div className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
+                    {isWslPath(selectedProject.path) ? (
+                      <span className="rounded border border-border/80 bg-background/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground">
+                        🐧 Linux
+                      </span>
+                    ) : null}
                     <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Type</span>
                     <span className="text-foreground">{selectedProject.type}</span>
                   </div>

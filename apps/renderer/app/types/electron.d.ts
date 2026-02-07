@@ -2,10 +2,11 @@ import type { AppPreferences, Command, Container, Project, ProjectNotes, RunHist
 
 export interface ElectronAPI {
   getProjects: () => Promise<Project[]>
+  listWslDistros: () => Promise<string[]>
   addProject: (path: string) => Promise<Project>
   removeProject: (id: string) => Promise<{ success: boolean }>
   updateProject: (id: string, updates: { name: string }) => Promise<Project>
-  openProjectFolderDialog: () => Promise<{ canceled: boolean; path?: string }>
+  openProjectFolderDialog: (startPath?: string) => Promise<{ canceled: boolean; path?: string }>
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInTerminal: (id: string) => Promise<{ success: boolean; error?: string }>
@@ -25,6 +26,10 @@ export interface ElectronAPI {
   getContainers: () => Promise<Container[]>
   startContainer: (id: string) => Promise<{ success: boolean }>
   stopContainer: (id: string) => Promise<{ success: boolean }>
+  restartContainer: (id: string) => Promise<{ success: boolean }>
+  pauseContainer: (id: string) => Promise<{ success: boolean }>
+  unpauseContainer: (id: string) => Promise<{ success: boolean }>
+  removeContainer: (id: string, force?: boolean) => Promise<{ success: boolean }>
   getContainerLogs: (id: string) => Promise<string>
 
   getRunHistory: () => Promise<RunHistoryEntry[]>

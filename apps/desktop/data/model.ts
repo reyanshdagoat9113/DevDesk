@@ -24,6 +24,10 @@ export interface Container {
   image: string
   state: 'running' | 'stopped' | 'paused'
   ports: string[]
+  status?: string
+  createdAt?: string
+  labels?: string[]
+  command?: string
 }
 
 export type RunStatus = 'running' | 'success' | 'failed' | 'stopped'

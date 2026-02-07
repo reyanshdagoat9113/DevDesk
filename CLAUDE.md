@@ -19,22 +19,24 @@ DevDesk is an Electron app with a three-layer architecture:
 
 Implementation notes:
 - IPC channels use kebab-case (e.g. `projects:add`, `commands:run`).
-- The data store is JSON in userData as `devdesk-store.json`. Schema lives in `apps/desktop/data/model.ts`.
+- Current data store is JSON in userData as `devdesk-store.json`. Schema lives in `apps/desktop/data/model.ts`.
+- Planned migration to SQLite using `better-sqlite3` in userData as `devdesk.db` with WAL and a one-time JSON import.
 - `reconcileRunHistory()` marks any "running" entries as "stopped" on startup.
 
 ## Current Feature Coverage
 
 Implemented:
-- Projects: add, remove (IPC), open folder/editor/terminal, type detection.
+- Projects: add, edit, remove, open folder/editor/terminal, type detection.
 - Preferences: editor/terminal selection with custom command support (`{path}`).
-- Commands: create, run, stop, tags + description.
-- Run history: status + output streaming + output retrieval.
-- Notes: per-project ports/urls/reminders.
+- Commands: create/edit/delete/run, tags + description, project binding + working directory.
+- Run history: status + output streaming + output retrieval + clear.
+- Notes: per-project setup steps/todos/reminders.
+- Containers: list/start/stop/logs via Docker CLI with Windows + WSL fallback.
 
 Not implemented yet:
-- Docker integration (containers IPC is stubbed).
-- Command edit/delete and search UI.
-- Project removal UI.
+- Command search/filter UI.
+- Run history shows command + project names instead of ids.
+- Production build verification.
 
 ## Key Constraints
 - Local-first only. No cloud, no accounts, no AI.

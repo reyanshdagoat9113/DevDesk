@@ -24,7 +24,7 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
 
   // Load the app
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
+    mainWindow.loadURL('http://127.0.0.1:5180')
     mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'))

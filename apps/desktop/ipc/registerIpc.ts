@@ -15,6 +15,261 @@ type RunningCommand = {
 
 const runningCommands = new Map<string, RunningCommand>()
 
+type WslProjectLocation = {
+  distro: string
+  linuxPath: string
+  uncPath: string
+}
+
+const WSL_UNC_PATH_PATTERN = /^\\\\wsl(?:\.localhost|\$)\\([^\\/]+)(?:[\\/](.*))?$/i
+
+function resolveWslExecutablePath() {
+  if (process.platform !== 'win32') {
+    return 'wsl'
+  }
+
+  const windowsRoot = process.env.SystemRoot ?? process.env.windir ?? 'C:\\Windows'
+  const candidates = [
+    path.win32.join(windowsRoot, 'System32', 'wsl.exe'),
+    path.win32.join(windowsRoot, 'Sysnative', 'wsl.exe'),
+    'wsl.exe',
+  ]
+
+  for (const candidate of candidates) {
+    if (candidate.endsWith('.exe') && fs.existsSync(candidate)) {
+      return candidate
+    }
+  }
+
+  return 'wsl.exe'
+}
+
+const WSL_EXECUTABLE_PATH = resolveWslExecutablePath()
+
+const WSL_DISTRO_NAME_BLACKLIST = new Set(['docker-desktop', 'docker-desktop-data'])
+
+function cleanWslDistroName(rawValue: string) {
+  return rawValue.replace(/\u0000/g, '').replace(/\uFEFF/g, '').replace(/\s+\(default\)$/i, '').trim()
+}
+
+function isIgnoredWslDistro(name: string) {
+  return WSL_DISTRO_NAME_BLACKLIST.has(name.toLowerCase())
+}
+
+function addWslDistroName(target: Set<string>, rawValue: string) {
+  const normalized = cleanWslDistroName(rawValue)
+  if (!normalized || isIgnoredWslDistro(normalized)) {
+    return
+  }
+  target.add(normalized)
+}
+
+function parseWslVerboseDistroLine(line: string): { name: string; isDefault: boolean } | null {
+  const withNoNulls = line.replace(/\u0000/g, '').replace(/\uFEFF/g, '').trim()
+  if (!withNoNulls) {
+    return null
+  }
+
+  const withoutMarker = withNoNulls.startsWith('*') ? withNoNulls.slice(1).trimStart() : withNoNulls
+  const lower = withoutMarker.toLowerCase()
+  if (lower.startsWith('name') || lower.startsWith('the windows subsystem for linux has no installed distributions')) {
+    return null
+  }
+
+  const parts = withoutMarker.split(/\s{2,}/).map((part) => part.trim()).filter(Boolean)
+  if (!parts.length) {
+    return null
+  }
+
+  return {
+    name: parts[0],
+    isDefault: withNoNulls.startsWith('*'),
+  }
+}
+
+function trimTrailingPathSeparators(inputPath: string) {
+  if (!inputPath) {
+    return inputPath
+  }
+
+  if (process.platform === 'win32') {
+    const normalized = inputPath.replace(/\//g, '\\')
+    const root = path.win32.parse(normalized).root
+    let next = normalized
+    while (next.length > root.length && /[\\/]$/.test(next)) {
+      next = next.slice(0, -1)
+    }
+    return next
+  }
+
+  const normalized = path.normalize(inputPath)
+  const root = path.parse(normalized).root
+  let next = normalized
+  while (next.length > root.length && next.endsWith(path.sep)) {
+    next = next.slice(0, -1)
+  }
+  return next
+}
+
+function parseWslProjectPath(projectPath: string): WslProjectLocation | null {
+  if (process.platform !== 'win32') {
+    return null
+  }
+
+  const normalized = path.win32.normalize(projectPath.trim())
+  const match = normalized.match(WSL_UNC_PATH_PATTERN)
+  if (!match) {
+    return null
+  }
+
+  const distro = match[1]
+  const relativePart = match[2]
+  const segments = relativePart
+    ? relativePart
+        .split(/[\\/]+/)
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+    : []
+
+  const linuxPath = segments.length ? `/${segments.join('/')}` : '/'
+  const uncPath = `\\\\wsl.localhost\\${distro}${segments.length ? `\\${segments.join('\\')}` : ''}`
+
+  return {
+    distro,
+    linuxPath,
+    uncPath,
+  }
+}
+
+function normalizeProjectPath(inputPath: string): string {
+  const trimmed = inputPath.trim()
+  if (!trimmed) {
+    return ''
+  }
+
+  if (process.platform !== 'win32') {
+    return trimTrailingPathSeparators(path.normalize(trimmed))
+  }
+
+  const wslLocation = parseWslProjectPath(trimmed)
+  if (wslLocation) {
+    return trimTrailingPathSeparators(wslLocation.uncPath)
+  }
+
+  return trimTrailingPathSeparators(path.win32.normalize(trimmed))
+}
+
+function getProjectPathKey(inputPath: string): string {
+  const normalized = normalizeProjectPath(inputPath)
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+function resolveWslWorkingDirectory(location: WslProjectLocation, workingDirectory?: string): string {
+  if (!workingDirectory?.trim()) {
+    return location.linuxPath
+  }
+
+  const segments = workingDirectory
+    .split(/[\\/]+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  if (!segments.length) {
+    return location.linuxPath
+  }
+
+  return path.posix.join(location.linuxPath, ...segments)
+}
+
+function buildWslBashCommand(command: string, workingDirectory: string): string {
+  return `cd ${formatShellArg(workingDirectory)} && ${command}`
+}
+
+function getWslVscodeFolderUri(location: WslProjectLocation): string {
+  const encodedPath = location.linuxPath.split('/').map((segment) => encodeURIComponent(segment)).join('/')
+  return `vscode-remote://wsl+${encodeURIComponent(location.distro)}${encodedPath}`
+}
+
+async function openWslProjectInTerminal(location: WslProjectLocation, terminalPreferenceId: string) {
+  if (terminalPreferenceId === 'windows-terminal') {
+    const result = await spawnDetached('wt', [WSL_EXECUTABLE_PATH, '-d', location.distro, '--cd', location.linuxPath])
+    if (result.success) {
+      return result
+    }
+  }
+
+  return spawnDetached(WSL_EXECUTABLE_PATH, ['-d', location.distro, '--cd', location.linuxPath])
+}
+
+async function listWslDistros(): Promise<string[]> {
+  if (process.platform !== 'win32') {
+    return []
+  }
+
+  const distros = new Set<string>()
+  let defaultDistro: string | null = null
+
+  try {
+    const quietOutput = await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['--list', '--quiet'])
+    quietOutput
+      .split(/\r?\n/)
+      .forEach((line) => addWslDistroName(distros, line))
+  } catch {
+    // ignore and continue to fallback sources
+  }
+
+  try {
+    const verboseOutput = await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['--list', '--verbose'])
+    verboseOutput.split(/\r?\n/).forEach((line) => {
+      const parsed = parseWslVerboseDistroLine(line)
+      if (!parsed) {
+        return
+      }
+
+      addWslDistroName(distros, parsed.name)
+      if (parsed.isDefault && !isIgnoredWslDistro(parsed.name)) {
+        defaultDistro = cleanWslDistroName(parsed.name)
+      }
+    })
+  } catch {
+    // ignore and continue to fallback sources
+  }
+
+  for (const uncRoot of ['\\\\wsl.localhost\\', '\\\\wsl$\\']) {
+    try {
+      const uncEntries = await fs.promises.readdir(uncRoot)
+      uncEntries.forEach((entry) => addWslDistroName(distros, entry))
+    } catch {
+      // ignore unavailable UNC roots
+    }
+  }
+
+  try {
+    const store = await getStore()
+    for (const project of store.projects) {
+      const parsed = parseWslProjectPath(project.path)
+      if (parsed) {
+        addWslDistroName(distros, parsed.distro)
+      }
+    }
+  } catch {
+    // ignore store read issues
+  }
+
+  const sorted = [...distros].sort((a, b) => a.localeCompare(b))
+  if (!defaultDistro) {
+    return sorted
+  }
+
+  const defaultIndex = sorted.findIndex((distro) => distro.toLowerCase() === defaultDistro?.toLowerCase())
+  if (defaultIndex <= 0) {
+    return sorted
+  }
+
+  const [defaultEntry] = sorted.splice(defaultIndex, 1)
+  return [defaultEntry, ...sorted]
+}
+
 function runDockerCommandWith(command: string, args: string[]) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(command, args, { windowsHide: true })
@@ -66,6 +321,10 @@ function isDockerNotFoundError(message: string) {
   )
 }
 
+function isRecoverableWslDockerError(message: string) {
+  return isDockerNotFoundError(message) || isDockerDaemonError(message)
+}
+
 function formatShellArg(value: string) {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
@@ -77,34 +336,48 @@ function buildDockerShellCommand(args: string[]) {
 
 async function runWslDockerCommand(args: string[]) {
   const dockerCommand = buildDockerShellCommand(args)
+  let defaultWslError: unknown
+
   try {
-    return await runDockerCommandWith('wsl.exe', ['-e', 'sh', '-lc', dockerCommand])
+    return await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['-e', 'bash', '-lc', dockerCommand])
   } catch (error) {
+    defaultWslError = error
     const message = error instanceof Error ? error.message : 'Docker is not available in WSL.'
-    if (!isDockerNotFoundError(message)) {
+    if (!isRecoverableWslDockerError(message)) {
       throw error
     }
+  }
 
-    const listOutput = await runDockerCommandWith('wsl.exe', ['-l', '-q'])
-    const distros = listOutput
+  let distros: string[] = []
+  try {
+    const listOutput = await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['-l', '-q'])
+    distros = listOutput
       .replace(/\u0000/g, '')
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean)
-
-    for (const distro of distros) {
-      try {
-        return await runDockerCommandWith('wsl.exe', ['-d', distro, '-e', 'sh', '-lc', dockerCommand])
-      } catch (distroError) {
-        const distroMessage = distroError instanceof Error ? distroError.message : ''
-        if (!isDockerNotFoundError(distroMessage) && !isDockerDaemonError(distroMessage)) {
-          throw distroError
-        }
-      }
-    }
-
-    throw new Error('Docker not found in WSL. Install Docker in a WSL distro or enable Docker Desktop integration.')
+  } catch {
+    // If distro discovery fails, we'll surface the original WSL Docker error below.
   }
+
+  for (const distro of distros) {
+    try {
+      return await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['-d', distro, '-e', 'bash', '-lc', dockerCommand])
+    } catch (distroError) {
+      const distroMessage = distroError instanceof Error ? distroError.message : ''
+      if (!isRecoverableWslDockerError(distroMessage)) {
+        throw distroError
+      }
+      defaultWslError = distroError
+    }
+  }
+
+  const fallbackMessage =
+    defaultWslError instanceof Error
+      ? defaultWslError.message
+      : 'Docker not found in WSL. Install Docker in a WSL distro or enable Docker Desktop integration.'
+
+  throw new Error(fallbackMessage)
 }
 
 async function runDockerCommand(args: string[]) {
@@ -113,30 +386,46 @@ async function runDockerCommand(args: string[]) {
   } catch (error) {
     const err = error as NodeJS.ErrnoException
     const message = error instanceof Error ? error.message : 'Failed to run Docker command.'
-    const shouldTryWsl =
-      process.platform === 'win32' && (err?.code === 'ENOENT' || isDockerDaemonError(message))
-    if (!shouldTryWsl) {
-      if (err?.code === 'ENOENT') {
-        throw new Error('Docker CLI not found. Install Docker Desktop to enable containers.')
+    
+    // On Windows, if docker.exe is missing (ENOENT), we can try WSL.
+    // If it's a daemon error, we should probably just report it as a daemon error 
+    // unless the user explicitly wants to use WSL. 
+    // However, the current logic tries WSL for both.
+    
+    const isNotFound = err?.code === 'ENOENT'
+    const isDaemonError = isDockerDaemonError(message)
+    
+    if (process.platform === 'win32') {
+      if (isNotFound) {
+        // CLI missing on Windows, try WSL
+        try {
+          return await runWslDockerCommand(args)
+        } catch (wslError) {
+          const wslErr = wslError as NodeJS.ErrnoException
+          if (wslErr?.code === 'ENOENT') {
+            throw new Error('Docker CLI not found. Install Docker Desktop or enable Docker in WSL.')
+          }
+          throw new Error(wslError instanceof Error ? wslError.message : 'Docker is not available in WSL.')
+        }
       }
-      throw new Error(message)
+      
+      if (isDaemonError) {
+        // Daemon not running on Windows. 
+        // We could try WSL here too, but the error message should be clearer if it fails.
+        try {
+          return await runWslDockerCommand(args)
+        } catch (wslError) {
+          // If WSL also fails or has no daemon, report the Windows daemon error as primary
+          throw new Error(`Docker Desktop daemon is not running. (WSL fallback also failed: ${wslError instanceof Error ? wslError.message : 'Unknown error'})`)
+        }
+      }
     }
 
-    try {
-      return await runWslDockerCommand(args)
-    } catch (wslError) {
-      const wslErr = wslError as NodeJS.ErrnoException
-      if (err?.code === 'ENOENT') {
-        if (wslErr?.code === 'ENOENT') {
-          throw new Error('Docker CLI not found. Install Docker Desktop or enable Docker in WSL.')
-        }
-        throw new Error(
-          wslError instanceof Error ? wslError.message : 'Docker is not available in WSL.'
-        )
-      }
-      const fallbackMessage = wslError instanceof Error ? wslError.message : 'Docker is not available in WSL.'
-      throw new Error(`Windows Docker unavailable. WSL Docker failed: ${fallbackMessage}`)
+    if (isNotFound) {
+      throw new Error('Docker CLI not found. Install Docker Desktop to enable containers.')
     }
+    
+    throw new Error(message)
   }
 }
 
@@ -154,6 +443,9 @@ function parseDockerContainers(output: string): Container[] {
         State?: string
         Status?: string
         Ports?: string
+        CreatedAt?: string
+        Labels?: string
+        Command?: string
       }
       const rawState = `${entry.State ?? entry.Status ?? ''}`.toLowerCase()
       let state: Container['state'] = 'stopped'
@@ -169,12 +461,28 @@ function parseDockerContainers(output: string): Container[] {
             .filter(Boolean)
         : []
 
+      const labels = entry.Labels
+        ? entry.Labels.split(',')
+            .map((label) => label.trim())
+            .filter(Boolean)
+        : []
+
+      const rawCommand = entry.Command?.trim()
+      const command =
+        rawCommand && rawCommand.startsWith('"') && rawCommand.endsWith('"')
+          ? rawCommand.slice(1, -1)
+          : rawCommand
+
       return {
         id: entry.ID ?? '',
         name: entry.Names ?? entry.ID ?? 'Unknown',
         image: entry.Image ?? 'Unknown',
         state,
         ports,
+        status: entry.Status ?? entry.State ?? '',
+        createdAt: entry.CreatedAt ?? '',
+        labels,
+        command: command ?? '',
       }
     })
 }
@@ -224,10 +532,11 @@ async function getProjectPath(projectId: string): Promise<string> {
   if (!project) {
     throw new Error('Project not found.')
   }
-  if (!fs.existsSync(project.path)) {
+  const normalizedPath = normalizeProjectPath(project.path)
+  if (!fs.existsSync(normalizedPath)) {
     throw new Error('Project path does not exist.')
   }
-  return project.path
+  return normalizedPath
 }
 
 async function getProjectDirectories(projectId: string, relativePath?: string): Promise<string[]> {
@@ -300,18 +609,36 @@ function resolveCustomCommand(preference: AppPreference, projectPath: string) {
 }
 
 function getProjectName(projectPath: string): string {
-  const normalized = projectPath.endsWith(path.sep) ? projectPath.slice(0, -1) : projectPath
-  return path.basename(normalized)
+  const wslLocation = parseWslProjectPath(projectPath)
+  if (wslLocation) {
+    const wslName = path.posix.basename(wslLocation.linuxPath)
+    return wslName || wslLocation.distro
+  }
+
+  if (process.platform === 'win32') {
+    return path.win32.basename(trimTrailingPathSeparators(projectPath))
+  }
+
+  return path.basename(trimTrailingPathSeparators(projectPath))
 }
 
 // Register all IPC handlers
 export function registerIpcHandlers() {
-  ipcMain.handle('dialog:open-folder', async () => {
+  ipcMain.handle('wsl:list-distros', async () => {
+    return listWslDistros()
+  })
+
+  ipcMain.handle('dialog:open-folder', async (_event, startPath?: string) => {
     const focusedWindow = BrowserWindow.getFocusedWindow()
     const options: OpenDialogOptions = {
       title: 'Select Project Folder',
       properties: ['openDirectory'],
     }
+
+    if (typeof startPath === 'string' && startPath.trim()) {
+      options.defaultPath = normalizeProjectPath(startPath)
+    }
+
     const result = focusedWindow
       ? await dialog.showOpenDialog(focusedWindow, options)
       : await dialog.showOpenDialog(options)
@@ -320,7 +647,7 @@ export function registerIpcHandlers() {
       return { canceled: true }
     }
 
-    return { canceled: false, path: result.filePaths[0] }
+    return { canceled: false, path: normalizeProjectPath(result.filePaths[0]) }
   })
   // Projects
   ipcMain.handle('projects:get', async () => {
@@ -328,26 +655,32 @@ export function registerIpcHandlers() {
     return store.projects
   })
 
-  ipcMain.handle('projects:add', async (_event, path: string) => {
-    if (!path || typeof path !== 'string') {
+  ipcMain.handle('projects:add', async (_event, inputPath: string) => {
+    if (!inputPath || typeof inputPath !== 'string') {
       throw new Error('Project path is required.')
     }
 
-    if (!fs.existsSync(path)) {
+    const normalizedPath = normalizeProjectPath(inputPath)
+    if (!normalizedPath) {
+      throw new Error('Project path is required.')
+    }
+
+    if (!fs.existsSync(normalizedPath)) {
       throw new Error('Project path does not exist.')
     }
 
     const store = await getStore()
-    const existing = store.projects.find((project) => project.path === path)
+    const normalizedPathKey = getProjectPathKey(normalizedPath)
+    const existing = store.projects.find((project) => getProjectPathKey(project.path) === normalizedPathKey)
     if (existing) {
       return existing
     }
 
-    const type = detectProjectType(path)
+    const type = detectProjectType(normalizedPath)
     const nextProject = {
       id: randomUUID(),
-      path,
-      name: getProjectName(path),
+      path: normalizedPath,
+      name: getProjectName(normalizedPath),
       type,
       icon: getProjectIcon(type),
     }
@@ -433,6 +766,7 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('projects:open-editor', async (_event, _id: string) => {
     const projectPath = await getProjectPath(_id)
+    const wslLocation = parseWslProjectPath(projectPath)
     const preferences = await getPreferences()
     const preference = preferences.editor
     if (preference.id === 'custom') {
@@ -443,6 +777,14 @@ export function registerIpcHandlers() {
       return spawnDetached('open', ['-a', appName, projectPath])
     }
     if (process.platform === 'win32') {
+      if (wslLocation && preference.id === 'vscode') {
+        const remoteUri = getWslVscodeFolderUri(wslLocation)
+        const openRemoteResult = await spawnDetached('code', ['--folder-uri', remoteUri])
+        if (openRemoteResult.success) {
+          return openRemoteResult
+        }
+        return spawnDetached('code', [projectPath])
+      }
       const command = WINDOWS_EDITOR_COMMANDS[preference.id] ?? WINDOWS_EDITOR_COMMANDS.vscode
       return spawnDetached(command.command, command.args(projectPath))
     }
@@ -451,6 +793,7 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('projects:open-terminal', async (_event, _id: string) => {
     const projectPath = await getProjectPath(_id)
+    const wslLocation = parseWslProjectPath(projectPath)
     const preferences = await getPreferences()
     const preference = preferences.terminal
     if (preference.id === 'custom') {
@@ -461,6 +804,9 @@ export function registerIpcHandlers() {
       return spawnDetached('open', ['-a', appName, projectPath])
     }
     if (process.platform === 'win32') {
+      if (wslLocation) {
+        return openWslProjectInTerminal(wslLocation, preference.id)
+      }
       const command = WINDOWS_TERMINAL_COMMANDS[preference.id] ?? WINDOWS_TERMINAL_COMMANDS['windows-terminal']
       return spawnDetached(command.command, command.args(projectPath))
     }
@@ -596,17 +942,33 @@ export function registerIpcHandlers() {
       })
     })
 
-    // Calculate working directory: combine project path with command's workingDirectory
-    let cwd = project.path
-    if (command.workingDirectory) {
-      cwd = path.join(project.path, command.workingDirectory)
+    const projectPath = normalizeProjectPath(project.path)
+    if (!fs.existsSync(projectPath)) {
+      throw new Error('Project path does not exist.')
     }
 
-    const child = spawn(command.command, {
-      cwd,
-      shell: true,
-      env: process.env,
-    })
+    const wslLocation = parseWslProjectPath(projectPath)
+    const child = wslLocation
+      ? spawn(
+          WSL_EXECUTABLE_PATH,
+          [
+            '-d',
+            wslLocation.distro,
+            '-e',
+            'bash',
+            '-lc',
+            buildWslBashCommand(command.command, resolveWslWorkingDirectory(wslLocation, command.workingDirectory)),
+          ],
+          {
+            env: process.env,
+            windowsHide: true,
+          }
+        )
+      : spawn(command.command, {
+          cwd: command.workingDirectory ? path.join(projectPath, command.workingDirectory) : projectPath,
+          shell: true,
+          env: process.env,
+        })
 
     const running: RunningCommand = {
       process: child,
@@ -668,7 +1030,7 @@ export function registerIpcHandlers() {
 
   // Containers
   ipcMain.handle('containers:get', async () => {
-    const output = await runDockerCommand(['ps', '-a', '--format', '{{json .}}'])
+    const output = await runDockerCommand(['ps', '-a', '--no-trunc', '--format', '{{json .}}'])
     return parseDockerContainers(output)
   })
 
@@ -685,6 +1047,43 @@ export function registerIpcHandlers() {
       throw new Error('Container id is required.')
     }
     await runDockerCommand(['stop', _id])
+    return { success: true }
+  })
+
+  ipcMain.handle('containers:restart', async (_event, _id: string) => {
+    if (!_id) {
+      throw new Error('Container id is required.')
+    }
+    await runDockerCommand(['restart', _id])
+    return { success: true }
+  })
+
+  ipcMain.handle('containers:pause', async (_event, _id: string) => {
+    if (!_id) {
+      throw new Error('Container id is required.')
+    }
+    await runDockerCommand(['pause', _id])
+    return { success: true }
+  })
+
+  ipcMain.handle('containers:unpause', async (_event, _id: string) => {
+    if (!_id) {
+      throw new Error('Container id is required.')
+    }
+    await runDockerCommand(['unpause', _id])
+    return { success: true }
+  })
+
+  ipcMain.handle('containers:remove', async (_event, _id: string, force?: boolean) => {
+    if (!_id) {
+      throw new Error('Container id is required.')
+    }
+    const args = ['rm']
+    if (force) {
+      args.push('--force')
+    }
+    args.push(_id)
+    await runDockerCommand(args)
     return { success: true }
   })
 

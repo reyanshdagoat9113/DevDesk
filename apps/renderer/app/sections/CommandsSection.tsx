@@ -41,6 +41,8 @@ export function CommandsSection({
   const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'started'>('idle')
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
   const [editName, setEditName] = useState('')
   const [editCommand, setEditCommand] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -50,20 +52,78 @@ export function CommandsSection({
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const normalizedQueryTokens = useMemo(() => {
+    const trimmed = query.trim().toLowerCase()
+    if (!trimmed) return []
+    return trimmed.split(/\s+/).filter(Boolean)
+  }, [query])
+
+  const tagOptions = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number }>()
+    for (const cmd of commands) {
+      for (const rawTag of cmd.tags ?? []) {
+        const trimmed = rawTag.trim()
+        if (!trimmed) continue
+        const key = trimmed.toLowerCase()
+        const current = counts.get(key)
+        if (current) {
+          current.count += 1
+        } else {
+          counts.set(key, { label: trimmed, count: 1 })
+        }
+      }
+    }
+
+    const list = Array.from(counts.entries()).map(([key, value]) => ({
+      key,
+      label: value.label,
+      count: value.count,
+    }))
+
+    list.sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count
+      return a.label.localeCompare(b.label)
+    })
+
+    return list
+  }, [commands])
+
+  const filteredCommands = useMemo(() => {
+    return commands.filter((cmd) => {
+      if (selectedTag) {
+        const matchesTag = (cmd.tags ?? [])
+          .map((tag) => tag.trim().toLowerCase())
+          .filter(Boolean)
+          .includes(selectedTag)
+        if (!matchesTag) return false
+      }
+
+      if (!normalizedQueryTokens.length) {
+        return true
+      }
+
+      const haystack = [cmd.name, cmd.description ?? '', cmd.command, ...(cmd.tags ?? [])]
+        .join(' ')
+        .toLowerCase()
+
+      return normalizedQueryTokens.every((token) => haystack.includes(token))
+    })
+  }, [commands, normalizedQueryTokens, selectedTag])
+
   useEffect(() => {
-    if (!commands.length) {
+    if (!filteredCommands.length) {
       setSelectedId(null)
       return
     }
-    if (!selectedId || !commands.some((command) => command.id === selectedId)) {
-      setSelectedId(commands[0].id)
+    if (!selectedId || !filteredCommands.some((command) => command.id === selectedId)) {
+      setSelectedId(filteredCommands[0].id)
     }
-  }, [commands, selectedId])
+  }, [filteredCommands, selectedId])
 
   const selectedCommand = useMemo(() => {
-    if (!commands.length) return null
-    return commands.find((command) => command.id === selectedId) ?? commands[0]
-  }, [commands, selectedId])
+    if (!filteredCommands.length) return null
+    return filteredCommands.find((command) => command.id === selectedId) ?? filteredCommands[0]
+  }, [filteredCommands, selectedId])
 
   useEffect(() => {
     if (!selectedCommand) {
@@ -77,7 +137,7 @@ export function CommandsSection({
     setEditCommand(selectedCommand.command)
     setEditDescription(selectedCommand.description ?? '')
     setEditTags(selectedCommand.tags?.join(', ') ?? '')
-  }, [selectedCommand?.id, selectedCommand?.name, selectedCommand?.command, selectedCommand?.description, selectedCommand?.tags])
+  }, [selectedCommand])
 
   // Get the project associated with this command
   const commandProject = useMemo(() => {
@@ -103,7 +163,7 @@ export function CommandsSection({
     } else if (projects.length > 0 && !selectedProjectId) {
       setSelectedProjectId(projects[0].id)
     }
-  }, [commandProject, projects])
+  }, [commandProject, projects, selectedProjectId])
 
   const selectedProject = useMemo(() => {
     if (!availableProjects.length) return null
@@ -181,7 +241,61 @@ export function CommandsSection({
       list={
         <div className={panelClass}>
           <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Commands</p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Commands</p>
+                {selectedTag || normalizedQueryTokens.length ? (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Showing {filteredCommands.length} of {commands.length}
+                  </p>
+                ) : null}
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 gap-1.5 px-2 text-xs"
+                onClick={() => {
+                  setSelectedTag(null)
+                  setQuery('')
+                }}
+                disabled={!selectedTag && !normalizedQueryTokens.length}
+              >
+                Clear
+              </Button>
+            </div>
+
+            <div className="mt-3">
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search commands..."
+                aria-label="Search commands"
+              />
+            </div>
+
+            {tagOptions.length ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {tagOptions.map((tag) => {
+                  const isActive = selectedTag === tag.key
+                  return (
+                    <Button
+                      key={tag.key}
+                      type="button"
+                      size="sm"
+                      variant={isActive ? 'secondary' : 'outline'}
+                      aria-pressed={isActive}
+                      className="h-7 gap-2 px-2 text-[11px]"
+                      onClick={() => setSelectedTag((current) => (current === tag.key ? null : tag.key))}
+                    >
+                      <span className="max-w-[160px] truncate uppercase tracking-[0.18em]">{tag.label}</span>
+                      <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                        {tag.count}
+                      </Badge>
+                    </Button>
+                  )
+                })}
+              </div>
+            ) : null}
           </div>
           <div className="flex-1 overflow-auto">
             {isLoading ? (
@@ -196,8 +310,12 @@ export function CommandsSection({
               <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
                 No commands saved yet.
               </div>
+            ) : filteredCommands.length === 0 ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+                No commands match your filter.
+              </div>
             ) : (
-              commands.map((command) => {
+              filteredCommands.map((command) => {
                 const isActive = selectedCommand?.id === command.id
                 const cmdProject = command.projectId
                   ? projects.find((p) => p.id === command.projectId)
