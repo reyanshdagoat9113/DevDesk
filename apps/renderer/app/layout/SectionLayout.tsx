@@ -7,9 +7,13 @@ interface SectionLayoutProps {
 
 export function SectionLayout({ list, detail }: SectionLayoutProps) {
   return (
-    <div className="grid h-full gap-4 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
-      {list}
-      {detail}
+    <div className="flex h-full gap-6 overflow-hidden">
+      <div className="w-[300px] xl:w-[340px] flex flex-col shrink-0 min-h-0">
+        {list}
+      </div>
+      <div className="flex-1 flex flex-col min-h-0">
+        {detail}
+      </div>
     </div>
   )
 }

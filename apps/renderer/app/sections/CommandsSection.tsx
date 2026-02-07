@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder } from 'lucide-react'
+import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2 } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import {
   Card,
@@ -23,6 +23,9 @@ import { Textarea } from '../components/ui/Textarea'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import type { Command, Project } from '../types'
+
+const selectClass =
+  'flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
 
 export function CommandsSection({
   commands,
@@ -303,21 +306,22 @@ export function CommandsSection({
             )}
           </div>
 
-          <div className="flex-1 overflow-auto p-2">
+          <div className="flex-1 overflow-auto px-2 py-2">
             {isLoading ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground italic">
                 Loading commands...
               </div>
             ) : error ? (
-              <div className="flex h-full items-center justify-center text-sm text-destructive">
+              <div className="flex h-full items-center justify-center p-4 text-center text-sm text-destructive bg-destructive/5 rounded-lg border border-destructive/10">
                 {error}
               </div>
             ) : commands.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                No commands saved yet.
+              <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50">
+                <Terminal className="h-10 w-10 mb-2 opacity-20" />
+                <p className="text-sm">No commands saved yet.</p>
               </div>
             ) : filteredCommands.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground opacity-50 italic">
                 No matches found.
               </div>
             ) : (
@@ -330,25 +334,27 @@ export function CommandsSection({
                       key={command.id}
                       onClick={() => setSelectedId(command.id)}
                       className={cn(
-                        "group flex w-full flex-col gap-1 rounded-md px-3 py-2 text-left transition-all",
+                        "group flex w-full flex-col gap-1.5 rounded-lg px-3 py-3 text-left transition-all",
                         isActive 
-                          ? "bg-primary/10 text-foreground shadow-sm" 
+                          ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20" 
                           : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      <div className="flex w-full items-center justify-between">
-                        <span className="truncate text-sm font-medium">{command.name}</span>
+                      <div className="flex w-full items-center justify-between gap-2">
+                        <span className="truncate text-sm font-bold leading-none">{command.name}</span>
                         {command.tags?.length ? (
-                          <Badge variant="outline" className={cn(
-                            "ml-2 h-4 px-1 text-[9px] border-border/40",
-                            isActive ? "bg-background/50" : "bg-muted/30"
-                          )}>
-                            {command.tags.length}
-                          </Badge>
+                          <div className="flex gap-1">
+                            <Badge variant="outline" className={cn(
+                              "h-4 px-1 text-[8px] border-border/40 font-bold",
+                              isActive ? "bg-background/50" : "bg-muted/30"
+                            )}>
+                              {command.tags.length}
+                            </Badge>
+                          </div>
                         ) : null}
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] opacity-70">
-                        <span className="truncate flex-1 font-mono">{command.command}</span>
+                      <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
+                        <span className="truncate flex-1">{command.command}</span>
                       </div>
                     </button>
                   )
@@ -360,76 +366,96 @@ export function CommandsSection({
       }
       detail={
         selectedCommand ? (
-          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
-            <CardHeader className="border-b border-border/40 bg-muted/10 pb-4">
+          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+            <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
               <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-xl">{selectedCommand.name}</CardTitle>
-                    {commandProject ? (
-                      <Badge variant="secondary" className="gap-1 text-[10px] font-normal">
-                        <Folder className="h-3 w-3" />
-                        {commandProject.name}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-                        Global
-                      </Badge>
-                    )}
+                <div className="space-y-1.5 min-w-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded bg-primary/10 text-primary border border-primary/20">
+                      <Terminal className="h-4 w-4" />
+                    </div>
+                    <CardTitle className="text-2xl font-bold tracking-tight truncate">{selectedCommand.name}</CardTitle>
                   </div>
-                  <CardDescription>
-                    {selectedCommand.description || "No description provided."}
+                  <CardDescription className="text-[13px] leading-relaxed max-w-2xl">
+                    {selectedCommand.description || "No description provided for this automation workflow."}
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5 ml-4">
                   <Button
-                    size="sm"
+                    size="icon"
                     variant="ghost"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     onClick={() => setEditDialogOpen(true)}
                     disabled={!onUpdateCommand}
                   >
-                    <Pencil className="h-4 w-4" />
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
-                    size="sm"
+                    size="icon"
                     variant="ghost"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                     onClick={() => setDeleteDialogOpen(true)}
                     disabled={!onRemoveCommand}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="flex-1 overflow-auto p-6 space-y-6">
-              {/* Command Block */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Command</Label>
-                  {selectedCommand.workingDirectory && (
-                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
-                      <Folder className="h-3 w-3" /> {selectedCommand.workingDirectory}
-                    </span>
-                  )}
-                </div>
-                <div className="relative group rounded-md border border-border/50 bg-muted/30 p-4 font-mono text-sm">
-                  <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
-                    {/* Could add copy button here */}
+            <CardContent className="flex-1 overflow-auto p-8 pt-6 space-y-10">
+              {/* Context Info */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Source Context</Label>
+                  <div className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-muted/5">
+                    <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-background border border-border/40 text-xs font-bold">
+                      {commandProject ? commandProject.name.slice(0, 1).toUpperCase() : <Globe className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate">{commandProject ? commandProject.name : 'Global Scope'}</p>
+                      <p className="text-[10px] text-muted-foreground truncate opacity-70">
+                        {commandProject ? 'Bound to project' : 'Available across all projects'}
+                      </p>
+                    </div>
                   </div>
-                  <code className="break-all text-foreground/90">{selectedCommand.command}</code>
+                </div>
+
+                {selectedCommand.workingDirectory && (
+                  <div className="space-y-2.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Relative Path</Label>
+                    <div className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-muted/5 overflow-hidden">
+                      <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-background border border-border/40">
+                        <Folder className="h-4 w-4 opacity-50" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-mono truncate">{selectedCommand.workingDirectory}</p>
+                        <p className="text-[10px] text-muted-foreground truncate opacity-70">Custom working directory</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Command Block */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Instruction String</Label>
+                  <Badge variant="outline" className="text-[9px] font-mono opacity-50">SH / BASH</Badge>
+                </div>
+                <div className="relative group rounded-xl border border-border/40 bg-[#0d0d0d] p-5 font-mono text-sm shadow-inner overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-primary/30" />
+                  <code className="break-all text-blue-400/90 leading-relaxed">{selectedCommand.command}</code>
                 </div>
               </div>
 
               {selectedCommand.tags && selectedCommand.tags.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tags</Label>
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Classification Tags</Label>
                   <div className="flex flex-wrap gap-2">
                     {selectedCommand.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="px-2 py-0.5 text-xs font-normal">
-                        <Hash className="mr-1 h-3 w-3 opacity-50" />
+                      <Badge key={tag} variant="secondary" className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-muted/20 border-border/40 hover:bg-muted/30 transition-colors cursor-default">
+                        <Hash className="mr-1.5 h-3 w-3 opacity-40" />
                         {tag}
                       </Badge>
                     ))}
@@ -438,14 +464,14 @@ export function CommandsSection({
               )}
             </CardContent>
 
-            <div className="border-t border-border/40 bg-muted/10 p-4">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="run-project" className="text-xs font-medium">Target Project</Label>
-                  <div className="flex gap-2">
+            <div className="border-t border-border/40 bg-muted/5 p-6">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-3">
+                  <Label htmlFor="run-project" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Target Deployment Project</Label>
+                  <div className="flex gap-3">
                     <select
                       id="run-project"
-                      className="flex h-9 w-full flex-1 rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                      className={cn(selectClass, "flex-1 bg-background shadow-sm h-10 px-4")}
                       value={selectedProject?.id ?? ''}
                       onChange={(event) => setSelectedProjectId(event.target.value)}
                       disabled={!!commandProject || availableProjects.length === 0}
@@ -461,41 +487,46 @@ export function CommandsSection({
                       )}
                     </select>
                     <Button
-                      className="gap-2 shadow-sm"
+                      className="h-10 px-6 gap-2.5 shadow-lg shadow-primary/10 font-bold uppercase tracking-wider text-[11px]"
                       onClick={handleRun}
                       disabled={!selectedCommand || !selectedProject || runStatus === 'running'}
                     >
                       {runStatus === 'running' ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-r-transparent" />
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <PlayCircle className="h-4 w-4" />
                       )}
-                      {runStatus === 'running' ? 'Running...' : 'Run Command'}
+                      {runStatus === 'running' ? 'Deploying...' : 'Execute Script'}
                     </Button>
                   </div>
                 </div>
                 
                 {runError && (
-                  <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                  <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive flex items-center gap-2 font-medium">
+                    <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
                     {runError}
                   </div>
                 )}
                 
                 {runStatus === 'started' && (
-                  <div className="rounded-md bg-green-500/10 p-2 text-xs text-green-500 flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                    Command started successfully
+                  <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/10 p-3 text-[11px] text-emerald-500 flex items-center gap-2 font-bold uppercase tracking-wider">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Automation started successfully
                   </div>
                 )}
               </div>
             </div>
           </Card>
         ) : (
-          <Card className="flex h-full items-center justify-center border-border/40 bg-card/50 p-6 text-center shadow-sm">
-            <div className="space-y-2">
-              <Terminal className="mx-auto h-12 w-12 text-muted-foreground/30" />
-              <h3 className="text-lg font-medium">No command selected</h3>
-              <p className="text-sm text-muted-foreground">Select a command to view details or run it.</p>
+          <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center">
+            <div className="max-w-[240px] space-y-4 opacity-40">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/20 border-2 border-border/40 border-dashed">
+                <Terminal className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-sm font-bold uppercase tracking-widest">Automation</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">Select a command template to review execution logic or trigger a new deployment workflow.</p>
+              </div>
             </div>
           </Card>
         )

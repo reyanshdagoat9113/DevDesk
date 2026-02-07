@@ -19,7 +19,6 @@ import {
 } from '../components/ui/Dialog'
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
-import { Separator } from '../components/ui/Separator'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import type { AppPreferences, Project } from '../types'
@@ -221,18 +220,19 @@ export function ProjectsSection({
                 <Badge variant="outline" className="text-[10px] font-medium">{projects.length}</Badge>
               </div>
             </div>
-            <div className="flex-1 overflow-auto p-2">
+            <div className="flex-1 overflow-auto px-2 py-2">
               {isLoading ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground italic">
                   Loading projects...
                 </div>
               ) : error ? (
-                <div className="flex h-full items-center justify-center text-sm text-destructive">
+                <div className="flex h-full items-center justify-center p-4 text-center text-sm text-destructive bg-destructive/5 rounded-lg border border-destructive/10">
                   {error}
                 </div>
               ) : projects.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  No projects added yet.
+                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50">
+                  <FolderGit2 className="h-10 w-10 mb-2 opacity-20" />
+                  <p className="text-sm">No projects added yet.</p>
                 </div>
               ) : (
                 <div className="space-y-1">
@@ -244,26 +244,26 @@ export function ProjectsSection({
                         key={project.id}
                         onClick={() => setSelectedId(project.id)}
                         className={cn(
-                          "group flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-all",
+                          "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all",
                           isActive 
-                            ? "bg-primary/10 text-foreground shadow-sm" 
+                            ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20" 
                             : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                         )}
                       >
                         <div className={cn(
-                          "flex h-8 w-8 items-center justify-center rounded-md border text-xs font-semibold transition-colors",
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors",
                           isActive 
-                            ? "border-primary/20 bg-background text-primary" 
-                            : "border-border/40 bg-background text-muted-foreground group-hover:border-border/60"
+                            ? "border-primary/30 bg-background text-primary" 
+                            : "border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60"
                         )}>
                           {project.name.slice(0, 1).toUpperCase()}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{project.name}</p>
-                          <p className="truncate text-[10px] opacity-70">{project.path}</p>
+                          <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
+                          <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
                         </div>
                         {isWslProject && (
-                          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                          <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
                             WSL
                           </Badge>
                         )}
@@ -277,88 +277,98 @@ export function ProjectsSection({
         }
         detail={
           selectedProject ? (
-            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
-              <CardHeader className="border-b border-border/40 bg-muted/10 pb-4">
+            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+              <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
                 <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="text-xl">{selectedProject.name}</CardTitle>
-                    <CardDescription className="flex items-center gap-2 font-mono text-xs">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-2xl font-bold tracking-tight truncate">{selectedProject.name}</CardTitle>
+                      <Badge variant="secondary" className="h-5 text-[10px] font-bold uppercase tracking-widest bg-muted/20 border-border/40">
+                        {selectedProject.type}
+                      </Badge>
+                    </div>
+                    <CardDescription className="flex items-center gap-2 font-mono text-[11px] bg-muted/20 w-fit px-2 py-0.5 rounded border border-border/20">
                       {selectedProject.path}
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="uppercase tracking-wider">
-                      {selectedProject.type}
+                  {isWslPath(selectedProject.path) && (
+                    <Badge variant="outline" className="gap-1.5 border-blue-500/20 text-blue-500 bg-blue-500/5 py-1 px-2">
+                      <Monitor className="h-3 w-3" /> <span className="text-[10px] font-bold uppercase tracking-wider">WSL Environment</span>
                     </Badge>
-                    {isWslPath(selectedProject.path) && (
-                      <Badge variant="outline" className="gap-1 border-blue-200/20 text-blue-400">
-                        <Monitor className="h-3 w-3" /> WSL
-                      </Badge>
-                    )}
-                  </div>
+                  )}
                 </div>
               </CardHeader>
               
-              <CardContent className="flex-1 overflow-auto p-6">
-                <div className="space-y-8">
+              <CardContent className="flex-1 overflow-auto p-8 pt-6">
+                <div className="space-y-10">
                   {/* Quick Actions */}
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Quick Actions
+                  <div className="space-y-4">
+                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                      Execution Launchers
                     </h3>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <Button
-                        variant="secondary"
-                        className="h-20 flex-col gap-2 border border-border/40 hover:border-primary/40 hover:bg-primary/5"
+                        variant="outline"
+                        className="h-24 flex-col gap-2.5 border-border/40 bg-muted/5 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-200"
                         onClick={() => handleOpen('editor')}
                         disabled={actionLoading !== null}
                       >
-                        <Code2 className="h-6 w-6 text-primary" />
-                        <span className="text-xs">Open in Editor</span>
+                        <div className="p-2 rounded-full bg-background border border-border/40 shadow-sm group-hover:border-primary/20">
+                          <Code2 className="h-5 w-5" />
+                        </div>
+                        <span className="text-xs font-semibold">Open in Editor</span>
                       </Button>
                       <Button
-                        variant="secondary"
-                        className="h-20 flex-col gap-2 border border-border/40 hover:border-primary/40 hover:bg-primary/5"
+                        variant="outline"
+                        className="h-24 flex-col gap-2.5 border-border/40 bg-muted/5 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-200"
                         onClick={() => handleOpen('terminal')}
                         disabled={actionLoading !== null}
                       >
-                        <Terminal className="h-6 w-6 text-primary" />
-                        <span className="text-xs">Open Terminal</span>
+                        <div className="p-2 rounded-full bg-background border border-border/40 shadow-sm">
+                          <Terminal className="h-5 w-5" />
+                        </div>
+                        <span className="text-xs font-semibold">Launch Terminal</span>
                       </Button>
                       <Button
-                        variant="secondary"
-                        className="h-20 flex-col gap-2 border border-border/40 hover:border-primary/40 hover:bg-primary/5"
+                        variant="outline"
+                        className="h-24 flex-col gap-2.5 border-border/40 bg-muted/5 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-200"
                         onClick={() => handleOpen('folder')}
                         disabled={actionLoading !== null}
                       >
-                        <FolderGit2 className="h-6 w-6 text-primary" />
-                        <span className="text-xs">Open Folder</span>
+                        <div className="p-2 rounded-full bg-background border border-border/40 shadow-sm">
+                          <FolderGit2 className="h-5 w-5" />
+                        </div>
+                        <span className="text-xs font-semibold">Open Folder</span>
                       </Button>
                     </div>
                     {actionError && (
-                      <div className="rounded-md bg-destructive/10 p-3 text-xs text-destructive">
+                      <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
                         {actionError}
                       </div>
                     )}
                   </div>
 
-                  <Separator className="bg-border/40" />
-
                   {/* Preferences */}
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
                         Launch Configuration
                       </h3>
-                      {prefsSaving && <span className="text-xs text-muted-foreground animate-pulse">Saving...</span>}
+                      {prefsSaving && (
+                        <div className="flex items-center gap-2 text-[10px] text-primary/70 font-semibold uppercase tracking-wider">
+                          <div className="h-2 w-2 animate-spin rounded-full border border-primary border-r-transparent" />
+                          Auto-saving
+                        </div>
+                      )}
                     </div>
                     
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="preferred-editor" className="text-xs font-medium">Preferred Editor</Label>
+                    <div className="grid gap-8 md:grid-cols-2 p-5 rounded-xl border border-border/40 bg-muted/5">
+                      <div className="space-y-3">
+                        <Label htmlFor="preferred-editor" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Preferred IDE</Label>
                         <select
                           id="preferred-editor"
-                          className={selectClass}
+                          className={cn(selectClass, "bg-background shadow-sm")}
                           value={prefsDraft?.editor.id ?? ''}
                           onChange={(event) =>
                             updatePreference({
@@ -374,28 +384,30 @@ export function ProjectsSection({
                           ))}
                         </select>
                         {prefsDraft?.editor.id === 'custom' && (
-                          <Input
-                            value={prefsDraft.editor.command ?? ''}
-                            onChange={(event) =>
-                              updatePreference(
-                                { editor: { id: 'custom', command: event.target.value } },
-                                false
-                              )
-                            }
-                            onBlur={() =>
-                              updatePreference({ editor: { id: 'custom', command: prefsDraft?.editor.command } })
-                            }
-                            placeholder={isMac ? 'open -a "App" {path}' : 'code {path}'}
-                            className="h-8 text-xs font-mono"
-                          />
+                          <div className="pt-1">
+                            <Input
+                              value={prefsDraft.editor.command ?? ''}
+                              onChange={(event) =>
+                                updatePreference(
+                                  { editor: { id: 'custom', command: event.target.value } },
+                                  false
+                                )
+                              }
+                              onBlur={() =>
+                                updatePreference({ editor: { id: 'custom', command: prefsDraft?.editor.command } })
+                              }
+                              placeholder={isMac ? 'open -a "App" {path}' : 'code {path}'}
+                              className="h-8 text-[11px] font-mono bg-background"
+                            />
+                          </div>
                         )}
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="preferred-terminal" className="text-xs font-medium">Preferred Terminal</Label>
+                      <div className="space-y-3">
+                        <Label htmlFor="preferred-terminal" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Terminal Emulator</Label>
                         <select
                           id="preferred-terminal"
-                          className={selectClass}
+                          className={cn(selectClass, "bg-background shadow-sm")}
                           value={prefsDraft?.terminal.id ?? ''}
                           onChange={(event) =>
                             updatePreference({
@@ -411,59 +423,67 @@ export function ProjectsSection({
                           ))}
                         </select>
                         {prefsDraft?.terminal.id === 'custom' && (
-                          <Input
-                            value={prefsDraft.terminal.command ?? ''}
-                            onChange={(event) =>
-                              updatePreference(
-                                { terminal: { id: 'custom', command: event.target.value } },
-                                false
-                              )
-                            }
-                            onBlur={() =>
-                              updatePreference({ terminal: { id: 'custom', command: prefsDraft?.terminal.command } })
-                            }
-                            placeholder={isMac ? 'open -a "Term" {path}' : 'wt -d {path}'}
-                            className="h-8 text-xs font-mono"
-                          />
+                          <div className="pt-1">
+                            <Input
+                              value={prefsDraft.terminal.command ?? ''}
+                              onChange={(event) =>
+                                updatePreference(
+                                  { terminal: { id: 'custom', command: event.target.value } },
+                                  false
+                                )
+                              }
+                              onBlur={() =>
+                                updatePreference({ terminal: { id: 'custom', command: prefsDraft?.terminal.command } })
+                              }
+                              placeholder={isMac ? 'open -a "Term" {path}' : 'wt -d {path}'}
+                              className="h-8 text-[11px] font-mono bg-background"
+                            />
+                          </div>
                         )}
                       </div>
                     </div>
-                    {prefsError && <p className="text-xs text-destructive">{prefsError}</p>}
+                    {prefsError && <p className="text-[11px] text-destructive bg-destructive/5 p-2 rounded border border-destructive/10">{prefsError}</p>}
                   </div>
                 </div>
               </CardContent>
 
-              <div className="border-t border-border/40 bg-muted/10 p-4">
-                <div className="flex justify-end gap-2">
+              <div className="border-t border-border/40 bg-muted/5 p-5">
+                <div className="flex justify-between items-center px-1">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                      onClick={() => setEditDialogOpen(true)}
+                      disabled={!onUpdateProject}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Settings
+                    </Button>
+                  </div>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="gap-2 text-xs"
-                    onClick={() => setEditDialogOpen(true)}
-                    disabled={!onUpdateProject}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit Details
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="gap-2 text-xs"
+                    className="h-8 gap-2 text-[11px] font-bold uppercase tracking-wider text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors"
                     onClick={() => setDeleteDialogOpen(true)}
                     disabled={!onRemoveProject}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    Remove Project
+                    Delete
                   </Button>
                 </div>
               </div>
             </Card>
           ) : (
-            <Card className="flex h-full items-center justify-center border-border/40 bg-card/50 p-6 text-center shadow-sm">
-              <div className="space-y-2">
-                <FolderGit2 className="mx-auto h-12 w-12 text-muted-foreground/30" />
-                <h3 className="text-lg font-medium">No project selected</h3>
-                <p className="text-sm text-muted-foreground">Select a project from the list to view details.</p>
+            <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center">
+              <div className="max-w-[240px] space-y-4 opacity-40">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/20 border-2 border-border/40 border-dashed">
+                  <FolderGit2 className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-bold uppercase tracking-widest">Workspace</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">Select a project from the explorer list to manage execution environments and settings.</p>
+                </div>
               </div>
             </Card>
           )
