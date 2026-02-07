@@ -43,6 +43,11 @@ interface ElectronAPI {
 
   getNotes: (projectId: string) => Promise<{ setupSteps: string; todos: string; reminders: string }>
   updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) => Promise<{ success: boolean }>
+
+  listProjectFiles: (projectId: string, dir?: string) => Promise<{ entries: Array<{ name: string; relativePath: string; kind: 'file' | 'dir' }>; truncated: boolean }>
+  searchProjectFiles: (projectId: string, query: string, limit?: number) => Promise<Array<{ relativePath: string; kind: 'file' | 'dir' }>>
+  openFileInEditor: (projectId: string, relativePath: string, line?: number, column?: number) => Promise<{ success: boolean; error?: string }>
+  clearFileIndex: (projectId: string) => Promise<{ success: boolean }>
 }
 
 // Expose a safe API to the renderer process
@@ -109,6 +114,14 @@ const electronAPI: ElectronAPI = {
   getNotes: (projectId: string) => ipcRenderer.invoke('notes:get', projectId),
   updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) =>
     ipcRenderer.invoke('notes:update', projectId, notes),
+
+  // Files
+  listProjectFiles: (projectId: string, dir?: string) => ipcRenderer.invoke('files:list', projectId, dir),
+  searchProjectFiles: (projectId: string, query: string, limit?: number) =>
+    ipcRenderer.invoke('files:search', projectId, query, limit),
+  openFileInEditor: (projectId: string, relativePath: string, line?: number, column?: number) =>
+    ipcRenderer.invoke('files:openInEditor', projectId, relativePath, line, column),
+  clearFileIndex: (projectId: string) => ipcRenderer.invoke('files:clearIndex', projectId),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

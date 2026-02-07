@@ -39,6 +39,12 @@ export interface ElectronAPI {
 
   getNotes: (projectId: string) => Promise<ProjectNotes>
   updateNotes: (projectId: string, notes: Partial<ProjectNotes>) => Promise<{ success: boolean }>
+
+  // File Navigation
+  listProjectFiles: (projectId: string, dir?: string) => Promise<{ entries: Array<{ name: string; relativePath: string; kind: 'file' | 'dir' }>; truncated: boolean }>
+  searchProjectFiles: (projectId: string, query: string, limit?: number) => Promise<Array<{ relativePath: string; kind: 'file' | 'dir' }>>
+  openFileInEditor: (projectId: string, relativePath: string, line?: number, column?: number) => Promise<{ success: boolean; error?: string }>
+  clearFileIndex: (projectId: string) => Promise<{ success: boolean }>
 }
 
 declare global {

@@ -843,6 +843,10 @@ function App() {
         onRestartContainer={handleRestartContainer}
         onPauseContainer={handlePauseContainer}
         onUnpauseContainer={handleUnpauseContainer}
+        onOpenFileInEditor={async (projectId, relativePath) => {
+          const result = await window.electronAPI.openFileInEditor(projectId, relativePath)
+          if (!result.success) throw new Error(result.error || 'Failed to open file')
+        }}
         onError={(message) => setLoadError(message)}
       />
 

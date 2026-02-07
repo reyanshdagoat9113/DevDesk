@@ -25,6 +25,8 @@ import {
   Globe,
   ArrowLeft,
   CornerDownLeft,
+  FileText,
+  File,
 } from 'lucide-react'
 import type { Project, Command, Container as ContainerType, RunStatus } from '../types'
 
@@ -53,6 +55,8 @@ type PaletteItem = {
 type PaletteMode =
   | { type: 'main' }
   | { type: 'projectPick'; command: Command }
+  | { type: 'fileProjectPick' }
+  | { type: 'fileSearch'; project: Project }
 
 interface CommandPaletteProps {
   open: boolean
@@ -72,6 +76,7 @@ interface CommandPaletteProps {
   onPauseContainer: (containerId: string) => Promise<void>
   onUnpauseContainer: (containerId: string) => Promise<void>
   onError: (message: string) => void
+  onOpenFileInEditor?: (projectId: string, relativePath: string) => Promise<void>
 }
 
 function getStatusIcon(status: RunStatus) {
@@ -124,6 +129,7 @@ export function CommandPalette({
   onPauseContainer,
   onUnpauseContainer,
   onError,
+  onOpenFileInEditor,
 }: CommandPaletteProps) {
   const [mode, setMode] = useState<PaletteMode>({ type: 'main' })
   const [searchQuery, setSearchQuery] = useState('')
@@ -143,7 +149,6 @@ export function CommandPalette({
       const isModK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'
       if (!isModK) return
 
-      // Don't trigger when typing in editable elements
       const target = e.target as HTMLElement
       const isEditable =
         target.tagName === 'INPUT' ||
@@ -193,11 +198,9 @@ export function CommandPalette({
     [commands]
   )
 
-  // Build palette items
   const mainItems: PaletteItem[] = useMemo(() => {
     const items: PaletteItem[] = []
 
-    // Navigation items
     const navItems: { tab: TabValue; label: string; icon: React.ReactNode }[] = [
       { tab: 'projects', label: 'Go to Projects', icon: <FolderKanban className="h-4 w-4" /> },
       { tab: 'commands', label: 'Go to Commands', icon: <Terminal className="h-4 w-4" /> },
@@ -217,7 +220,18 @@ export function CommandPalette({
       })
     }
 
-    // Project items
+    items.push({
+      id: 'nav-files',
+      group: 'Navigation',
+      title: 'Find File in Project',
+      keywords: ['file', 'search', 'find', 'open', 'navigate'],
+      icon: <FileText className="h-4 w-4" />,
+      action: () => {
+        setMode({ type: 'fileProjectPick' })
+        setSearchQuery('')
+      },
+    })
+
     for (const project of projects) {
       items.push({
         id: `project-${project.id}`,
@@ -257,11 +271,10 @@ export function CommandPalette({
       })
     }
 
-    // Command items
     for (const command of commands) {
       const isGlobal = !command.projectId
       const projectName = isGlobal ? 'Global command' : getProjectName(command.projectId)
-      
+
       items.push({
         id: `command-${command.id}`,
         group: 'Commands',
@@ -280,10 +293,9 @@ export function CommandPalette({
       })
     }
 
-    // Container items
     for (const container of containers) {
       const baseKeywords = [container.name, container.image, container.state, 'container']
-      
+
       if (container.state === 'stopped') {
         items.push({
           id: `container-${container.id}-start`,
@@ -335,13 +347,12 @@ export function CommandPalette({
       }
     }
 
-    // History items (last 20, without output)
     const recentHistory = history.slice(0, 20)
     for (const entry of recentHistory) {
       const commandName = getCommandName(entry.commandId)
       const projectName = getProjectName(entry.projectId)
       const timeStr = new Date(entry.startTime).toLocaleString()
-      
+
       items.push({
         id: `history-${entry.id}`,
         group: 'History',
@@ -374,10 +385,9 @@ export function CommandPalette({
     getCommandName,
   ])
 
-  // Build project pick items (for global commands)
   const projectPickItems: PaletteItem[] = useMemo(() => {
     if (mode.type !== 'projectPick') return []
-    
+
     return projects.map((project) => ({
       id: `pick-project-${project.id}`,
       group: 'Projects',
@@ -389,9 +399,38 @@ export function CommandPalette({
     }))
   }, [mode, projects, onRunCommand, runWithErrorHandling])
 
-  const currentItems = mode.type === 'main' ? mainItems : projectPickItems
+  const fileProjectPickItems: PaletteItem[] = useMemo(() => {
+    if (mode.type !== 'fileProjectPick') return []
 
-  // Fuzzy search
+    return projects.map((project) => ({
+      id: `file-pick-project-${project.id}`,
+      group: 'Projects',
+      title: project.name,
+      subtitle: project.path,
+      keywords: [project.name, project.path, 'select', 'project', 'file'],
+      icon: <span className="text-lg">{project.icon}</span>,
+      action: () => {
+        setMode({ type: 'fileSearch', project })
+        setSearchQuery('')
+      },
+    }))
+  }, [mode, projects])
+
+  const currentItems = useMemo(() => {
+    switch (mode.type) {
+      case 'main':
+        return mainItems
+      case 'projectPick':
+        return projectPickItems
+      case 'fileProjectPick':
+        return fileProjectPickItems
+      case 'fileSearch':
+        return []
+      default:
+        return mainItems
+    }
+  }, [mainItems, projectPickItems, fileProjectPickItems, mode])
+
   const fuse = useMemo(() => {
     return new Fuse(currentItems, {
       keys: ['title', 'subtitle', 'keywords'],
@@ -406,7 +445,6 @@ export function CommandPalette({
     return results.map((r) => r.item)
   }, [fuse, searchQuery, currentItems])
 
-  // Group items
   const groupedItems = useMemo(() => {
     const groups: Record<string, PaletteItem[]> = {
       Navigation: [],
@@ -415,22 +453,75 @@ export function CommandPalette({
       Containers: [],
       History: [],
     }
-    
+
     for (const item of filteredItems) {
       if (groups[item.group]) {
         groups[item.group].push(item)
       }
     }
-    
+
     return groups
   }, [filteredItems])
 
   const groupOrder: PaletteItem['group'][] = ['Navigation', 'Projects', 'Commands', 'Containers', 'History']
 
   const handleBack = () => {
-    setMode({ type: 'main' })
+    if (mode.type === 'fileSearch') {
+      setMode({ type: 'fileProjectPick' })
+    } else {
+      setMode({ type: 'main' })
+    }
     setSearchQuery('')
   }
+
+  const [fileSearchResults, setFileSearchResults] = useState<Array<{ relativePath: string; kind: 'file' | 'dir' }>>([])
+  const [isSearchingFiles, setIsSearchingFiles] = useState(false)
+
+  useEffect(() => {
+    if (mode.type !== 'fileSearch') {
+      setFileSearchResults([])
+      return
+    }
+
+    const query = searchQuery.trim()
+    if (!query) {
+      setFileSearchResults([])
+      return
+    }
+
+    setIsSearchingFiles(true)
+    const timeoutId = setTimeout(async () => {
+      try {
+        const results = await window.electronAPI.searchProjectFiles(mode.project.id, query, 50)
+        setFileSearchResults(results)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Search failed'
+        onError(message)
+        setFileSearchResults([])
+      } finally {
+        setIsSearchingFiles(false)
+      }
+    }, 150)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery, mode, onError])
+
+  const handleOpenFile = useCallback(
+    (relativePath: string) => {
+      if (mode.type !== 'fileSearch') return
+      void runWithErrorHandling(async () => {
+        if (onOpenFileInEditor) {
+          await onOpenFileInEditor(mode.project.id, relativePath)
+        } else {
+          const result = await window.electronAPI.openFileInEditor(mode.project.id, relativePath)
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to open file')
+          }
+        }
+      })
+    },
+    [mode, onOpenFileInEditor, runWithErrorHandling]
+  )
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
@@ -438,7 +529,11 @@ export function CommandPalette({
         placeholder={
           mode.type === 'projectPick'
             ? `Select project to run "${mode.command.name}"...`
-            : 'Search commands, projects, containers...'
+            : mode.type === 'fileProjectPick'
+              ? 'Select a project to search files...'
+              : mode.type === 'fileSearch'
+                ? `Search files in ${mode.project.name}...`
+                : 'Search commands, projects, containers...'
         }
         value={searchQuery}
         onValueChange={setSearchQuery}
@@ -449,55 +544,89 @@ export function CommandPalette({
         ) : (
           <>
             <CommandEmpty>No results found.</CommandEmpty>
-            
-            {mode.type === 'projectPick' && (
+
+            {(mode.type === 'projectPick' || mode.type === 'fileProjectPick' || mode.type === 'fileSearch') && (
               <CommandGroup heading="Actions">
                 <CommandItem onSelect={handleBack}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  <span>Back to main menu</span>
+                  <span>Back</span>
                 </CommandItem>
               </CommandGroup>
             )}
-            
-            {groupOrder.map((groupName) => {
-              const items = groupedItems[groupName]
-              if (!items || items.length === 0) return null
-              
-              return (
-                <CommandGroup key={groupName} heading={groupName}>
-                  {items.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      onSelect={() => {
-                        // Execute action and handle mode changes
-                        const result = item.action()
-                        if (result instanceof Promise) {
-                          result.catch(() => {
-                            // Error is handled by runWithErrorHandling
-                          })
-                        }
-                      }}
-                      disabled={isLoading}
-                    >
-                      <span className="mr-2 flex items-center justify-center w-4 h-4">
-                        {item.icon}
-                      </span>
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <span className="truncate">{item.title}</span>
-                        {item.subtitle && (
-                          <span className="text-xs text-muted-foreground truncate">
-                            {item.subtitle}
-                          </span>
+
+            {mode.type === 'fileSearch' ? (
+              <>
+                {isSearchingFiles ? (
+                  <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
+                ) : fileSearchResults.length > 0 ? (
+                  <CommandGroup heading={`Files (${fileSearchResults.length})`}>
+                    {fileSearchResults.map((result) => (
+                      <CommandItem
+                        key={result.relativePath}
+                        onSelect={() => handleOpenFile(result.relativePath)}
+                        disabled={isLoading}
+                      >
+                        <span className="mr-2 flex items-center justify-center w-4 h-4">
+                          {result.kind === 'dir' ? (
+                            <Folder className="h-4 w-4 text-blue-400" />
+                          ) : (
+                            <File className="h-4 w-4 text-gray-400" />
+                          )}
+                        </span>
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="truncate">{result.relativePath}</span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ) : searchQuery.trim() ? (
+                  <div className="py-6 text-center text-sm text-muted-foreground">No files found</div>
+                ) : (
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    Type to search files in {mode.project.name}
+                  </div>
+                )}
+              </>
+            ) : (
+              groupOrder.map((groupName) => {
+                const items = groupedItems[groupName]
+                if (!items || items.length === 0) return null
+
+                return (
+                  <CommandGroup key={groupName} heading={groupName}>
+                    {items.map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        onSelect={() => {
+                          const result = item.action()
+                          if (result instanceof Promise) {
+                            result.catch(() => {
+                              // Error handled by runWithErrorHandling
+                            })
+                          }
+                        }}
+                        disabled={isLoading}
+                      >
+                        <span className="mr-2 flex items-center justify-center w-4 h-4">
+                          {item.icon}
+                        </span>
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="truncate">{item.title}</span>
+                          {item.subtitle && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              {item.subtitle}
+                            </span>
+                          )}
+                        </div>
+                        {item.shortcut && (
+                          <CommandShortcut>{item.shortcut}</CommandShortcut>
                         )}
-                      </div>
-                      {item.shortcut && (
-                        <CommandShortcut>{item.shortcut}</CommandShortcut>
-                      )}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )
-            })}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )
+              })
+            )}
           </>
         )}
       </CommandList>

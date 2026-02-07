@@ -169,3 +169,148 @@ Update preload types (`apps/renderer/app/types/electron.d.ts`) and bridge (`apps
 - Project-bound command runs and appears in History.
 - Global command prompts for project and runs after selection.
 - Large history outputs do not freeze palette open/search.
+
+---
+
+# Task 3: Project Search & File Navigation
+
+## Note About Spec Completeness
+`New-features.md` currently lists Task 3 in the table of contents but does not include a Task 3 section yet. The plan below treats Task 3 as:
+- fast, keyboard-friendly file name navigation within a project
+- optional lightweight content search (defer if not required)
+- safe opening of files in the user’s configured editor
+
+## Goal
+Help users quickly find and open files inside a project (local or WSL) without leaving DevDesk, while keeping filesystem access constrained to known projects.
+
+## Scope (MVP)
+- File navigation by project:
+  - browse folders (incremental) and list files for a selected directory
+  - quick-open search by filename/path (fuzzy)
+- Open file in external editor (preferred) using existing editor preference.
+- Works for both Windows paths and WSL UNC project paths (`\\wsl.localhost\...`).
+- Reasonable performance for medium/large repos (skip common heavy dirs).
+
+## Non-goals (Defer)
+- Full in-app file preview/editor.
+- Full-text indexed search (ripgrep-like) across gigantic repos.
+- Git-aware ignore fidelity identical to `git status` (basic ignore is fine for v1).
+- Refactor/rename operations.
+
+## Dependencies
+- Renderer:
+  - Reuse existing palette UI (cmdk) or add a dedicated “Files” view under Projects.
+- Main (recommended libs):
+  - `fast-glob` or `fdir` for fast directory traversal.
+  - `ignore` to apply `.gitignore` plus a small default ignore set.
+
+## Data + IPC Plan (Safe-by-Default)
+
+### Principle
+Renderer passes only `projectId` and relative paths/queries.
+Main resolves to absolute paths using the stored `project.path` and validates boundaries.
+
+### IPC endpoints
+- `files:list` (args: `{ projectId: string, dir?: string }`)
+  - Returns direct children of `dir` (default root): `{ name, relativePath, kind: 'file'|'dir' }[]`
+  - Apply ignores (see below) and cap results (e.g. 2,000 entries) with a `truncated: boolean` flag.
+
+- `files:search` (args: `{ projectId: string, query: string, limit?: number }`)
+  - Returns fuzzy matches by path/name: `{ relativePath, kind, score? }[]` (no file contents)
+  - Uses a cached file list/index per project for speed.
+
+- `files:openInEditor` (args: `{ projectId: string, relativePath: string, line?: number, column?: number }`)
+  - Opens editor at the file. For VS Code, prefer `code --goto <file>:<line>:<col>`.
+  - For other editors, fall back to opening the project and revealing the file if supported; otherwise open the file path.
+
+Optional (later):
+- `files:searchContent` (args: `{ projectId, query, glob?, limit? }`) implemented via ripgrep when available.
+
+### Ignore rules (MVP)
+- Always ignore: `.git/`, `node_modules/`, `dist/`, `build/`, `.next/`, `out/`, `.turbo/`, `.cache/`.
+- If `.gitignore` exists, apply it (best-effort) for search/list.
+
+## Main Process Design
+
+### Path safety
+- Resolve `projectId` -> `project.path` using the store.
+- For any `relativePath` input:
+  - reject absolute paths
+  - normalize and resolve: `resolved = path.resolve(projectRoot, relativePath)`
+  - enforce boundary: `resolved` must be within `projectRoot` (case-insensitive on win32)
+  - reject `..` traversal attempts
+
+### Indexing strategy (fast + deterministic)
+- Maintain an in-memory cache per project:
+  - `fileList: string[]` of relative file paths
+  - `lastIndexedAt` and `projectPathKey` to invalidate on project path change
+- Index build triggers:
+  - on first search
+  - on explicit “Refresh index” action
+  - optionally on interval (defer)
+- Keep index bounded:
+  - cap maximum files (e.g. 200k) and show a warning if exceeded.
+
+### WSL considerations
+- UNC file traversal (`\\wsl.localhost\...`) may be slower; avoid deep indexing unless requested.
+- Provide a “Search uses index (may take time first run)” hint in UI.
+
+## Preload API
+Expose a minimal surface in `apps/desktop/preload.ts` and types in `apps/renderer/app/types/electron.d.ts`:
+- `listProjectFiles(projectId, dir?)`
+- `searchProjectFiles(projectId, query, limit?)`
+- `openProjectFileInEditor(projectId, relativePath, line?, column?)`
+
+No generic filesystem bridge.
+
+## Renderer UX Plan
+
+### Option A (recommended): integrate into existing Command Palette
+- Add a “Files” mode/page inside `CommandPalette`:
+  - `Find file in <project>` (requires selecting a project first)
+  - show search results as you type
+  - Enter opens in editor
+
+### Option B: add a “Files” subview in Projects
+- In `ProjectsSection`, add an “Explore” action:
+  - left: folder tree (lazy loaded via `files:list`)
+  - right: file list + search input
+  - open file button / double click
+
+### UX details
+- Always display relative paths (stable) and show full path on hover.
+- Show truncation indicators (e.g. “Showing first 2,000 items”).
+- Provide “Reindex/Refresh” button for the file search index.
+
+## Performance Considerations
+- Avoid sending huge lists over IPC:
+  - cap list/search results
+  - prefer incremental listing (`files:list`) over full tree transfer
+- In renderer, avoid storing massive arrays in state if not needed; paginate/virtualize if file lists get large.
+
+## Security Considerations
+- All filesystem operations are scoped to known projects by id.
+- Boundary checks prevent path traversal and arbitrary file access.
+- No file contents returned in MVP search endpoints.
+
+## Acceptance Criteria
+- User can browse a project’s directories and see files.
+- User can search by filename/path and open a file in the configured editor.
+- `relativePath` inputs cannot escape the project root.
+- Works for both Windows and WSL projects.
+- Search/list remain responsive on typical repos; heavy directories are ignored.
+
+## Implementation Steps (Safe Order)
+1. Main: implement path resolution + boundary guard helpers.
+2. Main: add `files:list` IPC with ignore + caps.
+3. Main: add indexing + `files:search` IPC.
+4. Main: add `files:openInEditor` using existing editor preference logic.
+5. Preload: expose typed APIs.
+6. Renderer: add UI (Palette “Files” mode or Projects “Explore” view).
+7. Manual test + `npm run lint` + `npm run typecheck`.
+
+## Manual Test Checklist
+- Browse project root: ignores `.git` and `node_modules`.
+- Attempt to open `..\\..\\Windows\\System32` via relativePath: rejected.
+- Search for a known file; open in editor lands on correct file.
+- WSL project: list/search works and open in editor works (at least VS Code).

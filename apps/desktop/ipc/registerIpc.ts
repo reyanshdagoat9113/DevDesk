@@ -6,6 +6,7 @@ import path from 'node:path'
 import { getStore, updateStore } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
 import type { AppPreference, AppPreferences, Command, Container, Project, RunStatus } from '../data/model'
+import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex } from '../files/fileService'
 
 type RunningCommand = {
   process: ChildProcessWithoutNullStreams
@@ -1168,6 +1169,63 @@ export function registerIpcHandlers() {
       }
     })
 
+    return { success: true }
+  })
+
+  // File navigation
+  ipcMain.handle('files:list', async (_event, projectId: string, dir?: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const store = await getStore()
+    const project = store.projects.find((p) => p.id === projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return listProjectFiles(project.path, dir)
+  })
+
+  ipcMain.handle('files:search', async (_event, projectId: string, query: string, limit?: number) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const store = await getStore()
+    const project = store.projects.find((p) => p.id === projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return searchProjectFiles(projectId, project.path, query, limit)
+  })
+
+  ipcMain.handle('files:openInEditor', async (
+    _event,
+    projectId: string,
+    relativePath: string,
+    line?: number,
+    column?: number
+  ) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!relativePath) {
+      throw new Error('File path is required.')
+    }
+
+    const store = await getStore()
+    const project = store.projects.find((p) => p.id === projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return openFileInEditor(project.path, relativePath, store.preferences, line, column)
+  })
+
+  ipcMain.handle('files:clearIndex', async (_event, projectId: string) => {
+    clearFileIndex(projectId)
     return { success: true }
   })
 }
