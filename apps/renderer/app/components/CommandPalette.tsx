@@ -133,6 +133,7 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const [mode, setMode] = useState<PaletteMode>({ type: 'main' })
   const [searchQuery, setSearchQuery] = useState('')
+  const [pendingFileQuery, setPendingFileQuery] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
   // Reset mode when palette opens
@@ -140,6 +141,7 @@ export function CommandPalette({
     if (open) {
       setMode({ type: 'main' })
       setSearchQuery('')
+      setPendingFileQuery('')
     }
   }, [open])
 
@@ -198,6 +200,20 @@ export function CommandPalette({
     [commands]
   )
 
+  const openFileSearchFromMain = useCallback(() => {
+    const initialQuery = searchQuery.trim()
+    if (projects.length === 1) {
+      setMode({ type: 'fileSearch', project: projects[0] })
+      setSearchQuery(initialQuery)
+      setPendingFileQuery('')
+      return
+    }
+
+    setPendingFileQuery(initialQuery)
+    setMode({ type: 'fileProjectPick' })
+    setSearchQuery('')
+  }, [projects, searchQuery])
+
   const mainItems: PaletteItem[] = useMemo(() => {
     const items: PaletteItem[] = []
 
@@ -226,10 +242,7 @@ export function CommandPalette({
       title: 'Find File in Project',
       keywords: ['file', 'search', 'find', 'open', 'navigate'],
       icon: <FileText className="h-4 w-4" />,
-      action: () => {
-        setMode({ type: 'fileProjectPick' })
-        setSearchQuery('')
-      },
+      action: openFileSearchFromMain,
     })
 
     for (const project of projects) {
@@ -383,6 +396,7 @@ export function CommandPalette({
     runWithErrorHandling,
     getProjectName,
     getCommandName,
+    openFileSearchFromMain,
   ])
 
   const projectPickItems: PaletteItem[] = useMemo(() => {
@@ -411,10 +425,11 @@ export function CommandPalette({
       icon: <span className="text-lg">{project.icon}</span>,
       action: () => {
         setMode({ type: 'fileSearch', project })
-        setSearchQuery('')
+        setSearchQuery(pendingFileQuery)
+        setPendingFileQuery('')
       },
     }))
-  }, [mode, projects])
+  }, [mode, projects, pendingFileQuery])
 
   const currentItems = useMemo(() => {
     switch (mode.type) {
@@ -440,10 +455,27 @@ export function CommandPalette({
   }, [currentItems])
 
   const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return currentItems
-    const results = fuse.search(searchQuery)
-    return results.map((r) => r.item)
-  }, [fuse, searchQuery, currentItems])
+    const query = searchQuery.trim()
+    if (!query) return currentItems
+
+    const results = fuse.search(query).map((r) => r.item)
+
+    if (mode.type === 'main') {
+      const quickFileSearchItem: PaletteItem = {
+        id: 'nav-files-query',
+        group: 'Navigation',
+        title: `Find file "${query}" in project`,
+        subtitle: projects.length === 1 ? `Search in ${projects[0]?.name}` : 'Select project then search',
+        keywords: ['file', 'search', 'find', query],
+        icon: <FileText className="h-4 w-4" />,
+        action: openFileSearchFromMain,
+      }
+
+      return [quickFileSearchItem, ...results]
+    }
+
+    return results
+  }, [fuse, searchQuery, currentItems, mode.type, projects, openFileSearchFromMain])
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, PaletteItem[]> = {
@@ -524,7 +556,7 @@ export function CommandPalette({
   )
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    <CommandDialog open={open} onOpenChange={onOpenChange} commandProps={{ shouldFilter: false }}>
       <CommandInput
         placeholder={
           mode.type === 'projectPick'
@@ -543,7 +575,7 @@ export function CommandPalette({
           <div className="py-6 text-center text-sm text-muted-foreground">Loading...</div>
         ) : (
           <>
-            <CommandEmpty>No results found.</CommandEmpty>
+            {mode.type !== 'fileSearch' ? <CommandEmpty>No results found.</CommandEmpty> : null}
 
             {(mode.type === 'projectPick' || mode.type === 'fileProjectPick' || mode.type === 'fileSearch') && (
               <CommandGroup heading="Actions">
