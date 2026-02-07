@@ -57,6 +57,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [containerError, setContainerError] = useState<string | null>(null)
+  const [isContainersLoading, setIsContainersLoading] = useState(false)
+  const [hasLoadedContainers, setHasLoadedContainers] = useState(false)
+  const [hasAttemptedContainersLoad, setHasAttemptedContainersLoad] = useState(false)
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const [projectPath, setProjectPath] = useState('')
@@ -102,12 +105,14 @@ function App() {
     setIsLoading(true)
     setLoadError(null)
     setContainerError(null)
+    setContainers([])
+    setHasLoadedContainers(false)
+    setHasAttemptedContainersLoad(false)
     try {
-      const [projectsResult, commandsResult, containersResult, historyResult, preferencesResult] =
+      const [projectsResult, commandsResult, historyResult, preferencesResult] =
         await Promise.allSettled([
           window.electronAPI.getProjects(),
           window.electronAPI.getCommands(),
-          window.electronAPI.getContainers(),
           window.electronAPI.getRunHistory(),
           window.electronAPI.getPreferences(),
         ])
@@ -126,13 +131,6 @@ function App() {
       } else {
         errors.push(commandsResult.reason instanceof Error ? commandsResult.reason.message : 'Failed to load commands.')
         setCommands([])
-      }
-
-      if (containersResult.status === 'fulfilled') {
-        setContainers(containersResult.value)
-      } else {
-        setContainerError(containersResult.reason instanceof Error ? containersResult.reason.message : 'Failed to load containers.')
-        setContainers([])
       }
 
       if (historyResult.status === 'fulfilled') {
@@ -175,9 +173,33 @@ function App() {
     }
   }, [])
 
+  const loadContainers = useCallback(async () => {
+    setHasAttemptedContainersLoad(true)
+    setIsContainersLoading(true)
+    setContainerError(null)
+    try {
+      const nextContainers = await window.electronAPI.getContainers()
+      setContainers(nextContainers)
+      setHasLoadedContainers(true)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load containers.'
+      setContainerError(message)
+      throw new Error(message)
+    } finally {
+      setIsContainersLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     loadAll()
   }, [loadAll])
+
+  useEffect(() => {
+    if (activeTab !== 'containers' || hasAttemptedContainersLoad || isContainersLoading) {
+      return
+    }
+    void loadContainers()
+  }, [activeTab, hasAttemptedContainersLoad, isContainersLoading, loadContainers])
 
   useEffect(() => {
     const unsubscribeOutput = window.electronAPI.onRunOutput(({ runId, chunk }) => {
@@ -606,29 +628,23 @@ function App() {
   }
 
   const handleRefreshContainers = async () => {
-    setContainerError(null)
-    try {
-      const nextContainers = await window.electronAPI.getContainers()
-      setContainers(nextContainers)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to refresh containers.'
-      setContainerError(message)
-      throw new Error(message)
-    }
+    await loadContainers()
   }
 
   const runContainerAction = async (action: () => Promise<{ success: boolean }>, fallbackMessage: string) => {
     setContainerError(null)
     try {
       await action()
-      const nextContainers = await window.electronAPI.getContainers()
-      setContainers(nextContainers)
+      await loadContainers()
     } catch (error) {
       const message = error instanceof Error ? error.message : fallbackMessage
       setContainerError(message)
       throw new Error(message)
     }
   }
+
+  const containersSectionLoading =
+    isLoading || isContainersLoading || (activeTab === 'containers' && !hasLoadedContainers && !containerError)
 
   const handleViewContainerLogs = async (containerId: string) => {
     try {
@@ -688,7 +704,7 @@ function App() {
           {activeTab === 'containers' && (
             <ContainersSection
               containers={containers}
-              isLoading={isLoading}
+              isLoading={containersSectionLoading}
               error={containerError}
               onStartContainer={handleStartContainer}
               onStopContainer={handleStopContainer}

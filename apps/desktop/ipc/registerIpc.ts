@@ -487,12 +487,18 @@ async function runDockerCommand(args: string[]) {
 }
 
 function parseDockerContainers(output: string): Container[] {
-  if (!output.trim()) return []
-  return output
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
+  if (!output.trim()) {
+    return []
+  }
+
+  const containers: Container[] = []
+  for (const rawLine of output.split('\n')) {
+    const line = rawLine.trim()
+    if (!line) {
+      continue
+    }
+
+    try {
       const entry = JSON.parse(line) as {
         ID?: string
         Names?: string
@@ -530,7 +536,7 @@ function parseDockerContainers(output: string): Container[] {
           ? rawCommand.slice(1, -1)
           : rawCommand
 
-      return {
+      containers.push({
         id: entry.ID ?? '',
         name: entry.Names ?? entry.ID ?? 'Unknown',
         image: entry.Image ?? 'Unknown',
@@ -540,8 +546,21 @@ function parseDockerContainers(output: string): Container[] {
         createdAt: entry.CreatedAt ?? '',
         labels,
         command: command ?? '',
-      }
-    })
+      })
+    } catch {
+      continue
+    }
+  }
+
+  return containers
+}
+
+function requireContainerId(input: string) {
+  const containerId = input.trim()
+  if (!containerId) {
+    throw new Error('Container id is required.')
+  }
+  return containerId
 }
 
 function broadcast(channel: string, payload: unknown) {
@@ -1114,63 +1133,49 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('containers:start', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    await runDockerCommand(['start', _id])
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['start', containerId])
     return { success: true }
   })
 
   ipcMain.handle('containers:stop', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    await runDockerCommand(['stop', _id])
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['stop', containerId])
     return { success: true }
   })
 
   ipcMain.handle('containers:restart', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    await runDockerCommand(['restart', _id])
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['restart', containerId])
     return { success: true }
   })
 
   ipcMain.handle('containers:pause', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    await runDockerCommand(['pause', _id])
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['pause', containerId])
     return { success: true }
   })
 
   ipcMain.handle('containers:unpause', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    await runDockerCommand(['unpause', _id])
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['unpause', containerId])
     return { success: true }
   })
 
   ipcMain.handle('containers:remove', async (_event, _id: string, force?: boolean) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
+    const containerId = requireContainerId(_id)
     const args = ['rm']
     if (force) {
       args.push('--force')
     }
-    args.push(_id)
+    args.push(containerId)
     await runDockerCommand(args)
     return { success: true }
   })
 
   ipcMain.handle('containers:logs', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    const output = await runDockerCommand(['logs', '--tail', '200', _id])
+    const containerId = requireContainerId(_id)
+    const output = await runDockerCommand(['logs', '--tail', '200', containerId])
     return output
   })
 
