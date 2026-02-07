@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Container, FolderKanban, History, Plus, StickyNote, Terminal, Folder, Globe } from 'lucide-react'
+import { Container, FolderKanban, History, Plus, StickyNote, Terminal } from 'lucide-react'
 import { Button } from './components/ui/Button'
 import { Input } from './components/ui/Input'
 import { Label } from './components/ui/Label'
@@ -28,6 +28,8 @@ import { NotesSection } from './sections/NotesSection'
 import { ProjectsSection } from './sections/ProjectsSection'
 import type { AppPreferences, Command, Container as ContainerType, Project, ProjectNotes, RunHistoryEntry } from './types'
 import { CommandPalette } from './components/CommandPalette'
+import { ThemeToggle } from './components/ThemeToggle'
+import { ProjectDirectorySelector } from './components/ProjectDirectorySelector'
 
 type TabValue = 'projects' | 'commands' | 'containers' | 'history' | 'notes'
 
@@ -47,6 +49,20 @@ const actionLabels: Partial<Record<TabValue, string>> = {
 const GLOBAL_COMMAND_VALUE = '__global__'
 
 function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('devdesk-theme')
+    return (saved as 'light' | 'dark') || 'dark'
+  })
+
+  useEffect(() => {
+    const root = window.document.documentElement
+    root.classList.remove('light', 'dark')
+    root.classList.add(theme)
+    localStorage.setItem('devdesk-theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+
   const [activeTab, setActiveTab] = useState<TabValue>('projects')
   const [projects, setProjects] = useState<Project[]>([])
   const [commands, setCommands] = useState<Command[]>([])
@@ -78,9 +94,6 @@ function App() {
   const [commandTags, setCommandTags] = useState('')
   const [commandProjectId, setCommandProjectId] = useState<string>(GLOBAL_COMMAND_VALUE)
   const [commandWorkingDirectory, setCommandWorkingDirectory] = useState<string>('')
-  const [availableDirectories, setAvailableDirectories] = useState<string[]>([])
-  const [isLoadingDirectories, setIsLoadingDirectories] = useState(false)
-  const [directorySelectKey, setDirectorySelectKey] = useState<string>('0')
   const [commandError, setCommandError] = useState<string | null>(null)
   const [isSavingCommand, setIsSavingCommand] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -412,8 +425,6 @@ function App() {
       setCommandTags('')
       setCommandProjectId(GLOBAL_COMMAND_VALUE)
       setCommandWorkingDirectory('')
-      setAvailableDirectories([])
-      setDirectorySelectKey('0')
       setCommandDialogOpen(false)
     } catch (error) {
       setCommandError(error instanceof Error ? error.message : 'Failed to add command.')
@@ -446,56 +457,6 @@ function App() {
       const message = error instanceof Error ? error.message : 'Failed to remove command.'
       setLoadError(message)
       throw new Error(message)
-    }
-  }
-
-  const handleProjectChange = async (projectId: string) => {
-    setCommandProjectId(projectId)
-    setCommandWorkingDirectory('')
-    setAvailableDirectories([])
-    setDirectorySelectKey(String(Date.now())) // Force Select to re-render
-    if (projectId !== GLOBAL_COMMAND_VALUE && window.electronAPI.getProjectDirectories) {
-      setIsLoadingDirectories(true)
-      try {
-        const dirs = await window.electronAPI.getProjectDirectories(projectId)
-        setAvailableDirectories(dirs)
-      } catch (error) {
-        console.error('Failed to load directories:', error)
-        setAvailableDirectories([])
-      } finally {
-        setIsLoadingDirectories(false)
-      }
-    }
-  }
-
-  const handleWorkingDirectoryChange = async (dir: string) => {
-    // Convert __root__ to empty string for storage, but keep __root__ for UI
-    const actualDir = dir === '__root__' ? '' : dir
-    setCommandWorkingDirectory(dir) // Keep the UI value
-    // Load subdirectories if a non-empty directory is selected
-    if (commandProjectId !== GLOBAL_COMMAND_VALUE && actualDir && window.electronAPI.getProjectDirectories) {
-      setIsLoadingDirectories(true)
-      try {
-        const subdirs = await window.electronAPI.getProjectDirectories(commandProjectId, actualDir)
-        setAvailableDirectories(subdirs)
-      } catch (error) {
-        console.error('Failed to load subdirectories:', error)
-        setAvailableDirectories([])
-      } finally {
-        setIsLoadingDirectories(false)
-      }
-    } else if (commandProjectId !== GLOBAL_COMMAND_VALUE && !actualDir) {
-      // Reset to root directories when "Project root" is selected
-      setIsLoadingDirectories(true)
-      try {
-        const dirs = await window.electronAPI.getProjectDirectories(commandProjectId)
-        setAvailableDirectories(dirs)
-      } catch (error) {
-        console.error('Failed to load directories:', error)
-        setAvailableDirectories([])
-      } finally {
-        setIsLoadingDirectories(false)
-      }
     }
   }
 
@@ -663,6 +624,7 @@ function App() {
         activeNav={activeTab}
         onNavChange={(value) => setActiveTab(value as TabValue)}
         title={title}
+        themeToggle={<ThemeToggle theme={theme} onToggle={toggleTheme} />}
         action={
           actionLabel ? (
             <Button
@@ -902,98 +864,23 @@ function App() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="command-project">Project</Label>
-              <Select value={commandProjectId} onValueChange={handleProjectChange}>
-                <SelectTrigger id="command-project" className="w-full">
-                  <SelectValue placeholder="Global command (runs on any project)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={GLOBAL_COMMAND_VALUE} displayValue="Global command">
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-muted-foreground" />
-                      <div className="flex flex-col">
-                        <span>Global command</span>
-                        <span className="text-xs text-muted-foreground">Runs on any project</span>
-                      </div>
-                    </div>
-                  </SelectItem>
-                  {projects.length > 0 ? (
-                    projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id} displayValue={project.name}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{project.icon}</span>
-                          <div className="flex flex-col">
-                            <span>{project.name}</span>
-                            <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-                              {project.path}
-                            </span>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      No projects added yet. Add a project first.
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {commandProjectId !== GLOBAL_COMMAND_VALUE
-                  ? `Bound to ${projects.find((p) => p.id === commandProjectId)?.name ?? 'project'}`
-                  : 'Global commands can be run on any project'}
+              <Label>Target Location</Label>
+              <ProjectDirectorySelector
+                projects={projects}
+                selectedProjectId={commandProjectId}
+                selectedDirectory={commandWorkingDirectory}
+                onSelect={(projectId, directory) => {
+                  setCommandProjectId(projectId || GLOBAL_COMMAND_VALUE)
+                  setCommandWorkingDirectory(directory || '')
+                }}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {commandProjectId === GLOBAL_COMMAND_VALUE 
+                  ? "Global commands can be run on any project from the Commands section."
+                  : `This command will be bound to ${projects.find(p => p.id === commandProjectId)?.name}${commandWorkingDirectory ? ` / ${commandWorkingDirectory}` : ''}.`
+                }
               </p>
             </div>
-            {commandProjectId !== GLOBAL_COMMAND_VALUE && (
-              <div className="space-y-2">
-                <Label htmlFor="command-directory">Working Directory</Label>
-                <Select
-                  key={directorySelectKey}
-                  value={commandWorkingDirectory}
-                  onValueChange={handleWorkingDirectoryChange}
-                >
-                  <SelectTrigger id="command-directory" className="w-full">
-                    <SelectValue placeholder="Project root" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__root__" displayValue="Project root">
-                      <div className="flex items-center gap-2">
-                        <Folder className="h-4 w-4 text-muted-foreground" />
-                        <div className="flex flex-col">
-                          <span>Project root</span>
-                          <span className="text-xs text-muted-foreground">
-                            {projects.find((p) => p.id === commandProjectId)?.name}
-                          </span>
-                        </div>
-                      </div>
-                    </SelectItem>
-                    {isLoadingDirectories ? (
-                      <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
-                        <span className="h-4 w-4 animate-spin">⟳</span>
-                        Loading directories...
-                      </div>
-                    ) : availableDirectories.length > 0 ? (
-                      availableDirectories.map((dir) => (
-                        <SelectItem key={dir} value={dir} displayValue={dir}>
-                          <div className="flex items-center gap-2">
-                            <Folder className="h-4 w-4 text-muted-foreground" />
-                            <span>{dir}</span>
-                          </div>
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">
-                        No subdirectories found in project root.
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Command will run in: {projects.find((p) => p.id === commandProjectId)?.name}
-                  {commandWorkingDirectory && commandWorkingDirectory !== '__root__' ? ` / ${commandWorkingDirectory}` : ''}
-                </p>
-              </div>
-            )}
             <div className="space-y-2">
               <Label htmlFor="command-tags">Tags (comma separated)</Label>
               <Input

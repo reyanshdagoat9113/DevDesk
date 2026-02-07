@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { ClipboardList, CheckCircle, Bell, Edit3, Save, X, FileText } from 'lucide-react'
+import { ClipboardList, CheckCircle, Bell, Edit3, Save, X, FileText, ChevronRight } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Label } from '../components/ui/Label'
 import { Textarea } from '../components/ui/Textarea'
-import { Separator } from '../components/ui/Separator'
 import { Badge } from '../components/ui/Badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
+} from '../components/ui/Card'
 import { SectionLayout } from '../layout/SectionLayout'
+import { cn } from '../../lib/utils'
 import type { Project, ProjectNotes } from '../types'
-
-const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm'
 
 type NoteTab = 'setup' | 'todos' | 'reminders'
 
@@ -50,7 +55,6 @@ function getContentCount(content: string): number {
   // Count non-empty lines for todos, characters for others
   return content.trim().split('\n').filter(line => line.trim()).length
 }
-
 
 export function NotesSection({
   projects,
@@ -171,82 +175,96 @@ export function NotesSection({
   return (
     <SectionLayout
       list={
-        <div className={panelClass}>
-          <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Notes</p>
+        <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+          <div className="border-b border-border/40 bg-muted/20 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</p>
           </div>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto p-2">
             {isLoading ? (
-              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 Loading notes...
               </div>
             ) : error ? (
-              <div className="flex h-full items-center justify-center px-6 text-sm text-destructive">
+              <div className="flex h-full items-center justify-center text-sm text-destructive">
                 {error}
               </div>
             ) : projects.length === 0 ? (
-              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 No projects available.
               </div>
             ) : (
-              projects.map((project) => {
-                const isActive = selectedProject?.id === project.id
-                const projectNotes = notes[project.id]
-                const hasNotes = projectNotes && (
-                  projectNotes.setupSteps.trim() ||
-                  projectNotes.todos.trim() ||
-                  projectNotes.reminders.trim()
-                )
-                const noteCount = projectNotes
-                  ? (projectNotes.setupSteps.trim() ? 1 : 0) +
-                    (projectNotes.todos.trim() ? 1 : 0) +
-                    (projectNotes.reminders.trim() ? 1 : 0)
-                  : 0
+              <div className="space-y-1">
+                {projects.map((project) => {
+                  const isActive = selectedProject?.id === project.id
+                  const projectNotes = notes[project.id]
+                  const hasNotes = projectNotes && (
+                    projectNotes.setupSteps.trim() ||
+                    projectNotes.todos.trim() ||
+                    projectNotes.reminders.trim()
+                  )
+                  const noteCount = projectNotes
+                    ? (projectNotes.setupSteps.trim() ? 1 : 0) +
+                      (projectNotes.todos.trim() ? 1 : 0) +
+                      (projectNotes.reminders.trim() ? 1 : 0)
+                    : 0
 
-                return (
-                  <button
-                    key={project.id}
-                    onClick={() => setSelectedId(project.id)}
-                    aria-pressed={isActive}
-                    className={`group relative flex w-full items-center gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring last:border-b-0 ${
-                      isActive
-                        ? "bg-accent/70 text-foreground before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:bg-primary before:content-['']"
-                        : 'hover:bg-accent/60'
-                    }`}
-                  >
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-md text-xs font-semibold ${
-                      hasNotes ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {hasNotes ? <FileText className="h-4 w-4" /> : project.name.slice(0, 1).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-medium">{project.name}</p>
-                        {noteCount > 0 && (
-                          <Badge variant="secondary" className="text-[10px] h-4 px-1">
-                            {noteCount}
-                          </Badge>
-                        )}
+                  return (
+                    <button
+                      key={project.id}
+                      onClick={() => setSelectedId(project.id)}
+                      className={cn(
+                        "group flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-all",
+                        isActive 
+                          ? "bg-primary/10 shadow-sm" 
+                          : "hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-md border text-xs font-semibold transition-colors",
+                        hasNotes
+                          ? "border-primary/20 bg-primary/10 text-primary" 
+                          : "border-border/40 bg-muted/30 text-muted-foreground"
+                      )}>
+                        {hasNotes ? <FileText className="h-4 w-4" /> : project.name.slice(0, 1).toUpperCase()}
                       </div>
-                      <p className="truncate text-xs text-muted-foreground">{project.path}</p>
-                    </div>
-                  </button>
-                )
-              })
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className={cn(
+                            "truncate text-sm font-medium",
+                            isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                          )}>
+                            {project.name}
+                          </p>
+                          {noteCount > 0 && (
+                            <Badge variant="secondary" className="h-4 px-1 text-[9px]">
+                              {noteCount}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="truncate text-[10px] text-muted-foreground/70">{project.path}</p>
+                      </div>
+                      {isActive && <ChevronRight className="h-3.5 w-3.5 text-primary opacity-50" />}
+                    </button>
+                  )
+                })}
+              </div>
             )}
           </div>
-        </div>
+        </Card>
       }
       detail={
-        <div className={`${panelClass} p-5`}>
-          {selectedProject ? (
-            <div className="flex h-full flex-col gap-4">
-              {/* Header */}
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Project Notes</p>
-                  <h2 className="mt-2 text-lg font-semibold truncate">{selectedProject.name}</h2>
-                  <p className="text-sm text-muted-foreground truncate">{selectedProject.path}</p>
+        selectedProject ? (
+          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+            <CardHeader className="border-b border-border/40 bg-muted/10 pb-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-xl">{selectedProject.name}</CardTitle>
+                    {isEditing && <Badge variant="outline" className="text-[10px] bg-background/50 animate-pulse">Editing</Badge>}
+                  </div>
+                  <CardDescription>
+                    Project Notes & Documentation
+                  </CardDescription>
                 </div>
                 {!isEditing ? (
                   <Button
@@ -256,13 +274,13 @@ export function NotesSection({
                     onClick={() => setIsEditing(true)}
                   >
                     <Edit3 className="h-3.5 w-3.5" />
-                    Edit
+                    Edit Notes
                   </Button>
                 ) : (
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
                       className="gap-1.5"
                       onClick={handleCancel}
                       disabled={isSaving}
@@ -277,130 +295,123 @@ export function NotesSection({
                       disabled={!hasChanges || isSaving}
                     >
                       <Save className="h-3.5 w-3.5" />
-                      {isSaving ? 'Saving...' : 'Save'}
+                      {isSaving ? 'Saving...' : 'Save Changes'}
                     </Button>
                   </div>
                 )}
               </div>
+            </CardHeader>
+            
+            <CardContent className="flex-1 flex flex-col min-h-0 p-6">
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as NoteTab)} className="flex flex-col h-full">
+                <TabsList className="grid w-full grid-cols-3 bg-muted/20">
+                  {TABS.map((tab) => {
+                    const Icon = tab.icon
+                    const count = getTabContentCount(tab.id)
+                    const hasContent = count > 0
+                    return (
+                      <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                        <Icon className="h-3.5 w-3.5 opacity-70" />
+                        <span className="hidden sm:inline">{tab.label}</span>
+                        {hasContent && (
+                          <Badge variant="secondary" className="ml-1 h-4 px-1 text-[9px]">
+                            {count}
+                          </Badge>
+                        )}
+                      </TabsTrigger>
+                    )
+                  })}
+                </TabsList>
 
-              <Separator />
-
-              {/* Notes Content */}
-              <div className="flex-1 flex flex-col min-h-0">
-                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as NoteTab)} className="flex flex-col h-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    {TABS.map((tab) => {
-                      const Icon = tab.icon
-                      const count = getTabContentCount(tab.id)
-                      const hasContent = count > 0
-                      return (
-                        <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
-                          <Icon className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">{tab.label}</span>
-                          {hasContent && (
-                            <Badge variant={activeTab === tab.id ? "default" : "secondary"} className="text-[10px] h-4 px-1 ml-0.5">
-                              {count}
-                            </Badge>
-                          )}
-                        </TabsTrigger>
-                      )
-                    })}
-                  </TabsList>
-
-                  {TABS.map((tab) => (
-                    <TabsContent key={tab.id} value={tab.id} className="flex-1 flex flex-col min-h-0 mt-4">
-                      <div className="flex flex-col h-full gap-3">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
-                            {tab.description}
-                          </Label>
-                          {isEditing && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {tab.id === 'todos' 
-                                ? `${getContentCount(draft.todos)} items`
-                                : `${draft[tab.id === 'setup' ? 'setupSteps' : 'reminders'].length} chars`
-                              }
-                            </span>
-                          )}
-                        </div>
-
-                        {isEditing ? (
-                          <Textarea
-                            value={draft[tab.id === 'setup' ? 'setupSteps' : tab.id === 'todos' ? 'todos' : 'reminders']}
-                            onChange={(e) => updateDraft(tab.id === 'setup' ? 'setupSteps' : tab.id === 'todos' ? 'todos' : 'reminders', e.target.value)}
-                            placeholder={tab.placeholder}
-                            className="flex-1 resize-none min-h-[200px] font-mono text-sm leading-relaxed"
-                          />
-                        ) : (
-                          <div className="flex-1 rounded-md border border-border/60 bg-muted/30 p-4 overflow-auto">
-                            {hasTabContent(tab.id) ? (
-                              <div className="prose prose-sm max-w-none dark:prose-invert">
-                                {tab.id === 'todos' ? (
-                                  <ul className="space-y-1.5 list-none pl-0">
-                                    {draft.todos.split('\n').filter(line => line.trim()).map((todo, idx) => (
-                                      <li key={idx} className="flex items-start gap-2">
-                                        <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-muted-foreground/30 mt-0.5" />
-                                        <span className="text-sm">{todo.trim()}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                                    {draft[tab.id === 'setup' ? 'setupSteps' : 'reminders']}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-                                <tab.icon className="h-8 w-8 opacity-30" />
-                                <p className="text-sm">No {tab.label.toLowerCase()} added yet</p>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="gap-1.5 text-xs"
-                                  onClick={() => setIsEditing(true)}
-                                >
-                                  <Edit3 className="h-3 w-3" />
-                                  Add {tab.label}
-                                </Button>
-                              </div>
-                            )}
-                          </div>
+                {TABS.map((tab) => (
+                  <TabsContent key={tab.id} value={tab.id} className="flex-1 flex flex-col min-h-0 mt-4 focus-visible:outline-none">
+                    <div className="flex flex-col h-full gap-3">
+                      <div className="flex items-center justify-between px-1">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          {tab.description}
+                        </Label>
+                        {isEditing && (
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {tab.id === 'todos' 
+                              ? `${getContentCount(draft.todos)} items`
+                              : `${draft[tab.id === 'setup' ? 'setupSteps' : 'reminders'].length} chars`
+                            }
+                          </span>
                         )}
                       </div>
-                    </TabsContent>
-                  ))}
-                </Tabs>
-              </div>
 
-              {/* Footer */}
-              <div className="flex items-center justify-between pt-2">
+                      {isEditing ? (
+                        <Textarea
+                          value={draft[tab.id === 'setup' ? 'setupSteps' : tab.id === 'todos' ? 'todos' : 'reminders']}
+                          onChange={(e) => updateDraft(tab.id === 'setup' ? 'setupSteps' : tab.id === 'todos' ? 'todos' : 'reminders', e.target.value)}
+                          placeholder={tab.placeholder}
+                          className="flex-1 resize-none font-mono text-sm leading-relaxed bg-background/50 focus:bg-background transition-colors p-4"
+                        />
+                      ) : (
+                        <div className="flex-1 rounded-md border border-border/40 bg-muted/10 p-4 overflow-auto">
+                          {hasTabContent(tab.id) ? (
+                            <div className="prose prose-sm max-w-none dark:prose-invert">
+                              {tab.id === 'todos' ? (
+                                <ul className="space-y-2 list-none pl-0 m-0">
+                                  {draft.todos.split('\n').filter(line => line.trim()).map((todo, idx) => (
+                                    <li key={idx} className="flex items-start gap-3 group">
+                                      <div className="mt-1 h-3 w-3 rounded-[3px] border border-primary/30 group-hover:border-primary/60 transition-colors" />
+                                      <span className="text-sm leading-relaxed text-foreground/90">{todo.trim()}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <div className="whitespace-pre-wrap text-sm leading-relaxed font-mono text-muted-foreground/90">
+                                  {draft[tab.id === 'setup' ? 'setupSteps' : 'reminders']}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground/40">
+                              <tab.icon className="h-10 w-10 opacity-20" />
+                              <p className="text-sm font-medium">No {tab.label.toLowerCase()} added yet</p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 text-xs mt-2"
+                                onClick={() => setIsEditing(true)}
+                              >
+                                <Edit3 className="h-3 w-3" />
+                                Add {tab.label}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </CardContent>
+
+            <div className="border-t border-border/40 bg-muted/10 p-3">
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground px-2">
                 <div className="flex items-center gap-2">
-                  {saveError ? (
-                    <p className="text-xs text-destructive">{saveError}</p>
+                   {saveError ? (
+                    <span className="text-destructive font-medium">{saveError}</span>
                   ) : isEditing ? (
-                    <p className="text-xs text-muted-foreground">
-                      {hasChanges ? 'Unsaved changes' : 'No changes'}
-                      <span className="hidden sm:inline"> · Press Ctrl+S to save, Esc to cancel</span>
-                    </p>
+                    <span>Press <kbd className="font-sans font-semibold text-foreground">Ctrl+S</kbd> to save</span>
                   ) : (
-                    <p className="text-xs text-muted-foreground">
-                      {hasTabContent('setup') || hasTabContent('todos') || hasTabContent('reminders')
-                        ? `${[hasTabContent('setup') && 'Setup', hasTabContent('todos') && 'Todos', hasTabContent('reminders') && 'Reminders'].filter(Boolean).join(', ')} saved`
-                        : 'No notes saved yet'
-                      }
-                    </p>
+                    <span>Last updated recently</span>
                   )}
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-              <FileText className="h-12 w-12 opacity-20" />
-              <p className="text-sm">Select a project to see notes</p>
+          </Card>
+        ) : (
+          <Card className="flex h-full items-center justify-center border-border/40 bg-card/50 p-6 text-center shadow-sm">
+            <div className="space-y-2">
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground/30" />
+              <h3 className="text-lg font-medium">No project selected</h3>
+              <p className="text-sm text-muted-foreground">Select a project to view or edit notes.</p>
             </div>
-          )}
-        </div>
+          </Card>
+        )
       }
     />
   )

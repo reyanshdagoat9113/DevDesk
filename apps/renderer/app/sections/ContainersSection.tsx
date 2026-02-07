@@ -16,14 +16,19 @@ import {
   ArrowUpDown,
   Activity,
   Box,
-  Hash,
-  Clock,
   Terminal as TerminalIcon,
   Layers,
   Network
 } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
+} from '../components/ui/Card'
 import {
   Dialog,
   DialogContent,
@@ -40,8 +45,6 @@ import { Tabs, TabsList, TabsTrigger } from '../components/ui/Tabs'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import type { Container } from '../types'
-
-const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm'
 
 const statusStyles: Record<Container['state'], string> = {
   running: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]',
@@ -365,11 +368,11 @@ export function ContainersSection({
     <>
       <SectionLayout
         list={
-          <div className={panelClass}>
-            <div className="flex flex-col border-b border-border/60 bg-muted/30">
+          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+            <div className="flex flex-col border-b border-border/40 bg-muted/20">
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Containers</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Containers</p>
                   <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-medium opacity-70">
                     {containers.length}
                   </Badge>
@@ -393,7 +396,7 @@ export function ContainersSection({
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search containers..."
-                    className="h-8 pl-9 text-xs focus-visible:ring-1"
+                    className="h-8 pl-9 text-xs focus-visible:ring-1 bg-background/50"
                   />
                 </div>
 
@@ -428,7 +431,7 @@ export function ContainersSection({
                         type="checkbox"
                         checked={allVisibleSelected}
                         onChange={(event) => handleSelectAll(event.target.checked)}
-                        className="h-3 w-3 rounded border-muted-foreground/30 bg-background text-primary transition-colors focus:ring-primary/20"
+                        className="h-3.5 w-3.5 rounded border-muted-foreground/30 bg-background text-primary transition-colors focus:ring-primary/20"
                       />
                       Select all
                     </label>
@@ -437,10 +440,10 @@ export function ContainersSection({
               </div>
             </div>
             {selectedIds.length > 0 && (
-              <div className="border-b border-border/60 bg-primary/5 px-4 py-2">
+              <div className="border-b border-border/40 bg-primary/5 px-4 py-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-[11px] font-semibold text-primary">
-                    <Check className="h-3 w-3" />
+                    <Check className="h-3.5 w-3.5" />
                     {selectedIds.length} SELECTED
                   </div>
                   <div className="flex items-center gap-1">
@@ -516,7 +519,7 @@ export function ContainersSection({
                 </div>
               </div>
             )}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto p-2">
               {isLoading ? (
                 <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-muted-foreground/60">
                   <RefreshCw className="h-5 w-5 animate-spin" />
@@ -543,7 +546,7 @@ export function ContainersSection({
                   <p className="text-xs font-medium">No matches for your filters</p>
                 </div>
               ) : (
-                <div className="divide-y divide-border/40">
+                <div className="space-y-1">
                   {sortedContainers.map((container) => {
                     const isActive = selectedId === container.id
                     const isSelected = selectedIdSet.has(container.id)
@@ -553,317 +556,312 @@ export function ContainersSection({
                     return (
                       <div
                         key={container.id}
+                        onClick={() => setSelectedId(container.id)}
                         className={cn(
-                          "group relative flex w-full flex-col transition-colors",
-                          isActive ? "bg-accent/40" : "hover:bg-accent/20"
+                          "group relative flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-all",
+                          isActive 
+                            ? "bg-primary/10 shadow-sm" 
+                            : "hover:bg-muted/50"
                         )}
                       >
-                        <div
-                          className="flex cursor-pointer items-center gap-3 px-4 py-3"
-                          onClick={() => setSelectedId(container.id)}
-                        >
-                          <div className="relative flex items-center" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleSelected(container.id)}
-                              className="h-3.5 w-3.5 rounded border-muted-foreground/30 bg-background text-primary transition-colors focus:ring-primary/20"
-                            />
-                          </div>
+                        <div className="relative flex items-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelected(container.id)}
+                            className="h-3.5 w-3.5 rounded border-muted-foreground/30 bg-background text-primary transition-colors focus:ring-primary/20"
+                          />
+                        </div>
 
-                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <div className="flex items-center gap-2">
-                              <span className={cn("h-1.5 w-1.5 rounded-full", statusStyles[container.state])} />
-                              <span className="truncate text-sm font-semibold tracking-tight">{container.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2 truncate text-[11px] text-muted-foreground/70">
-                              <span className="truncate">{container.image}</span>
-                              {statusText && (
-                                <>
-                                  <span className="text-muted-foreground/30">•</span>
-                                  <span className="truncate italic">{statusText}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <Badge
-                              variant={stateBadgeVariants[container.state]}
-                              className="h-5 px-1.5 text-[10px] font-bold uppercase tracking-tighter"
-                            >
-                              {container.state}
-                            </Badge>
-
-                            <div className="hidden group-hover:flex">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                onClick={(e) => { e.stopPropagation(); handleViewLogsFor(container.id); }}
-                                disabled={isBusy}
-                              >
-                                <Logs className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  runContainerAction('restart', onRestartContainer, container.id)
-                                }}
-                                disabled={isBusy}
-                              >
-                                <RotateCw className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
+                            <span className={cn("h-1.5 w-1.5 rounded-full", statusStyles[container.state])} />
+                            <span className={cn("truncate text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")}>
+                              {container.name}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 truncate text-[10px] text-muted-foreground/70">
+                            <span className="truncate max-w-[120px]">{container.image}</span>
+                            {statusText && (
+                              <>
+                                <span className="text-muted-foreground/30">•</span>
+                                <span className="truncate">{statusText}</span>
+                              </>
+                            )}
                           </div>
                         </div>
-                        {isActive && (
-                          <div className="absolute left-0 top-0 h-full w-0.5 bg-primary" />
-                        )}
+
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={stateBadgeVariants[container.state]}
+                            className="h-4 px-1 text-[9px] uppercase tracking-wider"
+                          >
+                            {container.state}
+                          </Badge>
+
+                          <div className={cn("flex items-center opacity-0 transition-opacity", (isActive || isBusy) ? "opacity-100" : "group-hover:opacity-100")}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              onClick={(e) => { e.stopPropagation(); handleViewLogsFor(container.id); }}
+                              disabled={isBusy}
+                            >
+                              <Logs className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                runContainerAction('restart', onRestartContainer, container.id)
+                              }}
+                              disabled={isBusy}
+                            >
+                              <RotateCw className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     )
                   })}
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         }
         detail={
-          <div className={cn(panelClass, "bg-card/40")}>
-            {selectedContainer ? (
-              <div className="flex h-full flex-col">
-                <div className="border-b border-border/60 bg-muted/30 px-6 py-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h2 className="truncate text-lg font-bold tracking-tight">{selectedContainer.name}</h2>
-                        <Badge variant={stateBadgeVariants[selectedContainer.state]} className="h-5 px-1.5 text-[10px] font-bold uppercase">
-                          {selectedContainer.state}
-                        </Badge>
-                      </div>
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground/80">{selectedContainer.image}</p>
+          selectedContainer ? (
+            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+              <CardHeader className="border-b border-border/40 bg-muted/10 pb-4">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-xl">{selectedContainer.name}</CardTitle>
+                      <Badge variant={stateBadgeVariants[selectedContainer.state]} className="uppercase tracking-wider">
+                        {selectedContainer.state}
+                      </Badge>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1.5 text-[11px] font-semibold"
-                        onClick={handleViewLogs}
-                        disabled={!onViewLogs || detailActionBusy}
-                      >
-                        <Logs className="h-3.5 w-3.5" />
-                        LOGS
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 w-8 p-0"
-                        onClick={() => void runContainerAction('restart', onRestartContainer, selectedContainer.id)}
-                        disabled={!onRestartContainer || detailActionBusy}
-                        title="Restart"
-                      >
-                        <RotateCw className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    <CardDescription className="font-mono text-xs">
+                      {selectedContainer.image}
+                    </CardDescription>
                   </div>
-                </div>
-
-                <ScrollArea className="flex-1">
-                  <div className="space-y-8 p-6">
-                    <section className="space-y-4">
-                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                        <Activity className="h-3.5 w-3.5" />
-                        General Information
-                      </div>
-                      <div className="grid grid-cols-2 gap-6 rounded-xl border border-border/40 bg-muted/20 p-4">
-                        <div className="space-y-1">
-                          <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-                            <Hash className="h-3 w-3" /> Container ID
-                          </p>
-                          <p className="break-all font-mono text-[11px] font-medium text-muted-foreground">
-                            {selectedContainer.id.slice(0, 12)}...
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-                            <Clock className="h-3 w-3" /> Created
-                          </p>
-                          <p className="text-[11px] font-medium text-muted-foreground">
-                            {selectedContainer.createdAt || 'Unknown'}
-                          </p>
-                        </div>
-                        <div className="col-span-2 space-y-1">
-                          <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-                            <Activity className="h-3 w-3" /> Status
-                          </p>
-                          <p className="text-[11px] font-medium text-muted-foreground">
-                            {selectedContainer.status || selectedContainer.state}
-                          </p>
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="space-y-4">
-                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                        <TerminalIcon className="h-3.5 w-3.5" />
-                        Execution Details
-                      </div>
-                      <div className="rounded-xl border border-border/40 bg-muted/20 p-4">
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">Command</p>
-                          <div className="rounded-md bg-background/50 p-2.5 font-mono text-[11px] text-muted-foreground/90 border border-border/20 break-all leading-relaxed">
-                            {selectedContainer.command || 'No entrypoint specified'}
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-
-                    {(composeProject || composeService) && (
-                      <section className="space-y-4">
-                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                          <Layers className="h-3.5 w-3.5" />
-                          Docker Compose
-                        </div>
-                        <div className="flex flex-wrap gap-2 rounded-xl border border-border/40 bg-muted/20 p-4">
-                          {composeProject && (
-                            <div className="flex flex-col gap-1.5 rounded-lg border border-border/40 bg-background/40 px-3 py-2">
-                              <span className="text-[9px] font-bold uppercase tracking-tighter text-muted-foreground/50">Project</span>
-                              <span className="text-xs font-semibold">{composeProject}</span>
-                            </div>
-                          )}
-                          {composeService && (
-                            <div className="flex flex-col gap-1.5 rounded-lg border border-border/40 bg-background/40 px-3 py-2">
-                              <span className="text-[9px] font-bold uppercase tracking-tighter text-muted-foreground/50">Service</span>
-                              <span className="text-xs font-semibold">{composeService}</span>
-                            </div>
-                          )}
-                        </div>
-                      </section>
-                    )}
-
-                    <section className="space-y-4">
-                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                        <Network className="h-3.5 w-3.5" />
-                        Networking & Labels
-                      </div>
-                      <div className="space-y-4 rounded-xl border border-border/40 bg-muted/20 p-4">
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">Exposed Ports</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {selectedContainer.ports.length > 0 ? (
-                              selectedContainer.ports.map((port) => (
-                                <Badge key={port} variant="secondary" className="h-6 px-2 text-[10px] font-mono border-border/40">
-                                  {port}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-[11px] italic text-muted-foreground/50">No ports exposed</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {selectedContainer.labels && selectedContainer.labels.length > 0 && (
-                          <div className="space-y-2 pt-2 border-t border-border/20">
-                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">Labels</p>
-                            <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-auto pr-1">
-                              {selectedContainer.labels.map((label) => (
-                                <Badge key={label} variant="outline" className="h-5 px-1.5 text-[9px] font-medium text-muted-foreground/70 bg-background/30">
-                                  {label}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  </div>
-                </ScrollArea>
-
-                <div className="mt-auto border-t border-border/60 bg-muted/30 px-6 py-4">
-                  <div className="flex flex-wrap gap-2">
-                    {selectedContainer.state === 'running' ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 gap-1.5 h-9 text-[11px] font-bold"
-                          onClick={() => void runContainerAction('pause', onPauseContainer, selectedContainer.id)}
-                          disabled={!onPauseContainer || detailActionBusy}
-                        >
-                          <Pause className="h-3.5 w-3.5" />
-                          PAUSE
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="flex-1 gap-1.5 h-9 text-[11px] font-bold bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/20"
-                          onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
-                          disabled={!onStopContainer || detailActionBusy}
-                        >
-                          <Square className="h-3.5 w-3.5" />
-                          STOP
-                        </Button>
-                      </>
-                    ) : selectedContainer.state === 'paused' ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 gap-1.5 h-9 text-[11px] font-bold"
-                          onClick={() => void runContainerAction('unpause', onUnpauseContainer, selectedContainer.id)}
-                          disabled={!onUnpauseContainer || detailActionBusy}
-                        >
-                          <Play className="h-3.5 w-3.5" />
-                          RESUME
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="flex-1 gap-1.5 h-9 text-[11px] font-bold bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/20"
-                          onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
-                          disabled={!onStopContainer || detailActionBusy}
-                        >
-                          <Square className="h-3.5 w-3.5" />
-                          STOP
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        size="sm"
-                        className="flex-1 gap-1.5 h-9 text-[11px] font-bold shadow-lg shadow-primary/20"
-                        onClick={() => void runContainerAction('start', onStartContainer, selectedContainer.id)}
-                        disabled={!onStartContainer || detailActionBusy}
-                      >
-                        <Power className="h-3.5 w-3.5" />
-                        START CONTAINER
-                      </Button>
-                    )}
+                  <div className="flex items-center gap-2">
                     <Button
-                      size="icon"
-                      variant="destructive"
-                      className="h-9 w-9 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/20"
-                      onClick={() => openRemoveDialog([selectedContainer.id])}
-                      disabled={!onRemoveContainer || detailActionBusy}
-                      title="Remove container"
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs"
+                      onClick={handleViewLogs}
+                      disabled={!onViewLogs || detailActionBusy}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Logs className="h-3.5 w-3.5" />
+                      Logs
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => void runContainerAction('restart', onRestartContainer, selectedContainer.id)}
+                      disabled={!onRestartContainer || detailActionBusy}
+                      title="Restart"
+                    >
+                      <RotateCw className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center opacity-30">
-                <Box className="h-12 w-12" />
-                <div className="space-y-1">
-                  <p className="text-sm font-bold uppercase tracking-widest">No Selection</p>
-                  <p className="text-xs">Select a container to view deep inspection</p>
+              </CardHeader>
+              
+              <CardContent className="flex-1 overflow-auto p-6">
+                <div className="space-y-6">
+                  {/* General Info */}
+                  <div className="space-y-2">
+                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Activity className="h-3.5 w-3.5" />
+                      General Information
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 rounded-lg border border-border/40 bg-muted/10 p-4">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                          Container ID
+                        </p>
+                        <p className="break-all font-mono text-xs text-foreground">
+                          {selectedContainer.id.slice(0, 12)}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                          Created
+                        </p>
+                        <p className="text-xs text-foreground">
+                          {selectedContainer.createdAt || 'Unknown'}
+                        </p>
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                          Status
+                        </p>
+                        <p className="text-xs text-foreground">
+                          {selectedContainer.status || selectedContainer.state}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Execution Details */}
+                  <div className="space-y-2">
+                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <TerminalIcon className="h-3.5 w-3.5" />
+                      Execution
+                    </h3>
+                    <div className="rounded-lg border border-border/40 bg-muted/10 p-4">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
+                        Command
+                      </p>
+                      <div className="rounded border border-border/20 bg-background/50 p-2 font-mono text-xs text-muted-foreground">
+                        {selectedContainer.command || 'No entrypoint specified'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Docker Compose */}
+                  {(composeProject || composeService) && (
+                    <div className="space-y-2">
+                      <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <Layers className="h-3.5 w-3.5" />
+                        Docker Compose
+                      </h3>
+                      <div className="flex gap-4 rounded-lg border border-border/40 bg-muted/10 p-4">
+                        {composeProject && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Project</p>
+                            <p className="text-xs font-medium">{composeProject}</p>
+                          </div>
+                        )}
+                        {composeService && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Service</p>
+                            <p className="text-xs font-medium">{composeService}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Network & Labels */}
+                  <div className="space-y-2">
+                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Network className="h-3.5 w-3.5" />
+                      Network & Labels
+                    </h3>
+                    <div className="space-y-4 rounded-lg border border-border/40 bg-muted/10 p-4">
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Ports</p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedContainer.ports.length > 0 ? (
+                            selectedContainer.ports.map((port) => (
+                              <Badge key={port} variant="secondary" className="font-mono text-[10px]">
+                                {port}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs italic text-muted-foreground">No ports exposed</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {selectedContainer.labels && selectedContainer.labels.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-border/20">
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Labels</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedContainer.labels.map((label) => (
+                              <Badge key={label} variant="outline" className="text-[9px] bg-background/30">
+                                {label}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+
+              <div className="border-t border-border/40 bg-muted/10 p-4">
+                <div className="flex gap-3">
+                  {selectedContainer.state === 'running' ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-2"
+                        onClick={() => void runContainerAction('pause', onPauseContainer, selectedContainer.id)}
+                        disabled={!onPauseContainer || detailActionBusy}
+                      >
+                        <Pause className="h-4 w-4" />
+                        Pause
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        className="flex-1 gap-2"
+                        onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
+                        disabled={!onStopContainer || detailActionBusy}
+                      >
+                        <Square className="h-4 w-4" />
+                        Stop
+                      </Button>
+                    </>
+                  ) : selectedContainer.state === 'paused' ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-2"
+                        onClick={() => void runContainerAction('unpause', onUnpauseContainer, selectedContainer.id)}
+                        disabled={!onUnpauseContainer || detailActionBusy}
+                      >
+                        <Play className="h-4 w-4" />
+                        Resume
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        className="flex-1 gap-2"
+                        onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
+                        disabled={!onStopContainer || detailActionBusy}
+                      >
+                        <Square className="h-4 w-4" />
+                        Stop
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      className="flex-1 gap-2 shadow-sm"
+                      onClick={() => void runContainerAction('start', onStartContainer, selectedContainer.id)}
+                      disabled={!onStartContainer || detailActionBusy}
+                    >
+                      <Power className="h-4 w-4" />
+                      Start Container
+                    </Button>
+                  )}
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
+                    onClick={() => openRemoveDialog([selectedContainer.id])}
+                    disabled={!onRemoveContainer || detailActionBusy}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            )}
-          </div>
+            </Card>
+          ) : (
+            <Card className="flex h-full items-center justify-center border-border/40 bg-card/50 p-6 text-center shadow-sm">
+              <div className="space-y-2">
+                <Box className="mx-auto h-12 w-12 text-muted-foreground/30" />
+                <h3 className="text-lg font-medium">No container selected</h3>
+                <p className="text-sm text-muted-foreground">Select a container to view deep inspection</p>
+              </div>
+            </Card>
+          )
         }
       />
       <Dialog
