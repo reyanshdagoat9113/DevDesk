@@ -22,6 +22,16 @@ type WslProjectLocation = {
   uncPath: string
 }
 
+type SpawnDetachedOptions = {
+  shell?: boolean
+  windowsHide?: boolean
+}
+
+type DetachedLaunchCommand = {
+  command: string
+  args: string[]
+}
+
 const WSL_UNC_PATH_PATTERN = /^\\\\wsl(?:\.localhost|\$)\\([^\\/]+)(?:[\\/](.*))?$/i
 
 function resolveWslExecutablePath() {
@@ -191,15 +201,61 @@ function getWslVscodeFolderUri(location: WslProjectLocation): string {
   return `vscode-remote://wsl+${encodeURIComponent(location.distro)}${encodedPath}`
 }
 
+function formatPowerShellLiteral(value: string) {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+function formatCmdLiteral(value: string) {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
+function getWslTerminalLaunchCandidates(location: WslProjectLocation, terminalPreferenceId: string): DetachedLaunchCommand[] {
+  const windowsTerminalLaunches: DetachedLaunchCommand[] = [
+    { command: 'wt', args: [WSL_EXECUTABLE_PATH, '-d', location.distro, '--cd', location.linuxPath] },
+    { command: 'wt', args: ['-d', location.uncPath] },
+  ]
+
+  const powershellLaunch: DetachedLaunchCommand = {
+    command: 'powershell',
+    args: [
+      '-NoExit',
+      '-Command',
+      `& ${formatPowerShellLiteral(WSL_EXECUTABLE_PATH)} -d ${formatPowerShellLiteral(location.distro)} --cd ${formatPowerShellLiteral(location.linuxPath)}`,
+    ],
+  }
+
+  const cmdLaunch: DetachedLaunchCommand = {
+    command: 'cmd.exe',
+    args: ['/k', `${formatCmdLiteral(WSL_EXECUTABLE_PATH)} -d ${formatCmdLiteral(location.distro)} --cd ${formatCmdLiteral(location.linuxPath)}`],
+  }
+
+  if (terminalPreferenceId === 'powershell') {
+    return [powershellLaunch, cmdLaunch, ...windowsTerminalLaunches]
+  }
+
+  if (terminalPreferenceId === 'cmd') {
+    return [cmdLaunch, powershellLaunch, ...windowsTerminalLaunches]
+  }
+
+  return [...windowsTerminalLaunches, powershellLaunch, cmdLaunch]
+}
+
 async function openWslProjectInTerminal(location: WslProjectLocation, terminalPreferenceId: string) {
-  if (terminalPreferenceId === 'windows-terminal') {
-    const result = await spawnDetached('wt', [WSL_EXECUTABLE_PATH, '-d', location.distro, '--cd', location.linuxPath])
+  const launchCandidates = getWslTerminalLaunchCandidates(location, terminalPreferenceId)
+  let lastError = 'Failed to open WSL project in terminal.'
+
+  for (const launch of launchCandidates) {
+    const result = await spawnDetachedWithShellFallback(launch.command, launch.args, { windowsHide: false })
     if (result.success) {
       return result
     }
+
+    if (result.error) {
+      lastError = result.error
+    }
   }
 
-  return spawnDetached(WSL_EXECUTABLE_PATH, ['-d', location.distro, '--cd', location.linuxPath])
+  return { success: false, error: lastError }
 }
 
 async function listWslDistros(): Promise<string[]> {
@@ -560,13 +616,16 @@ async function getPreferences(): Promise<AppPreferences> {
   return store.preferences
 }
 
-function spawnDetached(command: string, args: string[]) {
+function spawnDetached(command: string, args: string[], options: SpawnDetachedOptions = {}) {
   return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    const shell = options.shell ?? false
+    const windowsHide = options.windowsHide ?? true
     try {
       const child = spawn(command, args, {
         detached: true,
         stdio: 'ignore',
-        windowsHide: true,
+        windowsHide,
+        shell,
       })
       child.on('error', (error) => resolve({ success: false, error: error.message }))
       child.on('spawn', () => {
@@ -579,13 +638,32 @@ function spawnDetached(command: string, args: string[]) {
   })
 }
 
-function spawnShellDetached(command: string) {
+function shouldRetryDetachedWithShell(error?: string) {
+  if (!error) {
+    return false
+  }
+
+  const normalized = error.toLowerCase()
+  return normalized.includes('enoent') || normalized.includes('not recognized as an internal or external command')
+}
+
+async function spawnDetachedWithShellFallback(command: string, args: string[], options: SpawnDetachedOptions = {}) {
+  const result = await spawnDetached(command, args, options)
+  if (result.success || process.platform !== 'win32' || options.shell || !shouldRetryDetachedWithShell(result.error)) {
+    return result
+  }
+
+  return spawnDetached(command, args, { ...options, shell: true })
+}
+
+function spawnShellDetached(command: string, options: SpawnDetachedOptions = {}) {
   return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    const windowsHide = options.windowsHide ?? true
     try {
       const child = spawn(command, {
         detached: true,
         stdio: 'ignore',
-        windowsHide: true,
+        windowsHide,
         shell: true,
       })
       child.on('error', (error) => resolve({ success: false, error: error.message }))
@@ -599,14 +677,14 @@ function spawnShellDetached(command: string) {
   })
 }
 
-function resolveCustomCommand(preference: AppPreference, projectPath: string) {
+function resolveCustomCommand(preference: AppPreference, projectPath: string, options: SpawnDetachedOptions = {}) {
   if (!preference.command) {
     return { success: false, error: 'Custom command is required.' }
   }
   const command = preference.command.includes('{path}')
     ? preference.command.split('{path}').join(`"${projectPath}"`)
     : `${preference.command} "${projectPath}"`
-  return spawnShellDetached(command)
+  return spawnShellDetached(command, options)
 }
 
 function getProjectName(projectPath: string): string {
@@ -780,14 +858,14 @@ export function registerIpcHandlers() {
     if (process.platform === 'win32') {
       if (wslLocation && preference.id === 'vscode') {
         const remoteUri = getWslVscodeFolderUri(wslLocation)
-        const openRemoteResult = await spawnDetached('code', ['--folder-uri', remoteUri])
+        const openRemoteResult = await spawnDetachedWithShellFallback('code', ['--folder-uri', remoteUri])
         if (openRemoteResult.success) {
           return openRemoteResult
         }
-        return spawnDetached('code', [projectPath])
+        return spawnDetachedWithShellFallback('code', [projectPath])
       }
       const command = WINDOWS_EDITOR_COMMANDS[preference.id] ?? WINDOWS_EDITOR_COMMANDS.vscode
-      return spawnDetached(command.command, command.args(projectPath))
+      return spawnDetachedWithShellFallback(command.command, command.args(projectPath))
     }
     return spawnDetached('code', [projectPath])
   })
@@ -798,7 +876,7 @@ export function registerIpcHandlers() {
     const preferences = await getPreferences()
     const preference = preferences.terminal
     if (preference.id === 'custom') {
-      return resolveCustomCommand(preference, projectPath)
+      return resolveCustomCommand(preference, projectPath, { windowsHide: false })
     }
     if (process.platform === 'darwin') {
       const appName = MAC_TERMINAL_APPS[preference.id] ?? MAC_TERMINAL_APPS.terminal
@@ -809,7 +887,7 @@ export function registerIpcHandlers() {
         return openWslProjectInTerminal(wslLocation, preference.id)
       }
       const command = WINDOWS_TERMINAL_COMMANDS[preference.id] ?? WINDOWS_TERMINAL_COMMANDS['windows-terminal']
-      return spawnDetached(command.command, command.args(projectPath))
+      return spawnDetachedWithShellFallback(command.command, command.args(projectPath), { windowsHide: false })
     }
     return spawnDetached('x-terminal-emulator', ['--working-directory', projectPath])
   })
