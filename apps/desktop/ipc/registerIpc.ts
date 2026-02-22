@@ -3,9 +3,31 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { getStore, updateStore } from '../data/store'
+import {
+  clearRunHistoryInStore,
+  getCommandById,
+  getPreferencesFromStore,
+  getProjectById,
+  getProjectNotesById,
+  getRunHistoryOutputById,
+  listCommands,
+  listProjects,
+  listRecentRunHistory,
+  listRunHistory,
+  createCommand,
+  createProject,
+  createRunHistoryEntry,
+  finalizeRunHistoryEntry,
+  removeCommand,
+  removeProject,
+  renameProject,
+  replaceCommand,
+  updatePreferencesInStore,
+  updateProjectLinkedContainers,
+  upsertProjectNotes,
+} from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
-import type { AppPreference, AppPreferences, Command, Container, Project, RunStatus } from '../data/model'
+import type { AppPreference, AppPreferences, Command, Container, RunStatus } from '../data/model'
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex } from '../files/fileService'
 
 type RunningCommand = {
@@ -309,8 +331,8 @@ async function listWslDistros(): Promise<string[]> {
   }
 
   try {
-    const store = await getStore()
-    for (const project of store.projects) {
+    const projects = await listProjects()
+    for (const project of projects) {
       const parsed = parseWslProjectPath(project.path)
       if (parsed) {
         addWslDistroName(distros, parsed.distro)
@@ -718,8 +740,7 @@ async function getProjectPath(projectId: string): Promise<string> {
   if (!projectId) {
     throw new Error('Project not found.')
   }
-  const store = await getStore()
-  const project = store.projects.find((entry) => entry.id === projectId)
+  const project = await getProjectById(projectId)
   if (!project) {
     throw new Error('Project not found.')
   }
@@ -746,8 +767,7 @@ async function getProjectDirectories(projectId: string, relativePath?: string): 
 }
 
 async function getPreferences(): Promise<AppPreferences> {
-  const store = await getStore()
-  return store.preferences
+  return getPreferencesFromStore()
 }
 
 function spawnDetached(command: string, args: string[], options: SpawnDetachedOptions = {}) {
@@ -864,8 +884,7 @@ export function registerIpcHandlers() {
   })
   // Projects
   ipcMain.handle('projects:get', async () => {
-    const store = await getStore()
-    return store.projects
+    return listProjects()
   })
 
   ipcMain.handle('projects:add', async (_event, inputPath: string) => {
@@ -882,9 +901,9 @@ export function registerIpcHandlers() {
       throw new Error('Project path does not exist.')
     }
 
-    const store = await getStore()
+    const projects = await listProjects()
     const normalizedPathKey = getProjectPathKey(normalizedPath)
-    const existing = store.projects.find((project) => getProjectPathKey(project.path) === normalizedPathKey)
+    const existing = projects.find((project) => getProjectPathKey(project.path) === normalizedPathKey)
     if (existing) {
       return existing
     }
@@ -899,9 +918,7 @@ export function registerIpcHandlers() {
       linkedContainerNames: [],
     }
 
-    await updateStore((draft) => {
-      draft.projects.push(nextProject)
-    })
+    await createProject(nextProject)
 
     return nextProject
   })
@@ -911,11 +928,7 @@ export function registerIpcHandlers() {
       return { success: false }
     }
 
-    await updateStore((draft) => {
-      draft.projects = draft.projects.filter((project) => project.id !== _id)
-      draft.runHistory = draft.runHistory.filter((entry) => entry.projectId !== _id)
-      delete draft.notes[_id]
-    })
+    await removeProject(_id)
 
     return { success: true }
   })
@@ -930,21 +943,15 @@ export function registerIpcHandlers() {
       throw new Error('Project name is required.')
     }
 
-    let updatedProject: Project | null = null
-    await updateStore((draft) => {
-      const index = draft.projects.findIndex((project) => project.id === _id)
-      if (index === -1) {
-        return
-      }
-      const current = draft.projects[index]
-      updatedProject = { ...current, name: nextName }
-      draft.projects[index] = updatedProject
-    })
-
-    if (!updatedProject) {
+    const updated = await renameProject(_id, nextName)
+    if (!updated) {
       throw new Error('Project not found.')
     }
 
+    const updatedProject = await getProjectById(_id)
+    if (!updatedProject) {
+      throw new Error('Project not found.')
+    }
     return updatedProject
   })
 
@@ -955,24 +962,15 @@ export function registerIpcHandlers() {
 
     const sanitized = sanitizeLinkedContainerNames(linkedContainerNames)
 
-    let updatedProject: Project | null = null
-    await updateStore((draft) => {
-      const index = draft.projects.findIndex((project) => project.id === projectId)
-      if (index === -1) {
-        return
-      }
-      const current = draft.projects[index]
-      updatedProject = {
-        ...current,
-        linkedContainerNames: sanitized,
-      }
-      draft.projects[index] = updatedProject
-    })
-
-    if (!updatedProject) {
+    const updated = await updateProjectLinkedContainers(projectId, sanitized)
+    if (!updated) {
       throw new Error('Project not found.')
     }
 
+    const updatedProject = await getProjectById(projectId)
+    if (!updatedProject) {
+      throw new Error('Project not found.')
+    }
     return updatedProject
   })
 
@@ -981,8 +979,7 @@ export function registerIpcHandlers() {
       throw new Error('Project id is required.')
     }
 
-    const store = await getStore()
-    const project = store.projects.find((entry) => entry.id === projectId)
+    const project = await getProjectById(projectId)
     if (!project) {
       throw new Error('Project not found.')
     }
@@ -1028,8 +1025,7 @@ export function registerIpcHandlers() {
       throw new Error('Project id is required.')
     }
 
-    const store = await getStore()
-    const project = store.projects.find((entry) => entry.id === projectId)
+    const project = await getProjectById(projectId)
     if (!project) {
       throw new Error('Project not found.')
     }
@@ -1072,19 +1068,7 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('preferences:update', async (_event, updates: Partial<AppPreferences>) => {
-    await updateStore((draft) => {
-      const current = draft.preferences
-      draft.preferences = {
-        editor: {
-          id: updates?.editor?.id ?? current.editor.id,
-          command: updates?.editor?.command ?? current.editor.command,
-        },
-        terminal: {
-          id: updates?.terminal?.id ?? current.terminal.id,
-          command: updates?.terminal?.command ?? current.terminal.command,
-        },
-      }
-    })
+    await updatePreferencesInStore(updates)
     return { success: true }
   })
 
@@ -1148,8 +1132,7 @@ export function registerIpcHandlers() {
 
   // Commands
   ipcMain.handle('commands:get', async () => {
-    const store = await getStore()
-    return store.commands
+    return listCommands()
   })
 
   ipcMain.handle(
@@ -1172,9 +1155,7 @@ export function registerIpcHandlers() {
         workingDirectory: command.workingDirectory,
       }
 
-      await updateStore((draft) => {
-        draft.commands.push(nextCommand)
-      })
+      await createCommand(nextCommand)
 
       return nextCommand
     }
@@ -1201,29 +1182,22 @@ export function registerIpcHandlers() {
       throw new Error('Command is required.')
     }
 
-    let updatedCommand: Command | null = null
-    await updateStore((draft) => {
-      const index = draft.commands.findIndex((entry) => entry.id === _id)
-      if (index === -1) {
-        return
-      }
-      const current = draft.commands[index]
-      updatedCommand = {
-        ...current,
-        name: nextName ?? current.name,
-        command: nextCommand ?? current.command,
-        description: updates?.description ?? current.description,
-        tags: Array.isArray(updates?.tags) ? updates.tags.filter(Boolean) : current.tags,
-        projectId: updates?.projectId ?? current.projectId,
-        workingDirectory: updates?.workingDirectory ?? current.workingDirectory,
-      }
-      draft.commands[index] = updatedCommand
-    })
-
-    if (!updatedCommand) {
+    const current = await getCommandById(_id)
+    if (!current) {
       throw new Error('Command not found.')
     }
 
+    const updatedCommand: Command = {
+      ...current,
+      name: nextName ?? current.name,
+      command: nextCommand ?? current.command,
+      description: updates?.description ?? current.description,
+      tags: Array.isArray(updates?.tags) ? updates.tags.filter(Boolean) : current.tags,
+      projectId: updates?.projectId ?? current.projectId,
+      workingDirectory: updates?.workingDirectory ?? current.workingDirectory,
+    }
+
+    await replaceCommand(updatedCommand)
     return updatedCommand
   })
 
@@ -1232,9 +1206,7 @@ export function registerIpcHandlers() {
       return { success: false }
     }
 
-    await updateStore((draft) => {
-      draft.commands = draft.commands.filter((entry) => entry.id !== _id)
-    })
+    await removeCommand(_id)
 
     return { success: true }
   })
@@ -1244,8 +1216,7 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('commands:run', async (_event, _id: string, _projectId?: string) => {
-    const store = await getStore()
-    const command = store.commands.find((entry) => entry.id === _id)
+    const command = await getCommandById(_id)
     if (!command) {
       throw new Error('Command not found.')
     }
@@ -1256,7 +1227,7 @@ export function registerIpcHandlers() {
       throw new Error('Project is required to run a command.')
     }
 
-    const project = store.projects.find((entry) => entry.id === effectiveProjectId)
+    const project = await getProjectById(effectiveProjectId)
     if (!project) {
       throw new Error('Project not found.')
     }
@@ -1264,15 +1235,13 @@ export function registerIpcHandlers() {
     const runId = randomUUID()
     const startTime = new Date().toISOString()
 
-    await updateStore((draft) => {
-      draft.runHistory.unshift({
-        id: runId,
-        commandId: command.id,
-        projectId: project.id,
-        status: 'running',
-        startTime,
-        output: '',
-      })
+    await createRunHistoryEntry({
+      id: runId,
+      commandId: command.id,
+      projectId: project.id,
+      status: 'running',
+      startTime,
+      output: '',
     })
 
     const projectPath = normalizeProjectPath(project.path)
@@ -1312,15 +1281,7 @@ export function registerIpcHandlers() {
 
     const flushOutput = async (runStatus?: RunStatus) => {
       const output = running.output
-      await updateStore((draft) => {
-        const entry = draft.runHistory.find((item) => item.id === runId)
-        if (!entry) return
-        entry.output = output
-        if (runStatus) {
-          entry.status = runStatus
-          entry.endTime = new Date().toISOString()
-        }
-      })
+      await finalizeRunHistoryEntry(runId, output, runStatus)
     }
 
     const pushChunk = (chunk: Buffer) => {
@@ -1490,27 +1451,16 @@ export function registerIpcHandlers() {
 
   // Run History
   ipcMain.handle('history:get', async () => {
-    const store = await getStore()
-    return store.runHistory
+    return listRunHistory()
   })
 
   ipcMain.handle('history:listRecent', async (_event, limit?: number) => {
-    const store = await getStore()
     const cap = Math.min(Math.max(1, limit ?? 20), 100)
-    return store.runHistory.slice(0, cap).map((entry) => ({
-      id: entry.id,
-      commandId: entry.commandId,
-      projectId: entry.projectId,
-      status: entry.status,
-      startTime: entry.startTime,
-      endTime: entry.endTime,
-    }))
+    return listRecentRunHistory(cap)
   })
 
   ipcMain.handle('history:clear', async () => {
-    await updateStore((draft) => {
-      draft.runHistory = []
-    })
+    await clearRunHistoryInStore()
     return { success: true }
   })
 
@@ -1519,21 +1469,12 @@ export function registerIpcHandlers() {
     if (running) {
       return running.output
     }
-    const store = await getStore()
-    return store.runHistory.find((entry) => entry.id === _runId)?.output ?? ''
+    return getRunHistoryOutputById(_runId)
   })
 
   // Notes
   ipcMain.handle('notes:get', async (_event, _projectId: string) => {
-    const store = await getStore()
-    return (
-      store.notes[_projectId] ?? {
-        projectId: _projectId,
-        setupSteps: '',
-        todos: '',
-        reminders: '',
-      }
-    )
+    return getProjectNotesById(_projectId)
   })
 
   ipcMain.handle('notes:update', async (_event, _projectId: string, _notes: unknown) => {
@@ -1546,20 +1487,7 @@ export function registerIpcHandlers() {
         ? (_notes as Partial<{ setupSteps: string; todos: string; reminders: string }>)
         : {}
 
-    await updateStore((draft) => {
-      const current = draft.notes[_projectId] ?? {
-        projectId: _projectId,
-        setupSteps: '',
-        todos: '',
-        reminders: '',
-      }
-      draft.notes[_projectId] = {
-        projectId: _projectId,
-        setupSteps: updates.setupSteps ?? current.setupSteps,
-        todos: updates.todos ?? current.todos,
-        reminders: updates.reminders ?? current.reminders,
-      }
-    })
+    await upsertProjectNotes(_projectId, updates)
 
     return { success: true }
   })
@@ -1570,8 +1498,7 @@ export function registerIpcHandlers() {
       throw new Error('Project id is required.')
     }
 
-    const store = await getStore()
-    const project = store.projects.find((p) => p.id === projectId)
+    const project = await getProjectById(projectId)
     if (!project) {
       throw new Error('Project not found.')
     }
@@ -1584,8 +1511,7 @@ export function registerIpcHandlers() {
       throw new Error('Project id is required.')
     }
 
-    const store = await getStore()
-    const project = store.projects.find((p) => p.id === projectId)
+    const project = await getProjectById(projectId)
     if (!project) {
       throw new Error('Project not found.')
     }
@@ -1607,13 +1533,15 @@ export function registerIpcHandlers() {
       throw new Error('File path is required.')
     }
 
-    const store = await getStore()
-    const project = store.projects.find((p) => p.id === projectId)
+    const [project, preferences] = await Promise.all([
+      getProjectById(projectId),
+      getPreferencesFromStore(),
+    ])
     if (!project) {
       throw new Error('Project not found.')
     }
 
-    return openFileInEditor(project.path, relativePath, store.preferences, line, column)
+    return openFileInEditor(project.path, relativePath, preferences, line, column)
   })
 
   ipcMain.handle('files:clearIndex', async (_event, projectId: string) => {

@@ -8,6 +8,8 @@ node_modules/
 # Local env / OS files
 .DS_Store
 Thumbs.db
+.env
+.env.*
 
 # Logs
 npm-debug.log*
@@ -25,4 +27,3 @@ Screenshot*.png
 
 # Error files (Windows nul device accidentally created as file)
 nul
-

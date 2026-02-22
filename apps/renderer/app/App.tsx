@@ -119,6 +119,7 @@ function App() {
   const [selectedWslDistro, setSelectedWslDistro] = useState('')
   const [wslDistroInput, setWslDistroInput] = useState('')
   const [isLoadingWslDistros, setIsLoadingWslDistros] = useState(false)
+  const [showWslOptions, setShowWslOptions] = useState(false)
 
   const [commandDialogOpen, setCommandDialogOpen] = useState(false)
   const [commandName, setCommandName] = useState('')
@@ -782,20 +783,21 @@ function App() {
       </AppShell>
 
       <Dialog open={projectDialogOpen} onOpenChange={setProjectDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Project</DialogTitle>
-            <DialogDescription>Enter a local or WSL folder path to track.</DialogDescription>
+            <DialogDescription>Track a local folder or WSL project.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="project-path">Project path</Label>
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex gap-2">
                 <Input
                   id="project-path"
                   value={projectPath}
                   onChange={(event) => setProjectPath(event.target.value)}
-                  placeholder="Select a folder (Windows or WSL)"
+                  placeholder="/path/to/project"
+                  className="flex-1"
                 />
                 <Button
                   type="button"
@@ -803,59 +805,97 @@ function App() {
                   onClick={handlePickProject}
                   disabled={isPickingProject}
                 >
-                  {isPickingProject ? 'Opening...' : 'Browse'}
+                  Browse
                 </Button>
+              </div>
+            </div>
+
+            {!showWslOptions && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto px-0 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setShowWslOptions(true)}
+              >
+                Using WSL? Click here
+              </Button>
+            )}
+
+            {showWslOptions && (
+              <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">WSL Options</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-2 py-1 text-xs text-muted-foreground"
+                    onClick={() => setShowWslOptions(false)}
+                  >
+                    Hide
+                  </Button>
+                </div>
+
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
+                  className="w-full"
                   onClick={handlePickWslProject}
                   disabled={isPickingProject}
                 >
-                  {isPickingProject ? 'Opening...' : 'Browse WSL'}
+                  Browse WSL Folder
                 </Button>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Select
-                  value={selectedWslDistro}
-                  onValueChange={handleWslDistroSelect}
-                  disabled={isLoadingWslDistros || wslDistros.length === 0 || isPickingProject}
-                >
-                  <SelectTrigger className="w-full sm:flex-1">
-                    <SelectValue
-                      placeholder={isLoadingWslDistros ? 'Loading WSL distros...' : 'No WSL distro found'}
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Quick WSL Setup</Label>
+                  <div className="flex gap-2">
+                    <Select
+                      value={selectedWslDistro}
+                      onValueChange={handleWslDistroSelect}
+                      disabled={isLoadingWslDistros || wslDistros.length === 0}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue
+                          placeholder={isLoadingWslDistros ? 'Loading...' : 'Select distro'}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {wslDistros.length > 0 ? (
+                          wslDistros.map((distro) => (
+                            <SelectItem key={distro} value={distro} displayValue={distro}>
+                              {distro}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                            No WSL distro detected.
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={wslDistroInput}
+                      onChange={(event) => setWslDistroInput(event.target.value)}
+                      placeholder="Or type distro name..."
+                      className="flex-1"
                     />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {wslDistros.length > 0 ? (
-                      wslDistros.map((distro) => (
-                        <SelectItem key={distro} value={distro} displayValue={distro}>
-                          {distro}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">
-                        No WSL distro detected.
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
-                <Input
-                  value={wslDistroInput}
-                  onChange={(event) => setWslDistroInput(event.target.value)}
-                  placeholder="WSL distro (e.g. Ubuntu-24.04)"
-                  disabled={isPickingProject}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePrefillWslPath}
-                  disabled={isPickingProject}
-                >
-                  Prefill WSL Home
-                </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    onClick={handlePrefillWslPath}
+                    disabled={!selectedWslDistro && !wslDistroInput}
+                  >
+                    Prefill Home Directory
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">Use Prefill WSL Home to auto-fill `\\wsl.localhost\distro\home\` (manual distro entry is supported).</p>
-            </div>
+            )}
+
             {projectError ? (
               <Alert variant="destructive">
                 <AlertTitle>Could not add project</AlertTitle>

@@ -1,10 +1,25 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { app } from 'electron'
+import Database from 'better-sqlite3'
 
-import { DATA_VERSION, type AppPreferences, type DataStore, type Project, type ProjectNotes } from './model'
+import {
+  DATA_VERSION,
+  type AppPreferences,
+  type Command,
+  type DataStore,
+  type Project,
+  type ProjectNotes,
+  type RunHistoryEntry,
+  type RunStatus,
+} from './model'
 
 const STORE_FILENAME = 'devdesk-store.json'
+const DB_FILENAME = 'devdesk.db'
+const SQL_DEBUG = process.env.DEVDESK_SQL_DEBUG === '1'
+const SQL_SLOW_MS = Number.parseInt(process.env.DEVDESK_SQL_SLOW_MS ?? '20', 10)
+
+const VALID_PROJECT_TYPES = new Set(['node', 'python', 'rust', 'go', 'unknown'])
 
 const createDefaultPreferences = (): AppPreferences => {
   if (process.platform === 'win32') {
@@ -34,15 +49,41 @@ const createDefaultStore = (): DataStore => ({
   preferences: createDefaultPreferences(),
 })
 
-let cachedStore: DataStore | null = null
-let loadPromise: Promise<DataStore> | null = null
-let writeQueue = Promise.resolve<DataStore>(createDefaultStore())
+let initPromise: Promise<void> | null = null
+let db: Database.Database | null = null
+let writeQueue = Promise.resolve()
 
-function getStorePath(): string {
+function getUserDataDir(): string {
   if (!app.isReady()) {
     throw new Error('App not ready: cannot resolve userData path yet.')
   }
-  return path.join(app.getPath('userData'), STORE_FILENAME)
+  return app.getPath('userData')
+}
+
+function getStorePath(): string {
+  return path.join(getUserDataDir(), STORE_FILENAME)
+}
+
+function getDbPath(): string {
+  const configuredName = process.env.DEVDESK_DB_FILENAME?.trim()
+  const fileName = configuredName || DB_FILENAME
+  return path.join(getUserDataDir(), fileName)
+}
+
+function parseJsonArray(value: string | null | undefined): string[] {
+  if (!value) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+    return parsed.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+  } catch {
+    return []
+  }
 }
 
 function normalizeNotes(value: unknown): Record<string, ProjectNotes> {
@@ -107,8 +148,8 @@ function normalizeProjects(value: unknown): Project[] {
       ) {
         return null
       }
-      const validTypes = new Set(['node', 'python', 'rust', 'go', 'unknown'])
-      if (!validTypes.has(raw.type)) {
+
+      if (!VALID_PROJECT_TYPES.has(raw.type)) {
         return null
       }
 
@@ -171,79 +212,670 @@ async function backupCorruptStore(filePath: string) {
   }
 }
 
-async function readStoreFromDisk(): Promise<DataStore> {
-  const filePath = getStorePath()
-  await ensureStoreDir(filePath)
+function getDbOrThrow(): Database.Database {
+  if (!db) {
+    throw new Error('Database is not initialized yet.')
+  }
+  return db
+}
 
-  try {
-    const raw = await fs.readFile(filePath, 'utf-8')
-    const parsed = JSON.parse(raw)
-    const normalized = normalizeStore(parsed)
-    cachedStore = normalized
-    return normalized
-  } catch (error) {
-    const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined
-    if (code !== 'ENOENT') {
-      await backupCorruptStore(filePath)
+function createSchema(database: Database.Database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      path TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      linked_container_names TEXT NOT NULL DEFAULT '[]'
+    );
+
+    CREATE TABLE IF NOT EXISTS commands (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      command TEXT NOT NULL,
+      description TEXT,
+      tags TEXT,
+      project_id TEXT,
+      working_directory TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS run_history (
+      id TEXT PRIMARY KEY,
+      command_id TEXT NOT NULL,
+      project_id TEXT,
+      status TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT,
+      output TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS notes (
+      project_id TEXT PRIMARY KEY,
+      setup_steps TEXT NOT NULL DEFAULT '',
+      todos TEXT NOT NULL DEFAULT '',
+      reminders TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS preferences (
+      key TEXT PRIMARY KEY,
+      id TEXT NOT NULL,
+      command TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_commands_project_id ON commands(project_id);
+    CREATE INDEX IF NOT EXISTS idx_run_history_start_time ON run_history(start_time DESC);
+    CREATE INDEX IF NOT EXISTS idx_run_history_command_id ON run_history(command_id);
+    CREATE INDEX IF NOT EXISTS idx_run_history_project_id ON run_history(project_id);
+  `)
+}
+
+function writeStoreToDb(database: Database.Database, store: DataStore) {
+  const insertProject = database.prepare(`
+    INSERT INTO projects (id, path, name, type, icon, linked_container_names)
+    VALUES (@id, @path, @name, @type, @icon, @linkedContainerNames)
+  `)
+
+  const insertCommand = database.prepare(`
+    INSERT INTO commands (id, name, command, description, tags, project_id, working_directory)
+    VALUES (@id, @name, @command, @description, @tags, @projectId, @workingDirectory)
+  `)
+
+  const insertRunHistory = database.prepare(`
+    INSERT INTO run_history (id, command_id, project_id, status, start_time, end_time, output)
+    VALUES (@id, @commandId, @projectId, @status, @startTime, @endTime, @output)
+  `)
+
+  const insertNote = database.prepare(`
+    INSERT INTO notes (project_id, setup_steps, todos, reminders)
+    VALUES (@projectId, @setupSteps, @todos, @reminders)
+  `)
+
+  const insertPreference = database.prepare(`
+    INSERT INTO preferences (key, id, command)
+    VALUES (@key, @id, @command)
+  `)
+
+  const writeTransaction = database.transaction((payload: DataStore) => {
+    database.prepare('DELETE FROM projects').run()
+    database.prepare('DELETE FROM commands').run()
+    database.prepare('DELETE FROM run_history').run()
+    database.prepare('DELETE FROM notes').run()
+    database.prepare('DELETE FROM preferences').run()
+
+    for (const project of payload.projects) {
+      insertProject.run({
+        id: project.id,
+        path: project.path,
+        name: project.name,
+        type: project.type,
+        icon: project.icon,
+        linkedContainerNames: JSON.stringify(project.linkedContainerNames ?? []),
+      })
     }
 
-    const fresh = createDefaultStore()
-    await writeStoreToDisk(fresh)
-    cachedStore = fresh
-    return fresh
-  }
-}
-
-async function writeStoreToDisk(store: DataStore): Promise<void> {
-  const filePath = getStorePath()
-  await ensureStoreDir(filePath)
-
-  const tmpPath = `${filePath}.tmp`
-  const payload = `${JSON.stringify(store, null, 2)}\n`
-  await fs.writeFile(tmpPath, payload, 'utf-8')
-
-  try {
-    await fs.rename(tmpPath, filePath)
-  } catch (error) {
-    const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined
-    if (code === 'EEXIST') {
-      await fs.unlink(filePath)
-      await fs.rename(tmpPath, filePath)
-      return
+    for (const command of payload.commands) {
+      insertCommand.run({
+        id: command.id,
+        name: command.name,
+        command: command.command,
+        description: command.description ?? null,
+        tags: command.tags ? JSON.stringify(command.tags) : null,
+        projectId: command.projectId ?? null,
+        workingDirectory: command.workingDirectory ?? null,
+      })
     }
-    throw error
-  }
-}
 
-export async function getStore(): Promise<DataStore> {
-  if (cachedStore) return cachedStore
-  if (!loadPromise) {
-    loadPromise = readStoreFromDisk()
-  }
-  return loadPromise
-}
+    for (const entry of payload.runHistory) {
+      insertRunHistory.run({
+        id: entry.id,
+        commandId: entry.commandId,
+        projectId: entry.projectId ?? null,
+        status: entry.status,
+        startTime: entry.startTime,
+        endTime: entry.endTime ?? null,
+        output: entry.output ?? null,
+      })
+    }
 
-export async function updateStore(updater: (draft: DataStore) => void): Promise<DataStore> {
-  writeQueue = writeQueue.then(async () => {
-    const current = await getStore()
-    const next = structuredClone(current)
-    updater(next)
-    await writeStoreToDisk(next)
-    cachedStore = next
-    return next
+    for (const note of Object.values(payload.notes)) {
+      insertNote.run({
+        projectId: note.projectId,
+        setupSteps: note.setupSteps,
+        todos: note.todos,
+        reminders: note.reminders,
+      })
+    }
+
+    insertPreference.run({
+      key: 'editor',
+      id: payload.preferences.editor.id,
+      command: payload.preferences.editor.command ?? null,
+    })
+
+    insertPreference.run({
+      key: 'terminal',
+      id: payload.preferences.terminal.id,
+      command: payload.preferences.terminal.command ?? null,
+    })
   })
 
-  return writeQueue
+  writeTransaction(store)
+}
+
+async function migrateJsonStoreIfNeeded(database: Database.Database, jsonPath: string) {
+  const dbHasData = database
+    .prepare('SELECT EXISTS(SELECT 1 FROM preferences LIMIT 1) AS has_data')
+    .get() as { has_data: number }
+
+  if (dbHasData.has_data) {
+    return
+  }
+
+  try {
+    const raw = await fs.readFile(jsonPath, 'utf-8')
+    const parsed = JSON.parse(raw)
+    writeStoreToDb(database, normalizeStore(parsed))
+  } catch (error) {
+    const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined
+    if (code && code !== 'ENOENT') {
+      await backupCorruptStore(jsonPath)
+    }
+    writeStoreToDb(database, createDefaultStore())
+  }
+}
+
+async function ensureDbInitialized(): Promise<void> {
+  if (db) {
+    return
+  }
+
+  if (!initPromise) {
+    initPromise = (async () => {
+      const dbPath = getDbPath()
+      const jsonPath = getStorePath()
+      await ensureStoreDir(dbPath)
+
+      const database = new Database(dbPath)
+      database.pragma('journal_mode = WAL')
+      database.pragma('foreign_keys = ON')
+      database.pragma('synchronous = NORMAL')
+      createSchema(database)
+
+      await migrateJsonStoreIfNeeded(database, jsonPath)
+      db = database
+    })().catch((error) => {
+      initPromise = null
+      throw error
+    })
+  }
+
+  await initPromise
+}
+
+function queueWrite<T>(writer: () => T | Promise<T>): Promise<T> {
+  const run = writeQueue.then(() => writer())
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
+
+async function withSqlTiming<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
+  const startedAt = Date.now()
+  const result = await operation()
+  if (SQL_DEBUG) {
+    const elapsed = Date.now() - startedAt
+    if (elapsed >= SQL_SLOW_MS) {
+      console.info(`[store][sql][slow] ${label} ${elapsed}ms`)
+    } else {
+      console.info(`[store][sql] ${label} ${elapsed}ms`)
+    }
+  }
+  return result
 }
 
 export async function reconcileRunHistory(): Promise<void> {
-  const now = new Date().toISOString()
-  await updateStore((draft) => {
-    draft.runHistory.forEach((entry) => {
-      if (entry.status === 'running') {
-        entry.status = 'stopped'
-        entry.endTime = entry.endTime ?? now
-      }
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow()
+      .prepare(`
+        UPDATE run_history
+        SET status = 'stopped', end_time = COALESCE(end_time, ?)
+        WHERE status = 'running'
+      `)
+      .run(new Date().toISOString())
+  })
+}
+
+export async function createProject(project: Project): Promise<void> {
+  await queueWrite(async () => withSqlTiming('createProject', async () => {
+    await ensureDbInitialized()
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO projects (id, path, name, type, icon, linked_container_names)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(
+        project.id,
+        project.path,
+        project.name,
+        project.type,
+        project.icon,
+        JSON.stringify(project.linkedContainerNames ?? [])
+      )
+  }))
+}
+
+export async function removeProject(projectId: string): Promise<void> {
+  await queueWrite(async () => withSqlTiming('removeProject', async () => {
+    await ensureDbInitialized()
+    const database = getDbOrThrow()
+    const transaction = database.transaction((id: string) => {
+      database.prepare('DELETE FROM projects WHERE id = ?').run(id)
+      database.prepare('DELETE FROM run_history WHERE project_id = ?').run(id)
+      database.prepare('DELETE FROM notes WHERE project_id = ?').run(id)
     })
+    transaction(projectId)
+  }))
+}
+
+export async function renameProject(projectId: string, name: string): Promise<boolean> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+    const result = getDbOrThrow()
+      .prepare('UPDATE projects SET name = ? WHERE id = ?')
+      .run(name, projectId)
+    if (result.changes > 0) {
+      return true
+    }
+    return false
+  })
+}
+
+export async function updateProjectLinkedContainers(projectId: string, linkedContainerNames: string[]): Promise<boolean> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+    const result = getDbOrThrow()
+      .prepare('UPDATE projects SET linked_container_names = ? WHERE id = ?')
+      .run(JSON.stringify(linkedContainerNames), projectId)
+    if (result.changes > 0) {
+      return true
+    }
+    return false
+  })
+}
+
+export async function updatePreferencesInStore(updates: Partial<AppPreferences>): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    const database = getDbOrThrow()
+    const current = await getPreferencesFromStore()
+    const next = {
+      editor: {
+        id: updates.editor?.id ?? current.editor.id,
+        command: updates.editor?.command ?? current.editor.command,
+      },
+      terminal: {
+        id: updates.terminal?.id ?? current.terminal.id,
+        command: updates.terminal?.command ?? current.terminal.command,
+      },
+    }
+    const upsert = database.prepare(
+      `
+        INSERT INTO preferences (key, id, command)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET id = excluded.id, command = excluded.command
+      `
+    )
+    const transaction = database.transaction(() => {
+      upsert.run('editor', next.editor.id, next.editor.command ?? null)
+      upsert.run('terminal', next.terminal.id, next.terminal.command ?? null)
+    })
+    transaction()
+  })
+}
+
+export async function createCommand(command: Command): Promise<void> {
+  await queueWrite(async () => withSqlTiming('createCommand', async () => {
+    await ensureDbInitialized()
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO commands (id, name, command, description, tags, project_id, working_directory)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(
+        command.id,
+        command.name,
+        command.command,
+        command.description ?? null,
+        command.tags ? JSON.stringify(command.tags) : null,
+        command.projectId ?? null,
+        command.workingDirectory ?? null
+      )
+  }))
+}
+
+export async function replaceCommand(command: Command): Promise<boolean> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+    const result = getDbOrThrow()
+      .prepare(
+        `
+          UPDATE commands
+          SET name = ?, command = ?, description = ?, tags = ?, project_id = ?, working_directory = ?
+          WHERE id = ?
+        `
+      )
+      .run(
+        command.name,
+        command.command,
+        command.description ?? null,
+        command.tags ? JSON.stringify(command.tags) : null,
+        command.projectId ?? null,
+        command.workingDirectory ?? null,
+        command.id
+      )
+    if (result.changes > 0) {
+      return true
+    }
+    return false
+  })
+}
+
+export async function removeCommand(commandId: string): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow().prepare('DELETE FROM commands WHERE id = ?').run(commandId)
+  })
+}
+
+export async function createRunHistoryEntry(entry: RunHistoryEntry): Promise<void> {
+  await queueWrite(async () => withSqlTiming('createRunHistoryEntry', async () => {
+    await ensureDbInitialized()
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO run_history (id, command_id, project_id, status, start_time, end_time, output)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(
+        entry.id,
+        entry.commandId,
+        entry.projectId ?? null,
+        entry.status,
+        entry.startTime,
+        entry.endTime ?? null,
+        entry.output ?? null
+      )
+  }))
+}
+
+export async function finalizeRunHistoryEntry(runId: string, output: string, status?: RunStatus): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    if (status) {
+      getDbOrThrow()
+        .prepare('UPDATE run_history SET output = ?, status = ?, end_time = ? WHERE id = ?')
+        .run(output, status, new Date().toISOString(), runId)
+    } else {
+      getDbOrThrow().prepare('UPDATE run_history SET output = ? WHERE id = ?').run(output, runId)
+    }
+  })
+}
+
+export async function clearRunHistoryInStore(): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow().prepare('DELETE FROM run_history').run()
+  })
+}
+
+export async function getRunHistoryOutputById(runId: string): Promise<string> {
+  await ensureDbInitialized()
+  const row = getDbOrThrow()
+    .prepare('SELECT output FROM run_history WHERE id = ?')
+    .get(runId) as { output: string | null } | undefined
+  return row?.output ?? ''
+}
+
+export async function listRecentRunHistory(limit: number): Promise<Array<Omit<RunHistoryEntry, 'output'>>> {
+  await ensureDbInitialized()
+  const rows = getDbOrThrow()
+    .prepare(
+      `
+        SELECT id, command_id, project_id, status, start_time, end_time
+        FROM run_history
+        ORDER BY start_time DESC, rowid DESC
+        LIMIT ?
+      `
+    )
+    .all(limit) as Array<{
+    id: string
+    command_id: string
+    project_id: string | null
+    status: RunStatus
+    start_time: string
+    end_time: string | null
+  }>
+
+  return rows.map((row) => ({
+    id: row.id,
+    commandId: row.command_id,
+    projectId: row.project_id ?? undefined,
+    status: row.status,
+    startTime: row.start_time,
+    endTime: row.end_time ?? undefined,
+  }))
+}
+
+export async function getProjectNotesById(projectId: string): Promise<ProjectNotes> {
+  await ensureDbInitialized()
+  const row = getDbOrThrow()
+    .prepare('SELECT project_id, setup_steps, todos, reminders FROM notes WHERE project_id = ?')
+    .get(projectId) as { project_id: string; setup_steps: string; todos: string; reminders: string } | undefined
+
+  if (!row) {
+    return {
+      projectId,
+      setupSteps: '',
+      todos: '',
+      reminders: '',
+    }
+  }
+
+  return {
+    projectId: row.project_id,
+    setupSteps: row.setup_steps,
+    todos: row.todos,
+    reminders: row.reminders,
+  }
+}
+
+export async function upsertProjectNotes(projectId: string, updates: Partial<ProjectNotes>): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    const current = await getProjectNotesById(projectId)
+    const next = {
+      projectId,
+      setupSteps: updates.setupSteps ?? current.setupSteps,
+      todos: updates.todos ?? current.todos,
+      reminders: updates.reminders ?? current.reminders,
+    }
+
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO notes (project_id, setup_steps, todos, reminders)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(project_id) DO UPDATE SET
+            setup_steps = excluded.setup_steps,
+            todos = excluded.todos,
+            reminders = excluded.reminders
+        `
+      )
+      .run(projectId, next.setupSteps, next.todos, next.reminders)
+
+  })
+}
+
+export async function listProjects(): Promise<Project[]> {
+  return withSqlTiming('listProjects', async () => {
+    await ensureDbInitialized()
+    const rows = getDbOrThrow()
+      .prepare('SELECT id, path, name, type, icon, linked_container_names FROM projects ORDER BY rowid ASC')
+      .all() as Array<{
+      id: string
+      path: string
+      name: string
+      type: Project['type']
+      icon: string
+      linked_container_names: string | null
+    }>
+
+    return rows.map((row) => ({
+      id: row.id,
+      path: row.path,
+      name: row.name,
+      type: VALID_PROJECT_TYPES.has(row.type) ? row.type : 'unknown',
+      icon: row.icon,
+      linkedContainerNames: parseJsonArray(row.linked_container_names),
+    }))
+  })
+}
+
+export async function getProjectById(projectId: string): Promise<Project | null> {
+  await ensureDbInitialized()
+  const row = getDbOrThrow()
+    .prepare('SELECT id, path, name, type, icon, linked_container_names FROM projects WHERE id = ?')
+    .get(projectId) as {
+    id: string
+    path: string
+    name: string
+    type: Project['type']
+    icon: string
+    linked_container_names: string | null
+  } | undefined
+
+  if (!row) {
+    return null
+  }
+
+  return {
+    id: row.id,
+    path: row.path,
+    name: row.name,
+    type: VALID_PROJECT_TYPES.has(row.type) ? row.type : 'unknown',
+    icon: row.icon,
+    linkedContainerNames: parseJsonArray(row.linked_container_names),
+  }
+}
+
+export async function listCommands(): Promise<Command[]> {
+  return withSqlTiming('listCommands', async () => {
+    await ensureDbInitialized()
+    const rows = getDbOrThrow()
+      .prepare('SELECT id, name, command, description, tags, project_id, working_directory FROM commands ORDER BY rowid ASC')
+      .all() as Array<{
+      id: string
+      name: string
+      command: string
+      description: string | null
+      tags: string | null
+      project_id: string | null
+      working_directory: string | null
+    }>
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      command: row.command,
+      description: row.description ?? undefined,
+      tags: parseJsonArray(row.tags),
+      projectId: row.project_id ?? undefined,
+      workingDirectory: row.working_directory ?? undefined,
+    }))
+  })
+}
+
+export async function getCommandById(commandId: string): Promise<Command | null> {
+  await ensureDbInitialized()
+  const row = getDbOrThrow()
+    .prepare('SELECT id, name, command, description, tags, project_id, working_directory FROM commands WHERE id = ?')
+    .get(commandId) as {
+    id: string
+    name: string
+    command: string
+    description: string | null
+    tags: string | null
+    project_id: string | null
+    working_directory: string | null
+  } | undefined
+
+  if (!row) {
+    return null
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    command: row.command,
+    description: row.description ?? undefined,
+    tags: parseJsonArray(row.tags),
+    projectId: row.project_id ?? undefined,
+    workingDirectory: row.working_directory ?? undefined,
+  }
+}
+
+export async function getPreferencesFromStore(): Promise<AppPreferences> {
+  await ensureDbInitialized()
+  const rows = getDbOrThrow()
+    .prepare('SELECT key, id, command FROM preferences WHERE key IN (?, ?)')
+    .all('editor', 'terminal') as Array<{ key: 'editor' | 'terminal'; id: string; command: string | null }>
+
+  const defaults = createDefaultPreferences()
+  const preferenceMap = new Map(rows.map((entry) => [entry.key, entry]))
+  return {
+    editor: {
+      id: preferenceMap.get('editor')?.id ?? defaults.editor.id,
+      command: preferenceMap.get('editor')?.command ?? defaults.editor.command,
+    },
+    terminal: {
+      id: preferenceMap.get('terminal')?.id ?? defaults.terminal.id,
+      command: preferenceMap.get('terminal')?.command ?? defaults.terminal.command,
+    },
+  }
+}
+
+export async function listRunHistory(): Promise<RunHistoryEntry[]> {
+  return withSqlTiming('listRunHistory', async () => {
+    await ensureDbInitialized()
+    const rows = getDbOrThrow()
+      .prepare('SELECT id, command_id, project_id, status, start_time, end_time, output FROM run_history ORDER BY start_time DESC, rowid DESC')
+      .all() as Array<{
+      id: string
+      command_id: string
+      project_id: string | null
+      status: RunStatus
+      start_time: string
+      end_time: string | null
+      output: string | null
+    }>
+
+    return rows.map((row) => ({
+      id: row.id,
+      commandId: row.command_id,
+      projectId: row.project_id ?? undefined,
+      status: row.status,
+      startTime: row.start_time,
+      endTime: row.end_time ?? undefined,
+      output: row.output ?? undefined,
+    }))
   })
 }
