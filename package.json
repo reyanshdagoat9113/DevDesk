@@ -6,7 +6,8 @@
   "author": "DevDesk",
   "license": "MIT",
   "scripts": {
-    "dev": "npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5180 && electron .\"",
+    "rebuild:native": "electron-builder install-app-deps",
+    "dev": "npm run rebuild:native && npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5180 && electron .\"",
     "dev:renderer": "vite",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "build:main": "tsc -p tsconfig.main.json",
