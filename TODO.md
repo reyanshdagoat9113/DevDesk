@@ -1,7 +1,7 @@
 # DevDesk TODO
 
 ## Now
-- [ ] Verify production build output loads in a packaged app.
+- [x] Verify production build output loads in a packaged app.
 - [x] Add command search/filter by tag.
 - [x] Show command + project names in run history (not just ids).
 - [ ] Replace JSON store with SQLite using `better-sqlite3` (main process only).
