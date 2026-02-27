@@ -294,6 +294,22 @@ function createSchema(database: Database.Database) {
   `)
 }
 
+function hasColumn(database: Database.Database, tableName: string, columnName: string): boolean {
+  const rows = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
+  return rows.some((row) => row.name === columnName)
+}
+
+function ensureSchemaCompatibility(database: Database.Database) {
+  // Existing user databases may predate newer columns added after initial table creation.
+  if (!hasColumn(database, 'commands', 'variables')) {
+    database.exec('ALTER TABLE commands ADD COLUMN variables TEXT')
+  }
+
+  if (!hasColumn(database, 'run_history', 'resolved_command')) {
+    database.exec('ALTER TABLE run_history ADD COLUMN resolved_command TEXT')
+  }
+}
+
 function writeStoreToDb(database: Database.Database, store: DataStore) {
   const insertProject = database.prepare(`
     INSERT INTO projects (id, path, name, type, icon, linked_container_names)
@@ -427,6 +443,7 @@ async function ensureDbInitialized(): Promise<void> {
       database.pragma('foreign_keys = ON')
       database.pragma('synchronous = NORMAL')
       createSchema(database)
+      ensureSchemaCompatibility(database)
 
       await migrateJsonStoreIfNeeded(database, jsonPath)
       db = database

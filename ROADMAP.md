@@ -2,8 +2,8 @@
 
 > A comprehensive implementation guide for evolving DevDesk from MVP to a complete developer workspace platform.
 
-**Last Updated:** 2026-02-22  
-**Current Phase:** Phase 0 Complete → Phase 1 Ready
+**Last Updated:** 2026-02-27  
+**Current Phase:** Phase 1.1 + 1.2 Complete → Phase 1.3 Next
 
 ---
 
@@ -52,6 +52,7 @@ Core infrastructure and MVP features. This phase is fully complete.
 2. **isDev detection** - Fixed `app.isPackaged` check to properly respect `NODE_ENV`
 3. **Electron version** - Downgraded from v40 to v33 for stability
 4. **Native modules** - Rebuilt `better-sqlite3` for Electron 33
+5. **SQLite compatibility migration** - Added startup schema patching for legacy DBs missing `commands.variables` and `run_history.resolved_command`
 
 **Test Command:**
 ```bash
@@ -65,6 +66,7 @@ NODE_ENV=production npm run test:production
 - [x] Verify all IPC calls work in production (not just dev)
 - [x] Check that renderer loads correct HTML file path
 - [x] Validate SQLite database path in production
+- [x] Add compatibility migration for existing SQLite installs created before new columns
 - [ ] Test on Windows (primary target) - Pending Windows environment
 - [ ] Test WSL path handling in production build - Pending
 
@@ -464,7 +466,7 @@ Visual status indicators on project cards.
 
 **Goal:** Fast project file discovery and navigation.
 
-### 5.1 File Indexer Service 📋
+### 5.1 File Indexer Service ✅
 **Priority:** High  
 **Effort:** 3-4 hours  
 **Dependencies:** None
@@ -496,7 +498,7 @@ interface FileIndex {
 
 ---
 
-### 5.2 Path Security Layer 📋
+### 5.2 Path Security Layer ✅
 **Priority:** Critical  
 **Effort:** 1-2 hours  
 **Dependencies:** None
@@ -525,7 +527,7 @@ function validateProjectPath(
 
 ---
 
-### 5.3 File Browsing IPC 📋
+### 5.3 File Browsing IPC ✅
 **Priority:** Medium  
 **Effort:** 2 hours  
 **Dependencies:** 5.2
@@ -546,7 +548,7 @@ Directory listing endpoint.
 
 ---
 
-### 5.4 File Search IPC 📋
+### 5.4 File Search IPC ✅
 **Priority:** High  
 **Effort:** 3 hours  
 **Dependencies:** 5.1, 5.3
@@ -561,7 +563,7 @@ Fuzzy file search.
 
 ---
 
-### 5.5 Open in Editor with Line/Col 📋
+### 5.5 Open in Editor with Line/Col ✅
 **Priority:** Medium  
 **Effort:** 1-2 hours  
 **Dependencies:** None
@@ -577,7 +579,7 @@ Extend existing editor opening.
 
 ---
 
-### 5.6 Palette File Search Mode 📋
+### 5.6 Palette File Search Mode ✅
 **Priority:** Medium  
 **Effort:** 2-3 hours  
 **Dependencies:** 5.4
@@ -700,7 +702,7 @@ Command palette shortcuts.
 
 **Goal:** Container orchestration linked to projects.
 
-### 7.1 Container ↔ Project Linking 📋
+### 7.1 Container ↔ Project Linking ✅
 **Priority:** High  
 **Effort:** 2-3 hours  
 **Dependencies:** None
@@ -720,7 +722,7 @@ Extend existing container model.
 
 ---
 
-### 7.2 Dev Stack Controls 📋
+### 7.2 Dev Stack Controls 🚧
 **Priority:** Medium  
 **Effort:** 2 hours  
 **Dependencies:** 7.1
@@ -732,9 +734,13 @@ One-click stack operations.
 - "Stop Dev Stack" → Stop all linked containers
 - "Restart Dev Stack"
 
+**Status Notes:**
+- Start/Stop implemented
+- Restart all linked containers still pending
+
 ---
 
-### 7.3 Container Logs Viewer 📋
+### 7.3 Container Logs Viewer 🚧
 **Priority:** Medium  
 **Effort:** 3-4 hours  
 **Dependencies:** None
@@ -751,6 +757,10 @@ Stream container logs in UI.
 - Search/filter within logs
 - Auto-scroll toggle
 - Clear logs button
+
+**Status Notes:**
+- Live log streaming implemented (`docker:logs:subscribe`/`unsubscribe`)
+- Advanced viewer features (search/filter/toggles) still pending
 
 ---
 
@@ -1028,7 +1038,7 @@ Phase 10: Polish
 ## Release Milestones
 
 ### v1.0 - Production Ready
-**Features:** 1.1 (Build verify)  
+**Features:** 1.1 (Build verify + DB compatibility migration)  
 **Goal:** Stable, distributable app
 
 ### v1.1 - Command Power
@@ -1067,20 +1077,19 @@ Phase 10: Polish
 
 ## Quick Reference: Next 3 Tasks
 
-1. **Production Build Verification** (1-2 hrs)
-   - Run `npm run build`
-   - Test packaged executable
-   - Fix any production-only issues
-
-2. **Command Variables** (2-3 hrs)
-   - Implement `{{variable}}` syntax
-   - Add prompt modal for inputs
-   - Test with real commands
-
-3. **Favorites System** (2-3 hrs)
+1. **Favorites System** (2-3 hrs)
    - Add is_pinned columns
    - Star UI on project/command cards
    - Sort pinned items first
+
+2. **Command Presets by Project Type** (3-4 hrs)
+   - Add preset library by project type
+   - Build preset picker in Command Vault
+   - Create commands from selected presets
+
+3. **Dev Stack Restart Action** (1-2 hrs)
+   - Add "Restart Dev Stack" operation for linked containers
+   - Surface result summary alongside Start/Stop
 
 ---
 
