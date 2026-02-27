@@ -285,6 +285,16 @@ export function HistorySection({
                 </div>
               </CardHeader>
 
+              {/* Resolved Command Display */}
+              {selectedEntry.resolvedCommand && (
+                <div className="px-5 py-2.5 bg-muted/10 border-b border-border/40">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-1.5">Executed Command</div>
+                  <code className="block font-mono text-[11px] text-foreground/80 whitespace-pre-wrap break-all">
+                    {selectedEntry.resolvedCommand}
+                  </code>
+                </div>
+              )}
+
               <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] relative group/terminal">
                 <div className="flex items-center justify-between px-5 py-2.5 bg-white/5 border-b border-white/5 backdrop-blur-md">
                   <div className="flex items-center gap-3">

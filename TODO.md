@@ -9,7 +9,7 @@
 - [ ] Add WAL mode + basic indexes for common queries.
 
 ## Next
-- [ ] Variables in commands (e.g. {{container}}).
+- [x] Variables in commands (e.g. {{container}}) - **IMPLEMENTED** (see docs/planning/phase-1.2-command-variables.md)
 - [ ] Command presets per project.
 - [ ] Favorites/pinning for projects and commands.
 - [ ] Export/import config.

@@ -76,12 +76,13 @@ NODE_ENV=production npm run test:production
 
 ---
 
-### 1.2 Command Variables ⏳
+### 1.2 Command Variables ✅ **COMPLETE**
 **Priority:** High  
 **Effort:** 2-3 hours  
 **Dependencies:** None
 
-Enable dynamic values in commands using template syntax.
+Enable dynamic values in commands using template syntax.  
+**Planning Doc:** `docs/planning/phase-1.2-command-variables.md`
 
 **Template Syntax:**
 ```

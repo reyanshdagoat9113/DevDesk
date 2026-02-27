@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
+import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import {
   Card,
@@ -21,8 +21,9 @@ import { Label } from '../components/ui/Label'
 import { Badge } from '../components/ui/Badge'
 import { Textarea } from '../components/ui/Textarea'
 import { SectionLayout } from '../layout/SectionLayout'
+import { VariablePromptModal } from '../components/VariablePromptModal'
 import { cn } from '../../lib/utils'
-import type { Command, Project } from '../types'
+import type { Command, CommandVariable, Project } from '../types'
 
 const selectClass =
   'flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
@@ -40,7 +41,7 @@ export function CommandsSection({
   projects: Project[]
   isLoading?: boolean
   error?: string | null
-  onRunCommand?: (commandId: string, projectId: string) => Promise<void>
+  onRunCommand?: (commandId: string, projectId: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }>
   onUpdateCommand?: (commandId: string, updates: { name: string; command: string; description?: string; tags?: string[] }) => Promise<void>
   onRemoveCommand?: (commandId: string) => Promise<void>
 }) {
@@ -59,6 +60,15 @@ export function CommandsSection({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Variable prompt state
+  const [variablePromptOpen, setVariablePromptOpen] = useState(false)
+  const [pendingVariables, setPendingVariables] = useState<CommandVariable[]>([])
+  const [commandPreview, setCommandPreview] = useState<string>('')
+  const [pendingRun, setPendingRun] = useState<{ commandId: string; projectId: string } | null>(null)
+
+  // Variable detection state
+  const [detectedVariables, setDetectedVariables] = useState<CommandVariable[]>([])
 
   const normalizedQueryTokens = useMemo(() => {
     const trimmed = query.trim().toLowerCase()
@@ -139,13 +149,41 @@ export function CommandsSection({
       setEditCommand('')
       setEditDescription('')
       setEditTags('')
+      setDetectedVariables([])
       return
     }
     setEditName(selectedCommand.name)
     setEditCommand(selectedCommand.command)
     setEditDescription(selectedCommand.description ?? '')
     setEditTags(selectedCommand.tags?.join(', ') ?? '')
+    // Detect variables from the command
+    const detect = async () => {
+      try {
+        const vars = await window.electronAPI.detectCommandVariables(selectedCommand.command)
+        setDetectedVariables(vars)
+      } catch {
+        setDetectedVariables([])
+      }
+    }
+    detect()
   }, [selectedCommand])
+
+  // Detect variables as user types in edit mode
+  useEffect(() => {
+    const detect = async () => {
+      if (!editCommand.trim()) {
+        setDetectedVariables([])
+        return
+      }
+      try {
+        const vars = await window.electronAPI.detectCommandVariables(editCommand)
+        setDetectedVariables(vars)
+      } catch {
+        setDetectedVariables([])
+      }
+    }
+    detect()
+  }, [editCommand])
 
   // Get the project associated with this command
   const commandProject = useMemo(() => {
@@ -188,7 +226,21 @@ export function CommandsSection({
     setRunError(null)
     setRunStatus('running')
     try {
-      await onRunCommand(selectedCommand.id, selectedProject.id)
+      // Try to run - may return needs-input status
+      const result = await onRunCommand(selectedCommand.id, selectedProject.id)
+
+      if (result.status === 'needs-input') {
+        // Show variable prompt
+        const needsInput = result as { status: 'needs-input'; inputs: CommandVariable[]; preview: string }
+        setPendingVariables(needsInput.inputs)
+        setCommandPreview(needsInput.preview)
+        setPendingRun({ commandId: selectedCommand.id, projectId: selectedProject.id })
+        setVariablePromptOpen(true)
+        setRunStatus('idle')
+        return
+      }
+
+      // Normal execution
       setRunStatus('started')
       setTimeout(() => setRunStatus('idle'), 1500)
     } catch (error) {
@@ -196,6 +248,32 @@ export function CommandsSection({
       setRunStatus('idle')
     }
   }
+
+  const handleVariableSubmit = useCallback(
+    async (values: Record<string, string>) => {
+      if (!pendingRun || !onRunCommand) return
+
+      setRunStatus('running')
+      try {
+        await onRunCommand(pendingRun.commandId, pendingRun.projectId, values)
+        setRunStatus('started')
+        setTimeout(() => setRunStatus('idle'), 1500)
+      } catch (error) {
+        setRunError(error instanceof Error ? error.message : 'Failed to run command.')
+        setRunStatus('idle')
+      } finally {
+        setPendingRun(null)
+        setPendingVariables([])
+      }
+    },
+    [pendingRun, onRunCommand]
+  )
+
+  const handleVariableCancel = useCallback(() => {
+    setPendingRun(null)
+    setPendingVariables([])
+    setCommandPreview('')
+  }, [])
 
   const handleSaveEdit = async () => {
     if (!selectedCommand || !onUpdateCommand || isSavingEdit) return
@@ -342,16 +420,25 @@ export function CommandsSection({
                     >
                       <div className="flex w-full items-center justify-between gap-2">
                         <span className="truncate text-sm font-bold leading-none">{command.name}</span>
-                        {command.tags?.length ? (
-                          <div className="flex gap-1">
+                        <div className="flex gap-1">
+                          {command.variables && command.variables.length > 0 && (
+                            <Badge variant="outline" className={cn(
+                              "h-4 px-1 text-[8px] border-border/40 font-bold text-primary",
+                              isActive ? "bg-background/50" : "bg-muted/30"
+                            )}>
+                              <Variable className="h-2.5 w-2.5 mr-0.5" />
+                              {command.variables.length}
+                            </Badge>
+                          )}
+                          {command.tags?.length ? (
                             <Badge variant="outline" className={cn(
                               "h-4 px-1 text-[8px] border-border/40 font-bold",
                               isActive ? "bg-background/50" : "bg-muted/30"
                             )}>
                               {command.tags.length}
                             </Badge>
-                          </div>
-                        ) : null}
+                          ) : null}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
                         <span className="truncate flex-1">{command.command}</span>
@@ -462,6 +549,29 @@ export function CommandsSection({
                   </div>
                 </div>
               )}
+
+              {/* Variables Section */}
+              {(selectedCommand.variables && selectedCommand.variables.length > 0) || detectedVariables.length > 0 ? (
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Dynamic Variables</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedCommand.variables ?? detectedVariables).map((variable) => (
+                      <Badge 
+                        key={variable.name} 
+                        variant="secondary" 
+                        className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 transition-colors cursor-default"
+                      >
+                        <Variable className="mr-1.5 h-3 w-3 opacity-60" />
+                        {variable.name}
+                        {variable.required && <span className="ml-0.5 text-destructive">*</span>}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    These variables will be resolved when the command runs. Required variables marked with <span className="text-destructive">*</span> must be provided.
+                  </p>
+                </div>
+              ) : null}
             </CardContent>
 
             <div className="border-t border-border/40 bg-muted/5 p-6">
@@ -591,6 +701,34 @@ export function CommandsSection({
                 placeholder="test, watch"
               />
             </div>
+
+            {/* Detected Variables */}
+            {detectedVariables.length > 0 && (
+              <div className="space-y-2 rounded-md bg-muted/30 p-3">
+                <div className="flex items-center gap-2">
+                  <Variable className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-xs font-medium">Detected Variables</Label>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {detectedVariables.map((variable) => (
+                    <Badge
+                      key={variable.name}
+                      variant="secondary"
+                      className="text-[10px] font-normal"
+                    >
+                      {variable.name}
+                      {variable.required && (
+                        <span className="ml-0.5 text-destructive">*</span>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Users will be prompted to enter values when running this command.
+                </p>
+              </div>
+            )}
+
             {editError ? <p className="text-xs text-destructive">{editError}</p> : null}
           </div>
           <DialogFooter>
@@ -628,6 +766,15 @@ export function CommandsSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <VariablePromptModal
+        open={variablePromptOpen}
+        onOpenChange={setVariablePromptOpen}
+        variables={pendingVariables}
+        commandPreview={commandPreview}
+        onSubmit={handleVariableSubmit}
+        onCancel={handleVariableCancel}
+      />
     </>
   )
 }

@@ -28,7 +28,8 @@ import {
   FileText,
   File,
 } from 'lucide-react'
-import type { Project, Command, Container as ContainerType, RunStatus } from '../types'
+import { VariablePromptModal } from './VariablePromptModal'
+import type { Project, Command, Container as ContainerType, RunStatus, CommandVariable } from '../types'
 
 type LightweightHistoryEntry = {
   id: string
@@ -57,6 +58,7 @@ type PaletteMode =
   | { type: 'projectPick'; command: Command }
   | { type: 'fileProjectPick' }
   | { type: 'fileSearch'; project: Project }
+  | { type: 'variableInput'; command: Command; projectId: string; inputs: CommandVariable[]; preview: string }
 
 interface CommandPaletteProps {
   open: boolean
@@ -69,7 +71,7 @@ interface CommandPaletteProps {
   onOpenProjectInEditor: (projectId: string) => Promise<void>
   onOpenProjectInTerminal: (projectId: string) => Promise<void>
   onOpenProjectFolder: (projectId: string) => Promise<void>
-  onRunCommand: (commandId: string, projectId: string) => Promise<void>
+  onRunCommand: (commandId: string, projectId: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }>
   onStartContainer: (containerId: string) => Promise<void>
   onStopContainer: (containerId: string) => Promise<void>
   onRestartContainer: (containerId: string) => Promise<void>
@@ -169,7 +171,7 @@ export function CommandPalette({
   }, [open, onOpenChange])
 
   const runWithErrorHandling = useCallback(
-    async (action: () => Promise<void> | void) => {
+    async (action: () => Promise<unknown> | unknown) => {
       try {
         setIsLoading(true)
         await action()
@@ -183,6 +185,70 @@ export function CommandPalette({
     },
     [onOpenChange, onError]
   )
+
+  // Handle running a command with variable support
+  const runCommandWithVariables = useCallback(
+    async (commandId: string, projectId: string) => {
+      try {
+        setIsLoading(true)
+        const result = await onRunCommand(commandId, projectId)
+
+        if (result.status === 'needs-input') {
+          // Get the command details
+          const command = commands.find((c) => c.id === commandId)
+          if (!command) {
+            onError('Command not found')
+            return
+          }
+
+          // Switch to variable input mode
+          const needsInput = result as { status: 'needs-input'; inputs: CommandVariable[]; preview: string }
+          setMode({
+            type: 'variableInput',
+            command,
+            projectId,
+            inputs: needsInput.inputs,
+            preview: needsInput.preview,
+          })
+          setSearchQuery('')
+        } else {
+          // Command started successfully
+          onOpenChange(false)
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to run command'
+        onError(message)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [commands, onError, onOpenChange, onRunCommand]
+  )
+
+  // Handle variable submission from the modal
+  const handleVariableSubmit = useCallback(
+    async (values: Record<string, string>) => {
+      if (mode.type !== 'variableInput') return
+
+      try {
+        setIsLoading(true)
+        await onRunCommand(mode.command.id, mode.projectId, values)
+        onOpenChange(false)
+        setMode({ type: 'main' })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to run command'
+        onError(message)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [mode, onError, onOpenChange, onRunCommand]
+  )
+
+  // Handle variable input cancel
+  const handleVariableCancel = useCallback(() => {
+    setMode({ type: 'main' })
+  }, [])
 
   const getProjectName = useCallback(
     (projectId?: string) => {
@@ -300,7 +366,7 @@ export function CommandPalette({
             setMode({ type: 'projectPick', command })
             setSearchQuery('')
           } else {
-            runWithErrorHandling(() => onRunCommand(command.id, command.projectId!))
+            runCommandWithVariables(command.id, command.projectId!)
           }
         },
       })
@@ -387,7 +453,7 @@ export function CommandPalette({
     onOpenProjectInEditor,
     onOpenProjectInTerminal,
     onOpenProjectFolder,
-    onRunCommand,
+    runCommandWithVariables,
     onStartContainer,
     onStopContainer,
     onRestartContainer,
@@ -409,9 +475,9 @@ export function CommandPalette({
       subtitle: project.path,
       keywords: [project.name, project.path, 'select', 'project'],
       icon: <span className="text-lg">{project.icon}</span>,
-      action: () => runWithErrorHandling(() => onRunCommand(mode.command.id, project.id)),
+      action: () => runCommandWithVariables(mode.command.id, project.id),
     }))
-  }, [mode, projects, onRunCommand, runWithErrorHandling])
+  }, [mode, projects, runCommandWithVariables])
 
   const fileProjectPickItems: PaletteItem[] = useMemo(() => {
     if (mode.type !== 'fileProjectPick') return []
@@ -565,7 +631,9 @@ export function CommandPalette({
               ? 'Select a project to search files...'
               : mode.type === 'fileSearch'
                 ? `Search files in ${mode.project.name}...`
-                : 'Search commands, projects, containers...'
+                : mode.type === 'variableInput'
+                  ? `Enter variables for "${mode.command.name}"...`
+                  : 'Search commands, projects, containers...'
         }
         value={searchQuery}
         onValueChange={setSearchQuery}
@@ -577,7 +645,7 @@ export function CommandPalette({
           <>
             {mode.type !== 'fileSearch' ? <CommandEmpty>No results found.</CommandEmpty> : null}
 
-            {(mode.type === 'projectPick' || mode.type === 'fileProjectPick' || mode.type === 'fileSearch') && (
+            {(mode.type === 'projectPick' || mode.type === 'fileProjectPick' || mode.type === 'fileSearch' || mode.type === 'variableInput') && (
               <CommandGroup heading="Actions">
                 <CommandItem onSelect={handleBack}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
@@ -662,6 +730,20 @@ export function CommandPalette({
           </>
         )}
       </CommandList>
+
+      {/* Variable Input Modal */}
+      {mode.type === 'variableInput' && (
+        <VariablePromptModal
+          open={mode.type === 'variableInput'}
+          onOpenChange={(open) => {
+            if (!open) handleVariableCancel()
+          }}
+          variables={mode.inputs}
+          commandPreview={mode.preview}
+          onSubmit={handleVariableSubmit}
+          onCancel={handleVariableCancel}
+        />
+      )}
     </CommandDialog>
   )
 }

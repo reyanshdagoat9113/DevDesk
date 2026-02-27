@@ -29,6 +29,8 @@ import {
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
 import type { AppPreference, AppPreferences, Command, Container, RunStatus } from '../data/model'
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex } from '../files/fileService'
+import { variableResolver } from '../commands/variableResolver'
+import { detectVariables } from '../commands/variableDetector'
 
 type RunningCommand = {
   process: ChildProcessWithoutNullStreams
@@ -1215,7 +1217,7 @@ export function registerIpcHandlers() {
     return getProjectDirectories(projectId, relativePath)
   })
 
-  ipcMain.handle('commands:run', async (_event, _id: string, _projectId?: string) => {
+  ipcMain.handle('commands:run', async (_event, _id: string, _projectId?: string, _variables?: Record<string, string>) => {
     const command = await getCommandById(_id)
     if (!command) {
       throw new Error('Command not found.')
@@ -1232,6 +1234,40 @@ export function registerIpcHandlers() {
       throw new Error('Project not found.')
     }
 
+    const projectPath = normalizeProjectPath(project.path)
+    if (!fs.existsSync(projectPath)) {
+      throw new Error('Project path does not exist.')
+    }
+
+    // Get containers for container variable resolution
+    const containers = await listDockerContainers()
+    const linkedContainers = containers.filter((c) =>
+      project.linkedContainerNames.some(
+        (name) => c.name.toLowerCase() === name.toLowerCase()
+      )
+    )
+
+    // Resolve variables
+    const context = {
+      project,
+      containers: linkedContainers,
+      env: process.env,
+    }
+
+    const resolution = variableResolver.resolve(command.command, context, _variables)
+
+    // If there are unresolved input variables, return them for prompting
+    if (resolution.unresolvedInputs.length > 0 && !_variables) {
+      return {
+        status: 'needs-input',
+        inputs: resolution.unresolvedInputs,
+        preview: resolution.resolvedCommand,
+      }
+    }
+
+    // Continue with execution using resolved command
+    const finalCommand = resolution.resolvedCommand
+
     const runId = randomUUID()
     const startTime = new Date().toISOString()
 
@@ -1242,12 +1278,8 @@ export function registerIpcHandlers() {
       status: 'running',
       startTime,
       output: '',
+      resolvedCommand: finalCommand,
     })
-
-    const projectPath = normalizeProjectPath(project.path)
-    if (!fs.existsSync(projectPath)) {
-      throw new Error('Project path does not exist.')
-    }
 
     const wslLocation = parseWslProjectPath(projectPath)
     const child = wslLocation
@@ -1259,14 +1291,14 @@ export function registerIpcHandlers() {
             '-e',
             'bash',
             '-lc',
-            buildWslBashCommand(command.command, resolveWslWorkingDirectory(wslLocation, command.workingDirectory)),
+            buildWslBashCommand(finalCommand, resolveWslWorkingDirectory(wslLocation, command.workingDirectory)),
           ],
           {
             env: process.env,
             windowsHide: true,
           }
         )
-      : spawn(command.command, {
+      : spawn(finalCommand, {
           cwd: command.workingDirectory ? path.join(projectPath, command.workingDirectory) : projectPath,
           shell: true,
           env: process.env,
@@ -1309,6 +1341,10 @@ export function registerIpcHandlers() {
     })
 
     return { runId, status: 'running' }
+  })
+
+  ipcMain.handle('commands:detect-variables', async (_event, commandString: string) => {
+    return detectVariables(commandString)
   })
 
   ipcMain.handle('commands:stop', async (_event, _runId: string) => {

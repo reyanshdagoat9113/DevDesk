@@ -9,6 +9,17 @@ export interface Project {
   linkedContainerNames: string[]
 }
 
+export interface CommandVariable {
+  /** Variable name (e.g., "version", "message") */
+  name: string
+  /** Default value if not provided */
+  default?: string
+  /** Whether user must provide this value */
+  required: boolean
+  /** Description shown in the prompt */
+  description?: string
+}
+
 export interface Command {
   id: string
   name: string
@@ -17,6 +28,8 @@ export interface Command {
   tags?: string[]
   projectId?: string
   workingDirectory?: string
+  /** Detected/defined variables for this command */
+  variables?: CommandVariable[]
 }
 
 export interface Container {
@@ -41,6 +54,7 @@ export interface RunHistoryEntry {
   startTime: string
   endTime?: string
   output?: string
+  resolvedCommand?: string
 }
 
 export interface ProjectNotes {

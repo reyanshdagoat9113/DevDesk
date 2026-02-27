@@ -508,14 +508,21 @@ function App() {
     }
   }
 
-  const handleRunCommand = async (commandId: string, projectId: string) => {
+  const handleRunCommand = async (commandId: string, projectId: string, variables?: Record<string, string>): Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }> => {
     setLoadError(null)
     try {
-      const run = await window.electronAPI.runCommand(commandId, projectId)
+      const run = await window.electronAPI.runCommand(commandId, projectId, variables)
+      
+      // If needs input, return the result for the caller to handle
+      if (run.status === 'needs-input') {
+        return run as { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }
+      }
+      
+      // Normal execution - add to history
       const startTime = new Date().toISOString()
       setHistory((prev) => [
         {
-          id: run.runId,
+          id: (run as { runId: string; status: string }).runId,
           commandId,
           projectId,
           status: 'running',
@@ -524,6 +531,7 @@ function App() {
         },
         ...prev,
       ])
+      return run
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to run command.'
       setLoadError(message)

@@ -26,7 +26,8 @@ interface ElectronAPI {
   updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) => Promise<{ id: string }>
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
-  runCommand: (id: string, projectId?: string) => Promise<{ runId: string; status: string }>
+  runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: Array<{ name: string; default?: string; required: boolean; description?: string }>; preview: string }>
+  detectCommandVariables: (command: string) => Promise<Array<{ name: string; default?: string; required: boolean; description?: string }>>
   stopCommand: (runId: string) => Promise<{ success: boolean }>
   onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => () => void
   onRunStatus: (handler: (payload: { runId: string; status: string }) => void) => () => void
@@ -90,8 +91,9 @@ const electronAPI: ElectronAPI = {
   removeCommand: (id: string) => ipcRenderer.invoke('commands:remove', id),
   getProjectDirectories: (projectId: string, relativePath?: string) =>
     ipcRenderer.invoke('commands:get-directories', projectId, relativePath),
-  runCommand: (id: string, projectId?: string) =>
-    ipcRenderer.invoke('commands:run', id, projectId),
+  runCommand: (id: string, projectId?: string, variables?: Record<string, string>) =>
+    ipcRenderer.invoke('commands:run', id, projectId, variables),
+  detectCommandVariables: (command: string) => ipcRenderer.invoke('commands:detect-variables', command),
   stopCommand: (runId: string) => ipcRenderer.invoke('commands:stop', runId),
   onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: { runId: string; chunk: string }) => {

@@ -7,6 +7,7 @@ import {
   DATA_VERSION,
   type AppPreferences,
   type Command,
+  type CommandVariable,
   type DataStore,
   type Project,
   type ProjectNotes,
@@ -83,6 +84,27 @@ function parseJsonArray(value: string | null | undefined): string[] {
     return parsed.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
   } catch {
     return []
+  }
+}
+
+function parseVariables(value: string | null | undefined): CommandVariable[] | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) {
+      return undefined
+    }
+    return parsed.filter((item): item is CommandVariable => 
+      typeof item === 'object' && 
+      item !== null &&
+      typeof item.name === 'string' &&
+      typeof item.required === 'boolean'
+    )
+  } catch {
+    return undefined
   }
 }
 
@@ -237,7 +259,8 @@ function createSchema(database: Database.Database) {
       description TEXT,
       tags TEXT,
       project_id TEXT,
-      working_directory TEXT
+      working_directory TEXT,
+      variables TEXT
     );
 
     CREATE TABLE IF NOT EXISTS run_history (
@@ -247,7 +270,8 @@ function createSchema(database: Database.Database) {
       status TEXT NOT NULL,
       start_time TEXT NOT NULL,
       end_time TEXT,
-      output TEXT
+      output TEXT,
+      resolved_command TEXT
     );
 
     CREATE TABLE IF NOT EXISTS notes (
@@ -277,13 +301,13 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
   `)
 
   const insertCommand = database.prepare(`
-    INSERT INTO commands (id, name, command, description, tags, project_id, working_directory)
-    VALUES (@id, @name, @command, @description, @tags, @projectId, @workingDirectory)
+    INSERT INTO commands (id, name, command, description, tags, project_id, working_directory, variables)
+    VALUES (@id, @name, @command, @description, @tags, @projectId, @workingDirectory, @variables)
   `)
 
   const insertRunHistory = database.prepare(`
-    INSERT INTO run_history (id, command_id, project_id, status, start_time, end_time, output)
-    VALUES (@id, @commandId, @projectId, @status, @startTime, @endTime, @output)
+    INSERT INTO run_history (id, command_id, project_id, status, start_time, end_time, output, resolved_command)
+    VALUES (@id, @commandId, @projectId, @status, @startTime, @endTime, @output, @resolvedCommand)
   `)
 
   const insertNote = database.prepare(`
@@ -323,6 +347,7 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
         tags: command.tags ? JSON.stringify(command.tags) : null,
         projectId: command.projectId ?? null,
         workingDirectory: command.workingDirectory ?? null,
+        variables: command.variables ? JSON.stringify(command.variables) : null,
       })
     }
 
@@ -335,6 +360,7 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
         startTime: entry.startTime,
         endTime: entry.endTime ?? null,
         output: entry.output ?? null,
+        resolvedCommand: entry.resolvedCommand ?? null,
       })
     }
 
@@ -545,8 +571,8 @@ export async function createCommand(command: Command): Promise<void> {
     getDbOrThrow()
       .prepare(
         `
-          INSERT INTO commands (id, name, command, description, tags, project_id, working_directory)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO commands (id, name, command, description, tags, project_id, working_directory, variables)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       .run(
@@ -556,7 +582,8 @@ export async function createCommand(command: Command): Promise<void> {
         command.description ?? null,
         command.tags ? JSON.stringify(command.tags) : null,
         command.projectId ?? null,
-        command.workingDirectory ?? null
+        command.workingDirectory ?? null,
+        command.variables ? JSON.stringify(command.variables) : null
       )
   }))
 }
@@ -568,7 +595,7 @@ export async function replaceCommand(command: Command): Promise<boolean> {
       .prepare(
         `
           UPDATE commands
-          SET name = ?, command = ?, description = ?, tags = ?, project_id = ?, working_directory = ?
+          SET name = ?, command = ?, description = ?, tags = ?, project_id = ?, working_directory = ?, variables = ?
           WHERE id = ?
         `
       )
@@ -579,6 +606,7 @@ export async function replaceCommand(command: Command): Promise<boolean> {
         command.tags ? JSON.stringify(command.tags) : null,
         command.projectId ?? null,
         command.workingDirectory ?? null,
+        command.variables ? JSON.stringify(command.variables) : null,
         command.id
       )
     if (result.changes > 0) {
@@ -601,8 +629,8 @@ export async function createRunHistoryEntry(entry: RunHistoryEntry): Promise<voi
     getDbOrThrow()
       .prepare(
         `
-          INSERT INTO run_history (id, command_id, project_id, status, start_time, end_time, output)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO run_history (id, command_id, project_id, status, start_time, end_time, output, resolved_command)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       .run(
@@ -612,7 +640,8 @@ export async function createRunHistoryEntry(entry: RunHistoryEntry): Promise<voi
         entry.status,
         entry.startTime,
         entry.endTime ?? null,
-        entry.output ?? null
+        entry.output ?? null,
+        entry.resolvedCommand ?? null
       )
   }))
 }
@@ -650,7 +679,7 @@ export async function listRecentRunHistory(limit: number): Promise<Array<Omit<Ru
   const rows = getDbOrThrow()
     .prepare(
       `
-        SELECT id, command_id, project_id, status, start_time, end_time
+        SELECT id, command_id, project_id, status, start_time, end_time, resolved_command
         FROM run_history
         ORDER BY start_time DESC, rowid DESC
         LIMIT ?
@@ -663,6 +692,7 @@ export async function listRecentRunHistory(limit: number): Promise<Array<Omit<Ru
     status: RunStatus
     start_time: string
     end_time: string | null
+    resolved_command: string | null
   }>
 
   return rows.map((row) => ({
@@ -672,6 +702,7 @@ export async function listRecentRunHistory(limit: number): Promise<Array<Omit<Ru
     status: row.status,
     startTime: row.start_time,
     endTime: row.end_time ?? undefined,
+    resolvedCommand: row.resolved_command ?? undefined,
   }))
 }
 
@@ -781,7 +812,7 @@ export async function listCommands(): Promise<Command[]> {
   return withSqlTiming('listCommands', async () => {
     await ensureDbInitialized()
     const rows = getDbOrThrow()
-      .prepare('SELECT id, name, command, description, tags, project_id, working_directory FROM commands ORDER BY rowid ASC')
+      .prepare('SELECT id, name, command, description, tags, project_id, working_directory, variables FROM commands ORDER BY rowid ASC')
       .all() as Array<{
       id: string
       name: string
@@ -790,6 +821,7 @@ export async function listCommands(): Promise<Command[]> {
       tags: string | null
       project_id: string | null
       working_directory: string | null
+      variables: string | null
     }>
 
     return rows.map((row) => ({
@@ -800,6 +832,7 @@ export async function listCommands(): Promise<Command[]> {
       tags: parseJsonArray(row.tags),
       projectId: row.project_id ?? undefined,
       workingDirectory: row.working_directory ?? undefined,
+      variables: parseVariables(row.variables),
     }))
   })
 }
@@ -807,7 +840,7 @@ export async function listCommands(): Promise<Command[]> {
 export async function getCommandById(commandId: string): Promise<Command | null> {
   await ensureDbInitialized()
   const row = getDbOrThrow()
-    .prepare('SELECT id, name, command, description, tags, project_id, working_directory FROM commands WHERE id = ?')
+    .prepare('SELECT id, name, command, description, tags, project_id, working_directory, variables FROM commands WHERE id = ?')
     .get(commandId) as {
     id: string
     name: string
@@ -816,6 +849,7 @@ export async function getCommandById(commandId: string): Promise<Command | null>
     tags: string | null
     project_id: string | null
     working_directory: string | null
+    variables: string | null
   } | undefined
 
   if (!row) {
@@ -830,6 +864,7 @@ export async function getCommandById(commandId: string): Promise<Command | null>
     tags: parseJsonArray(row.tags),
     projectId: row.project_id ?? undefined,
     workingDirectory: row.working_directory ?? undefined,
+    variables: parseVariables(row.variables),
   }
 }
 
@@ -857,7 +892,7 @@ export async function listRunHistory(): Promise<RunHistoryEntry[]> {
   return withSqlTiming('listRunHistory', async () => {
     await ensureDbInitialized()
     const rows = getDbOrThrow()
-      .prepare('SELECT id, command_id, project_id, status, start_time, end_time, output FROM run_history ORDER BY start_time DESC, rowid DESC')
+      .prepare('SELECT id, command_id, project_id, status, start_time, end_time, output, resolved_command FROM run_history ORDER BY start_time DESC, rowid DESC')
       .all() as Array<{
       id: string
       command_id: string
@@ -866,6 +901,7 @@ export async function listRunHistory(): Promise<RunHistoryEntry[]> {
       start_time: string
       end_time: string | null
       output: string | null
+      resolved_command: string | null
     }>
 
     return rows.map((row) => ({
@@ -876,6 +912,7 @@ export async function listRunHistory(): Promise<RunHistoryEntry[]> {
       startTime: row.start_time,
       endTime: row.end_time ?? undefined,
       output: row.output ?? undefined,
+      resolvedCommand: row.resolved_command ?? undefined,
     }))
   })
 }

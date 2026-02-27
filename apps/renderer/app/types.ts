@@ -7,6 +7,13 @@ export interface Project {
   linkedContainerNames: string[]
 }
 
+export interface CommandVariable {
+  name: string
+  default?: string
+  required: boolean
+  description?: string
+}
+
 export interface Command {
   id: string
   name: string
@@ -15,6 +22,7 @@ export interface Command {
   tags?: string[]
   projectId?: string
   workingDirectory?: string
+  variables?: CommandVariable[]
 }
 
 export interface Container {
@@ -39,6 +47,7 @@ export interface RunHistoryEntry {
   startTime: string
   endTime?: string
   output?: string
+  resolvedCommand?: string
 }
 
 export interface ProjectNotes {

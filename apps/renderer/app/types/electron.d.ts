@@ -22,7 +22,8 @@ export interface ElectronAPI {
   updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) => Promise<Command>
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
-  runCommand: (id: string, projectId?: string) => Promise<{ runId: string; status: string }>
+  runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: CommandVariable[]; preview: string }>
+  detectCommandVariables: (command: string) => Promise<CommandVariable[]>
   stopCommand: (runId: string) => Promise<{ success: boolean }>
   onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => () => void
   onRunStatus: (handler: (payload: { runId: string; status: string }) => void) => () => void
