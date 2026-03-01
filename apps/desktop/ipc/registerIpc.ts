@@ -1239,13 +1239,20 @@ export function registerIpcHandlers() {
       throw new Error('Project path does not exist.')
     }
 
-    // Get containers for container variable resolution
-    const containers = await listDockerContainers()
-    const linkedContainers = containers.filter((c) =>
-      project.linkedContainerNames.some(
-        (name) => c.name.toLowerCase() === name.toLowerCase()
+    // Only query Docker when the command uses container variables.
+    const hasContainerVariables = variableResolver
+      .extractVariables(command.command)
+      .some((variable) => variable.startsWith('container.'))
+
+    let linkedContainers: Container[] = []
+    if (hasContainerVariables) {
+      const containers = await listDockerContainers()
+      linkedContainers = containers.filter((c) =>
+        project.linkedContainerNames.some(
+          (name) => c.name.toLowerCase() === name.toLowerCase()
+        )
       )
-    )
+    }
 
     // Resolve variables
     const context = {

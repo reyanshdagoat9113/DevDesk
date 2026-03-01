@@ -3,11 +3,11 @@ import { createMainWindow } from './app/createWindow'
 import { reconcileRunHistory } from './data/store'
 import { registerIpcHandlers } from './ipc/registerIpc'
 
-// Determine if we're in development mode
-// In production builds or when NODE_ENV=production, use production mode
-// app.isPackaged is only true for actual packaged apps (electron-builder)
 function isDevMode(): boolean {
-  return process.env.NODE_ENV === 'development' && !app.isPackaged
+  if (process.env.NODE_ENV === 'production') {
+    return false
+  }
+  return !app.isPackaged
 }
 
 // Register IPC handlers when app is ready
