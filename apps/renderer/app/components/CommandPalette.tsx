@@ -311,7 +311,19 @@ export function CommandPalette({
       action: openFileSearchFromMain,
     })
 
-    for (const project of projects) {
+    // Sort projects: pinned first, then by name
+    const sortedProjects = [...projects].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      if (a.isPinned && b.isPinned) {
+        const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0
+        const bTime = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0
+        return bTime - aTime
+      }
+      return a.name.localeCompare(b.name)
+    })
+
+    for (const project of sortedProjects) {
       items.push({
         id: `project-${project.id}`,
         group: 'Projects',
@@ -350,7 +362,19 @@ export function CommandPalette({
       })
     }
 
-    for (const command of commands) {
+    // Sort commands: pinned first, then by name
+    const sortedCommands = [...commands].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      if (a.isPinned && b.isPinned) {
+        const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0
+        const bTime = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0
+        return bTime - aTime
+      }
+      return a.name.localeCompare(b.name)
+    })
+
+    for (const command of sortedCommands) {
       const isGlobal = !command.projectId
       const projectName = isGlobal ? 'Global command' : getProjectName(command.projectId)
 

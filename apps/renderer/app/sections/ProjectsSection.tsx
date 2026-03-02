@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Code2, Pencil, Terminal, Trash2, FolderGit2, Monitor, Link2, RefreshCw, Activity, Trash } from 'lucide-react'
+import { Code2, Pencil, Terminal, Trash2, FolderGit2, Monitor, Link2, RefreshCw, Activity, Trash, Star } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import {
@@ -94,6 +94,7 @@ export function ProjectsSection({
   onStopDevStack,
   onRefreshContainers,
   onRemoveProject,
+  onToggleProjectPin,
 }: {
   projects: Project[]
   containers: Container[]
@@ -109,6 +110,7 @@ export function ProjectsSection({
   onStopDevStack?: (projectId: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
   onRefreshContainers?: () => Promise<void>
   onRemoveProject?: (projectId: string) => Promise<void>
+  onToggleProjectPin?: (projectId: string) => Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -136,6 +138,29 @@ export function ProjectsSection({
   const [liveLogsConnecting, setLiveLogsConnecting] = useState(false)
   const [liveLogsClosed, setLiveLogsClosed] = useState(false)
   const liveLogsSubscriptionIdRef = useRef<string | null>(null)
+
+  // Sort projects: pinned first, then by name
+  const sortedProjects = useMemo(() => {
+    return [...projects].sort((a, b) => {
+      // Pinned projects come first
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      // If both have same pin status, sort by pinnedAt (most recent first) if pinned
+      if (a.isPinned && b.isPinned) {
+        const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0
+        const bTime = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0
+        return bTime - aTime
+      }
+      // Otherwise sort by name
+      return a.name.localeCompare(b.name)
+    })
+  }, [projects])
+
+  const [pinnedProjects, unpinnedProjects] = useMemo(() => {
+    const pinned = sortedProjects.filter((project) => project.isPinned)
+    const unpinned = sortedProjects.filter((project) => !project.isPinned)
+    return [pinned, unpinned]
+  }, [sortedProjects])
 
   useEffect(() => {
     if (!projects.length) {
@@ -541,40 +566,96 @@ export function ProjectsSection({
                 </div>
               ) : (
                 <div className="space-y-1">
-                  {projects.map((project) => {
-                    const isActive = selectedProject?.id === project.id
-                    const isWslProject = isWslPath(project.path)
-                    return (
-                      <button
-                        key={project.id}
-                        onClick={() => setSelectedId(project.id)}
-                        className={cn(
-                          "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all",
-                          isActive 
-                            ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20" 
-                            : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <div className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors",
-                          isActive 
-                            ? "border-primary/30 bg-background text-primary" 
-                            : "border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60"
-                        )}>
-                          {project.name.slice(0, 1).toUpperCase()}
+                  {pinnedProjects.length > 0 && (
+                    <>
+                      <div className="px-2 py-1">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-600/80">Pinned</p>
+                      </div>
+                      {pinnedProjects.map((project) => {
+                        const isActive = selectedProject?.id === project.id
+                        const isWslProject = isWslPath(project.path)
+                        return (
+                          <button
+                            key={project.id}
+                            onClick={() => setSelectedId(project.id)}
+                            className={cn(
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all",
+                              isActive
+                                ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
+                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            <div className={cn(
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors",
+                              isActive
+                                ? "border-primary/30 bg-background text-primary"
+                                : "border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60"
+                            )}>
+                              {project.name.slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
+                              <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
+                              {isWslProject && (
+                                <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
+                                  WSL
+                                </Badge>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
+
+                  {unpinnedProjects.length > 0 && (
+                    <>
+                      {pinnedProjects.length > 0 && (
+                        <div className="px-2 pt-3 pb-1">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">All Projects</p>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
-                          <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
-                        </div>
-                        {isWslProject && (
-                          <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
-                            WSL
-                          </Badge>
-                        )}
-                      </button>
-                    )
-                  })}
+                      )}
+                      {unpinnedProjects.map((project) => {
+                        const isActive = selectedProject?.id === project.id
+                        const isWslProject = isWslPath(project.path)
+                        return (
+                          <button
+                            key={project.id}
+                            onClick={() => setSelectedId(project.id)}
+                            className={cn(
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all",
+                              isActive
+                                ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
+                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            <div className={cn(
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors",
+                              isActive
+                                ? "border-primary/30 bg-background text-primary"
+                                : "border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60"
+                            )}>
+                              {project.name.slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
+                              <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {isWslProject && (
+                                <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
+                                  WSL
+                                </Badge>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -591,6 +672,18 @@ export function ProjectsSection({
                       <Badge variant="secondary" className="h-5 text-[10px] font-bold uppercase tracking-widest bg-muted/20 border-border/40">
                         {selectedProject.type}
                       </Badge>
+                      <button
+                        onClick={() => onToggleProjectPin?.(selectedProject.id)}
+                        className={cn(
+                          "p-1.5 rounded-md transition-colors",
+                          selectedProject.isPinned
+                            ? "text-yellow-500 hover:bg-yellow-500/10"
+                            : "text-muted-foreground/50 hover:text-yellow-500 hover:bg-muted/50"
+                        )}
+                        title={selectedProject.isPinned ? 'Unpin project' : 'Pin project'}
+                      >
+                        <Star className={cn("h-4 w-4", selectedProject.isPinned && "fill-yellow-500")} />
+                      </button>
                     </div>
                     <CardDescription className="flex items-center gap-2 font-mono text-[11px] bg-muted/20 w-fit px-2 py-0.5 rounded border border-border/20">
                       {selectedProject.path}

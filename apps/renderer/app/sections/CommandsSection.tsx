@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable } from 'lucide-react'
+import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import {
   Card,
@@ -36,6 +36,7 @@ export function CommandsSection({
   onRunCommand,
   onUpdateCommand,
   onRemoveCommand,
+  onToggleCommandPin,
 }: {
   commands: Command[]
   projects: Project[]
@@ -44,6 +45,7 @@ export function CommandsSection({
   onRunCommand?: (commandId: string, projectId: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }>
   onUpdateCommand?: (commandId: string, updates: { name: string; command: string; description?: string; tags?: string[] }) => Promise<void>
   onRemoveCommand?: (commandId: string) => Promise<void>
+  onToggleCommandPin?: (commandId: string) => Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(commands[0]?.id ?? null)
   const [runError, setRunError] = useState<string | null>(null)
@@ -107,7 +109,7 @@ export function CommandsSection({
   }, [commands])
 
   const filteredCommands = useMemo(() => {
-    return commands.filter((cmd) => {
+    const filtered = commands.filter((cmd) => {
       if (selectedTag) {
         const matchesTag = (cmd.tags ?? [])
           .map((tag) => tag.trim().toLowerCase())
@@ -126,7 +128,25 @@ export function CommandsSection({
 
       return normalizedQueryTokens.every((token) => haystack.includes(token))
     })
+
+    // Sort: pinned first, then by name
+    return filtered.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      if (a.isPinned && b.isPinned) {
+        const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0
+        const bTime = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0
+        return bTime - aTime
+      }
+      return a.name.localeCompare(b.name)
+    })
   }, [commands, normalizedQueryTokens, selectedTag])
+
+  const [pinnedCommands, unpinnedCommands] = useMemo(() => {
+    const pinned = filteredCommands.filter((command) => command.isPinned)
+    const unpinned = filteredCommands.filter((command) => !command.isPinned)
+    return [pinned, unpinned]
+  }, [filteredCommands])
 
   useEffect(() => {
     if (!filteredCommands.length) {
@@ -404,48 +424,108 @@ export function CommandsSection({
               </div>
             ) : (
               <div className="space-y-1">
-                {filteredCommands.map((command) => {
-                  const isActive = selectedCommand?.id === command.id
-                  
-                  return (
-                    <button
-                      key={command.id}
-                      onClick={() => setSelectedId(command.id)}
-                      className={cn(
-                        "group flex w-full flex-col gap-1.5 rounded-lg px-3 py-3 text-left transition-all",
-                        isActive 
-                          ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20" 
-                          : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <div className="flex w-full items-center justify-between gap-2">
-                        <span className="truncate text-sm font-bold leading-none">{command.name}</span>
-                        <div className="flex gap-1">
-                          {command.variables && command.variables.length > 0 && (
-                            <Badge variant="outline" className={cn(
-                              "h-4 px-1 text-[8px] border-border/40 font-bold text-primary",
-                              isActive ? "bg-background/50" : "bg-muted/30"
-                            )}>
-                              <Variable className="h-2.5 w-2.5 mr-0.5" />
-                              {command.variables.length}
-                            </Badge>
+                {pinnedCommands.length > 0 && (
+                  <>
+                    <div className="px-2 py-1">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-600/80">Pinned</p>
+                    </div>
+                    {pinnedCommands.map((command) => {
+                      const isActive = selectedCommand?.id === command.id
+
+                      return (
+                        <button
+                          key={command.id}
+                          onClick={() => setSelectedId(command.id)}
+                          className={cn(
+                            "group flex w-full flex-col gap-1.5 rounded-lg px-3 py-3 text-left transition-all",
+                            isActive
+                              ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
+                              : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                           )}
-                          {command.tags?.length ? (
-                            <Badge variant="outline" className={cn(
-                              "h-4 px-1 text-[8px] border-border/40 font-bold",
-                              isActive ? "bg-background/50" : "bg-muted/30"
-                            )}>
-                              {command.tags.length}
-                            </Badge>
-                          ) : null}
-                        </div>
+                        >
+                          <div className="flex w-full items-center justify-between gap-2">
+                            <span className="truncate text-sm font-bold leading-none">{command.name}</span>
+                            <div className="flex items-center gap-1">
+                              <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
+                              {command.variables && command.variables.length > 0 && (
+                                <Badge variant="outline" className={cn(
+                                  "h-4 px-1 text-[8px] border-border/40 font-bold text-primary",
+                                  isActive ? "bg-background/50" : "bg-muted/30"
+                                )}>
+                                  <Variable className="h-2.5 w-2.5 mr-0.5" />
+                                  {command.variables.length}
+                                </Badge>
+                              )}
+                              {command.tags?.length ? (
+                                <Badge variant="outline" className={cn(
+                                  "h-4 px-1 text-[8px] border-border/40 font-bold",
+                                  isActive ? "bg-background/50" : "bg-muted/30"
+                                )}>
+                                  {command.tags.length}
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
+                            <span className="truncate flex-1">{command.command}</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </>
+                )}
+
+                {unpinnedCommands.length > 0 && (
+                  <>
+                    {pinnedCommands.length > 0 && (
+                      <div className="px-2 pt-3 pb-1">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">All Commands</p>
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
-                        <span className="truncate flex-1">{command.command}</span>
-                      </div>
-                    </button>
-                  )
-                })}
+                    )}
+                    {unpinnedCommands.map((command) => {
+                      const isActive = selectedCommand?.id === command.id
+
+                      return (
+                        <button
+                          key={command.id}
+                          onClick={() => setSelectedId(command.id)}
+                          className={cn(
+                            "group flex w-full flex-col gap-1.5 rounded-lg px-3 py-3 text-left transition-all",
+                            isActive
+                              ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
+                              : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <div className="flex w-full items-center justify-between gap-2">
+                            <span className="truncate text-sm font-bold leading-none">{command.name}</span>
+                            <div className="flex items-center gap-1">
+                              {command.variables && command.variables.length > 0 && (
+                                <Badge variant="outline" className={cn(
+                                  "h-4 px-1 text-[8px] border-border/40 font-bold text-primary",
+                                  isActive ? "bg-background/50" : "bg-muted/30"
+                                )}>
+                                  <Variable className="h-2.5 w-2.5 mr-0.5" />
+                                  {command.variables.length}
+                                </Badge>
+                              )}
+                              {command.tags?.length ? (
+                                <Badge variant="outline" className={cn(
+                                  "h-4 px-1 text-[8px] border-border/40 font-bold",
+                                  isActive ? "bg-background/50" : "bg-muted/30"
+                                )}>
+                                  {command.tags.length}
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
+                            <span className="truncate flex-1">{command.command}</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -468,6 +548,21 @@ export function CommandsSection({
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-1.5 ml-4">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                      "h-8 w-8 transition-colors",
+                      selectedCommand.isPinned
+                        ? "text-yellow-500 hover:bg-yellow-500/10"
+                        : "text-muted-foreground hover:text-yellow-500 hover:bg-muted/50"
+                    )}
+                    onClick={() => onToggleCommandPin?.(selectedCommand.id)}
+                    disabled={!onToggleCommandPin}
+                    title={selectedCommand.isPinned ? 'Unpin command' : 'Pin command'}
+                  >
+                    <Star className={cn("h-4 w-4", selectedCommand.isPinned && "fill-yellow-500")} />
+                  </Button>
                   <Button
                     size="icon"
                     variant="ghost"

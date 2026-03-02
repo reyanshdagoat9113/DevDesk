@@ -25,6 +25,8 @@ import {
   updatePreferencesInStore,
   updateProjectLinkedContainers,
   upsertProjectNotes,
+  toggleProjectPin,
+  toggleCommandPin,
 } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
 import type { AppPreference, AppPreferences, Command, Container, RunStatus } from '../data/model'
@@ -1065,6 +1067,19 @@ export function registerIpcHandlers() {
     return { success: true, stopped, alreadyStopped, missing }
   })
 
+  ipcMain.handle('projects:toggle-pin', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await toggleProjectPin(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return project
+  })
+
   ipcMain.handle('preferences:get', async () => {
     return getPreferences()
   })
@@ -1363,6 +1378,19 @@ export function registerIpcHandlers() {
     running.requestedStop = true
     running.process.kill()
     return { success: true }
+  })
+
+  ipcMain.handle('commands:toggle-pin', async (_event, commandId: string) => {
+    if (!commandId?.trim()) {
+      throw new Error('Command id is required.')
+    }
+
+    const command = await toggleCommandPin(commandId)
+    if (!command) {
+      throw new Error('Command not found.')
+    }
+
+    return command
   })
 
   // Containers
