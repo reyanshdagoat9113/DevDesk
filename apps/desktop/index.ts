@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { createMainWindow } from './app/createWindow'
 import { reconcileRunHistory } from './data/store'
-import { registerIpcHandlers } from './ipc/registerIpc'
+import { emitStartupAutomationTriggers, registerIpcHandlers } from './ipc/registerIpc'
 
 function isDevMode(): boolean {
   if (process.env.NODE_ENV === 'production') {
@@ -21,6 +21,8 @@ app.whenReady().then(async () => {
   
   // Create main window
   createMainWindow(isDevMode())
+
+  emitStartupAutomationTriggers()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

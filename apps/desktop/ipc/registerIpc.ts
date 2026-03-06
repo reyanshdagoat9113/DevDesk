@@ -6,17 +6,20 @@ import path from 'node:path'
 import {
   clearRunHistoryInStore,
   createChain,
+  createTrigger,
   getCommandById,
   getChainById,
   getPreferencesFromStore,
   getProjectById,
   getProjectNotesById,
   getRunHistoryOutputById,
+  getTriggerById,
   listChains,
   listCommands,
   listProjects,
   listRecentRunHistory,
   listRunHistory,
+  listTriggers,
   createCommand,
   createProject,
   createRunHistoryEntry,
@@ -24,8 +27,10 @@ import {
   removeCommand,
   removeChain,
   removeProject,
+  removeTrigger,
   renameProject,
   replaceChain,
+  replaceTrigger,
   replaceCommand,
   updatePreferencesInStore,
   updateProjectLinkedContainers,
@@ -40,6 +45,8 @@ import type {
   ChainStep,
   Command,
   CommandChain,
+  CommandTrigger,
+  CommandTriggerEvent,
   Container,
   Project,
   RunStatus,
@@ -80,6 +87,42 @@ type ChainRunPayload = {
 }
 
 const runningChains = new Map<string, ChainRunPayload>()
+
+type TriggerMutationInput = {
+  name: string
+  description?: string
+  projectId?: string
+  chainId: string
+  event: CommandTriggerEvent
+  enabled?: boolean
+  requireConfirmation?: boolean
+}
+
+type TriggerEventContext = {
+  projectId?: string
+  containerNames?: string[]
+}
+
+type TriggerConfirmationRequestPayload = {
+  id: string
+  triggerId: string
+  triggerName: string
+  chainId: string
+  chainName: string
+  event: CommandTriggerEvent
+  projectId?: string
+  projectName?: string
+  containerNames?: string[]
+  createdAt: string
+}
+
+type PendingTriggerConfirmation = {
+  request: TriggerConfirmationRequestPayload
+  resolve: (approved: boolean) => void
+  timeout: NodeJS.Timeout
+}
+
+const pendingTriggerConfirmations = new Map<string, PendingTriggerConfirmation>()
 
 type RunningDockerLogSubscription = {
   process: ChildProcessWithoutNullStreams
@@ -1179,6 +1222,254 @@ function delay(ms: number) {
   })
 }
 
+function sanitizeTriggerInput(input: TriggerMutationInput): Omit<CommandTrigger, 'id' | 'createdAt' | 'updatedAt'> {
+  const name = typeof input?.name === 'string' ? input.name.trim() : ''
+  if (!name) {
+    throw new Error('Trigger name is required.')
+  }
+
+  const chainId = typeof input.chainId === 'string' ? input.chainId.trim() : ''
+  if (!chainId) {
+    throw new Error('Select a command chain for this trigger.')
+  }
+
+  if (!['onProjectOpen', 'afterContainerStart', 'onStartup'].includes(input.event)) {
+    throw new Error('Trigger event is invalid.')
+  }
+
+  return {
+    name,
+    description: typeof input.description === 'string' && input.description.trim() ? input.description.trim() : undefined,
+    projectId: typeof input.projectId === 'string' && input.projectId.trim() ? input.projectId.trim() : undefined,
+    chainId,
+    event: input.event,
+    enabled: input.enabled !== false,
+    requireConfirmation: input.requireConfirmation === true,
+  }
+}
+
+async function getProjectsLinkedToContainer(containerName: string): Promise<Project[]> {
+  const normalizedName = containerName.trim().toLowerCase()
+  if (!normalizedName) {
+    return []
+  }
+
+  const projects = await listProjects()
+  return projects.filter((project) =>
+    project.linkedContainerNames.some((name) => name.trim().toLowerCase() === normalizedName)
+  )
+}
+
+function getPendingTriggerConfirmationRequests(): TriggerConfirmationRequestPayload[] {
+  return Array.from(pendingTriggerConfirmations.values()).map((entry) => entry.request)
+}
+
+async function requestTriggerConfirmation(
+  trigger: CommandTrigger,
+  chain: CommandChain,
+  context: TriggerEventContext
+): Promise<boolean> {
+  const requestId = randomUUID()
+  const project = context.projectId ? await getProjectById(context.projectId) : null
+  const request: TriggerConfirmationRequestPayload = {
+    id: requestId,
+    triggerId: trigger.id,
+    triggerName: trigger.name,
+    chainId: chain.id,
+    chainName: chain.name,
+    event: trigger.event,
+    projectId: context.projectId,
+    projectName: project?.name,
+    containerNames: context.containerNames,
+    createdAt: new Date().toISOString(),
+  }
+
+  return new Promise<boolean>((resolve) => {
+    const timeout = setTimeout(() => {
+      pendingTriggerConfirmations.delete(requestId)
+      resolve(false)
+    }, 120000)
+
+    pendingTriggerConfirmations.set(requestId, {
+      request,
+      resolve: (approved) => {
+        clearTimeout(timeout)
+        resolve(approved)
+      },
+      timeout,
+    })
+
+    broadcast('triggers:confirmation-requested', request)
+  })
+}
+
+async function executeChainRun(chain: CommandChain, projectId?: string): Promise<{ runId: string; status: 'running' }> {
+  if (!chain.steps.length) {
+    throw new Error('Add at least one step before running this chain.')
+  }
+
+  const effectiveProjectId = projectId?.trim() || chain.projectId
+  const runId = randomUUID()
+  const payload: ChainRunPayload = {
+    runId,
+    chainId: chain.id,
+    projectId: effectiveProjectId,
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    steps: chain.steps.map((step) => ({
+      stepId: step.id,
+      commandId: step.commandId,
+      status: 'pending',
+    })),
+  }
+
+  emitChainProgress(payload)
+
+  void (async () => {
+    let finalStatus: ChainRunPayload['status'] = 'success'
+    let finalError: string | undefined
+
+    for (let index = 0; index < chain.steps.length; index += 1) {
+      const step = chain.steps[index]
+      const stepPayload = payload.steps[index]
+
+      if (step.delayMs && step.delayMs > 0) {
+        await delay(step.delayMs)
+      }
+
+      payload.activeStepId = step.id
+      stepPayload.status = 'running'
+      stepPayload.startedAt = new Date().toISOString()
+      emitChainProgress(payload)
+
+      const command = await getCommandById(step.commandId)
+      if (!command) {
+        stepPayload.status = 'failed'
+        stepPayload.endedAt = new Date().toISOString()
+        stepPayload.error = 'Referenced command no longer exists.'
+        finalStatus = 'failed'
+        finalError = stepPayload.error
+        emitChainProgress(payload)
+        break
+      }
+
+      try {
+        const run = await startCommandExecution(command, command.projectId ?? effectiveProjectId, step.variables)
+
+        if ('status' in run && run.status === 'needs-input') {
+          stepPayload.status = 'failed'
+          stepPayload.endedAt = new Date().toISOString()
+          stepPayload.error = `Missing chain step variables: ${run.inputs.map((input) => input.name).join(', ')}`
+          finalStatus = 'failed'
+          finalError = stepPayload.error
+          emitChainProgress(payload)
+          break
+        }
+
+        stepPayload.runId = run.runId
+        emitChainProgress(payload)
+
+        const runStatus = await run.completion
+        stepPayload.status = runStatus
+        stepPayload.endedAt = new Date().toISOString()
+        emitChainProgress(payload)
+
+        if (runStatus === 'stopped') {
+          finalStatus = 'stopped'
+          break
+        }
+
+        if (runStatus !== 'success') {
+          finalStatus = 'failed'
+          finalError = `Step ${index + 1} failed.`
+          if (chain.stopOnFailure) {
+            break
+          }
+        }
+      } catch (error) {
+        stepPayload.status = 'failed'
+        stepPayload.endedAt = new Date().toISOString()
+        stepPayload.error = error instanceof Error ? error.message : 'Step failed to start.'
+        finalStatus = 'failed'
+        finalError = stepPayload.error
+        emitChainProgress(payload)
+        if (chain.stopOnFailure) {
+          break
+        }
+      }
+    }
+
+    for (const step of payload.steps) {
+      if (step.status === 'pending') {
+        step.status = finalStatus === 'success' ? 'success' : 'skipped'
+      }
+    }
+
+    payload.status = finalStatus
+    payload.error = finalError
+    payload.activeStepId = undefined
+    payload.endedAt = new Date().toISOString()
+    emitChainProgress(payload)
+  })()
+
+  return { runId, status: 'running' }
+}
+
+function doesTriggerMatchEvent(trigger: CommandTrigger, event: CommandTriggerEvent, context: TriggerEventContext): boolean {
+  if (!trigger.enabled || trigger.event !== event) {
+    return false
+  }
+
+  if (trigger.projectId && context.projectId && trigger.projectId !== context.projectId) {
+    return false
+  }
+
+  if (event !== 'onStartup' && trigger.projectId && !context.projectId) {
+    return false
+  }
+
+  return true
+}
+
+async function runTrigger(trigger: CommandTrigger, context: TriggerEventContext): Promise<void> {
+  const chain = await getChainById(trigger.chainId)
+  if (!chain) {
+    return
+  }
+
+  const effectiveProjectId = trigger.projectId ?? context.projectId ?? chain.projectId
+  if (trigger.requireConfirmation) {
+    const approved = await requestTriggerConfirmation(trigger, chain, {
+      ...context,
+      projectId: effectiveProjectId,
+    })
+    if (!approved) {
+      return
+    }
+  }
+
+  await executeChainRun(chain, effectiveProjectId)
+}
+
+async function emitAutomationTriggerEvent(event: CommandTriggerEvent, context: TriggerEventContext = {}): Promise<void> {
+  const triggers = await listTriggers()
+  for (const trigger of triggers) {
+    if (!doesTriggerMatchEvent(trigger, event, context)) {
+      continue
+    }
+
+    try {
+      await runTrigger(trigger, context)
+    } catch {
+      // Keep subsequent triggers running even when one trigger fails.
+    }
+  }
+}
+
+export function emitStartupAutomationTriggers() {
+  void emitAutomationTriggerEvent('onStartup')
+}
+
 // Register all IPC handlers
 export function registerIpcHandlers() {
   ipcMain.handle('wsl:list-distros', async () => {
@@ -1341,7 +1632,16 @@ export function registerIpcHandlers() {
       started.push(container.name)
     }
 
-    return { success: true, started, resumed, alreadyRunning, missing }
+    const result = { success: true, started, resumed, alreadyRunning, missing }
+
+    if (started.length > 0 || resumed.length > 0) {
+      void emitAutomationTriggerEvent('afterContainerStart', {
+        projectId,
+        containerNames: [...started, ...resumed],
+      })
+    }
+
+    return result
   })
 
   ipcMain.handle('projects:stop-dev-stack', async (_event, projectId: string) => {
@@ -1651,115 +1951,86 @@ export function registerIpcHandlers() {
       throw new Error('Chain not found.')
     }
 
-    if (!chain.steps.length) {
-      throw new Error('Add at least one step before running this chain.')
+    return executeChainRun(chain, projectId)
+  })
+
+  ipcMain.handle('triggers:list', async () => {
+    return listTriggers()
+  })
+
+  ipcMain.handle('triggers:create', async (_event, input: TriggerMutationInput) => {
+    const sanitized = sanitizeTriggerInput(input)
+    const chain = await getChainById(sanitized.chainId)
+    if (!chain) {
+      throw new Error('Selected chain not found.')
     }
 
-    const effectiveProjectId = projectId?.trim() || chain.projectId
-    const runId = randomUUID()
-    const payload: ChainRunPayload = {
-      runId,
-      chainId: chain.id,
-      projectId: effectiveProjectId,
-      status: 'running',
-      startedAt: new Date().toISOString(),
-      steps: chain.steps.map((step) => ({
-        stepId: step.id,
-        commandId: step.commandId,
-        status: 'pending',
-      })),
+    const now = new Date().toISOString()
+    const nextTrigger: CommandTrigger = {
+      id: randomUUID(),
+      ...sanitized,
+      createdAt: now,
+      updatedAt: now,
     }
 
-    emitChainProgress(payload)
+    await createTrigger(nextTrigger)
+    return nextTrigger
+  })
 
-    void (async () => {
-      let finalStatus: ChainRunPayload['status'] = 'success'
-      let finalError: string | undefined
+  ipcMain.handle('triggers:update', async (_event, triggerId: string, input: TriggerMutationInput) => {
+    if (!triggerId?.trim()) {
+      throw new Error('Trigger id is required.')
+    }
 
-      for (let index = 0; index < chain.steps.length; index += 1) {
-        const step = chain.steps[index]
-        const stepPayload = payload.steps[index]
+    const current = await getTriggerById(triggerId)
+    if (!current) {
+      throw new Error('Trigger not found.')
+    }
 
-        if (step.delayMs && step.delayMs > 0) {
-          await delay(step.delayMs)
-        }
+    const sanitized = sanitizeTriggerInput(input)
+    const chain = await getChainById(sanitized.chainId)
+    if (!chain) {
+      throw new Error('Selected chain not found.')
+    }
 
-        payload.activeStepId = step.id
-        stepPayload.status = 'running'
-        stepPayload.startedAt = new Date().toISOString()
-        emitChainProgress(payload)
+    const updatedTrigger: CommandTrigger = {
+      ...current,
+      ...sanitized,
+      updatedAt: new Date().toISOString(),
+    }
 
-        const command = await getCommandById(step.commandId)
-        if (!command) {
-          stepPayload.status = 'failed'
-          stepPayload.endedAt = new Date().toISOString()
-          stepPayload.error = 'Referenced command no longer exists.'
-          finalStatus = 'failed'
-          finalError = stepPayload.error
-          emitChainProgress(payload)
-          break
-        }
+    await replaceTrigger(updatedTrigger)
+    return updatedTrigger
+  })
 
-        try {
-          const run = await startCommandExecution(command, command.projectId ?? effectiveProjectId, step.variables)
+  ipcMain.handle('triggers:delete', async (_event, triggerId: string) => {
+    if (!triggerId?.trim()) {
+      return { success: false }
+    }
 
-          if ('status' in run && run.status === 'needs-input') {
-            stepPayload.status = 'failed'
-            stepPayload.endedAt = new Date().toISOString()
-            stepPayload.error = `Missing chain step variables: ${run.inputs.map((input) => input.name).join(', ')}`
-            finalStatus = 'failed'
-            finalError = stepPayload.error
-            emitChainProgress(payload)
-            break
-          }
+    await removeTrigger(triggerId)
+    return { success: true }
+  })
 
-          stepPayload.runId = run.runId
-          emitChainProgress(payload)
+  ipcMain.handle('triggers:emit', async (_event, event: CommandTriggerEvent, context: TriggerEventContext) => {
+    await emitAutomationTriggerEvent(event, context)
+    return { success: true }
+  })
 
-          const runStatus = await run.completion
-          stepPayload.status = runStatus
-          stepPayload.endedAt = new Date().toISOString()
-          emitChainProgress(payload)
+  ipcMain.handle('triggers:pending-confirmations', async () => {
+    return getPendingTriggerConfirmationRequests()
+  })
 
-          if (runStatus === 'stopped') {
-            finalStatus = 'stopped'
-            break
-          }
+  ipcMain.handle('triggers:respond-confirmation', async (_event, requestId: string, approved: boolean) => {
+    const pending = pendingTriggerConfirmations.get(requestId)
+    if (!pending) {
+      return { success: false }
+    }
 
-          if (runStatus !== 'success') {
-            finalStatus = 'failed'
-            finalError = `Step ${index + 1} failed.`
-            if (chain.stopOnFailure) {
-              break
-            }
-          }
-        } catch (error) {
-          stepPayload.status = 'failed'
-          stepPayload.endedAt = new Date().toISOString()
-          stepPayload.error = error instanceof Error ? error.message : 'Step failed to start.'
-          finalStatus = 'failed'
-          finalError = stepPayload.error
-          emitChainProgress(payload)
-          if (chain.stopOnFailure) {
-            break
-          }
-        }
-      }
-
-      for (const step of payload.steps) {
-        if (step.status === 'pending') {
-          step.status = finalStatus === 'success' ? 'success' : 'skipped'
-        }
-      }
-
-      payload.status = finalStatus
-      payload.error = finalError
-      payload.activeStepId = undefined
-      payload.endedAt = new Date().toISOString()
-      emitChainProgress(payload)
-    })()
-
-    return { runId, status: 'running' }
+    pendingTriggerConfirmations.delete(requestId)
+    clearTimeout(pending.timeout)
+    pending.resolve(Boolean(approved))
+    return { success: true }
   })
 
   // Containers
@@ -1770,6 +2041,17 @@ export function registerIpcHandlers() {
   ipcMain.handle('containers:start', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['start', containerId])
+    const containers = await listDockerContainers()
+    const started = containers.find((container) => container.id === containerId)
+    if (started) {
+      const linkedProjects = await getProjectsLinkedToContainer(started.name)
+      for (const project of linkedProjects) {
+        void emitAutomationTriggerEvent('afterContainerStart', {
+          projectId: project.id,
+          containerNames: [started.name],
+        })
+      }
+    }
     return { success: true }
   })
 
@@ -1782,6 +2064,17 @@ export function registerIpcHandlers() {
   ipcMain.handle('containers:restart', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['restart', containerId])
+    const containers = await listDockerContainers()
+    const restarted = containers.find((container) => container.id === containerId)
+    if (restarted) {
+      const linkedProjects = await getProjectsLinkedToContainer(restarted.name)
+      for (const project of linkedProjects) {
+        void emitAutomationTriggerEvent('afterContainerStart', {
+          projectId: project.id,
+          containerNames: [restarted.name],
+        })
+      }
+    }
     return { success: true }
   })
 

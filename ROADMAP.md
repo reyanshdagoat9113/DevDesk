@@ -3,7 +3,7 @@
 > A comprehensive implementation guide for evolving DevDesk from MVP to a complete developer workspace platform.
 
 **Last Updated:** 2026-03-02  
-**Current Phase:** Phase 2.3 Complete → Phase 2.4 Next
+**Current Phase:** Phase 2 Complete → Phase 3.1 Next
 
 ---
 
@@ -167,7 +167,7 @@ ALTER TABLE commands ADD COLUMN pinned_at TEXT;
 
 ---
 
-## Phase 2: Enhanced Command Vault
+## Phase 2: Enhanced Command Vault ✅ COMPLETE
 
 **Goal:** Transform Command Vault into a powerful automation system.
 
@@ -292,12 +292,20 @@ interface ChainStep {
 
 ---
 
-### 2.4 Command Triggers 📋
+### 2.4 Command Triggers ✅ **COMPLETE**
 **Priority:** Medium  
 **Effort:** 3-4 hours  
 **Dependencies:** 2.3 (chains)
 
 Automatic command execution based on events.
+
+**Status:** COMPLETED
+
+**Implemented:**
+- Persistent trigger registry with project-scoped and global trigger support
+- Main-process automation event bus for startup, project-open, and container-start events
+- Optional trigger confirmation prompts before chain execution
+- Trigger management UI wired into the Automation workspace
 
 **Trigger Types:**
 - `onProjectOpen` - Run when project is selected
@@ -1103,19 +1111,19 @@ Phase 10: Polish
 
 ## Quick Reference: Next 3 Tasks
 
-1. **Command Triggers** (3-4 hrs)
-   - Add trigger registry and event hooks
-   - Confirm destructive automations before running
-   - Support startup and project-open workflows
-
-2. **Dev Stack Restart Action** (1-2 hrs)
-   - Add "Restart Dev Stack" operation for linked containers
-   - Surface result summary alongside Start/Stop
-
-3. **Terminal Manager Service** (3-4 hrs)
+1. **Terminal Manager Service** (3-4 hrs)
    - Add PTY session lifecycle in the main process
    - Wire IPC for create/write/resize/close
    - Stream terminal output to the renderer
+
+2. **Terminal UI Component** (3-4 hrs)
+   - Integrate XTerm.js with theme support
+   - Add fit/search/weblinks addons
+   - Support copy/paste and resizing
+
+3. **Dev Stack Restart Action** (1-2 hrs)
+   - Add "Restart Dev Stack" operation for linked containers
+   - Surface result summary alongside Start/Stop
 
 ---
 

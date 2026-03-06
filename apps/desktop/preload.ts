@@ -55,6 +55,31 @@ interface ElectronAPI {
   runChain: (id: string, projectId?: string) => Promise<{ runId: string; status: string }>
   onChainProgress: (handler: (payload: unknown) => void) => () => void
 
+  getTriggers: () => Promise<unknown[]>
+  addTrigger: (trigger: {
+    name: string
+    description?: string
+    projectId?: string
+    chainId: string
+    event: 'onProjectOpen' | 'afterContainerStart' | 'onStartup'
+    enabled?: boolean
+    requireConfirmation?: boolean
+  }) => Promise<unknown>
+  updateTrigger: (id: string, updates: {
+    name: string
+    description?: string
+    projectId?: string
+    chainId: string
+    event: 'onProjectOpen' | 'afterContainerStart' | 'onStartup'
+    enabled?: boolean
+    requireConfirmation?: boolean
+  }) => Promise<unknown>
+  removeTrigger: (id: string) => Promise<{ success: boolean }>
+  notifyTriggerEvent: (event: 'onProjectOpen', payload: { projectId: string }) => Promise<{ success: boolean }>
+  getPendingTriggerConfirmations: () => Promise<unknown[]>
+  respondToTriggerConfirmation: (requestId: string, approved: boolean) => Promise<{ success: boolean }>
+  onTriggerConfirmationRequested: (handler: (payload: unknown) => void) => () => void
+
   getContainers: () => Promise<unknown[]>
   startContainer: (id: string) => Promise<{ success: boolean }>
   stopContainer: (id: string) => Promise<{ success: boolean }>
@@ -160,6 +185,39 @@ const electronAPI: ElectronAPI = {
     }
     ipcRenderer.on('chains:progress', listener)
     return () => ipcRenderer.removeListener('chains:progress', listener)
+  },
+
+  getTriggers: () => ipcRenderer.invoke('triggers:list'),
+  addTrigger: (trigger: {
+    name: string
+    description?: string
+    projectId?: string
+    chainId: string
+    event: 'onProjectOpen' | 'afterContainerStart' | 'onStartup'
+    enabled?: boolean
+    requireConfirmation?: boolean
+  }) => ipcRenderer.invoke('triggers:create', trigger),
+  updateTrigger: (id: string, updates: {
+    name: string
+    description?: string
+    projectId?: string
+    chainId: string
+    event: 'onProjectOpen' | 'afterContainerStart' | 'onStartup'
+    enabled?: boolean
+    requireConfirmation?: boolean
+  }) => ipcRenderer.invoke('triggers:update', id, updates),
+  removeTrigger: (id: string) => ipcRenderer.invoke('triggers:delete', id),
+  notifyTriggerEvent: (event: 'onProjectOpen', payload: { projectId: string }) =>
+    ipcRenderer.invoke('triggers:emit', event, payload),
+  getPendingTriggerConfirmations: () => ipcRenderer.invoke('triggers:pending-confirmations'),
+  respondToTriggerConfirmation: (requestId: string, approved: boolean) =>
+    ipcRenderer.invoke('triggers:respond-confirmation', requestId, approved),
+  onTriggerConfirmationRequested: (handler: (payload: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+      handler(payload)
+    }
+    ipcRenderer.on('triggers:confirmation-requested', listener)
+    return () => ipcRenderer.removeListener('triggers:confirmation-requested', listener)
   },
 
   // Containers

@@ -55,6 +55,21 @@ export interface CommandChain {
   updatedAt: string
 }
 
+export type CommandTriggerEvent = 'onProjectOpen' | 'afterContainerStart' | 'onStartup'
+
+export interface CommandTrigger {
+  id: string
+  name: string
+  description?: string
+  projectId?: string
+  chainId: string
+  event: CommandTriggerEvent
+  enabled: boolean
+  requireConfirmation: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Container {
   id: string
   name: string
@@ -97,13 +112,14 @@ export interface AppPreferences {
   terminal: AppPreference
 }
 
-export const DATA_VERSION = 3 as const
+export const DATA_VERSION = 4 as const
 
 export interface DataStore {
   version: typeof DATA_VERSION
   projects: Project[]
   commands: Command[]
   chains: CommandChain[]
+  triggers: CommandTrigger[]
   runHistory: RunHistoryEntry[]
   notes: Record<string, ProjectNotes>
   preferences: AppPreferences

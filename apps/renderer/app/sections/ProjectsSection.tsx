@@ -95,6 +95,7 @@ export function ProjectsSection({
   onRefreshContainers,
   onRemoveProject,
   onToggleProjectPin,
+  onSelectProject,
 }: {
   projects: Project[]
   containers: Container[]
@@ -111,6 +112,7 @@ export function ProjectsSection({
   onRefreshContainers?: () => Promise<void>
   onRemoveProject?: (projectId: string) => Promise<void>
   onToggleProjectPin?: (projectId: string) => Promise<void>
+  onSelectProject?: (projectId: string) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -185,6 +187,14 @@ export function ProjectsSection({
     if (!projects.length) return null
     return projects.find((project) => project.id === selectedId) ?? projects[0]
   }, [projects, selectedId])
+
+  useEffect(() => {
+    if (!selectedProject?.id) {
+      return
+    }
+
+    onSelectProject?.(selectedProject.id)
+  }, [onSelectProject, selectedProject?.id])
 
   useEffect(() => {
     setEditName(selectedProject?.name ?? '')

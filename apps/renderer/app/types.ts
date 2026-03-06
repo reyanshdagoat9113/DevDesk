@@ -70,6 +70,44 @@ export interface CommandChain {
   updatedAt: string
 }
 
+export type CommandTriggerEvent = 'onProjectOpen' | 'afterContainerStart' | 'onStartup'
+
+export interface CommandTrigger {
+  id: string
+  name: string
+  description?: string
+  projectId?: string
+  chainId: string
+  event: CommandTriggerEvent
+  enabled: boolean
+  requireConfirmation: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateCommandTriggerInput {
+  name: string
+  description?: string
+  projectId?: string
+  chainId: string
+  event: CommandTriggerEvent
+  enabled?: boolean
+  requireConfirmation?: boolean
+}
+
+export interface TriggerConfirmationRequest {
+  id: string
+  triggerId: string
+  triggerName: string
+  chainId: string
+  chainName: string
+  event: CommandTriggerEvent
+  projectId?: string
+  projectName?: string
+  containerNames?: string[]
+  createdAt: string
+}
+
 export interface CreateCommandChainInput {
   name: string
   description?: string

@@ -9,6 +9,8 @@ import {
   type ChainStep,
   type Command,
   type CommandChain,
+  type CommandTrigger,
+  type CommandTriggerEvent,
   type CommandVariable,
   type DataStore,
   type Project,
@@ -23,6 +25,7 @@ const SQL_DEBUG = process.env.DEVDESK_SQL_DEBUG === '1'
 const SQL_SLOW_MS = Number.parseInt(process.env.DEVDESK_SQL_SLOW_MS ?? '20', 10)
 
 const VALID_PROJECT_TYPES = new Set(['node', 'python', 'rust', 'go', 'unknown'])
+const VALID_TRIGGER_EVENTS = new Set<CommandTriggerEvent>(['onProjectOpen', 'afterContainerStart', 'onStartup'])
 
 function parseBoolean(value: string | number | null | undefined): boolean {
   if (value === null || value === undefined) return false
@@ -55,6 +58,7 @@ const createDefaultStore = (): DataStore => ({
   projects: [],
   commands: [],
   chains: [],
+  triggers: [],
   runHistory: [],
   notes: {},
   preferences: createDefaultPreferences(),
@@ -202,6 +206,44 @@ function normalizeChains(value: unknown): CommandChain[] {
   }, [])
 }
 
+function normalizeTriggers(value: unknown): CommandTrigger[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.reduce<CommandTrigger[]>((acc, entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return acc
+    }
+
+    const raw = entry as Partial<CommandTrigger>
+    if (
+      typeof raw.id !== 'string' ||
+      typeof raw.name !== 'string' ||
+      typeof raw.chainId !== 'string' ||
+      typeof raw.event !== 'string' ||
+      !VALID_TRIGGER_EVENTS.has(raw.event as CommandTriggerEvent)
+    ) {
+      return acc
+    }
+
+    acc.push({
+      id: raw.id,
+      name: raw.name,
+      description: typeof raw.description === 'string' ? raw.description : undefined,
+      projectId: typeof raw.projectId === 'string' ? raw.projectId : undefined,
+      chainId: raw.chainId,
+      event: raw.event as CommandTriggerEvent,
+      enabled: raw.enabled !== false,
+      requireConfirmation: raw.requireConfirmation === true,
+      createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
+      updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date().toISOString(),
+    })
+
+    return acc
+  }, [])
+}
+
 function normalizeNotes(value: unknown): Record<string, ProjectNotes> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {}
@@ -300,6 +342,7 @@ function normalizeStore(value: unknown): DataStore {
     projects: normalizeProjects(store.projects),
     commands: Array.isArray(store.commands) ? store.commands : [],
     chains: normalizeChains(store.chains),
+    triggers: normalizeTriggers(store.triggers),
     runHistory: Array.isArray(store.runHistory) ? store.runHistory : [],
     notes,
     preferences: {
@@ -374,6 +417,19 @@ function createSchema(database: Database.Database) {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS triggers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      project_id TEXT,
+      chain_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      require_confirmation INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS run_history (
       id TEXT PRIMARY KEY,
       command_id TEXT NOT NULL,
@@ -400,6 +456,9 @@ function createSchema(database: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS idx_commands_project_id ON commands(project_id);
     CREATE INDEX IF NOT EXISTS idx_chains_project_id ON chains(project_id);
+    CREATE INDEX IF NOT EXISTS idx_triggers_project_id ON triggers(project_id);
+    CREATE INDEX IF NOT EXISTS idx_triggers_chain_id ON triggers(chain_id);
+    CREATE INDEX IF NOT EXISTS idx_triggers_event_type ON triggers(event_type);
     CREATE INDEX IF NOT EXISTS idx_run_history_start_time ON run_history(start_time DESC);
     CREATE INDEX IF NOT EXISTS idx_run_history_command_id ON run_history(command_id);
     CREATE INDEX IF NOT EXISTS idx_run_history_project_id ON run_history(project_id);
@@ -460,6 +519,11 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
     VALUES (@id, @name, @description, @projectId, @steps, @stopOnFailure, @parallel, @createdAt, @updatedAt)
   `)
 
+  const insertTrigger = database.prepare(`
+    INSERT INTO triggers (id, name, description, project_id, chain_id, event_type, enabled, require_confirmation, created_at, updated_at)
+    VALUES (@id, @name, @description, @projectId, @chainId, @eventType, @enabled, @requireConfirmation, @createdAt, @updatedAt)
+  `)
+
   const insertNote = database.prepare(`
     INSERT INTO notes (project_id, setup_steps, todos, reminders)
     VALUES (@projectId, @setupSteps, @todos, @reminders)
@@ -474,6 +538,7 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
       database.prepare('DELETE FROM projects').run()
       database.prepare('DELETE FROM commands').run()
       database.prepare('DELETE FROM chains').run()
+      database.prepare('DELETE FROM triggers').run()
       database.prepare('DELETE FROM run_history').run()
       database.prepare('DELETE FROM notes').run()
       database.prepare('DELETE FROM preferences').run()
@@ -517,6 +582,21 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
         parallel: chain.parallel ? 1 : 0,
         createdAt: chain.createdAt,
         updatedAt: chain.updatedAt,
+      })
+    }
+
+    for (const trigger of payload.triggers) {
+      insertTrigger.run({
+        id: trigger.id,
+        name: trigger.name,
+        description: trigger.description ?? null,
+        projectId: trigger.projectId ?? null,
+        chainId: trigger.chainId,
+        eventType: trigger.event,
+        enabled: trigger.enabled ? 1 : 0,
+        requireConfirmation: trigger.requireConfirmation ? 1 : 0,
+        createdAt: trigger.createdAt,
+        updatedAt: trigger.updatedAt,
       })
     }
 
@@ -675,6 +755,7 @@ export async function removeProject(projectId: string): Promise<void> {
     const transaction = database.transaction((id: string) => {
       database.prepare('DELETE FROM projects WHERE id = ?').run(id)
       database.prepare('DELETE FROM chains WHERE project_id = ?').run(id)
+      database.prepare('DELETE FROM triggers WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM run_history WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM notes WHERE project_id = ?').run(id)
     })
@@ -852,7 +933,70 @@ export async function replaceChain(chain: CommandChain): Promise<boolean> {
 export async function removeChain(chainId: string): Promise<void> {
   await queueWrite(async () => {
     await ensureDbInitialized()
-    getDbOrThrow().prepare('DELETE FROM chains WHERE id = ?').run(chainId)
+    const database = getDbOrThrow()
+    const transaction = database.transaction((id: string) => {
+      database.prepare('DELETE FROM triggers WHERE chain_id = ?').run(id)
+      database.prepare('DELETE FROM chains WHERE id = ?').run(id)
+    })
+    transaction(chainId)
+  })
+}
+
+export async function createTrigger(trigger: CommandTrigger): Promise<void> {
+  await queueWrite(async () => withSqlTiming('createTrigger', async () => {
+    await ensureDbInitialized()
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO triggers (id, name, description, project_id, chain_id, event_type, enabled, require_confirmation, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(
+        trigger.id,
+        trigger.name,
+        trigger.description ?? null,
+        trigger.projectId ?? null,
+        trigger.chainId,
+        trigger.event,
+        trigger.enabled ? 1 : 0,
+        trigger.requireConfirmation ? 1 : 0,
+        trigger.createdAt,
+        trigger.updatedAt
+      )
+  }))
+}
+
+export async function replaceTrigger(trigger: CommandTrigger): Promise<boolean> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+    const result = getDbOrThrow()
+      .prepare(
+        `
+          UPDATE triggers
+          SET name = ?, description = ?, project_id = ?, chain_id = ?, event_type = ?, enabled = ?, require_confirmation = ?, updated_at = ?
+          WHERE id = ?
+        `
+      )
+      .run(
+        trigger.name,
+        trigger.description ?? null,
+        trigger.projectId ?? null,
+        trigger.chainId,
+        trigger.event,
+        trigger.enabled ? 1 : 0,
+        trigger.requireConfirmation ? 1 : 0,
+        trigger.updatedAt,
+        trigger.id
+      )
+    return result.changes > 0
+  })
+}
+
+export async function removeTrigger(triggerId: string): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow().prepare('DELETE FROM triggers WHERE id = ?').run(triggerId)
   })
 }
 
@@ -1208,6 +1352,86 @@ export async function getChainById(chainId: string): Promise<CommandChain | null
     steps: parseChainSteps(row.steps),
     stopOnFailure: parseBoolean(row.stop_on_failure),
     parallel: parseBoolean(row.parallel),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+export async function listTriggers(): Promise<CommandTrigger[]> {
+  return withSqlTiming('listTriggers', async () => {
+    await ensureDbInitialized()
+    const rows = getDbOrThrow()
+      .prepare(
+        `
+          SELECT id, name, description, project_id, chain_id, event_type, enabled, require_confirmation, created_at, updated_at
+          FROM triggers
+          ORDER BY rowid ASC
+        `
+      )
+      .all() as Array<{
+      id: string
+      name: string
+      description: string | null
+      project_id: string | null
+      chain_id: string
+      event_type: CommandTriggerEvent
+      enabled: number
+      require_confirmation: number
+      created_at: string
+      updated_at: string
+    }>
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description ?? undefined,
+      projectId: row.project_id ?? undefined,
+      chainId: row.chain_id,
+      event: row.event_type,
+      enabled: parseBoolean(row.enabled),
+      requireConfirmation: parseBoolean(row.require_confirmation),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+  })
+}
+
+export async function getTriggerById(triggerId: string): Promise<CommandTrigger | null> {
+  await ensureDbInitialized()
+  const row = getDbOrThrow()
+    .prepare(
+      `
+        SELECT id, name, description, project_id, chain_id, event_type, enabled, require_confirmation, created_at, updated_at
+        FROM triggers
+        WHERE id = ?
+      `
+    )
+    .get(triggerId) as {
+    id: string
+    name: string
+    description: string | null
+    project_id: string | null
+    chain_id: string
+    event_type: CommandTriggerEvent
+    enabled: number
+    require_confirmation: number
+    created_at: string
+    updated_at: string
+  } | undefined
+
+  if (!row) {
+    return null
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? undefined,
+    projectId: row.project_id ?? undefined,
+    chainId: row.chain_id,
+    event: row.event_type,
+    enabled: parseBoolean(row.enabled),
+    requireConfirmation: parseBoolean(row.require_confirmation),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

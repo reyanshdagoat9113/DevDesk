@@ -31,12 +31,15 @@ import type {
   Command,
   CommandChain,
   CommandChainRunState,
+  CommandTrigger,
   Container as ContainerType,
   CreateCommandChainInput,
+  CreateCommandTriggerInput,
   CreateCommandInput,
   Project,
   ProjectNotes,
   RunHistoryEntry,
+  TriggerConfirmationRequest,
 } from './types'
 import { CommandPalette } from './components/CommandPalette'
 import { ThemeToggle } from './components/ThemeToggle'
@@ -54,7 +57,6 @@ const navItems = [
 
 const actionLabels: Partial<Record<TabValue, string>> = {
   projects: 'Add Project',
-  commands: 'New Command',
 }
 
 const GLOBAL_COMMAND_VALUE = '__global__'
@@ -111,7 +113,9 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [commands, setCommands] = useState<Command[]>([])
   const [chains, setChains] = useState<CommandChain[]>([])
+  const [triggers, setTriggers] = useState<CommandTrigger[]>([])
   const [chainRuns, setChainRuns] = useState<Record<string, CommandChainRunState>>({})
+  const [triggerConfirmations, setTriggerConfirmations] = useState<TriggerConfirmationRequest[]>([])
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [history, setHistory] = useState<RunHistoryEntry[]>([])
   const [notes, setNotes] = useState<Record<string, ProjectNotes>>({})
@@ -150,7 +154,7 @@ function App() {
   const navItemsWithCounts = useMemo(() => {
     const counts: Record<TabValue, number> = {
       projects: projects.length,
-      commands: commands.length + chains.length,
+      commands: commands.length + chains.length + triggers.length,
       containers: containers.length,
       history: history.length,
       notes: projects.length,
@@ -159,7 +163,7 @@ function App() {
       ...item,
       count: counts[item.value],
     }))
-  }, [projects.length, commands.length, chains.length, containers.length, history.length])
+  }, [projects.length, commands.length, chains.length, triggers.length, containers.length, history.length])
 
   const loadAll = useCallback(async () => {
     setIsLoading(true)
@@ -167,14 +171,17 @@ function App() {
     setContainerError(null)
     setContainers([])
     setChainRuns({})
+    setTriggerConfirmations([])
     setHasLoadedContainers(false)
     setHasAttemptedContainersLoad(false)
     try {
-      const [projectsResult, commandsResult, chainsResult, historyResult, preferencesResult] =
+      const [projectsResult, commandsResult, chainsResult, triggersResult, confirmationsResult, historyResult, preferencesResult] =
         await Promise.allSettled([
           window.electronAPI.getProjects(),
           window.electronAPI.getCommands(),
           window.electronAPI.getChains(),
+          window.electronAPI.getTriggers(),
+          window.electronAPI.getPendingTriggerConfirmations(),
           window.electronAPI.getRunHistory(),
           window.electronAPI.getPreferences(),
         ])
@@ -200,6 +207,19 @@ function App() {
       } else {
         errors.push(chainsResult.reason instanceof Error ? chainsResult.reason.message : 'Failed to load chains.')
         setChains([])
+      }
+
+      if (triggersResult.status === 'fulfilled') {
+        setTriggers(triggersResult.value)
+      } else {
+        errors.push(triggersResult.reason instanceof Error ? triggersResult.reason.message : 'Failed to load triggers.')
+        setTriggers([])
+      }
+
+      if (confirmationsResult.status === 'fulfilled') {
+        setTriggerConfirmations(confirmationsResult.value)
+      } else {
+        setTriggerConfirmations([])
       }
 
       if (historyResult.status === 'fulfilled') {
@@ -306,10 +326,20 @@ function App() {
       }))
     })
 
+    const unsubscribeTriggerConfirmation = window.electronAPI.onTriggerConfirmationRequested((payload) => {
+      setTriggerConfirmations((prev) => {
+        if (prev.some((entry) => entry.id === payload.id)) {
+          return prev
+        }
+        return [...prev, payload]
+      })
+    })
+
     return () => {
       unsubscribeOutput()
       unsubscribeStatus()
       unsubscribeChainProgress()
+      unsubscribeTriggerConfirmation()
     }
   }, [])
 
@@ -419,6 +449,7 @@ function App() {
       await window.electronAPI.removeProject(projectId)
       setProjects((prev) => prev.filter((project) => project.id !== projectId))
       setChains((prev) => prev.filter((chain) => chain.projectId !== projectId))
+      setTriggers((prev) => prev.filter((trigger) => trigger.projectId !== projectId))
       setChainRuns((prev) => {
         const next = { ...prev }
         for (const chain of chains) {
@@ -632,6 +663,7 @@ function App() {
     try {
       await window.electronAPI.removeChain(chainId)
       setChains((prev) => prev.filter((chain) => chain.id !== chainId))
+      setTriggers((prev) => prev.filter((trigger) => trigger.chainId !== chainId))
       setChainRuns((prev) => {
         const next = { ...prev }
         delete next[chainId]
@@ -652,6 +684,58 @@ function App() {
       const message = error instanceof Error ? error.message : 'Failed to run chain.'
       setLoadError(message)
       throw new Error(message)
+    }
+  }
+
+  const handleCreateTrigger = async (input: CreateCommandTriggerInput) => {
+    setLoadError(null)
+    try {
+      const created = await window.electronAPI.addTrigger(input)
+      setTriggers((prev) => [created, ...prev])
+      return created
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create trigger.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleUpdateTrigger = async (triggerId: string, input: CreateCommandTriggerInput) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.updateTrigger(triggerId, input)
+      setTriggers((prev) => prev.map((trigger) => (trigger.id === triggerId ? updated : trigger)))
+      return updated
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update trigger.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRemoveTrigger = async (triggerId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.removeTrigger(triggerId)
+      setTriggers((prev) => prev.filter((trigger) => trigger.id !== triggerId))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove trigger.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleProjectSelected = useCallback((projectId: string) => {
+    void window.electronAPI.notifyTriggerEvent('onProjectOpen', { projectId }).catch((error) => {
+      setLoadError(error instanceof Error ? error.message : 'Failed to run project triggers.')
+    })
+  }, [])
+
+  const handleRespondToTriggerConfirmation = async (requestId: string, approved: boolean) => {
+    try {
+      await window.electronAPI.respondToTriggerConfirmation(requestId, approved)
+    } finally {
+      setTriggerConfirmations((prev) => prev.filter((entry) => entry.id !== requestId))
     }
   }
 
@@ -885,12 +969,14 @@ function App() {
               onRefreshContainers={handleRefreshContainers}
               onRemoveProject={handleRemoveProject}
               onToggleProjectPin={handleToggleProjectPin}
+              onSelectProject={handleProjectSelected}
             />
           )}
           {activeTab === 'commands' && (
             <AutomationSection
               commands={commands}
               chains={chains}
+              triggers={triggers}
               projects={projects}
               chainRuns={chainRuns}
               isLoading={isLoading}
@@ -904,6 +990,10 @@ function App() {
               onUpdateChain={handleUpdateChain}
               onRemoveChain={handleRemoveChain}
               onRunChain={handleRunChain}
+              onCreateTrigger={handleCreateTrigger}
+              onUpdateTrigger={handleUpdateTrigger}
+              onRemoveTrigger={handleRemoveTrigger}
+              onOpenCreateCommand={() => setCommandDialogOpen(true)}
             />
           )}
           {activeTab === 'containers' && (
@@ -945,6 +1035,53 @@ function App() {
           )}
         </div>
       </AppShell>
+
+      <Dialog open={triggerConfirmations.length > 0} onOpenChange={() => undefined}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Automation confirmation required</DialogTitle>
+            <DialogDescription>
+              {triggerConfirmations[0]
+                ? `${triggerConfirmations[0].triggerName} wants to run ${triggerConfirmations[0].chainName}.`
+                : 'A trigger is waiting for approval.'}
+            </DialogDescription>
+          </DialogHeader>
+          {triggerConfirmations[0] ? (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <p><span className="font-semibold">Event:</span> {triggerConfirmations[0].event}</p>
+                {triggerConfirmations[0].projectName ? (
+                  <p className="mt-1"><span className="font-semibold">Project:</span> {triggerConfirmations[0].projectName}</p>
+                ) : null}
+                {triggerConfirmations[0].containerNames?.length ? (
+                  <p className="mt-1"><span className="font-semibold">Containers:</span> {triggerConfirmations[0].containerNames.join(', ')}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                triggerConfirmations[0]
+                  ? void handleRespondToTriggerConfirmation(triggerConfirmations[0].id, false)
+                  : undefined
+              }
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={() =>
+                triggerConfirmations[0]
+                  ? void handleRespondToTriggerConfirmation(triggerConfirmations[0].id, true)
+                  : undefined
+              }
+            >
+              Run Trigger
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={projectDialogOpen} onOpenChange={setProjectDialogOpen}>
         <DialogContent className="sm:max-w-lg">

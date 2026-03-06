@@ -3,14 +3,17 @@ import type {
   Command,
   CommandChain,
   CommandChainRunState,
+  CommandTrigger,
   CommandVariable,
   Container,
   CreateCommandChainInput,
+  CreateCommandTriggerInput,
   CreateCommandInput,
   Project,
   ProjectNotes,
   RunHistoryEntry,
   RunStatus,
+  TriggerConfirmationRequest,
 } from '../types'
 
 export interface ElectronAPI {
@@ -49,6 +52,15 @@ export interface ElectronAPI {
   removeChain: (id: string) => Promise<{ success: boolean }>
   runChain: (id: string, projectId?: string) => Promise<{ runId: string; status: string }>
   onChainProgress: (handler: (payload: CommandChainRunState) => void) => () => void
+
+  getTriggers: () => Promise<CommandTrigger[]>
+  addTrigger: (trigger: CreateCommandTriggerInput) => Promise<CommandTrigger>
+  updateTrigger: (id: string, updates: CreateCommandTriggerInput) => Promise<CommandTrigger>
+  removeTrigger: (id: string) => Promise<{ success: boolean }>
+  notifyTriggerEvent: (event: 'onProjectOpen', payload: { projectId: string }) => Promise<{ success: boolean }>
+  getPendingTriggerConfirmations: () => Promise<TriggerConfirmationRequest[]>
+  respondToTriggerConfirmation: (requestId: string, approved: boolean) => Promise<{ success: boolean }>
+  onTriggerConfirmationRequested: (handler: (payload: TriggerConfirmationRequest) => void) => () => void
 
   getContainers: () => Promise<Container[]>
   startContainer: (id: string) => Promise<{ success: boolean }>
