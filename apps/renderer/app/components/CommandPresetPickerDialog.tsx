@@ -130,8 +130,8 @@ export function CommandPresetPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl overflow-hidden p-0">
-        <DialogHeader className="border-b border-border/50 bg-muted/20 px-6 py-5">
+      <DialogContent className="max-w-5xl overflow-hidden p-0 flex flex-col h-[85vh] max-h-[800px]">
+        <DialogHeader className="border-b border-border/50 bg-muted/20 px-6 py-5 shrink-0">
           <div className="flex items-start gap-3">
             <div className="rounded-2xl border border-primary/20 bg-primary/10 p-2.5 text-primary">
               <Sparkles className="h-5 w-5" />
@@ -146,7 +146,7 @@ export function CommandPresetPickerDialog({
         </DialogHeader>
 
         {eligibleProjects.length === 0 ? (
-          <div className="px-6 py-12 text-center">
+          <div className="px-6 py-12 text-center flex-1 flex flex-col items-center justify-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-border/60 bg-muted/30 text-muted-foreground">
               <Sparkles className="h-6 w-6" />
             </div>
@@ -156,9 +156,9 @@ export function CommandPresetPickerDialog({
             </p>
           </div>
         ) : (
-          <div className="grid min-h-[480px] gap-0 md:grid-cols-[260px,1fr]">
-            <div className="border-b border-border/50 bg-muted/10 md:border-b-0 md:border-r">
-              <div className="border-b border-border/40 px-5 py-4">
+          <div className="grid flex-1 gap-0 md:grid-cols-[280px,1fr] min-h-0 overflow-hidden">
+            <div className="flex flex-col border-b border-border/50 bg-muted/10 md:border-b-0 md:border-r min-h-0">
+              <div className="border-b border-border/40 px-5 py-4 shrink-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
                   Detected Projects
                 </p>
@@ -167,7 +167,7 @@ export function CommandPresetPickerDialog({
                 </p>
               </div>
 
-              <ScrollArea className="h-[420px]">
+              <ScrollArea className="flex-1 min-h-0">
                 <div className="space-y-2 p-3">
                   {eligibleProjects.map((project) => {
                     const isSelected = project.id === selectedProject?.id
@@ -189,13 +189,13 @@ export function CommandPresetPickerDialog({
                         )}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/40 bg-background text-base">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/40 bg-background text-base shrink-0">
                             <span aria-hidden>{project.icon}</span>
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
                               <p className="truncate text-sm font-semibold">{project.name}</p>
-                              <Badge variant="outline" className="border-border/50 bg-background/70 text-[10px] font-medium">
+                              <Badge variant="outline" className="border-border/50 bg-background/70 text-[10px] font-medium shrink-0">
                                 {presetCount}
                               </Badge>
                             </div>
@@ -212,8 +212,8 @@ export function CommandPresetPickerDialog({
               </ScrollArea>
             </div>
 
-            <div className="flex min-h-[480px] flex-col">
-              <div className="border-b border-border/50 px-6 py-5">
+            <div className="flex flex-col min-w-0 min-h-0">
+              <div className="border-b border-border/50 px-6 py-5 shrink-0 bg-background/50">
                 {selectedProject ? (
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -225,7 +225,7 @@ export function CommandPresetPickerDialog({
                       </Badge>
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold">{selectedProject.name}</h3>
+                      <h3 className="text-lg font-semibold truncate">{selectedProject.name}</h3>
                       <p className="text-sm text-muted-foreground">
                         Add reusable commands bound directly to this project.
                       </p>
@@ -234,7 +234,7 @@ export function CommandPresetPickerDialog({
                 ) : null}
               </div>
 
-              <ScrollArea className="flex-1">
+              <ScrollArea className="flex-1 min-h-0 bg-card/30">
                 <div className="grid gap-4 p-6 xl:grid-cols-2">
                   {selectedPresets.map((preset) => {
                     const Icon = presetIconMap[preset.icon]
@@ -246,39 +246,40 @@ export function CommandPresetPickerDialog({
                     return (
                       <article
                         key={preset.id}
-                        className="rounded-3xl border border-border/50 bg-card/80 p-5 shadow-sm transition-colors hover:border-border hover:bg-card"
+                        className="flex flex-col rounded-3xl border border-border/50 bg-card p-5 shadow-sm transition-colors hover:border-primary/30 hover:shadow-md"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <div className="rounded-2xl border border-primary/15 bg-primary/10 p-2 text-primary">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-2.5 text-primary shrink-0 shadow-inner">
                               <Icon className="h-4 w-4" />
                             </div>
-                            <div>
-                              <h4 className="text-sm font-semibold">{preset.name}</h4>
-                              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            <div className="min-w-0 pt-0.5">
+                              <h4 className="text-[15px] font-semibold truncate text-foreground/90">{preset.name}</h4>
+                              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground line-clamp-2">
                                 {preset.description ?? 'Reusable starter command for this project type.'}
                               </p>
                             </div>
                           </div>
 
                           {isExisting ? (
-                            <Badge variant="outline" className="rounded-full border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-medium text-emerald-600">
+                            <Badge variant="outline" className="rounded-full border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 shrink-0">
                               Added
                             </Badge>
                           ) : null}
                         </div>
 
-                        <div className="mt-4 rounded-2xl border border-border/50 bg-[#0d0d0d] px-4 py-3 font-mono text-xs text-blue-300/90 shadow-inner">
+                        <div className="mt-5 rounded-2xl border border-border/60 bg-[#0d0d0d]/90 px-4 py-3.5 font-mono text-[13px] text-blue-400/90 shadow-inner overflow-hidden relative group">
+                          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary/40 rounded-l-2xl"></div>
                           <code className="break-all">{preset.command}</code>
                         </div>
 
-                        <div className="mt-4 flex items-center justify-between gap-3">
-                          <div className="flex flex-wrap gap-1.5">
+                        <div className="mt-auto pt-5 flex items-center justify-between gap-3">
+                          <div className="flex flex-wrap gap-1.5 overflow-hidden">
                             {(preset.tags ?? []).map((tag) => (
                               <Badge
                                 key={tag}
                                 variant="secondary"
-                                className="rounded-full bg-muted/50 px-2.5 py-0.5 text-[10px] font-medium"
+                                className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground truncate max-w-[80px]"
                               >
                                 {tag}
                               </Badge>
@@ -287,7 +288,7 @@ export function CommandPresetPickerDialog({
 
                           <Button
                             size="sm"
-                            className="rounded-full px-4"
+                            className="rounded-full px-5 h-8 text-xs font-semibold shrink-0 shadow-sm"
                             onClick={() => void handleCreatePreset(preset.id)}
                             disabled={isExisting || isCreating}
                           >
@@ -303,9 +304,9 @@ export function CommandPresetPickerDialog({
           </div>
         )}
 
-        <DialogFooter className="border-t border-border/50 bg-muted/10 px-6 py-4">
-          {createError ? <p className="mr-auto text-xs text-destructive">{createError}</p> : <div className="mr-auto" />}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="border-t border-border/50 bg-muted/20 px-6 py-4 shrink-0">
+          {createError ? <p className="mr-auto text-xs text-destructive flex items-center gap-2"><AlertCircle className="h-3 w-3" />{createError}</p> : <div className="mr-auto" />}
+          <Button variant="secondary" className="rounded-full px-6" onClick={() => onOpenChange(false)}>
             Done
           </Button>
         </DialogFooter>
