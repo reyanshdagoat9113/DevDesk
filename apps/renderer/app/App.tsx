@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from './components/ui/Select'
 import { AppShell } from './layout/AppShell'
-import { CommandsSection } from './sections/CommandsSection'
+import { AutomationSection } from './sections/AutomationSection'
 import { ContainersSection } from './sections/ContainersSection'
 import { HistorySection } from './sections/HistorySection'
 import { NotesSection } from './sections/NotesSection'
@@ -29,7 +29,10 @@ import { ProjectsSection } from './sections/ProjectsSection'
 import type {
   AppPreferences,
   Command,
+  CommandChain,
+  CommandChainRunState,
   Container as ContainerType,
+  CreateCommandChainInput,
   CreateCommandInput,
   Project,
   ProjectNotes,
@@ -107,6 +110,8 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabValue>('projects')
   const [projects, setProjects] = useState<Project[]>([])
   const [commands, setCommands] = useState<Command[]>([])
+  const [chains, setChains] = useState<CommandChain[]>([])
+  const [chainRuns, setChainRuns] = useState<Record<string, CommandChainRunState>>({})
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [history, setHistory] = useState<RunHistoryEntry[]>([])
   const [notes, setNotes] = useState<Record<string, ProjectNotes>>({})
@@ -145,7 +150,7 @@ function App() {
   const navItemsWithCounts = useMemo(() => {
     const counts: Record<TabValue, number> = {
       projects: projects.length,
-      commands: commands.length,
+      commands: commands.length + chains.length,
       containers: containers.length,
       history: history.length,
       notes: projects.length,
@@ -154,20 +159,22 @@ function App() {
       ...item,
       count: counts[item.value],
     }))
-  }, [projects.length, commands.length, containers.length, history.length])
+  }, [projects.length, commands.length, chains.length, containers.length, history.length])
 
   const loadAll = useCallback(async () => {
     setIsLoading(true)
     setLoadError(null)
     setContainerError(null)
     setContainers([])
+    setChainRuns({})
     setHasLoadedContainers(false)
     setHasAttemptedContainersLoad(false)
     try {
-      const [projectsResult, commandsResult, historyResult, preferencesResult] =
+      const [projectsResult, commandsResult, chainsResult, historyResult, preferencesResult] =
         await Promise.allSettled([
           window.electronAPI.getProjects(),
           window.electronAPI.getCommands(),
+          window.electronAPI.getChains(),
           window.electronAPI.getRunHistory(),
           window.electronAPI.getPreferences(),
         ])
@@ -186,6 +193,13 @@ function App() {
       } else {
         errors.push(commandsResult.reason instanceof Error ? commandsResult.reason.message : 'Failed to load commands.')
         setCommands([])
+      }
+
+      if (chainsResult.status === 'fulfilled') {
+        setChains(chainsResult.value)
+      } else {
+        errors.push(chainsResult.reason instanceof Error ? chainsResult.reason.message : 'Failed to load chains.')
+        setChains([])
       }
 
       if (historyResult.status === 'fulfilled') {
@@ -285,9 +299,17 @@ function App() {
       )
     })
 
+    const unsubscribeChainProgress = window.electronAPI.onChainProgress((payload) => {
+      setChainRuns((prev) => ({
+        ...prev,
+        [payload.chainId]: payload,
+      }))
+    })
+
     return () => {
       unsubscribeOutput()
       unsubscribeStatus()
+      unsubscribeChainProgress()
     }
   }, [])
 
@@ -396,6 +418,16 @@ function App() {
     try {
       await window.electronAPI.removeProject(projectId)
       setProjects((prev) => prev.filter((project) => project.id !== projectId))
+      setChains((prev) => prev.filter((chain) => chain.projectId !== projectId))
+      setChainRuns((prev) => {
+        const next = { ...prev }
+        for (const chain of chains) {
+          if (chain.projectId === projectId) {
+            delete next[chain.id]
+          }
+        }
+        return next
+      })
       setHistory((prev) => prev.filter((entry) => entry.projectId !== projectId))
       setNotes((prev) => {
         const next = { ...prev }
@@ -564,6 +596,60 @@ function App() {
       setCommands((prev) => prev.filter((command) => command.id !== commandId))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to remove command.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleCreateChain = async (input: CreateCommandChainInput) => {
+    setLoadError(null)
+    try {
+      const created = await window.electronAPI.addChain(input)
+      setChains((prev) => [created, ...prev])
+      return created
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create chain.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleUpdateChain = async (chainId: string, input: CreateCommandChainInput) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.updateChain(chainId, input)
+      setChains((prev) => prev.map((chain) => (chain.id === chainId ? updated : chain)))
+      return updated
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update chain.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRemoveChain = async (chainId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.removeChain(chainId)
+      setChains((prev) => prev.filter((chain) => chain.id !== chainId))
+      setChainRuns((prev) => {
+        const next = { ...prev }
+        delete next[chainId]
+        return next
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove chain.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRunChain = async (chainId: string, projectId?: string) => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.runChain(chainId, projectId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to run chain.'
       setLoadError(message)
       throw new Error(message)
     }
@@ -802,9 +888,11 @@ function App() {
             />
           )}
           {activeTab === 'commands' && (
-            <CommandsSection
+            <AutomationSection
               commands={commands}
+              chains={chains}
               projects={projects}
+              chainRuns={chainRuns}
               isLoading={isLoading}
               error={loadError}
               onRunCommand={handleRunCommand}
@@ -812,6 +900,10 @@ function App() {
               onRemoveCommand={handleRemoveCommand}
               onToggleCommandPin={handleToggleCommandPin}
               onCreatePresetCommand={handleCreateCommand}
+              onCreateChain={handleCreateChain}
+              onUpdateChain={handleUpdateChain}
+              onRemoveChain={handleRemoveChain}
+              onRunChain={handleRunChain}
             />
           )}
           {activeTab === 'containers' && (

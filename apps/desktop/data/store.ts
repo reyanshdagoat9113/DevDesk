@@ -6,7 +6,9 @@ import Database from 'better-sqlite3'
 import {
   DATA_VERSION,
   type AppPreferences,
+  type ChainStep,
   type Command,
+  type CommandChain,
   type CommandVariable,
   type DataStore,
   type Project,
@@ -52,6 +54,7 @@ const createDefaultStore = (): DataStore => ({
   version: DATA_VERSION,
   projects: [],
   commands: [],
+  chains: [],
   runHistory: [],
   notes: {},
   preferences: createDefaultPreferences(),
@@ -113,6 +116,90 @@ function parseVariables(value: string | null | undefined): CommandVariable[] | u
   } catch {
     return undefined
   }
+}
+
+function parseChainStepVariables(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).filter(
+    (entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string'
+  )
+
+  if (!entries.length) {
+    return undefined
+  }
+
+  return Object.fromEntries(entries)
+}
+
+function parseChainSteps(value: string | null | undefined): ChainStep[] {
+  if (!value) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return parsed.reduce<ChainStep[]>((acc, item) => {
+      if (!item || typeof item !== 'object') {
+        return acc
+      }
+
+      const raw = item as Partial<ChainStep>
+      if (typeof raw.id !== 'string' || typeof raw.commandId !== 'string') {
+        return acc
+      }
+
+      acc.push({
+        id: raw.id,
+        commandId: raw.commandId,
+        variables: parseChainStepVariables(raw.variables),
+        delayMs:
+          typeof raw.delayMs === 'number' && Number.isFinite(raw.delayMs) && raw.delayMs > 0
+            ? Math.max(0, Math.floor(raw.delayMs))
+            : undefined,
+      })
+      return acc
+    }, [])
+  } catch {
+    return []
+  }
+}
+
+function normalizeChains(value: unknown): CommandChain[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.reduce<CommandChain[]>((acc, entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return acc
+    }
+
+    const raw = entry as Partial<CommandChain>
+    if (typeof raw.id !== 'string' || typeof raw.name !== 'string') {
+      return acc
+    }
+
+    acc.push({
+      id: raw.id,
+      name: raw.name,
+      description: typeof raw.description === 'string' ? raw.description : undefined,
+      projectId: typeof raw.projectId === 'string' ? raw.projectId : undefined,
+      steps: Array.isArray(raw.steps) ? parseChainSteps(JSON.stringify(raw.steps)) : [],
+      stopOnFailure: raw.stopOnFailure !== false,
+      parallel: raw.parallel === true,
+      createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
+      updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date().toISOString(),
+    })
+
+    return acc
+  }, [])
 }
 
 function normalizeNotes(value: unknown): Record<string, ProjectNotes> {
@@ -212,6 +299,7 @@ function normalizeStore(value: unknown): DataStore {
     version: DATA_VERSION,
     projects: normalizeProjects(store.projects),
     commands: Array.isArray(store.commands) ? store.commands : [],
+    chains: normalizeChains(store.chains),
     runHistory: Array.isArray(store.runHistory) ? store.runHistory : [],
     notes,
     preferences: {
@@ -274,6 +362,18 @@ function createSchema(database: Database.Database) {
       pinned_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS chains (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      project_id TEXT,
+      steps TEXT NOT NULL,
+      stop_on_failure INTEGER NOT NULL DEFAULT 1,
+      parallel INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS run_history (
       id TEXT PRIMARY KEY,
       command_id TEXT NOT NULL,
@@ -299,6 +399,7 @@ function createSchema(database: Database.Database) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_commands_project_id ON commands(project_id);
+    CREATE INDEX IF NOT EXISTS idx_chains_project_id ON chains(project_id);
     CREATE INDEX IF NOT EXISTS idx_run_history_start_time ON run_history(start_time DESC);
     CREATE INDEX IF NOT EXISTS idx_run_history_command_id ON run_history(command_id);
     CREATE INDEX IF NOT EXISTS idx_run_history_project_id ON run_history(project_id);
@@ -354,6 +455,11 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
     VALUES (@id, @commandId, @projectId, @status, @startTime, @endTime, @output, @resolvedCommand)
   `)
 
+  const insertChain = database.prepare(`
+    INSERT INTO chains (id, name, description, project_id, steps, stop_on_failure, parallel, created_at, updated_at)
+    VALUES (@id, @name, @description, @projectId, @steps, @stopOnFailure, @parallel, @createdAt, @updatedAt)
+  `)
+
   const insertNote = database.prepare(`
     INSERT INTO notes (project_id, setup_steps, todos, reminders)
     VALUES (@projectId, @setupSteps, @todos, @reminders)
@@ -365,11 +471,12 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
   `)
 
   const writeTransaction = database.transaction((payload: DataStore) => {
-    database.prepare('DELETE FROM projects').run()
-    database.prepare('DELETE FROM commands').run()
-    database.prepare('DELETE FROM run_history').run()
-    database.prepare('DELETE FROM notes').run()
-    database.prepare('DELETE FROM preferences').run()
+      database.prepare('DELETE FROM projects').run()
+      database.prepare('DELETE FROM commands').run()
+      database.prepare('DELETE FROM chains').run()
+      database.prepare('DELETE FROM run_history').run()
+      database.prepare('DELETE FROM notes').run()
+      database.prepare('DELETE FROM preferences').run()
 
     for (const project of payload.projects) {
       insertProject.run({
@@ -396,6 +503,20 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
         variables: command.variables ? JSON.stringify(command.variables) : null,
         isPinned: command.isPinned ? 1 : 0,
         pinnedAt: command.pinnedAt ?? null,
+      })
+    }
+
+    for (const chain of payload.chains) {
+      insertChain.run({
+        id: chain.id,
+        name: chain.name,
+        description: chain.description ?? null,
+        projectId: chain.projectId ?? null,
+        steps: JSON.stringify(chain.steps ?? []),
+        stopOnFailure: chain.stopOnFailure ? 1 : 0,
+        parallel: chain.parallel ? 1 : 0,
+        createdAt: chain.createdAt,
+        updatedAt: chain.updatedAt,
       })
     }
 
@@ -553,6 +674,7 @@ export async function removeProject(projectId: string): Promise<void> {
     const database = getDbOrThrow()
     const transaction = database.transaction((id: string) => {
       database.prepare('DELETE FROM projects WHERE id = ?').run(id)
+      database.prepare('DELETE FROM chains WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM run_history WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM notes WHERE project_id = ?').run(id)
     })
@@ -675,6 +797,62 @@ export async function removeCommand(commandId: string): Promise<void> {
   await queueWrite(async () => {
     await ensureDbInitialized()
     getDbOrThrow().prepare('DELETE FROM commands WHERE id = ?').run(commandId)
+  })
+}
+
+export async function createChain(chain: CommandChain): Promise<void> {
+  await queueWrite(async () => withSqlTiming('createChain', async () => {
+    await ensureDbInitialized()
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO chains (id, name, description, project_id, steps, stop_on_failure, parallel, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(
+        chain.id,
+        chain.name,
+        chain.description ?? null,
+        chain.projectId ?? null,
+        JSON.stringify(chain.steps ?? []),
+        chain.stopOnFailure ? 1 : 0,
+        chain.parallel ? 1 : 0,
+        chain.createdAt,
+        chain.updatedAt
+      )
+  }))
+}
+
+export async function replaceChain(chain: CommandChain): Promise<boolean> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+    const result = getDbOrThrow()
+      .prepare(
+        `
+          UPDATE chains
+          SET name = ?, description = ?, project_id = ?, steps = ?, stop_on_failure = ?, parallel = ?, updated_at = ?
+          WHERE id = ?
+        `
+      )
+      .run(
+        chain.name,
+        chain.description ?? null,
+        chain.projectId ?? null,
+        JSON.stringify(chain.steps ?? []),
+        chain.stopOnFailure ? 1 : 0,
+        chain.parallel ? 1 : 0,
+        chain.updatedAt,
+        chain.id
+      )
+    return result.changes > 0
+  })
+}
+
+export async function removeChain(chainId: string): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow().prepare('DELETE FROM chains WHERE id = ?').run(chainId)
   })
 }
 
@@ -956,6 +1134,82 @@ export async function getPreferencesFromStore(): Promise<AppPreferences> {
       id: preferenceMap.get('terminal')?.id ?? defaults.terminal.id,
       command: preferenceMap.get('terminal')?.command ?? defaults.terminal.command,
     },
+  }
+}
+
+export async function listChains(): Promise<CommandChain[]> {
+  return withSqlTiming('listChains', async () => {
+    await ensureDbInitialized()
+    const rows = getDbOrThrow()
+      .prepare(
+        `
+          SELECT id, name, description, project_id, steps, stop_on_failure, parallel, created_at, updated_at
+          FROM chains
+          ORDER BY rowid ASC
+        `
+      )
+      .all() as Array<{
+      id: string
+      name: string
+      description: string | null
+      project_id: string | null
+      steps: string
+      stop_on_failure: number
+      parallel: number
+      created_at: string
+      updated_at: string
+    }>
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description ?? undefined,
+      projectId: row.project_id ?? undefined,
+      steps: parseChainSteps(row.steps),
+      stopOnFailure: parseBoolean(row.stop_on_failure),
+      parallel: parseBoolean(row.parallel),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+  })
+}
+
+export async function getChainById(chainId: string): Promise<CommandChain | null> {
+  await ensureDbInitialized()
+  const row = getDbOrThrow()
+    .prepare(
+      `
+        SELECT id, name, description, project_id, steps, stop_on_failure, parallel, created_at, updated_at
+        FROM chains
+        WHERE id = ?
+      `
+    )
+    .get(chainId) as {
+    id: string
+    name: string
+    description: string | null
+    project_id: string | null
+    steps: string
+    stop_on_failure: number
+    parallel: number
+    created_at: string
+    updated_at: string
+  } | undefined
+
+  if (!row) {
+    return null
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? undefined,
+    projectId: row.project_id ?? undefined,
+    steps: parseChainSteps(row.steps),
+    stopOnFailure: parseBoolean(row.stop_on_failure),
+    parallel: parseBoolean(row.parallel),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
 }
 

@@ -5,11 +5,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   clearRunHistoryInStore,
+  createChain,
   getCommandById,
+  getChainById,
   getPreferencesFromStore,
   getProjectById,
   getProjectNotesById,
   getRunHistoryOutputById,
+  listChains,
   listCommands,
   listProjects,
   listRecentRunHistory,
@@ -19,8 +22,10 @@ import {
   createRunHistoryEntry,
   finalizeRunHistoryEntry,
   removeCommand,
+  removeChain,
   removeProject,
   renameProject,
+  replaceChain,
   replaceCommand,
   updatePreferencesInStore,
   updateProjectLinkedContainers,
@@ -29,7 +34,16 @@ import {
   toggleCommandPin,
 } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
-import type { AppPreference, AppPreferences, Command, Container, RunStatus } from '../data/model'
+import type {
+  AppPreference,
+  AppPreferences,
+  ChainStep,
+  Command,
+  CommandChain,
+  Container,
+  Project,
+  RunStatus,
+} from '../data/model'
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex } from '../files/fileService'
 import { variableResolver } from '../commands/variableResolver'
 import { detectVariables } from '../commands/variableDetector'
@@ -38,9 +52,34 @@ type RunningCommand = {
   process: ChildProcessWithoutNullStreams
   output: string
   requestedStop: boolean
+  completion: Promise<RunStatus>
 }
 
 const runningCommands = new Map<string, RunningCommand>()
+
+type ChainStepRunPayload = {
+  stepId: string
+  commandId: string
+  status: 'pending' | 'running' | 'success' | 'failed' | 'stopped' | 'skipped'
+  runId?: string
+  startedAt?: string
+  endedAt?: string
+  error?: string
+}
+
+type ChainRunPayload = {
+  runId: string
+  chainId: string
+  projectId?: string
+  status: 'running' | 'success' | 'failed' | 'stopped'
+  startedAt: string
+  endedAt?: string
+  activeStepId?: string
+  error?: string
+  steps: ChainStepRunPayload[]
+}
+
+const runningChains = new Map<string, ChainRunPayload>()
 
 type RunningDockerLogSubscription = {
   process: ChildProcessWithoutNullStreams
@@ -859,6 +898,287 @@ function getProjectName(projectPath: string): string {
   return path.basename(trimTrailingPathSeparators(projectPath))
 }
 
+type ChainMutationInput = {
+  name: string
+  description?: string
+  projectId?: string
+  steps: Array<{ id: string; commandId: string; variables?: Record<string, string>; delayMs?: number }>
+  stopOnFailure: boolean
+  parallel?: boolean
+}
+
+type CommandNeedsInputResponse = {
+  status: 'needs-input'
+  inputs: Array<{ name: string; default?: string; required: boolean; description?: string }>
+  preview: string
+}
+
+type PreparedCommandExecution = {
+  command: Command
+  project: Project
+  projectPath: string
+  finalCommand: string
+}
+
+type StartedCommandRun = {
+  runId: string
+  status: 'running'
+  completion: Promise<RunStatus>
+}
+
+function sanitizeStepVariables(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, entryValue]) => [key.trim(), typeof entryValue === 'string' ? entryValue : String(entryValue ?? '')] as const)
+    .filter(([key, entryValue]) => Boolean(key) && Boolean(entryValue.trim()))
+
+  if (!entries.length) {
+    return undefined
+  }
+
+  return Object.fromEntries(entries)
+}
+
+function sanitizeChainSteps(steps: unknown): ChainStep[] {
+  if (!Array.isArray(steps)) {
+    throw new Error('Chain steps are required.')
+  }
+
+  const sanitized = steps.reduce<ChainStep[]>((acc, entry, index) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new Error(`Step ${index + 1} is invalid.`)
+    }
+
+    const raw = entry as Partial<ChainStep>
+    const stepId = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : randomUUID()
+    const commandId = typeof raw.commandId === 'string' ? raw.commandId.trim() : ''
+    if (!commandId) {
+      throw new Error(`Step ${index + 1} must reference a command.`)
+    }
+
+    const delayMs =
+      typeof raw.delayMs === 'number' && Number.isFinite(raw.delayMs) && raw.delayMs > 0
+        ? Math.max(0, Math.floor(raw.delayMs))
+        : undefined
+
+    acc.push({
+      id: stepId,
+      commandId,
+      variables: sanitizeStepVariables(raw.variables),
+      delayMs,
+    })
+    return acc
+  }, [])
+
+  if (!sanitized.length) {
+    throw new Error('Add at least one step to the chain.')
+  }
+
+  return sanitized
+}
+
+function sanitizeChainInput(input: ChainMutationInput): Omit<CommandChain, 'id' | 'createdAt' | 'updatedAt'> {
+  const name = typeof input?.name === 'string' ? input.name.trim() : ''
+  if (!name) {
+    throw new Error('Chain name is required.')
+  }
+
+  return {
+    name,
+    description: typeof input.description === 'string' && input.description.trim() ? input.description.trim() : undefined,
+    projectId: typeof input.projectId === 'string' && input.projectId.trim() ? input.projectId.trim() : undefined,
+    steps: sanitizeChainSteps(input.steps),
+    stopOnFailure: input.stopOnFailure !== false,
+    parallel: Boolean(input.parallel),
+  }
+}
+
+async function prepareCommandExecution(
+  command: Command,
+  preferredProjectId?: string,
+  variables?: Record<string, string>
+): Promise<PreparedCommandExecution | CommandNeedsInputResponse> {
+  const effectiveProjectId = preferredProjectId ?? command.projectId
+  if (!effectiveProjectId) {
+    throw new Error('Project is required to run a command.')
+  }
+
+  const project = await getProjectById(effectiveProjectId)
+  if (!project) {
+    throw new Error('Project not found.')
+  }
+
+  const projectPath = normalizeProjectPath(project.path)
+  if (!fs.existsSync(projectPath)) {
+    throw new Error('Project path does not exist.')
+  }
+
+  const hasContainerVariables = variableResolver
+    .extractVariables(command.command)
+    .some((variable) => variable.startsWith('container.'))
+
+  let linkedContainers: Container[] = []
+  if (hasContainerVariables) {
+    const containers = await listDockerContainers()
+    linkedContainers = containers.filter((container) =>
+      project.linkedContainerNames.some((name) => container.name.toLowerCase() === name.toLowerCase())
+    )
+  }
+
+  const resolution = variableResolver.resolve(
+    command.command,
+    {
+      project,
+      containers: linkedContainers,
+      env: process.env,
+    },
+    variables
+  )
+
+  if (resolution.unresolvedInputs.length > 0 && !variables) {
+    return {
+      status: 'needs-input',
+      inputs: resolution.unresolvedInputs,
+      preview: resolution.resolvedCommand,
+    }
+  }
+
+  return {
+    command,
+    project,
+    projectPath,
+    finalCommand: resolution.resolvedCommand,
+  }
+}
+
+async function startPreparedCommandExecution(prepared: PreparedCommandExecution): Promise<StartedCommandRun> {
+  const runId = randomUUID()
+  const startTime = new Date().toISOString()
+
+  await createRunHistoryEntry({
+    id: runId,
+    commandId: prepared.command.id,
+    projectId: prepared.project.id,
+    status: 'running',
+    startTime,
+    output: '',
+    resolvedCommand: prepared.finalCommand,
+  })
+
+  const wslLocation = parseWslProjectPath(prepared.projectPath)
+  const child = wslLocation
+    ? spawn(
+        WSL_EXECUTABLE_PATH,
+        [
+          '-d',
+          wslLocation.distro,
+          '-e',
+          'bash',
+          '-lc',
+          buildWslBashCommand(
+            prepared.finalCommand,
+            resolveWslWorkingDirectory(wslLocation, prepared.command.workingDirectory)
+          ),
+        ],
+        {
+          env: process.env,
+          windowsHide: true,
+        }
+      )
+    : spawn(prepared.finalCommand, {
+        cwd: prepared.command.workingDirectory
+          ? path.join(prepared.projectPath, prepared.command.workingDirectory)
+          : prepared.projectPath,
+        shell: true,
+        env: process.env,
+      })
+
+  let resolveCompletion: ((status: RunStatus) => void) | null = null
+  const completion = new Promise<RunStatus>((resolve) => {
+    resolveCompletion = resolve
+  })
+
+  const running: RunningCommand = {
+    process: child,
+    output: '',
+    requestedStop: false,
+    completion,
+  }
+  runningCommands.set(runId, running)
+
+  const flushOutput = async (runStatus?: RunStatus) => {
+    await finalizeRunHistoryEntry(runId, running.output, runStatus)
+  }
+
+  const pushChunk = (chunk: Buffer) => {
+    const text = chunk.toString()
+    running.output += text
+    broadcast('runs:output', { runId, chunk: text })
+  }
+
+  child.stdout.on('data', pushChunk)
+  child.stderr.on('data', pushChunk)
+
+  child.on('error', async (error) => {
+    running.output += `\n${error.message}\n`
+    await flushOutput('failed')
+    runningCommands.delete(runId)
+    broadcast('runs:status', { runId, status: 'failed' })
+    resolveCompletion?.('failed')
+  })
+
+  child.on('close', async (code) => {
+    const status: RunStatus = running.requestedStop ? 'stopped' : code === 0 ? 'success' : 'failed'
+    await flushOutput(status)
+    runningCommands.delete(runId)
+    broadcast('runs:status', { runId, status })
+    resolveCompletion?.(status)
+  })
+
+  return {
+    runId,
+    status: 'running',
+    completion,
+  }
+}
+
+async function startCommandExecution(
+  command: Command,
+  preferredProjectId?: string,
+  variables?: Record<string, string>
+): Promise<StartedCommandRun | CommandNeedsInputResponse> {
+  const prepared = await prepareCommandExecution(command, preferredProjectId, variables)
+  if ('status' in prepared) {
+    return prepared
+  }
+  return startPreparedCommandExecution(prepared)
+}
+
+function cloneChainRunPayload(payload: ChainRunPayload): ChainRunPayload {
+  return {
+    ...payload,
+    steps: payload.steps.map((step) => ({ ...step })),
+  }
+}
+
+function emitChainProgress(payload: ChainRunPayload) {
+  const snapshot = cloneChainRunPayload(payload)
+  runningChains.set(snapshot.runId, snapshot)
+  broadcast('chains:progress', snapshot)
+  if (snapshot.status !== 'running') {
+    runningChains.delete(snapshot.runId)
+  }
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
 // Register all IPC handlers
 export function registerIpcHandlers() {
   ipcMain.handle('wsl:list-distros', async () => {
@@ -1238,131 +1558,11 @@ export function registerIpcHandlers() {
       throw new Error('Command not found.')
     }
 
-    // Use command's projectId if not provided
-    const effectiveProjectId = _projectId ?? command.projectId
-    if (!effectiveProjectId) {
-      throw new Error('Project is required to run a command.')
+    const run = await startCommandExecution(command, _projectId, _variables)
+    if ('status' in run && run.status === 'needs-input') {
+      return run
     }
-
-    const project = await getProjectById(effectiveProjectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    const projectPath = normalizeProjectPath(project.path)
-    if (!fs.existsSync(projectPath)) {
-      throw new Error('Project path does not exist.')
-    }
-
-    // Only query Docker when the command uses container variables.
-    const hasContainerVariables = variableResolver
-      .extractVariables(command.command)
-      .some((variable) => variable.startsWith('container.'))
-
-    let linkedContainers: Container[] = []
-    if (hasContainerVariables) {
-      const containers = await listDockerContainers()
-      linkedContainers = containers.filter((c) =>
-        project.linkedContainerNames.some(
-          (name) => c.name.toLowerCase() === name.toLowerCase()
-        )
-      )
-    }
-
-    // Resolve variables
-    const context = {
-      project,
-      containers: linkedContainers,
-      env: process.env,
-    }
-
-    const resolution = variableResolver.resolve(command.command, context, _variables)
-
-    // If there are unresolved input variables, return them for prompting
-    if (resolution.unresolvedInputs.length > 0 && !_variables) {
-      return {
-        status: 'needs-input',
-        inputs: resolution.unresolvedInputs,
-        preview: resolution.resolvedCommand,
-      }
-    }
-
-    // Continue with execution using resolved command
-    const finalCommand = resolution.resolvedCommand
-
-    const runId = randomUUID()
-    const startTime = new Date().toISOString()
-
-    await createRunHistoryEntry({
-      id: runId,
-      commandId: command.id,
-      projectId: project.id,
-      status: 'running',
-      startTime,
-      output: '',
-      resolvedCommand: finalCommand,
-    })
-
-    const wslLocation = parseWslProjectPath(projectPath)
-    const child = wslLocation
-      ? spawn(
-          WSL_EXECUTABLE_PATH,
-          [
-            '-d',
-            wslLocation.distro,
-            '-e',
-            'bash',
-            '-lc',
-            buildWslBashCommand(finalCommand, resolveWslWorkingDirectory(wslLocation, command.workingDirectory)),
-          ],
-          {
-            env: process.env,
-            windowsHide: true,
-          }
-        )
-      : spawn(finalCommand, {
-          cwd: command.workingDirectory ? path.join(projectPath, command.workingDirectory) : projectPath,
-          shell: true,
-          env: process.env,
-        })
-
-    const running: RunningCommand = {
-      process: child,
-      output: '',
-      requestedStop: false,
-    }
-    runningCommands.set(runId, running)
-
-    const flushOutput = async (runStatus?: RunStatus) => {
-      const output = running.output
-      await finalizeRunHistoryEntry(runId, output, runStatus)
-    }
-
-    const pushChunk = (chunk: Buffer) => {
-      const text = chunk.toString()
-      running.output += text
-      broadcast('runs:output', { runId, chunk: text })
-    }
-
-    child.stdout.on('data', pushChunk)
-    child.stderr.on('data', pushChunk)
-
-    child.on('error', async (error) => {
-      running.output += `\n${error.message}\n`
-      await flushOutput('failed')
-      runningCommands.delete(runId)
-      broadcast('runs:status', { runId, status: 'failed' })
-    })
-
-    child.on('close', async (code) => {
-      const status: RunStatus =
-        running.requestedStop ? 'stopped' : code === 0 ? 'success' : 'failed'
-      await flushOutput(status)
-      runningCommands.delete(runId)
-      broadcast('runs:status', { runId, status })
-    })
-
-    return { runId, status: 'running' }
+    return { runId: run.runId, status: run.status }
   })
 
   ipcMain.handle('commands:detect-variables', async (_event, commandString: string) => {
@@ -1391,6 +1591,175 @@ export function registerIpcHandlers() {
     }
 
     return command
+  })
+
+  ipcMain.handle('chains:list', async () => {
+    return listChains()
+  })
+
+  ipcMain.handle('chains:create', async (_event, input: ChainMutationInput) => {
+    const sanitized = sanitizeChainInput(input)
+    const now = new Date().toISOString()
+    const nextChain: CommandChain = {
+      id: randomUUID(),
+      ...sanitized,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    await createChain(nextChain)
+    return nextChain
+  })
+
+  ipcMain.handle('chains:update', async (_event, chainId: string, input: ChainMutationInput) => {
+    if (!chainId?.trim()) {
+      throw new Error('Chain id is required.')
+    }
+
+    const current = await getChainById(chainId)
+    if (!current) {
+      throw new Error('Chain not found.')
+    }
+
+    const sanitized = sanitizeChainInput(input)
+    const updatedChain: CommandChain = {
+      ...current,
+      ...sanitized,
+      updatedAt: new Date().toISOString(),
+    }
+
+    await replaceChain(updatedChain)
+    return updatedChain
+  })
+
+  ipcMain.handle('chains:delete', async (_event, chainId: string) => {
+    if (!chainId?.trim()) {
+      return { success: false }
+    }
+
+    await removeChain(chainId)
+    return { success: true }
+  })
+
+  ipcMain.handle('chains:run', async (_event, chainId: string, projectId?: string) => {
+    if (!chainId?.trim()) {
+      throw new Error('Chain id is required.')
+    }
+
+    const chain = await getChainById(chainId)
+    if (!chain) {
+      throw new Error('Chain not found.')
+    }
+
+    if (!chain.steps.length) {
+      throw new Error('Add at least one step before running this chain.')
+    }
+
+    const effectiveProjectId = projectId?.trim() || chain.projectId
+    const runId = randomUUID()
+    const payload: ChainRunPayload = {
+      runId,
+      chainId: chain.id,
+      projectId: effectiveProjectId,
+      status: 'running',
+      startedAt: new Date().toISOString(),
+      steps: chain.steps.map((step) => ({
+        stepId: step.id,
+        commandId: step.commandId,
+        status: 'pending',
+      })),
+    }
+
+    emitChainProgress(payload)
+
+    void (async () => {
+      let finalStatus: ChainRunPayload['status'] = 'success'
+      let finalError: string | undefined
+
+      for (let index = 0; index < chain.steps.length; index += 1) {
+        const step = chain.steps[index]
+        const stepPayload = payload.steps[index]
+
+        if (step.delayMs && step.delayMs > 0) {
+          await delay(step.delayMs)
+        }
+
+        payload.activeStepId = step.id
+        stepPayload.status = 'running'
+        stepPayload.startedAt = new Date().toISOString()
+        emitChainProgress(payload)
+
+        const command = await getCommandById(step.commandId)
+        if (!command) {
+          stepPayload.status = 'failed'
+          stepPayload.endedAt = new Date().toISOString()
+          stepPayload.error = 'Referenced command no longer exists.'
+          finalStatus = 'failed'
+          finalError = stepPayload.error
+          emitChainProgress(payload)
+          break
+        }
+
+        try {
+          const run = await startCommandExecution(command, command.projectId ?? effectiveProjectId, step.variables)
+
+          if ('status' in run && run.status === 'needs-input') {
+            stepPayload.status = 'failed'
+            stepPayload.endedAt = new Date().toISOString()
+            stepPayload.error = `Missing chain step variables: ${run.inputs.map((input) => input.name).join(', ')}`
+            finalStatus = 'failed'
+            finalError = stepPayload.error
+            emitChainProgress(payload)
+            break
+          }
+
+          stepPayload.runId = run.runId
+          emitChainProgress(payload)
+
+          const runStatus = await run.completion
+          stepPayload.status = runStatus
+          stepPayload.endedAt = new Date().toISOString()
+          emitChainProgress(payload)
+
+          if (runStatus === 'stopped') {
+            finalStatus = 'stopped'
+            break
+          }
+
+          if (runStatus !== 'success') {
+            finalStatus = 'failed'
+            finalError = `Step ${index + 1} failed.`
+            if (chain.stopOnFailure) {
+              break
+            }
+          }
+        } catch (error) {
+          stepPayload.status = 'failed'
+          stepPayload.endedAt = new Date().toISOString()
+          stepPayload.error = error instanceof Error ? error.message : 'Step failed to start.'
+          finalStatus = 'failed'
+          finalError = stepPayload.error
+          emitChainProgress(payload)
+          if (chain.stopOnFailure) {
+            break
+          }
+        }
+      }
+
+      for (const step of payload.steps) {
+        if (step.status === 'pending') {
+          step.status = finalStatus === 'success' ? 'success' : 'skipped'
+        }
+      }
+
+      payload.status = finalStatus
+      payload.error = finalError
+      payload.activeStepId = undefined
+      payload.endedAt = new Date().toISOString()
+      emitChainProgress(payload)
+    })()
+
+    return { runId, status: 'running' }
   })
 
   // Containers

@@ -51,6 +51,58 @@ export interface CommandPreset {
   tags?: string[]
 }
 
+export interface ChainStep {
+  id: string
+  commandId: string
+  variables?: Record<string, string>
+  delayMs?: number
+}
+
+export interface CommandChain {
+  id: string
+  name: string
+  description?: string
+  projectId?: string
+  steps: ChainStep[]
+  stopOnFailure: boolean
+  parallel: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateCommandChainInput {
+  name: string
+  description?: string
+  projectId?: string
+  steps: ChainStep[]
+  stopOnFailure: boolean
+  parallel?: boolean
+}
+
+export type ChainStepRunStatus = 'pending' | 'running' | 'success' | 'failed' | 'stopped' | 'skipped'
+
+export interface ChainStepRunState {
+  stepId: string
+  commandId: string
+  status: ChainStepRunStatus
+  runId?: string
+  startedAt?: string
+  endedAt?: string
+  error?: string
+}
+
+export interface CommandChainRunState {
+  runId: string
+  chainId: string
+  projectId?: string
+  status: 'running' | 'success' | 'failed' | 'stopped'
+  startedAt: string
+  endedAt?: string
+  activeStepId?: string
+  error?: string
+  steps: ChainStepRunState[]
+}
+
 export interface Container {
   id: string
   name: string

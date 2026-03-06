@@ -1,8 +1,11 @@
 import type {
   AppPreferences,
   Command,
+  CommandChain,
+  CommandChainRunState,
   CommandVariable,
   Container,
+  CreateCommandChainInput,
   CreateCommandInput,
   Project,
   ProjectNotes,
@@ -39,6 +42,13 @@ export interface ElectronAPI {
   stopCommand: (runId: string) => Promise<{ success: boolean }>
   onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => () => void
   onRunStatus: (handler: (payload: { runId: string; status: string }) => void) => () => void
+
+  getChains: () => Promise<CommandChain[]>
+  addChain: (chain: CreateCommandChainInput) => Promise<CommandChain>
+  updateChain: (id: string, updates: CreateCommandChainInput) => Promise<CommandChain>
+  removeChain: (id: string) => Promise<{ success: boolean }>
+  runChain: (id: string, projectId?: string) => Promise<{ runId: string; status: string }>
+  onChainProgress: (handler: (payload: CommandChainRunState) => void) => () => void
 
   getContainers: () => Promise<Container[]>
   startContainer: (id: string) => Promise<{ success: boolean }>

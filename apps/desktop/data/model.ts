@@ -36,6 +36,25 @@ export interface Command {
   pinnedAt?: string
 }
 
+export interface ChainStep {
+  id: string
+  commandId: string
+  variables?: Record<string, string>
+  delayMs?: number
+}
+
+export interface CommandChain {
+  id: string
+  name: string
+  description?: string
+  projectId?: string
+  steps: ChainStep[]
+  stopOnFailure: boolean
+  parallel: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Container {
   id: string
   name: string
@@ -84,6 +103,7 @@ export interface DataStore {
   version: typeof DATA_VERSION
   projects: Project[]
   commands: Command[]
+  chains: CommandChain[]
   runHistory: RunHistoryEntry[]
   notes: Record<string, ProjectNotes>
   preferences: AppPreferences

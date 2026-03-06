@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star, Sparkles } from 'lucide-react'
+import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star, Sparkles, PlusCircle } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import {
   Card,
@@ -46,6 +46,7 @@ export function CommandsSection({
   onRemoveCommand,
   onToggleCommandPin,
   onCreatePresetCommand,
+  onAddToChain,
 }: {
   commands: Command[]
   projects: Project[]
@@ -56,6 +57,7 @@ export function CommandsSection({
   onRemoveCommand?: (commandId: string) => Promise<void>
   onToggleCommandPin?: (commandId: string) => Promise<void>
   onCreatePresetCommand?: (command: CreateCommandInput) => Promise<Command>
+  onAddToChain?: (command: Command) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(commands[0]?.id ?? null)
   const [runError, setRunError] = useState<string | null>(null)
@@ -852,10 +854,10 @@ export function CommandsSection({
             </CardContent>
 
             <div className="border-t border-border/40 bg-muted/5 p-6">
-              <div className="flex flex-col gap-5">
-                <div className="flex flex-col gap-3">
-                  <Label htmlFor="run-project" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Target Deployment Project</Label>
-                  <div className="flex gap-3">
+                <div className="flex flex-col gap-5">
+                  <div className="flex flex-col gap-3">
+                    <Label htmlFor="run-project" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Target Deployment Project</Label>
+                    <div className="flex gap-3">
                     <select
                       id="run-project"
                       className={cn(selectClass, "flex-1 bg-background shadow-sm h-10 px-4")}
@@ -884,6 +886,15 @@ export function CommandsSection({
                         <PlayCircle className="h-4 w-4" />
                       )}
                       {runStatus === 'running' ? 'Deploying...' : 'Execute Script'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-10 px-4 gap-2 text-[11px] font-bold uppercase tracking-wider"
+                      onClick={() => selectedCommand && onAddToChain?.(selectedCommand)}
+                      disabled={!selectedCommand || !onAddToChain}
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                      Add To Chain
                     </Button>
                   </div>
                 </div>

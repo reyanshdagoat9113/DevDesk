@@ -3,7 +3,7 @@
 > A comprehensive implementation guide for evolving DevDesk from MVP to a complete developer workspace platform.
 
 **Last Updated:** 2026-03-02  
-**Current Phase:** Phase 2.2 Complete → Phase 2.3 Next
+**Current Phase:** Phase 2.3 Complete → Phase 2.4 Next
 
 ---
 
@@ -243,12 +243,20 @@ Enhanced tag system for command organization.
 
 ---
 
-### 2.3 Command Chains 📋
+### 2.3 Command Chains ✅ **COMPLETE**
 **Priority:** High  
 **Effort:** 4-6 hours  
 **Dependencies:** 1.2 (variables), 2.1 (presets)
 
 Run multiple commands sequentially with dependency handling.
+
+**Status:** COMPLETED
+
+**Implemented:**
+- SQLite-backed command chain model with CRUD IPC handlers
+- Chain editor UI with step ordering, delays, and per-step variable overrides
+- `Add to Chain` action from saved commands into the chain editor flow
+- Chain run progress UI with live per-step statuses and history-backed step output
 
 **Data Model:**
 ```typescript
@@ -1095,19 +1103,19 @@ Phase 10: Polish
 
 ## Quick Reference: Next 3 Tasks
 
-1. **Dev Stack Restart Action** (1-2 hrs)
-   - Add "Restart Dev Stack" operation for linked containers
-   - Surface result summary alongside Start/Stop
-
-2. **Command Chains** (4-6 hrs)
-   - Add chain data model and CRUD IPC
-   - Build chain editor and execution UI
-   - Record per-step output in run history
-
-3. **Command Triggers** (3-4 hrs)
+1. **Command Triggers** (3-4 hrs)
    - Add trigger registry and event hooks
    - Confirm destructive automations before running
    - Support startup and project-open workflows
+
+2. **Dev Stack Restart Action** (1-2 hrs)
+   - Add "Restart Dev Stack" operation for linked containers
+   - Surface result summary alongside Start/Stop
+
+3. **Terminal Manager Service** (3-4 hrs)
+   - Add PTY session lifecycle in the main process
+   - Wire IPC for create/write/resize/close
+   - Stream terminal output to the renderer
 
 ---
 

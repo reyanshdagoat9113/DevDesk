@@ -34,6 +34,27 @@ interface ElectronAPI {
   onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => () => void
   onRunStatus: (handler: (payload: { runId: string; status: string }) => void) => () => void
 
+  getChains: () => Promise<unknown[]>
+  addChain: (chain: {
+    name: string
+    description?: string
+    projectId?: string
+    steps: Array<{ id: string; commandId: string; variables?: Record<string, string>; delayMs?: number }>
+    stopOnFailure: boolean
+    parallel?: boolean
+  }) => Promise<unknown>
+  updateChain: (id: string, updates: {
+    name: string
+    description?: string
+    projectId?: string
+    steps: Array<{ id: string; commandId: string; variables?: Record<string, string>; delayMs?: number }>
+    stopOnFailure: boolean
+    parallel?: boolean
+  }) => Promise<unknown>
+  removeChain: (id: string) => Promise<{ success: boolean }>
+  runChain: (id: string, projectId?: string) => Promise<{ runId: string; status: string }>
+  onChainProgress: (handler: (payload: unknown) => void) => () => void
+
   getContainers: () => Promise<unknown[]>
   startContainer: (id: string) => Promise<{ success: boolean }>
   stopContainer: (id: string) => Promise<{ success: boolean }>
@@ -112,6 +133,33 @@ const electronAPI: ElectronAPI = {
     }
     ipcRenderer.on('runs:status', listener)
     return () => ipcRenderer.removeListener('runs:status', listener)
+  },
+
+  getChains: () => ipcRenderer.invoke('chains:list'),
+  addChain: (chain: {
+    name: string
+    description?: string
+    projectId?: string
+    steps: Array<{ id: string; commandId: string; variables?: Record<string, string>; delayMs?: number }>
+    stopOnFailure: boolean
+    parallel?: boolean
+  }) => ipcRenderer.invoke('chains:create', chain),
+  updateChain: (id: string, updates: {
+    name: string
+    description?: string
+    projectId?: string
+    steps: Array<{ id: string; commandId: string; variables?: Record<string, string>; delayMs?: number }>
+    stopOnFailure: boolean
+    parallel?: boolean
+  }) => ipcRenderer.invoke('chains:update', id, updates),
+  removeChain: (id: string) => ipcRenderer.invoke('chains:delete', id),
+  runChain: (id: string, projectId?: string) => ipcRenderer.invoke('chains:run', id, projectId),
+  onChainProgress: (handler: (payload: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+      handler(payload)
+    }
+    ipcRenderer.on('chains:progress', listener)
+    return () => ipcRenderer.removeListener('chains:progress', listener)
   },
 
   // Containers
