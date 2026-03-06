@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import { Sparkles, Command } from 'lucide-react'
+import { Command } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/Tabs'
+import { BrandLogo } from '../components/BrandLogo'
 import { cn } from '../../lib/utils'
 
 interface NavItem {
@@ -26,16 +27,8 @@ export function AppShell({ navItems, activeNav, onNavChange, title, action, them
     <div className="flex h-screen overflow-hidden bg-background text-foreground selection:bg-primary/20 selection:text-primary">
       {/* Sidebar */}
       <aside className="flex w-[260px] flex-col border-r border-border/40 bg-card/30 backdrop-blur-xl">
-        <div className="flex h-[68px] items-center px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20 ring-1 ring-white/10">
-              <Sparkles className="h-4.5 w-4.5" />
-            </div>
-            <div className="leading-none">
-              <h1 className="text-sm font-bold tracking-tight text-gradient">DevDesk</h1>
-              <span className="text-[10px] text-muted-foreground font-medium tracking-wide">WORKSPACE</span>
-            </div>
-          </div>
+        <div className="flex h-[92px] items-center justify-center px-4">
+          <BrandLogo className="h-[72px] w-[208px] translate-x-8" />
         </div>
         
         <div className="px-3 py-4">

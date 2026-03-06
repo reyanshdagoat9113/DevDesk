@@ -4,10 +4,11 @@ import { reconcileRunHistory } from './data/store'
 import { registerIpcHandlers } from './ipc/registerIpc'
 
 // Determine if we're in development mode
-// In production builds or when NODE_ENV=production, use production mode
-// app.isPackaged is only true for actual packaged apps (electron-builder)
+// app.isPackaged is false for local "electron ." runs and true for packaged builds.
+// Relying on NODE_ENV here is fragile on Windows because npm scripts don't set it
+// consistently without cross-env.
 function isDevMode(): boolean {
-  return process.env.NODE_ENV === 'development' && !app.isPackaged
+  return !app.isPackaged
 }
 
 // Register IPC handlers when app is ready
