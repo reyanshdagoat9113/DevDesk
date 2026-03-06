@@ -5,6 +5,8 @@ export interface Project {
   type: 'node' | 'python' | 'rust' | 'go' | 'unknown'
   icon: string
   linkedContainerNames: string[]
+  isPinned?: boolean
+  pinnedAt?: string
 }
 
 export interface CommandVariable {
@@ -23,6 +25,8 @@ export interface Command {
   projectId?: string
   workingDirectory?: string
   variables?: CommandVariable[]
+  isPinned?: boolean
+  pinnedAt?: string
 }
 
 export interface Container {

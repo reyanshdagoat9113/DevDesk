@@ -3,11 +3,11 @@ import { createMainWindow } from './app/createWindow'
 import { reconcileRunHistory } from './data/store'
 import { registerIpcHandlers } from './ipc/registerIpc'
 
-// Determine if we're in development mode
-// app.isPackaged is false for local "electron ." runs and true for packaged builds.
-// Relying on NODE_ENV here is fragile on Windows because npm scripts don't set it
-// consistently without cross-env.
 function isDevMode(): boolean {
+  if (process.env.NODE_ENV === 'production') {
+    return false
+  }
+
   return !app.isPackaged
 }
 
