@@ -26,7 +26,15 @@ import { ContainersSection } from './sections/ContainersSection'
 import { HistorySection } from './sections/HistorySection'
 import { NotesSection } from './sections/NotesSection'
 import { ProjectsSection } from './sections/ProjectsSection'
-import type { AppPreferences, Command, Container as ContainerType, Project, ProjectNotes, RunHistoryEntry } from './types'
+import type {
+  AppPreferences,
+  Command,
+  Container as ContainerType,
+  CreateCommandInput,
+  Project,
+  ProjectNotes,
+  RunHistoryEntry,
+} from './types'
 import { CommandPalette } from './components/CommandPalette'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ProjectDirectorySelector } from './components/ProjectDirectorySelector'
@@ -466,12 +474,6 @@ function App() {
   }
 
   const handleAddCommand = async () => {
-    const trimmedName = commandName.trim()
-    const trimmedCommand = commandValue.trim()
-    if (!trimmedName || !trimmedCommand) {
-      setCommandError('Command name and command are required.')
-      return
-    }
     setCommandError(null)
     setIsSavingCommand(true)
     try {
@@ -479,17 +481,19 @@ function App() {
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean)
-      const command = await window.electronAPI.addCommand({
-        name: trimmedName,
-        command: trimmedCommand,
-        description: commandDescription.trim() || undefined,
+
+      await handleCreateCommand({
+        name: commandName,
+        command: commandValue,
+        description: commandDescription,
         tags: tags.length ? tags : undefined,
         projectId: commandProjectId === GLOBAL_COMMAND_VALUE ? undefined : commandProjectId,
-        workingDirectory: commandWorkingDirectory === '__root__' || !commandWorkingDirectory.trim()
-          ? undefined
-          : commandWorkingDirectory.trim(),
+        workingDirectory:
+          commandWorkingDirectory === '__root__' || !commandWorkingDirectory.trim()
+            ? undefined
+            : commandWorkingDirectory,
       })
-      setCommands((prev) => [command, ...prev])
+
       // Reset form
       setCommandName('')
       setCommandValue('')
@@ -504,6 +508,39 @@ function App() {
       setIsSavingCommand(false)
     }
   }
+
+  const handleCreateCommand = useCallback(async (input: CreateCommandInput) => {
+    const normalizedName = input.name.trim()
+    const normalizedCommand = input.command.trim()
+
+    if (!normalizedName || !normalizedCommand) {
+      throw new Error('Command name and command are required.')
+    }
+
+    const normalizedTags = input.tags
+      ?.map((tag) => tag.trim())
+      .filter(Boolean)
+
+    const payload: CreateCommandInput = {
+      name: normalizedName,
+      command: normalizedCommand,
+      description: input.description?.trim() || undefined,
+      tags: normalizedTags?.length ? normalizedTags : undefined,
+      projectId: input.projectId,
+      workingDirectory: input.workingDirectory?.trim() || undefined,
+    }
+
+    setLoadError(null)
+    try {
+      const created = await window.electronAPI.addCommand(payload)
+      setCommands((prev) => [created, ...prev])
+      return created
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to add command.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
 
   const handleUpdateCommand = async (
     commandId: string,
@@ -774,6 +811,7 @@ function App() {
               onUpdateCommand={handleUpdateCommand}
               onRemoveCommand={handleRemoveCommand}
               onToggleCommandPin={handleToggleCommandPin}
+              onCreatePresetCommand={handleCreateCommand}
             />
           )}
           {activeTab === 'containers' && (

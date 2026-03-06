@@ -1,8 +1,12 @@
+export type ProjectType = 'node' | 'python' | 'rust' | 'go' | 'unknown'
+
+export type CommandPresetIcon = 'package' | 'play' | 'hammer' | 'check-circle' | 'alert-circle' | 'wrench'
+
 export interface Project {
   id: string
   path: string
   name: string
-  type: 'node' | 'python' | 'rust' | 'go' | 'unknown'
+  type: ProjectType
   icon: string
   linkedContainerNames: string[]
   isPinned?: boolean
@@ -27,6 +31,24 @@ export interface Command {
   variables?: CommandVariable[]
   isPinned?: boolean
   pinnedAt?: string
+}
+
+export interface CreateCommandInput {
+  name: string
+  command: string
+  description?: string
+  tags?: string[]
+  projectId?: string
+  workingDirectory?: string
+}
+
+export interface CommandPreset {
+  id: string
+  name: string
+  command: string
+  description?: string
+  icon: CommandPresetIcon
+  tags?: string[]
 }
 
 export interface Container {

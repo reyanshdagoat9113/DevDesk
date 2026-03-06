@@ -1,4 +1,14 @@
-import type { AppPreferences, Command, Container, Project, ProjectNotes, RunHistoryEntry, RunStatus } from '../types'
+import type {
+  AppPreferences,
+  Command,
+  CommandVariable,
+  Container,
+  CreateCommandInput,
+  Project,
+  ProjectNotes,
+  RunHistoryEntry,
+  RunStatus,
+} from '../types'
 
 export interface ElectronAPI {
   platform: string
@@ -19,7 +29,7 @@ export interface ElectronAPI {
   updatePreferences: (preferences: Partial<AppPreferences>) => Promise<{ success: boolean }>
 
   getCommands: () => Promise<Command[]>
-  addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) => Promise<Command>
+  addCommand: (command: CreateCommandInput) => Promise<Command>
   updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) => Promise<Command>
   toggleCommandPin: (id: string) => Promise<Command>
   removeCommand: (id: string) => Promise<{ success: boolean }>

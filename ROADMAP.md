@@ -3,7 +3,7 @@
 > A comprehensive implementation guide for evolving DevDesk from MVP to a complete developer workspace platform.
 
 **Last Updated:** 2026-03-02  
-**Current Phase:** Phase 1.1 + 1.2 + 1.3 Complete → Phase 2.1 Next
+**Current Phase:** Phase 2.1 Complete → Phase 2.2 Next
 
 ---
 
@@ -171,12 +171,20 @@ ALTER TABLE commands ADD COLUMN pinned_at TEXT;
 
 **Goal:** Transform Command Vault into a powerful automation system.
 
-### 2.1 Command Presets by Project Type 📋
+### 2.1 Command Presets by Project Type ✅ **COMPLETE**
 **Priority:** High  
 **Effort:** 3-4 hours  
 **Dependencies:** 1.2 (variables recommended)
 
 Auto-suggest common commands based on project type detection.
+
+**Status:** COMPLETED
+
+**Implemented:**
+- Renderer preset library for Node, Python, Rust, and Go projects
+- Project-aware preset picker in Command Vault via an `Add Preset` action
+- One-click preset command creation bound to the selected project
+- Duplicate-aware preset state so already-added commands are clearly marked
 
 **Preset Library:**
 ```typescript
@@ -1079,19 +1087,19 @@ Phase 10: Polish
 
 ## Quick Reference: Next 3 Tasks
 
-1. **Command Presets by Project Type** (3-4 hrs)
-   - Add preset library by project type
-   - Build preset picker in Command Vault
-   - Create commands from selected presets
-
-2. **Advanced Tag Filtering** (1-2 hrs)
+1. **Advanced Tag Filtering** (1-2 hrs)
    - Add multi-select tag filters
    - Add "Untagged" view
    - Add quick assignment toggles
 
-3. **Dev Stack Restart Action** (1-2 hrs)
+2. **Dev Stack Restart Action** (1-2 hrs)
    - Add "Restart Dev Stack" operation for linked containers
    - Surface result summary alongside Start/Stop
+
+3. **Command Chains** (4-6 hrs)
+   - Add chain data model and CRUD IPC
+   - Build chain editor and execution UI
+   - Record per-step output in run history
 
 ---
 

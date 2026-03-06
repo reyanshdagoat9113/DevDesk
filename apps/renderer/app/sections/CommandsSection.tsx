@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star } from 'lucide-react'
+import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star, Sparkles } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import {
   Card,
@@ -22,8 +22,10 @@ import { Badge } from '../components/ui/Badge'
 import { Textarea } from '../components/ui/Textarea'
 import { SectionLayout } from '../layout/SectionLayout'
 import { VariablePromptModal } from '../components/VariablePromptModal'
+import { CommandPresetPickerDialog } from '../components/CommandPresetPickerDialog'
+import { getCommandPresetsForProjectType } from '../lib/commandPresets'
 import { cn } from '../../lib/utils'
-import type { Command, CommandVariable, Project } from '../types'
+import type { Command, CommandVariable, CreateCommandInput, Project } from '../types'
 
 const selectClass =
   'flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
@@ -37,6 +39,7 @@ export function CommandsSection({
   onUpdateCommand,
   onRemoveCommand,
   onToggleCommandPin,
+  onCreatePresetCommand,
 }: {
   commands: Command[]
   projects: Project[]
@@ -46,6 +49,7 @@ export function CommandsSection({
   onUpdateCommand?: (commandId: string, updates: { name: string; command: string; description?: string; tags?: string[] }) => Promise<void>
   onRemoveCommand?: (commandId: string) => Promise<void>
   onToggleCommandPin?: (commandId: string) => Promise<void>
+  onCreatePresetCommand?: (command: CreateCommandInput) => Promise<Command>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(commands[0]?.id ?? null)
   const [runError, setRunError] = useState<string | null>(null)
@@ -62,6 +66,7 @@ export function CommandsSection({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false)
 
   // Variable prompt state
   const [variablePromptOpen, setVariablePromptOpen] = useState(false)
@@ -107,6 +112,11 @@ export function CommandsSection({
 
     return list
   }, [commands])
+
+  const projectsWithPresets = useMemo(
+    () => projects.filter((project) => getCommandPresetsForProjectType(project.type).length > 0),
+    [projects]
+  )
 
   const filteredCommands = useMemo(() => {
     const filtered = commands.filter((cmd) => {
@@ -347,26 +357,39 @@ export function CommandsSection({
       list={
         <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
           <div className="border-b border-border/40 bg-muted/20 px-4 py-3 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Commands</p>
                 {filteredCommands.length > 0 && (
                   <Badge variant="outline" className="text-[10px] font-medium">{filteredCommands.length}</Badge>
                 )}
               </div>
-              {(selectedTag || normalizedQueryTokens.length > 0) && (
+              <div className="flex items-center gap-1.5">
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => {
-                    setSelectedTag(null)
-                    setQuery('')
-                  }}
+                  variant="outline"
+                  className="h-7 gap-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                  onClick={() => setPresetDialogOpen(true)}
+                  disabled={!onCreatePresetCommand || projectsWithPresets.length === 0}
+                  title={projectsWithPresets.length === 0 ? 'Add a Node, Python, Rust, or Go project to unlock presets.' : 'Add preset command'}
                 >
-                  Clear Filters
+                  <Sparkles className="h-3 w-3" />
+                  Add Preset
                 </Button>
-              )}
+                {(selectedTag || normalizedQueryTokens.length > 0) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => {
+                      setSelectedTag(null)
+                      setQuery('')
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="relative">
@@ -870,6 +893,17 @@ export function CommandsSection({
         onSubmit={handleVariableSubmit}
         onCancel={handleVariableCancel}
       />
+
+      {onCreatePresetCommand ? (
+        <CommandPresetPickerDialog
+          open={presetDialogOpen}
+          onOpenChange={setPresetDialogOpen}
+          projects={projects}
+          commands={commands}
+          preferredProjectId={selectedProject?.id ?? null}
+          onCreateCommand={onCreatePresetCommand}
+        />
+      ) : null}
     </>
   )
 }
