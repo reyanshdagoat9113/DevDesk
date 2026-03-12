@@ -42,6 +42,7 @@ export function HistorySection({
   onStopRun,
   onLoadOutput,
   onClearHistory,
+  onRemoveEntry,
 }: {
   history: RunHistoryEntry[]
   commands: Command[]
@@ -51,6 +52,7 @@ export function HistorySection({
   onStopRun?: (runId: string) => void
   onLoadOutput?: (runId: string) => Promise<string>
   onClearHistory?: () => Promise<void>
+  onRemoveEntry?: (runId: string) => Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(history[0]?.id ?? null)
   const [outputText, setOutputText] = useState('')
@@ -61,6 +63,9 @@ export function HistorySection({
   const [clearDialogOpen, setClearDialogOpen] = useState(false)
   const [clearError, setClearError] = useState<string | null>(null)
   const [clearing, setClearing] = useState(false)
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   useEffect(() => {
     if (!history.length) {
@@ -119,7 +124,23 @@ export function HistorySection({
     }
   }
 
+  const handleRemoveSelectedEntry = async () => {
+    if (!selectedEntryId || !onRemoveEntry || removing) return
+    setRemoveError(null)
+    setRemoving(true)
+    try {
+      await onRemoveEntry(selectedEntryId)
+      setRemoveDialogOpen(false)
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : 'Failed to remove history entry.')
+    } finally {
+      setRemoving(false)
+    }
+  }
+
   useEffect(() => {
+    let cancelled = false
+
     if (!selectedEntryId) {
       setOutputText('')
       setOutputError(null)
@@ -145,14 +166,24 @@ export function HistorySection({
     setOutputError(null)
     onLoadOutput(selectedEntryId)
       .then((output) => {
-        setOutputText(output ?? '')
+        if (!cancelled) {
+          setOutputText(output ?? '')
+        }
       })
       .catch((loadError) => {
-        setOutputError(loadError instanceof Error ? loadError.message : 'Failed to load output.')
+        if (!cancelled) {
+          setOutputError(loadError instanceof Error ? loadError.message : 'Failed to load output.')
+        }
       })
       .finally(() => {
-        setOutputLoading(false)
+        if (!cancelled) {
+          setOutputLoading(false)
+        }
       })
+
+    return () => {
+      cancelled = true
+    }
   }, [onLoadOutput, selectedEntryId, selectedEntryOutput, selectedEntryStatus])
 
   const handleCopy = async () => {
@@ -355,7 +386,8 @@ export function HistorySection({
                       variant="ghost"
                       size="sm"
                       className="h-8 gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
-                      onClick={() => setClearDialogOpen(true)}
+                      onClick={() => setRemoveDialogOpen(true)}
+                      disabled={!onRemoveEntry}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                       Purge entry
@@ -407,6 +439,36 @@ export function HistorySection({
               )}
             </Button>
             <Button onClick={() => setDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={removeDialogOpen}
+        onOpenChange={(open) => {
+          setRemoveDialogOpen(open)
+          if (!open) {
+            setRemoveError(null)
+            setRemoving(false)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove selected run?</DialogTitle>
+            <DialogDescription>
+              This removes only the selected run and its captured output. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {removeError ? (
+            <p className="text-xs text-destructive">{removeError}</p>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveDialogOpen(false)} disabled={removing}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleRemoveSelectedEntry} disabled={removing || !selectedEntryId}>
+              {removing ? 'Removing...' : 'Remove Run'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

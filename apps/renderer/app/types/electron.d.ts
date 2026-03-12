@@ -40,9 +40,10 @@ export interface ElectronAPI {
   toggleCommandPin: (id: string) => Promise<Command>
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
-  runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: CommandVariable[]; preview: string }>
+  runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string; startTime: string } | { status: 'needs-input'; inputs: CommandVariable[]; preview: string }>
   detectCommandVariables: (command: string) => Promise<CommandVariable[]>
   stopCommand: (runId: string) => Promise<{ success: boolean }>
+  onRunStarted: (handler: (payload: { id: string; commandId: string; projectId?: string; status: string; startTime: string; output?: string; resolvedCommand?: string }) => void) => () => void
   onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => () => void
   onRunStatus: (handler: (payload: { runId: string; status: string }) => void) => () => void
 
@@ -80,6 +81,7 @@ export interface ElectronAPI {
   listRecentHistory: (limit?: number) => Promise<{ id: string; commandId: string; projectId?: string; status: RunStatus; startTime: string; endTime?: string }[]>
   getRunOutput: (runId: string) => Promise<string>
   clearRunHistory: () => Promise<{ success: boolean }>
+  removeRunHistory: (runId: string) => Promise<{ success: boolean }>
 
   getNotes: (projectId: string) => Promise<ProjectNotes>
   updateNotes: (projectId: string, notes: Partial<ProjectNotes>) => Promise<{ success: boolean }>

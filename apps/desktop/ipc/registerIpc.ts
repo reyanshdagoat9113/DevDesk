@@ -27,6 +27,7 @@ import {
   removeCommand,
   removeChain,
   removeProject,
+  removeRunHistoryEntry,
   removeTrigger,
   renameProject,
   replaceChain,
@@ -51,7 +52,7 @@ import type {
   Project,
   RunStatus,
 } from '../data/model'
-import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex } from '../files/fileService'
+import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
 import { variableResolver } from '../commands/variableResolver'
 import { detectVariables } from '../commands/variableDetector'
 
@@ -839,7 +840,7 @@ async function getProjectPath(projectId: string): Promise<string> {
 
 async function getProjectDirectories(projectId: string, relativePath?: string): Promise<string[]> {
   const projectPath = await getProjectPath(projectId)
-  const targetPath = relativePath ? path.join(projectPath, relativePath) : projectPath
+  const targetPath = resolveProjectPath(projectPath, relativePath)
 
   if (!fs.existsSync(targetPath)) {
     return []
@@ -960,12 +961,15 @@ type PreparedCommandExecution = {
   command: Command
   project: Project
   projectPath: string
+  workingDirectoryPath: string
+  workingDirectoryRelative?: string
   finalCommand: string
 }
 
 type StartedCommandRun = {
   runId: string
   status: 'running'
+  startTime: string
   completion: Promise<RunStatus>
 }
 
@@ -1059,6 +1063,11 @@ async function prepareCommandExecution(
     throw new Error('Project path does not exist.')
   }
 
+  const workingDirectoryRelative = command.workingDirectory?.trim() || undefined
+  const workingDirectoryPath = resolveProjectPath(projectPath, workingDirectoryRelative)
+  const shellDialect =
+    process.platform === 'win32' && !parseWslProjectPath(projectPath) ? 'windows' : 'posix'
+
   const hasContainerVariables = variableResolver
     .extractVariables(command.command)
     .some((variable) => variable.startsWith('container.'))
@@ -1078,10 +1087,11 @@ async function prepareCommandExecution(
       containers: linkedContainers,
       env: process.env,
     },
-    variables
+    variables,
+    shellDialect
   )
 
-  if (resolution.unresolvedInputs.length > 0 && !variables) {
+  if (resolution.unresolvedInputs.length > 0) {
     return {
       status: 'needs-input',
       inputs: resolution.unresolvedInputs,
@@ -1093,6 +1103,8 @@ async function prepareCommandExecution(
     command,
     project,
     projectPath,
+    workingDirectoryPath,
+    workingDirectoryRelative,
     finalCommand: resolution.resolvedCommand,
   }
 }
@@ -1102,6 +1114,16 @@ async function startPreparedCommandExecution(prepared: PreparedCommandExecution)
   const startTime = new Date().toISOString()
 
   await createRunHistoryEntry({
+    id: runId,
+    commandId: prepared.command.id,
+    projectId: prepared.project.id,
+    status: 'running',
+    startTime,
+    output: '',
+    resolvedCommand: prepared.finalCommand,
+  })
+
+  broadcast('runs:started', {
     id: runId,
     commandId: prepared.command.id,
     projectId: prepared.project.id,
@@ -1123,7 +1145,7 @@ async function startPreparedCommandExecution(prepared: PreparedCommandExecution)
           '-lc',
           buildWslBashCommand(
             prepared.finalCommand,
-            resolveWslWorkingDirectory(wslLocation, prepared.command.workingDirectory)
+            resolveWslWorkingDirectory(wslLocation, prepared.workingDirectoryRelative)
           ),
         ],
         {
@@ -1132,9 +1154,7 @@ async function startPreparedCommandExecution(prepared: PreparedCommandExecution)
         }
       )
     : spawn(prepared.finalCommand, {
-        cwd: prepared.command.workingDirectory
-          ? path.join(prepared.projectPath, prepared.command.workingDirectory)
-          : prepared.projectPath,
+        cwd: prepared.workingDirectoryPath,
         shell: true,
         env: process.env,
       })
@@ -1184,6 +1204,7 @@ async function startPreparedCommandExecution(prepared: PreparedCommandExecution)
   return {
     runId,
     status: 'running',
+    startTime,
     completion,
   }
 }
@@ -1862,7 +1883,7 @@ export function registerIpcHandlers() {
     if ('status' in run && run.status === 'needs-input') {
       return run
     }
-    return { runId: run.runId, status: run.status }
+    return { runId: run.runId, status: run.status, startTime: run.startTime }
   })
 
   ipcMain.handle('commands:detect-variables', async (_event, commandString: string) => {
@@ -2194,6 +2215,20 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('history:clear', async () => {
     await clearRunHistoryInStore()
+    return { success: true }
+  })
+
+  ipcMain.handle('history:remove', async (_event, runId: string) => {
+    const id = runId?.trim()
+    if (!id) {
+      return { success: false }
+    }
+
+    if (runningCommands.has(id)) {
+      throw new Error('Cannot remove a running command.')
+    }
+
+    await removeRunHistoryEntry(id)
     return { success: true }
   })
 

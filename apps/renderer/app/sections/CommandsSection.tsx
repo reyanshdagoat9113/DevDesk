@@ -212,16 +212,25 @@ export function CommandsSection({
     setEditCommand(selectedCommand.command)
     setEditDescription(selectedCommand.description ?? '')
     setEditTags(selectedCommand.tags?.join(', ') ?? '')
-    // Detect variables from the command
+    let cancelled = false
+
     const detect = async () => {
       try {
         const vars = await window.electronAPI.detectCommandVariables(selectedCommand.command)
-        setDetectedVariables(vars)
+        if (!cancelled) {
+          setDetectedVariables(vars)
+        }
       } catch {
-        setDetectedVariables([])
+        if (!cancelled) {
+          setDetectedVariables([])
+        }
       }
     }
-    detect()
+    void detect()
+
+    return () => {
+      cancelled = true
+    }
   }, [selectedCommand])
 
   const selectedCommandTagKeys = useMemo(
@@ -283,19 +292,31 @@ export function CommandsSection({
 
   // Detect variables as user types in edit mode
   useEffect(() => {
+    let cancelled = false
+
     const detect = async () => {
       if (!editCommand.trim()) {
-        setDetectedVariables([])
+        if (!cancelled) {
+          setDetectedVariables([])
+        }
         return
       }
       try {
         const vars = await window.electronAPI.detectCommandVariables(editCommand)
-        setDetectedVariables(vars)
+        if (!cancelled) {
+          setDetectedVariables(vars)
+        }
       } catch {
-        setDetectedVariables([])
+        if (!cancelled) {
+          setDetectedVariables([])
+        }
       }
     }
-    detect()
+    void detect()
+
+    return () => {
+      cancelled = true
+    }
   }, [editCommand])
 
   // Get the project associated with this command

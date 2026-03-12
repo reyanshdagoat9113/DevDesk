@@ -28,9 +28,10 @@ interface ElectronAPI {
   toggleCommandPin: (id: string) => Promise<unknown>
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
-  runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: Array<{ name: string; default?: string; required: boolean; description?: string }>; preview: string }>
+  runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string; startTime: string } | { status: 'needs-input'; inputs: Array<{ name: string; default?: string; required: boolean; description?: string }>; preview: string }>
   detectCommandVariables: (command: string) => Promise<Array<{ name: string; default?: string; required: boolean; description?: string }>>
   stopCommand: (runId: string) => Promise<{ success: boolean }>
+  onRunStarted: (handler: (payload: { id: string; commandId: string; projectId?: string; status: string; startTime: string; output?: string; resolvedCommand?: string }) => void) => () => void
   onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => () => void
   onRunStatus: (handler: (payload: { runId: string; status: string }) => void) => () => void
 
@@ -98,6 +99,7 @@ interface ElectronAPI {
   listRecentHistory: (limit?: number) => Promise<{ id: string; commandId: string; projectId?: string; status: string; startTime: string; endTime?: string }[]>
   getRunOutput: (runId: string) => Promise<string>
   clearRunHistory: () => Promise<{ success: boolean }>
+  removeRunHistory: (runId: string) => Promise<{ success: boolean }>
 
   getNotes: (projectId: string) => Promise<{ setupSteps: string; todos: string; reminders: string }>
   updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) => Promise<{ success: boolean }>
@@ -145,6 +147,18 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('commands:run', id, projectId, variables),
   detectCommandVariables: (command: string) => ipcRenderer.invoke('commands:detect-variables', command),
   stopCommand: (runId: string) => ipcRenderer.invoke('commands:stop', runId),
+  onRunStarted: (
+    handler: (payload: { id: string; commandId: string; projectId?: string; status: string; startTime: string; output?: string; resolvedCommand?: string }) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { id: string; commandId: string; projectId?: string; status: string; startTime: string; output?: string; resolvedCommand?: string }
+    ) => {
+      handler(payload)
+    }
+    ipcRenderer.on('runs:started', listener)
+    return () => ipcRenderer.removeListener('runs:started', listener)
+  },
   onRunOutput: (handler: (payload: { runId: string; chunk: string }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: { runId: string; chunk: string }) => {
       handler(payload)
@@ -268,6 +282,7 @@ const electronAPI: ElectronAPI = {
   listRecentHistory: (limit?: number) => ipcRenderer.invoke('history:listRecent', limit),
   getRunOutput: (runId: string) => ipcRenderer.invoke('history:output', runId),
   clearRunHistory: () => ipcRenderer.invoke('history:clear'),
+  removeRunHistory: (runId: string) => ipcRenderer.invoke('history:remove', runId),
 
   // Notes
   getNotes: (projectId: string) => ipcRenderer.invoke('notes:get', projectId),

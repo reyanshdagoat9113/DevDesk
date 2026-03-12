@@ -380,7 +380,7 @@ function spawnShellDetached(command: string): Promise<{ success: boolean; error?
 }
 
 // Parse WSL UNC path
-const WSL_UNC_PATH_PATTERN = /^\\\\wsl(?:\.localhost|\\$)\\([^\\/]+)(?:[\\/](.*))?$/i
+const WSL_UNC_PATH_PATTERN = /^\\\\wsl(?:\.localhost|\$)\\([^\\/]+)(?:[\\/](.*))?$/i
 
 function parseWslProjectPath(projectPath: string): { distro: string; linuxPath: string } | null {
   if (process.platform !== 'win32') {

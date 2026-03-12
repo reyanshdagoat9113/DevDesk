@@ -15,6 +15,8 @@ export interface VariableResolutionResult {
   resolvedValues: Record<string, string>
 }
 
+export type ShellDialect = 'posix' | 'windows'
+
 interface ResolvedVariable {
   type: 'resolved'
   value: string
@@ -55,7 +57,8 @@ export class VariableResolver {
   resolve(
     command: string,
     context: VariableContext,
-    userInputs?: Record<string, string>
+    userInputs?: Record<string, string>,
+    shellDialect: ShellDialect = 'posix'
   ): VariableResolutionResult {
     const resolvedValues: Record<string, string> = {}
     const unresolvedInputs: CommandVariable[] = []
@@ -64,7 +67,7 @@ export class VariableResolver {
       VariableResolver.VARIABLE_PATTERN,
       (match, varPath: string) => {
         const trimmed = varPath.trim()
-        const resolved = this.resolveVariable(trimmed, context, userInputs)
+        const resolved = this.resolveVariable(trimmed, context, userInputs, shellDialect)
 
         if (resolved.type === 'resolved') {
           resolvedValues[trimmed] = resolved.value
@@ -96,11 +99,12 @@ export class VariableResolver {
   private resolveVariable(
     varPath: string,
     context: VariableContext,
-    userInputs?: Record<string, string>
+    userInputs?: Record<string, string>,
+    shellDialect: ShellDialect = 'posix'
   ): VariableResolution {
     // Handle {{input}} and {{input:prompt}} and {{input:name:default}}
     if (varPath.startsWith('input')) {
-      return this.resolveInputVariable(varPath, userInputs)
+      return this.resolveInputVariable(varPath, userInputs, shellDialect)
     }
 
     // Handle {{env.VAR_NAME}}
@@ -108,7 +112,7 @@ export class VariableResolver {
       const envName = varPath.slice(4)
       const envValue = context.env[envName]
       if (envValue !== undefined) {
-        return { type: 'resolved', value: this.escapeShellValue(envValue) }
+        return { type: 'resolved', value: this.escapeShellValue(envValue, shellDialect) }
       }
       return { type: 'unresolved' }
     }
@@ -117,7 +121,7 @@ export class VariableResolver {
     if (varPath.startsWith('project.')) {
       const projectValue = this.resolveProjectVariable(varPath, context.project)
       if (projectValue !== undefined) {
-        return { type: 'resolved', value: this.escapeShellValue(projectValue) }
+        return { type: 'resolved', value: this.escapeShellValue(projectValue, shellDialect) }
       }
       return { type: 'unresolved' }
     }
@@ -126,7 +130,7 @@ export class VariableResolver {
     if (varPath.startsWith('container.')) {
       const containerValue = this.resolveContainerVariable(varPath, context.containers)
       if (containerValue !== undefined) {
-        return { type: 'resolved', value: this.escapeShellValue(containerValue) }
+        return { type: 'resolved', value: this.escapeShellValue(containerValue, shellDialect) }
       }
       return { type: 'unresolved' }
     }
@@ -136,7 +140,8 @@ export class VariableResolver {
 
   private resolveInputVariable(
     varPath: string,
-    userInputs?: Record<string, string>
+    userInputs?: Record<string, string>,
+    shellDialect: ShellDialect = 'posix'
   ): VariableResolution {
     // Parse {{input}}, {{input:prompt}}, {{input:name:default}}
     const parts = varPath.split(':')
@@ -144,7 +149,7 @@ export class VariableResolver {
     if (parts.length === 1) {
       // {{input}} - simple prompt
       if (userInputs?.input !== undefined) {
-        return { type: 'resolved', value: this.escapeShellValue(userInputs.input) }
+        return { type: 'resolved', value: this.escapeShellValue(userInputs.input, shellDialect) }
       }
       return {
         type: 'input-required',
@@ -158,7 +163,7 @@ export class VariableResolver {
       // {{input:prompt}} - prompt with description
       const description = parts[1]
       if (userInputs?.[description] !== undefined) {
-        return { type: 'resolved', value: this.escapeShellValue(userInputs[description]) }
+        return { type: 'resolved', value: this.escapeShellValue(userInputs[description], shellDialect) }
       }
 
       return {
@@ -174,7 +179,7 @@ export class VariableResolver {
     const defaultValue = parts[2]
 
     if (userInputs?.[name] !== undefined) {
-      return { type: 'resolved', value: this.escapeShellValue(userInputs[name]) }
+      return { type: 'resolved', value: this.escapeShellValue(userInputs[name], shellDialect) }
     }
 
     return {
@@ -220,7 +225,19 @@ export class VariableResolver {
   /**
    * Escape a value for safe shell usage
    */
-  private escapeShellValue(value: string): string {
+  private escapeShellValue(value: string, shellDialect: ShellDialect): string {
+    if (shellDialect === 'windows') {
+      if (value.length === 0) {
+        return '""'
+      }
+
+      const escaped = value
+        .replace(/(\\*)"/g, '$1$1\\"')
+        .replace(/(\\+)$/g, '$1$1')
+
+      return `"${escaped}"`
+    }
+
     // Use single quotes and escape any single quotes in the value
     if (!value.includes("'")) {
       return `'${value}'`

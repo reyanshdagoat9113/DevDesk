@@ -218,7 +218,12 @@ export function CommandChainsPanel({
       return
     }
 
-    setRunProjectId((current) => current ?? projects[0]?.id ?? null)
+    setRunProjectId((current) => {
+      if (current && projects.some((project) => project.id === current)) {
+        return current
+      }
+      return projects[0]?.id ?? null
+    })
   }, [projects, selectedChain])
 
   useEffect(() => {

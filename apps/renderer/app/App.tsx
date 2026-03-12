@@ -94,6 +94,22 @@ function toUserContainerError(error: unknown, fallbackMessage: string) {
   return message
 }
 
+function upsertHistoryEntry(history: RunHistoryEntry[], entry: RunHistoryEntry): RunHistoryEntry[] {
+  const existingIndex = history.findIndex((item) => item.id === entry.id)
+  if (existingIndex === -1) {
+    return [entry, ...history]
+  }
+
+  const next = [...history]
+  next[existingIndex] = {
+    ...next[existingIndex],
+    ...entry,
+    output: entry.output ?? next[existingIndex].output,
+    resolvedCommand: entry.resolvedCommand ?? next[existingIndex].resolvedCommand,
+  }
+  return next
+}
+
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('devdesk-theme')
@@ -292,6 +308,20 @@ function App() {
   }, [activeTab, hasAttemptedContainersLoad, isContainersLoading, loadContainers])
 
   useEffect(() => {
+    const unsubscribeStarted = window.electronAPI.onRunStarted((entry) => {
+      setHistory((prev) =>
+        upsertHistoryEntry(prev, {
+          id: entry.id,
+          commandId: entry.commandId,
+          projectId: entry.projectId,
+          status: 'running',
+          startTime: entry.startTime,
+          output: entry.output ?? '',
+          resolvedCommand: entry.resolvedCommand,
+        })
+      )
+    })
+
     const unsubscribeOutput = window.electronAPI.onRunOutput(({ runId, chunk }) => {
       setHistory((prev) =>
         prev.map((entry) =>
@@ -336,6 +366,7 @@ function App() {
     })
 
     return () => {
+      unsubscribeStarted()
       unsubscribeOutput()
       unsubscribeStatus()
       unsubscribeChainProgress()
@@ -448,6 +479,7 @@ function App() {
     try {
       await window.electronAPI.removeProject(projectId)
       setProjects((prev) => prev.filter((project) => project.id !== projectId))
+      setCommands((prev) => prev.filter((command) => command.projectId !== projectId))
       setChains((prev) => prev.filter((chain) => chain.projectId !== projectId))
       setTriggers((prev) => prev.filter((trigger) => trigger.projectId !== projectId))
       setChainRuns((prev) => {
@@ -748,20 +780,6 @@ function App() {
       if (run.status === 'needs-input') {
         return run as { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }
       }
-      
-      // Normal execution - add to history
-      const startTime = new Date().toISOString()
-      setHistory((prev) => [
-        {
-          id: (run as { runId: string; status: string }).runId,
-          commandId,
-          projectId,
-          status: 'running',
-          startTime,
-          output: '',
-        },
-        ...prev,
-      ])
       return run
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to run command.'
@@ -805,6 +823,18 @@ function App() {
       setHistory([])
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to clear history.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRemoveHistoryEntry = async (runId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.removeRunHistory(runId)
+      setHistory((prev) => prev.filter((entry) => entry.id !== runId))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove history entry.'
       setLoadError(message)
       throw new Error(message)
     }
@@ -1022,6 +1052,7 @@ function App() {
               onStopRun={handleStopRun}
               onLoadOutput={handleLoadOutput}
               onClearHistory={handleClearHistory}
+              onRemoveEntry={handleRemoveHistoryEntry}
             />
           )}
           {activeTab === 'notes' && (

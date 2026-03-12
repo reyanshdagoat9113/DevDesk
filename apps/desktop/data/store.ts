@@ -754,6 +754,7 @@ export async function removeProject(projectId: string): Promise<void> {
     const database = getDbOrThrow()
     const transaction = database.transaction((id: string) => {
       database.prepare('DELETE FROM projects WHERE id = ?').run(id)
+      database.prepare('DELETE FROM commands WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM chains WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM triggers WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM run_history WHERE project_id = ?').run(id)
@@ -1040,6 +1041,13 @@ export async function clearRunHistoryInStore(): Promise<void> {
   await queueWrite(async () => {
     await ensureDbInitialized()
     getDbOrThrow().prepare('DELETE FROM run_history').run()
+  })
+}
+
+export async function removeRunHistoryEntry(runId: string): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow().prepare('DELETE FROM run_history WHERE id = ?').run(runId)
   })
 }
 
