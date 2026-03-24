@@ -5,9 +5,72 @@
 
 ---
 
+## Architectural Philosophy
+
+**Rule: Default to TypeScript. Move to Rust only when a part is clearly CPU-heavy or needs very fast native performance.**
+
+This is a hybrid architecture where TypeScript handles orchestration and Rust handles only the parts where Node is weaker.
+
+### TypeScript Handles (Orchestration Layer)
+
+| Area | Why TS |
+|------|--------|
+| App logic & orchestration | Easier iteration, rich ecosystem |
+| Database calls (SQLite) | better-sqlite3 is synchronous and fast |
+| Filesystem workflow | Node fs is adequate |
+| CLI spawning / process management | Native spawn/child_process |
+| API boundaries / IPC | Type safety, async handling |
+| Config, settings, logging | Business logic clarity |
+| Fuzzy matching | No perf difference from Rust |
+| Result ranking | Flexible, domain-specific |
+
+### Rust Handles (Performance Layer)
+
+| Area | Why Rust |
+|------|----------|
+| Recursive directory scanning | Walks thousands of files in ms |
+| File indexing & hashing | Blake3 is extremely fast |
+| Heavy regex search | `regex` crate outperforms JS |
+| Parsing large files | CPU-bound, benefits from native |
+| Watching large workspaces | Efficient file system events |
+
+### Workflow Pattern
+
+```
+┌─────────────────┐
+│   UI / CLI      │  "index this project"
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│              TypeScript Engine                       │
+│                                                      │
+│  1. Receive request                                  │
+│  2. Decide: Node directly? Rust? SQLite?            │
+│  3. Execute and orchestrate                          │
+│  4. Return structured result                         │
+└─────────────────────────────────────────────────────┘
+```
+
+### Anti-Patterns to Avoid
+
+| Don't Use Rust For | Why |
+|--------------------|-----|
+| Docker commands | Node `spawn` is fine |
+| App settings / config | Business logic stays in TS |
+| General orchestration | Over-engineering, harder to iterate |
+| Fuzzy matching | TS scoring is fast enough |
+| Result ranking | Needs flexibility, not raw speed |
+| API boundaries | Type safety matters more than speed |
+| Database schema / queries | SQLite handles this well |
+
+---
+
 ## Core Abstraction: Engine Capabilities
 
 The Performance Engine exposes **capabilities**, not commands. The CLI is just one client.
+
+**TypeScript is the orchestrator.** All requests flow through the TS Engine, which decides how to execute each operation.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -17,12 +80,12 @@ The Performance Engine exposes **capabilities**, not commands. The CLI is just o
 │   │          │   │   App    │   │  Server  │                   │
 │   └────┬─────┘   └────┬─────┘   └────┬─────┘                   │
 └────────┼──────────────┼──────────────┼──────────────────────────┘
-         │              │              │              │
-         └──────────────┴──────────────┴──────────────┘
+         │              │              │
+         └──────────────┴──────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Engine API (TypeScript)                      │
+│                  TypeScript Engine (Orchestrator)                │
 │                                                                  │
 │   engine.indexRepository(options) → IndexResult                  │
 │   engine.search(query, options) → SearchResult                   │
@@ -31,16 +94,19 @@ The Performance Engine exposes **capabilities**, not commands. The CLI is just o
 │   engine.getGitHotspots(options) → HotspotResult                 │
 │   engine.buildContextBundle(query, budget) → ContextBundle       │
 │                                                                  │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  Decision: Node directly? Rust? SQLite?                 │   │
+│   └─────────────────────────────────────────────────────────┘   │
 └──────────────────────────────┬───────────────────────────────────┘
                                │
          ┌─────────────────────┼─────────────────────┐
          │                     │                     │
          ▼                     ▼                     ▼
 ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-│   SQLite FTS5   │   │  Rust Worker    │   │   TS Modules    │
-│   (better-      │   │  (subprocess    │   │   (pure TS)     │
-│   sqlite3)      │   │   or native)    │   │                 │
-│                 │   │                 │   │                 │
+│   SQLite FTS5   │   │  Rust Worker    │   │   Pure TS       │
+│   (better-      │   │  (subprocess)   │   │   Modules       │
+│   sqlite3)      │   │                 │   │                 │
+│                 │   │ CPU-HEAVY ONLY: │   │ DEFAULT CHOICE: │
 │ • Full-text     │   │ • File walking  │   │ • Fuzzy rank    │
 │ • Snippets      │   │ • Hashing       │   │ • Language det  │
 │ • Metadata      │   │ • Regex search  │   │ • Scoring       │
@@ -122,33 +188,38 @@ const context = await engine.buildContextBundle('authentication flow', {
 
 ### Engine Boundary
 
-The Engine class owns all decisions about *how* to execute operations:
+The Engine class owns all decisions about *how* to execute operations. **Default is TypeScript.**
 
 ```
 Engine.indexRepository()
     │
-    ├─► Should I use Rust or pure TS?
-    │   └─► MVP: always Rust for scanning
-    │   └─► v2: native binding if available
+    ├─► Scan directory?
+    │   └─► YES, CPU-heavy → Call Rust scanner
     │
-    ├─► How do I detect language?
-    │   └─► Pure TS (lang.ts)
+    ├─► Detect language?
+    │   └─► Pure TS (lang.ts) - fast enough
     │
-    └─► How do I store?
-        └─► SQLite via better-sqlite3
+    ├─► Store in database?
+    │   └─► SQLite via better-sqlite3 (synchronous, fast)
+    │
+    └─► Hash files?
+        └─► YES, CPU-heavy → Rust does this during scan
 ```
 
 ```
 Engine.search(query)
     │
     ├─► Is it a simple term?
-    │   └─► SQLite FTS5 (with snippets from SQLite)
+    │   └─► SQLite FTS5 - built-in, fast enough
     │
     ├─► Is it a regex?
     │   └─► FTS5 for candidates → Rust for regex matching
     │
-    └─► Need fuzzy ranking?
-        └─► TS scoring layer (not Rust)
+    ├─► Need fuzzy ranking?
+    │   └─► TS scoring layer - flexible, no perf issue
+    │
+    └─► Result ranking?
+        └─► TS - domain-specific, needs flexibility
 ```
 
 ### Rust Worker Evolution Path
@@ -648,10 +719,11 @@ uuid = { version = "1", features = ["v4"] }
 
 | Decision | Rationale |
 |----------|-----------|
-| **Engine API over commands** | CLI is one client; DevDesk app, agents are others |
+| **TypeScript-first** | Default to TS; Rust only for proven CPU-heavy paths |
+| **Engine API over commands** | CLI is one client; DevDesk app is another |
 | **Capabilities, not modules** | `search()` not `search.ts` - the what, not the how |
 | **Rust via subprocess (MVP)** | Simple, debuggable, works everywhere |
-| **FTS5 for exact search** | SQLite is fast enough, no need for Rust |
+| **SQLite for search** | FTS5 is fast enough for text search |
 | **TS for fuzzy/ranking** | Flexible, no measurable perf difference |
 | **Schema for incremental** | `scan_id`, `is_deleted` make incremental clean |
 | **FTS triggers** | Automatic sync, no manual index management |
@@ -663,9 +735,13 @@ uuid = { version = "1", features = ["v4"] }
 
 | Anti-Pattern | Why Bad |
 |--------------|---------|
-| Engine methods that know about CLI | Ties engine to one interface |
-| Rust for everything | Over-engineering, harder to iterate |
-| Manual FTS sync | Bugs, drift, missing deletes |
-| No scan tracking | Can't do reliable incremental |
-| Fuzzy in Rust | Premature optimization |
-| Single repo per DB | Doesn't scale for DevDesk managing many repos |
+| **Rust for everything** | Over-engineering, harder to iterate, slows development |
+| **Rust for Docker commands** | Node `spawn` is perfectly adequate |
+| **Rust for app settings** | Business logic belongs in TS |
+| **Rust for general orchestration** | Overkill, loses TS flexibility |
+| **Rust for fuzzy matching** | TS is fast enough, needs flexibility |
+| **Rust for result ranking** | Domain-specific logic, not CPU-bound |
+| **Engine methods that know about CLI** | Ties engine to one interface |
+| **Manual FTS sync** | Bugs, drift, missing deletes |
+| **No scan tracking** | Can't do reliable incremental |
+| **Single repo per DB** | Doesn't scale for DevDesk managing many repos |
