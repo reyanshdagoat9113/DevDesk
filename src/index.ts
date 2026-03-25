@@ -100,7 +100,7 @@ export async function indexRepository(options: IndexOptions): Promise<IndexResul
     // Remove deleted files (incremental)
     if (incremental) {
       for (const oldPath of existingPaths) {
-        db.deleteFile(oldPath);
+        db.deleteFile(oldPath as string);
       }
     }
 

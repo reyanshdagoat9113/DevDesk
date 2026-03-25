@@ -14,7 +14,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "eslint src/",
-    "build:rust": "cd rust && cargo build --release && cp target/release/devdesk-scan ../dist/",
+    "build:rust": "cd rust && cargo build --release && cp target/release/devdesk-scan.exe ../dist/",
     "build:all": "npm run build:rust && npm run build"
   },
   "dependencies": {

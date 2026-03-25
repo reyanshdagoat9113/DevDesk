@@ -1,12 +1,10 @@
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufReader, Read, Write};
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 use ignore::WalkBuilder;
 use serde::Serialize;
-
-use crate::output;
 
 #[derive(Serialize)]
 pub struct FileInfo {

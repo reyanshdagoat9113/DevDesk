@@ -141,9 +141,9 @@ export class DatabaseManager {
         content = excluded.content
     `);
 
-    const insertMany = this.db.transaction((files: typeof files) => {
+    const insertMany = this.db.transaction((items: typeof files) => {
       let count = 0;
-      for (const file of files) {
+      for (const file of items) {
         stmt.run(
           file.path,
           file.filename,

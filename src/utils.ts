@@ -1,6 +1,10 @@
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Normalize path for cross-platform compatibility
@@ -18,7 +22,7 @@ export function getScannerBinaryPath(): string {
   // Check multiple locations
   const possiblePaths = [
     // Development: in dist folder
-    path.join(__dirname, '..', 'dist', binaryName),
+    path.join(__dirname, binaryName),
     // Installed: alongside this file
     path.join(__dirname, binaryName),
     // In PATH
@@ -32,7 +36,7 @@ export function getScannerBinaryPath(): string {
   }
 
   // Return default, let it fail with clear error
-  return path.join(__dirname, '..', 'dist', binaryName);
+  return path.join(__dirname, binaryName);
 }
 
 /**
