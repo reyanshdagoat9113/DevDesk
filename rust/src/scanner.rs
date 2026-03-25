@@ -155,6 +155,11 @@ fn is_binary_file(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     Ok(buffer[..n].contains(&0))
 }
 
+/// Check if a file is binary based on extension and content
+pub fn check_is_binary(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+    is_binary_file(path)
+}
+
 /// Hash a single file
 pub fn hash_file(file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let path = Path::new(file_path);
@@ -177,4 +182,123 @@ pub fn hash_file(file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    fn create_test_file(dir: &TempDir, name: &str, content: &[u8]) -> std::path::PathBuf {
+        let path = dir.path().join(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).ok();
+        }
+        let mut file = File::create(&path).unwrap();
+        file.write_all(content).unwrap();
+        path
+    }
+
+    #[test]
+    fn test_detect_binary_by_extension() {
+        let dir = TempDir::new().unwrap();
+
+        // Create fake binary files with text content (extension-based detection)
+        create_test_file(&dir, "test.exe", b"not really binary");
+        create_test_file(&dir, "test.png", b"PNG fake");
+        create_test_file(&dir, "test.zip", b"PK fake");
+
+        assert!(check_is_binary(&dir.path().join("test.exe")).unwrap());
+        assert!(check_is_binary(&dir.path().join("test.png")).unwrap());
+        assert!(check_is_binary(&dir.path().join("test.zip")).unwrap());
+    }
+
+    #[test]
+    fn test_detect_binary_by_content() {
+        let dir = TempDir::new().unwrap();
+
+        // Create file with null bytes (binary content)
+        create_test_file(&dir, "test.bin", b"hello\x00world");
+
+        // Create text file
+        create_test_file(&dir, "test.txt", b"hello world");
+
+        assert!(check_is_binary(&dir.path().join("test.bin")).unwrap());
+        assert!(!check_is_binary(&dir.path().join("test.txt")).unwrap());
+    }
+
+    #[test]
+    fn test_process_text_file() {
+        let dir = TempDir::new().unwrap();
+        let path = create_test_file(&dir, "test.ts", b"const x = 1;");
+
+        let info = process_file(&path, true).unwrap();
+
+        assert_eq!(info.filename, "test.ts");
+        assert_eq!(info.extension, Some("ts".to_string()));
+        assert!(!info.is_binary);
+        assert!(info.content_hash.is_some());
+        assert_eq!(info.content, Some("const x = 1;".to_string()));
+    }
+
+    #[test]
+    fn test_process_file_without_content() {
+        let dir = TempDir::new().unwrap();
+        let path = create_test_file(&dir, "test.rs", b"fn main() {}");
+
+        let info = process_file(&path, false).unwrap();
+
+        assert_eq!(info.extension, Some("rs".to_string()));
+        assert!(info.content_hash.is_some());
+        assert!(info.content.is_none()); // Not included when include_content=false
+    }
+
+    #[test]
+    fn test_scan_directory() {
+        let dir = TempDir::new().unwrap();
+
+        create_test_file(&dir, "src/main.rs", b"fn main() {}");
+        create_test_file(&dir, "src/lib.rs", b"pub fn lib() {}");
+        create_test_file(&dir, "README.md", b"# Test Project");
+
+        // We can't easily test the stdout output, but we can verify no errors
+        let result = scan(dir.path().to_str().unwrap(), false, 0, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_scan_nonexistent_path() {
+        let result = scan("/nonexistent/path/12345", false, 0, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hash_file() {
+        let dir = TempDir::new().unwrap();
+        let path = create_test_file(&dir, "hashme.txt", b"hello world");
+
+        // hash_file prints to stdout, we just verify no error
+        let path_str = path.to_str().unwrap();
+        let result = hash_file(path_str);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_extension_extraction() {
+        let dir = TempDir::new().unwrap();
+
+        create_test_file(&dir, "code.ts", b"");
+        create_test_file(&dir, "config.json", b"");
+        create_test_file(&dir, "noext", b"");
+
+        let info_ts = process_file(&dir.path().join("code.ts"), false).unwrap();
+        let info_json = process_file(&dir.path().join("config.json"), false).unwrap();
+        let info_noext = process_file(&dir.path().join("noext"), false).unwrap();
+
+        assert_eq!(info_ts.extension, Some("ts".to_string()));
+        assert_eq!(info_json.extension, Some("json".to_string()));
+        assert_eq!(info_noext.extension, None);
+    }
 }

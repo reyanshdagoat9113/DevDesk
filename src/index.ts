@@ -188,8 +188,11 @@ export async function searchIndex(options: SearchOptions): Promise<SearchResult>
   const { result, durationMs } = await measureTime(async () => {
     const db = new DatabaseManager(dbPath);
 
-    // Get matching files from FTS5
-    const files = db.searchFts(query, limit * 2);
+    // Get matching files with BM25 ranking
+    const files = db.searchRanked(query, {
+      limit: limit * 2,
+      boostRecent: true,
+    });
 
     if (regex) {
       // Use Rust for regex search
@@ -198,27 +201,30 @@ export async function searchIndex(options: SearchOptions): Promise<SearchResult>
 
       db.close();
 
-      return rustResults.slice(0, limit).map((r) => ({
-        path: r.path,
-        language: files.find((f) => f.path === r.path)?.language || null,
-        score: 1.0,
-        matches: r.matches.map((m) => ({
-          line: m.line,
-          column: m.column,
-          snippet: m.text,
-          contextBefore: m.before,
-          contextAfter: m.after,
-        })),
-      }));
+      return rustResults.slice(0, limit).map((r) => {
+        const file = files.find((f) => f.path === r.path);
+        return {
+          path: r.path,
+          language: file?.language || null,
+          score: file?.score || 1.0,
+          matches: r.matches.map((m) => ({
+            line: m.line,
+            column: m.column,
+            snippet: m.text,
+            contextBefore: m.before,
+            contextAfter: m.after,
+          })),
+        };
+      });
     }
 
     db.close();
 
-    // Simple FTS results
+    // Return ranked results
     return files.slice(0, limit).map((file) => ({
       path: file.path,
       language: file.language,
-      score: 1.0,
+      score: file.score,
       matches: [],
     }));
   });

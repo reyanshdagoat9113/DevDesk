@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import { indexRepository, searchIndex, getStats } from './index.js';
+import { getGitInsights, isGitRepo } from './git.js';
 import { getDefaultDbPath } from './utils.js';
 
 const VERSION = '0.1.0';
@@ -18,10 +19,10 @@ program
   .command('index <path>')
   .description('Index a repository')
   .option('--full', 'Force full reindex (ignore existing)', false)
-  .action(async (path, options) => {
-    const dbPath = getDefaultDbPath(path);
+  .action(async (repoPath, options) => {
+    const dbPath = getDefaultDbPath(repoPath);
     const result = await indexRepository({
-      repo: path,
+      repo: repoPath,
       db: dbPath,
       incremental: !options.full,
     });
@@ -34,8 +35,8 @@ program
   .description('Search the index')
   .option('--regex', 'Treat query as regex', false)
   .option('-l, --limit <n>', 'Max results', '50')
-  .action(async (query, path, options) => {
-    const dbPath = getDefaultDbPath(path || '.');
+  .action(async (query, repoPath, options) => {
+    const dbPath = getDefaultDbPath(repoPath || '.');
     const result = await searchIndex({
       db: dbPath,
       query,
@@ -49,10 +50,58 @@ program
 program
   .command('stats [path]')
   .description('Show index statistics')
-  .action((path) => {
-    const dbPath = getDefaultDbPath(path || '.');
+  .action((repoPath) => {
+    const dbPath = getDefaultDbPath(repoPath || '.');
     const result = getStats(dbPath);
     console.log(JSON.stringify(result, null, 2));
+  });
+
+// Git insights command
+program
+  .command('git <path>')
+  .description('Show git insights for a repository')
+  .option('-l, --limit <n>', 'Max hotspots to show', '10')
+  .action((repoPath, options) => {
+    try {
+      if (!isGitRepo(repoPath)) {
+        console.log(
+          JSON.stringify(
+            {
+              ok: false,
+              error: 'Not a git repository',
+              path: repoPath,
+            },
+            null,
+            2
+          )
+        );
+        return;
+      }
+
+      const result = getGitInsights(repoPath);
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            ...result,
+          },
+          null,
+          2
+        )
+      );
+    } catch (error) {
+        console.log(
+          JSON.stringify(
+            {
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+              path: repoPath,
+            },
+            null,
+            2
+          )
+        );
+    }
   });
 
 program.parse();

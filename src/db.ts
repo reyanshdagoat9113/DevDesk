@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import * as path from 'path';
-import type { FileRecord } from './types.js';
+import type { FileRecord, RankedFileResult } from './types.js';
 import { ensureDir } from './utils.js';
 
 const SCHEMA_VERSION = 1;
@@ -36,6 +36,24 @@ CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
     content_rowid='id',
     tokenize='porter unicode61'
 );
+
+-- Triggers to keep FTS5 in sync with files table
+CREATE TRIGGER IF NOT EXISTS files_ai AFTER INSERT ON files BEGIN
+    INSERT INTO files_fts(rowid, path, filename, language, content)
+    VALUES (new.id, new.path, new.filename, new.language, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS files_ad AFTER DELETE ON files BEGIN
+    INSERT INTO files_fts(files_fts, rowid, path, filename, language, content)
+    VALUES ('delete', old.id, old.path, old.filename, old.language, old.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS files_au AFTER UPDATE ON files BEGIN
+    INSERT INTO files_fts(files_fts, rowid, path, filename, language, content)
+    VALUES ('delete', old.id, old.path, old.filename, old.language, old.content);
+    INSERT INTO files_fts(rowid, path, filename, language, content)
+    VALUES (new.id, new.path, new.filename, new.language, new.content);
+END;
 
 -- Schema version
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
@@ -224,6 +242,85 @@ export class DatabaseManager {
 
     const pattern = `%${query}%`;
     return stmt.all(pattern, pattern, limit) as FileRecord[];
+  }
+
+  /**
+   * Ranked search with BM25 scores
+   * Returns results with computed relevance scores
+   */
+  searchRanked(
+    query: string,
+    options: {
+      limit?: number;
+      preferLanguages?: string[];
+      boostRecent?: boolean;
+    } = {}
+  ): RankedFileResult[] {
+    const { limit = 100, preferLanguages = [], boostRecent = true } = options;
+
+    // Escape special FTS5 characters
+    const escaped = query.replace(/['"()]/g, '').trim();
+
+    // Get current time for recency calculation
+    const now = Date.now();
+    const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+    try {
+      // Use FTS5 with BM25 scoring
+      const stmt = this.db.prepare(`
+        SELECT f.*, bm25(files_fts) as bm25_score
+        FROM files f
+        JOIN files_fts fts ON f.path = fts.path
+        WHERE files_fts MATCH ?
+        ORDER BY bm25_score
+        LIMIT ?
+      `);
+
+      const rows = stmt.all(escaped, limit * 2) as Array<
+        FileRecord & { bm25_score: number }
+      >;
+
+      // Post-process to compute final scores
+      const results = rows.map((row) => {
+        // BM25 returns negative scores (more negative = better match)
+        // Normalize to 0-1 range where 1 is best
+        const rawBm25 = -row.bm25_score; // Negate so higher is better
+        const bm25Normalized = Math.min(1, Math.max(0, rawBm25 / 10)); // Scale factor
+
+        let score = bm25Normalized;
+
+        // Boost by language preference
+        if (row.language && preferLanguages.includes(row.language)) {
+          score *= 1.5; // 50% boost for preferred languages
+        }
+
+        // Boost by recency (files modified in last 30 days get boost)
+        if (boostRecent && row.mtime_ms > monthAgo) {
+          const ageMs = now - row.mtime_ms;
+          const ageDays = ageMs / (24 * 60 * 60 * 1000);
+          const recencyBoost = 1 + (1 - ageDays / 30) * 0.3; // Up to 30% boost
+          score *= recencyBoost;
+        }
+
+        // Boost shorter paths (likely more important files)
+        const pathDepth = (row.path.match(/\//g) || []).length;
+        if (pathDepth <= 2) {
+          score *= 1.2; // 20% boost for shallow paths
+        }
+
+        return { ...row, score: Math.round(score * 1000) / 1000 };
+      });
+
+      // Sort by score descending and apply limit
+      results.sort((a, b) => b.score - a.score);
+      return results.slice(0, limit);
+    } catch {
+      // Fallback to LIKE search with basic scoring
+      return this.searchLike(query, limit).map((row) => ({
+        ...row,
+        score: 0.5, // Default score for LIKE matches
+      }));
+    }
   }
 
   /**

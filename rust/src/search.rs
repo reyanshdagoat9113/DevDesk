@@ -104,3 +104,100 @@ pub fn search(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    fn create_test_file(dir: &TempDir, name: &str, content: &str) -> std::path::PathBuf {
+        let path = dir.path().join(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).ok();
+        }
+        let mut file = File::create(&path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        path
+    }
+
+    #[test]
+    fn test_search_simple_pattern() {
+        let dir = TempDir::new().unwrap();
+
+        create_test_file(
+            &dir,
+            "test.ts",
+            "function hello() {\n  console.log('hello world');\n}",
+        );
+
+        let path = dir.path().join("test.ts").to_string_lossy().into_owned();
+        let file_refs: Vec<&str> = vec![&path];
+
+        // Test searching for "hello"
+        let result = search("hello", &file_refs, 1, 1);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_search_regex_pattern() {
+        let dir = TempDir::new().unwrap();
+
+        create_test_file(
+            &dir,
+            "code.rs",
+            "fn main() {}\nfn test() {}\nfn helper() {}",
+        );
+
+        let path = dir.path().join("code.rs").to_string_lossy().into_owned();
+        let file_refs: Vec<&str> = vec![&path];
+
+        // Test regex pattern: fn \w+\(\)
+        let result = search(r"fn \w+\(\)", &file_refs, 0, 0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_search_invalid_regex() {
+        let result = search(r"[invalid(", &["/some/file.txt"], 0, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_search_no_matches() {
+        let dir = TempDir::new().unwrap();
+
+        create_test_file(&dir, "empty.txt", "nothing to see here");
+
+        let path = dir.path().join("empty.txt").to_string_lossy().into_owned();
+        let file_refs: Vec<&str> = vec![&path];
+
+        let result = search("nonexistent_pattern_xyz123", &file_refs, 0, 0);
+        assert!(result.is_ok()); // No error, just no matches
+    }
+
+    #[test]
+    fn test_search_multiple_files() {
+        let dir = TempDir::new().unwrap();
+
+        create_test_file(&dir, "a.ts", "const foo = 1;");
+        create_test_file(&dir, "b.ts", "const bar = 2;");
+        create_test_file(&dir, "c.ts", "const baz = 3;");
+
+        let a = dir.path().join("a.ts").to_string_lossy().into_owned();
+        let b = dir.path().join("b.ts").to_string_lossy().into_owned();
+        let c = dir.path().join("c.ts").to_string_lossy().into_owned();
+
+        let file_refs: Vec<&str> = vec![&a, &b, &c];
+
+        let result = search("const", &file_refs, 0, 0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_search_nonexistent_file() {
+        let result = search("pattern", &["/nonexistent/file.txt"], 0, 0);
+        assert!(result.is_ok()); // Skips nonexistent files gracefully
+    }
+}
