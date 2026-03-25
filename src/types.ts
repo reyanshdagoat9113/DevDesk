@@ -116,3 +116,8 @@ export interface FileRecord {
   indexed_at: number;
   content?: string;
 }
+
+// Ranked search result with score
+export interface RankedFileResult extends FileRecord {
+  score: number;
+}

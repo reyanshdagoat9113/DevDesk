@@ -4,6 +4,10 @@
   "description": "Fast local code intelligence engine for DevDesk",
   "type": "module",
   "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./git": "./dist/git.js"
+  },
   "bin": {
     "devdesk-engine": "./dist/cli.js"
   },
