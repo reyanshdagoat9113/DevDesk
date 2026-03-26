@@ -81,38 +81,50 @@ export function getCommitCount(repoPath: string): number {
  * Get list of contributors
  */
 export function getContributors(repoPath: string): string[] {
-  const output = runGit(repoPath, ['shortlog', '-sne', '--format=%ae']);
-  const authors = output.split('\n').filter(Boolean);
-  return [...new Set(authors)]; // Unique
+  const output = runGit(repoPath, ['log', '--format=%an <%ae>']);
+  const authors = output
+    .split('\n')
+    .map((author) => author.trim())
+    .filter(Boolean);
+  return [...new Set(authors)];
 }
 
 /**
  * Get recent commits
  */
 export function getRecentCommits(repoPath: string, limit: number = 10): GitCommit[] {
-  const format = '%H%n%an%n%ad%n%s%n';
+  const format = '__COMMIT__%n%H%n%an%n%ad%n%s';
   const output = runGit(repoPath, [
     'log',
+    '--name-only',
     `--format=${format}`,
     `-n`,
     String(limit),
   ]);
 
-  const lines = output.split('\n');
+  const blocks = output
+    .split('__COMMIT__\n')
+    .map((block) => block.trim())
+    .filter(Boolean);
   const commits: GitCommit[] = [];
 
-  for (let i = 0; i < lines.length; i += 5) {
-    if (i + 4 >= lines.length) break;
+  for (const block of blocks) {
+    const lines = block.split('\n');
+    if (lines.length < 4) {
+      continue;
+    }
 
-    const hash = lines[i];
-    if (!hash) continue;
+    const hash = lines[0]?.trim();
+    if (!hash) {
+      continue;
+    }
 
     commits.push({
       hash,
-      author: lines[i + 1] || '',
-      date: lines[i + 2] || '',
-      message: lines[i + 3] || '',
-      files: (lines[i + 4] || '').split(' ').filter(Boolean),
+      author: lines[1] || '',
+      date: lines[2] || '',
+      message: lines[3] || '',
+      files: lines.slice(4).map((line) => line.trim()).filter(Boolean),
     });
   }
 
@@ -147,6 +159,22 @@ export function getFileChurn(repoPath: string, limit: number = 20): FileChurn[] 
 
   for (const [filePath, data] of fileCounts.entries()) {
     if (data.count < 1) continue;
+
+    try {
+      const authors = runGit(repoPath, [
+        'log',
+        '--format=%an <%ae>',
+        '--',
+        filePath,
+      ]);
+      authors
+        .split('\n')
+        .map((author) => author.trim())
+        .filter(Boolean)
+        .forEach((author) => data.authors.add(author));
+    } catch {
+      // Ignore missing author history
+    }
 
     // Get last modified date
     let lastModified = '';

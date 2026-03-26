@@ -85,13 +85,29 @@ export function ensureDir(dirPath: string): void {
  * Get default database path for a repository
  */
 export function getDefaultDbPath(repoPath: string): string {
-  const repoName = path.basename(repoPath);
+  const resolvedRepoPath = resolvePath(repoPath);
+  const rawRepoName = path.basename(resolvedRepoPath);
+  const repoName = sanitizeDbName(rawRepoName);
   const homeDir = os.homedir();
   const indexDir = path.join(homeDir, '.devdesk', 'index');
 
   ensureDir(indexDir);
 
   return path.join(indexDir, `${repoName}.sqlite`);
+}
+
+function sanitizeDbName(repoName: string): string {
+  const trimmed = repoName.trim();
+  if (!trimmed || trimmed === '.' || trimmed === path.sep) {
+    return 'workspace';
+  }
+
+  const sanitized = trimmed.replace(/[^a-zA-Z0-9._-]/g, '_');
+  if (!sanitized || sanitized === '.' || sanitized === '..') {
+    return 'workspace';
+  }
+
+  return sanitized;
 }
 
 /**
@@ -123,7 +139,7 @@ export async function retry<T>(
  * Check if path is absolute
  */
 export function isAbsolutePath(p: string): boolean {
-  return path.isAbsolute(p);
+  return path.isAbsolute(p) || /^[a-zA-Z]:[\\/]/.test(p);
 }
 
 /**

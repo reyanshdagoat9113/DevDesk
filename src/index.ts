@@ -150,9 +150,13 @@ async function runScanner(repoPath: string, includeContent: boolean = false): Pr
 
     const files: FileInfo[] = [];
     let stderr = '';
+    let stdoutBuffer = '';
 
     proc.stdout.on('data', (data: Buffer) => {
-      const lines = data.toString().split('\n').filter(Boolean);
+      stdoutBuffer += data.toString();
+      const lines = stdoutBuffer.split('\n');
+      stdoutBuffer = lines.pop() || '';
+
       for (const line of lines) {
         try {
           const info: FileInfo = JSON.parse(line);
@@ -171,6 +175,13 @@ async function runScanner(repoPath: string, includeContent: boolean = false): Pr
       if (code !== 0) {
         reject(new Error(`Scanner failed (${code}): ${stderr}`));
       } else {
+        if (stdoutBuffer.trim()) {
+          try {
+            files.push(JSON.parse(stdoutBuffer) as FileInfo);
+          } catch {
+            // Ignore incomplete trailing output
+          }
+        }
         resolve(files);
       }
     });
@@ -314,4 +325,3 @@ export {
   type FileChurn,
   type HotspotFile,
 } from './git.js';
-
