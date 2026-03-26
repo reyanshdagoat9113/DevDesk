@@ -336,6 +336,100 @@ function normalizeStore(value: unknown): DataStore {
   const preferences = store.preferences && typeof store.preferences === 'object'
     ? (store.preferences as Partial<AppPreferences>)
     : undefined
+  const rawEngineIndexes =
+    store.engineIndexes && typeof store.engineIndexes === 'object' && !Array.isArray(store.engineIndexes)
+      ? store.engineIndexes
+      : undefined
+  const rawEngineSearchSessions =
+    store.engineSearchSessions && typeof store.engineSearchSessions === 'object' && !Array.isArray(store.engineSearchSessions)
+      ? store.engineSearchSessions
+      : undefined
+  const engineIndexes = rawEngineIndexes
+    ? Object.entries(rawEngineIndexes).reduce<NonNullable<DataStore['engineIndexes']>>((acc, [projectId, entry]) => {
+        if (!entry || typeof entry !== 'object') {
+          return acc
+        }
+
+        const rawEntry = entry as unknown as Record<string, unknown>
+        const dbPath = typeof rawEntry.dbPath === 'string' ? rawEntry.dbPath : ''
+        const lastIndexed = typeof rawEntry.lastIndexed === 'string' ? rawEntry.lastIndexed : ''
+        const fileCount = typeof rawEntry.fileCount === 'number' ? rawEntry.fileCount : 0
+
+        if (!dbPath || !lastIndexed) {
+          return acc
+        }
+
+        acc[projectId] = {
+          projectId,
+          dbPath,
+          lastIndexed,
+          fileCount,
+        }
+
+        return acc
+      }, {})
+    : undefined
+  const engineSearchSessions = rawEngineSearchSessions
+    ? Object.entries(rawEngineSearchSessions).reduce<NonNullable<DataStore['engineSearchSessions']>>((acc, [projectId, entry]) => {
+        if (!entry || typeof entry !== 'object') {
+          return acc
+        }
+
+        const rawEntry = entry as unknown as Record<string, unknown>
+        const query = typeof rawEntry.query === 'string' ? rawEntry.query : ''
+        const regex = typeof rawEntry.regex === 'boolean' ? rawEntry.regex : false
+        const updatedAt = typeof rawEntry.updatedAt === 'string' ? rawEntry.updatedAt : ''
+        const rawResult = rawEntry.result
+
+        if (!query || !updatedAt || !rawResult || typeof rawResult !== 'object') {
+          return acc
+        }
+
+        const result = rawResult as Record<string, unknown>
+        const resultQuery = typeof result.query === 'string' ? result.query : query
+        const totalMatches = typeof result.totalMatches === 'number' ? result.totalMatches : 0
+        const durationMs = typeof result.durationMs === 'number' ? result.durationMs : 0
+        const rawResults = Array.isArray(result.results) ? result.results : []
+
+        acc[projectId] = {
+          projectId,
+          query,
+          regex,
+          updatedAt,
+          result: {
+            ok: result.ok !== false,
+            query: resultQuery,
+            totalMatches,
+            durationMs,
+            results: rawResults.map((item) => {
+              const rawItem = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+              const rawMatches = Array.isArray(rawItem.matches) ? rawItem.matches : []
+              return {
+                path: typeof rawItem.path === 'string' ? rawItem.path : '',
+                language: typeof rawItem.language === 'string' ? rawItem.language : null,
+                score: typeof rawItem.score === 'number' ? rawItem.score : 0,
+                matches: rawMatches.map((match) => {
+                  const rawMatch = match && typeof match === 'object' ? (match as Record<string, unknown>) : {}
+                  return {
+                    line: typeof rawMatch.line === 'number' ? rawMatch.line : 1,
+                    column: typeof rawMatch.column === 'number' ? rawMatch.column : 1,
+                    snippet: typeof rawMatch.snippet === 'string' ? rawMatch.snippet : '',
+                    contextBefore: Array.isArray(rawMatch.contextBefore)
+                      ? rawMatch.contextBefore.filter((value): value is string => typeof value === 'string')
+                      : [],
+                    contextAfter: Array.isArray(rawMatch.contextAfter)
+                      ? rawMatch.contextAfter.filter((value): value is string => typeof value === 'string')
+                      : [],
+                  }
+                }),
+              }
+            }).filter((item) => item.path),
+          },
+        }
+
+        return acc
+      }, {})
+    : undefined
 
   return {
     version: DATA_VERSION,
@@ -355,6 +449,8 @@ function normalizeStore(value: unknown): DataStore {
         command: preferences?.terminal?.command,
       },
     },
+    engineIndexes,
+    engineSearchSessions,
   }
 }
 
