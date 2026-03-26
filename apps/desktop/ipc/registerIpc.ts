@@ -2316,4 +2316,83 @@ export function registerIpcHandlers() {
     clearFileIndex(projectId)
     return { success: true }
   })
+
+  // Engine operations (devdesk-engine integration)
+  ipcMain.handle('engine:index', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { indexProject } = await import('../engine/engineService')
+    return indexProject(projectId, project.path)
+  })
+
+  ipcMain.handle('engine:search', async (
+    _event,
+    projectId: string,
+    query: string,
+    options?: { regex?: boolean; limit?: number }
+  ) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!query) {
+      return { ok: true, query: '', results: [], totalMatches: 0, durationMs: 0 }
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { searchProject } = await import('../engine/engineService')
+    return searchProject(projectId, project.path, query, options)
+  })
+
+  ipcMain.handle('engine:stats', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getProjectStats } = await import('../engine/engineService')
+    return getProjectStats(projectId, project.path)
+  })
+
+  ipcMain.handle('engine:git-insights', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getProjectGitInsights } = await import('../engine/engineService')
+    return getProjectGitInsights(project.path)
+  })
+
+  ipcMain.handle('engine:clear', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const { clearProjectIndex } = await import('../engine/engineService')
+    return clearProjectIndex(projectId)
+  })
+
+  ipcMain.handle('engine:is-available', async () => {
+    const { isEngineAvailable } = await import('../engine/engineService')
+    return isEngineAvailable()
+  })
 }
