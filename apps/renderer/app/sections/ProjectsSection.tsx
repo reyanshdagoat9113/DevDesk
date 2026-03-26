@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Code2, ExternalLink, Pencil, Terminal, Trash2 } from 'lucide-react'
+import { Clock3, Code2, Database, ExternalLink, Pencil, SearchCode, Terminal, Trash2, Zap } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import {
@@ -14,7 +14,7 @@ import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { Separator } from '../components/ui/Separator'
 import { SectionLayout } from '../layout/SectionLayout'
-import type { AppPreferences, Project } from '../types'
+import type { AppPreferences, EngineIndexMeta, EngineSearchSession, EngineStatus, Project } from '../types'
 
 const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm'
 const selectClass =
@@ -22,6 +22,22 @@ const selectClass =
 
 function isWslPath(projectPath: string) {
   return /^\\\\wsl(?:\.localhost|\$)\\/i.test(projectPath)
+}
+
+function formatRelativeDate(value?: string) {
+  if (!value) return 'Never'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  const diffMs = Date.now() - date.getTime()
+  const diffMinutes = Math.round(diffMs / 60000)
+  if (diffMinutes < 1) return 'Just now'
+  if (diffMinutes < 60) return `${diffMinutes}m ago`
+  const diffHours = Math.round(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.round(diffHours / 24)
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString()
 }
 
 const macEditorOptions = [
@@ -40,6 +56,15 @@ const windowsEditorOptions = [
   { id: 'custom', label: 'Custom command' },
 ]
 
+const linuxEditorOptions = [
+  { id: 'vscode', label: 'Visual Studio Code' },
+  { id: 'cursor', label: 'Cursor' },
+  { id: 'webstorm', label: 'WebStorm' },
+  { id: 'intellij', label: 'IntelliJ IDEA' },
+  { id: 'sublime', label: 'Sublime Text' },
+  { id: 'custom', label: 'Custom command' },
+]
+
 const macTerminalOptions = [
   { id: 'terminal', label: 'Terminal' },
   { id: 'iterm', label: 'iTerm' },
@@ -55,6 +80,13 @@ const windowsTerminalOptions = [
   { id: 'custom', label: 'Custom command' },
 ]
 
+const linuxTerminalOptions = [
+  { id: 'terminal', label: 'Default Terminal' },
+  { id: 'gnome', label: 'GNOME Terminal' },
+  { id: 'konsole', label: 'Konsole' },
+  { id: 'custom', label: 'Custom command' },
+]
+
 export function ProjectsSection({
   projects,
   isLoading,
@@ -63,6 +95,11 @@ export function ProjectsSection({
   onSavePreferences,
   onUpdateProject,
   onRemoveProject,
+  engineStatus,
+  engineIndexes,
+  searchSessions,
+  onIndexProject,
+  onOpenSearch,
 }: {
   projects: Project[]
   isLoading?: boolean
@@ -71,6 +108,11 @@ export function ProjectsSection({
   onSavePreferences?: (next: AppPreferences) => Promise<void>
   onUpdateProject?: (projectId: string, updates: { name: string }) => Promise<void>
   onRemoveProject?: (projectId: string) => Promise<void>
+  engineStatus?: EngineStatus | null
+  engineIndexes?: Record<string, EngineIndexMeta>
+  searchSessions?: Record<string, EngineSearchSession>
+  onIndexProject?: (projectId: string) => Promise<void>
+  onOpenSearch?: (projectId: string) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -85,6 +127,7 @@ export function ProjectsSection({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isIndexing, setIsIndexing] = useState(false)
 
   useEffect(() => {
     if (!projects.length) {
@@ -113,6 +156,9 @@ export function ProjectsSection({
   useEffect(() => {
     setEditName(selectedProject?.name ?? '')
   }, [selectedProject?.id, selectedProject?.name])
+
+  const selectedIndex = selectedProject && engineIndexes ? engineIndexes[selectedProject.id] ?? null : null
+  const selectedSession = selectedProject && searchSessions ? searchSessions[selectedProject.id] ?? null : null
 
   const handleOpen = async (action: 'folder' | 'editor' | 'terminal') => {
     if (!selectedProject || actionLoading) return
@@ -166,9 +212,11 @@ export function ProjectsSection({
     }
   }
 
-  const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac')
-  const editorOptions = isMac ? macEditorOptions : windowsEditorOptions
-  const terminalOptions = isMac ? macTerminalOptions : windowsTerminalOptions
+  const platform = typeof navigator !== 'undefined' ? navigator.platform.toLowerCase() : ''
+  const isMac = platform.includes('mac')
+  const isWindows = platform.includes('win')
+  const editorOptions = isMac ? macEditorOptions : isWindows ? windowsEditorOptions : linuxEditorOptions
+  const terminalOptions = isMac ? macTerminalOptions : isWindows ? windowsTerminalOptions : linuxTerminalOptions
 
   const handleSaveEdit = async () => {
     if (!selectedProject || !onUpdateProject || isSavingEdit) return
@@ -203,6 +251,19 @@ export function ProjectsSection({
     }
   }
 
+  const handleIndexProject = async () => {
+    if (!selectedProject || !onIndexProject || isIndexing) return
+    setActionError(null)
+    setIsIndexing(true)
+    try {
+      await onIndexProject(selectedProject.id)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to index project.')
+    } finally {
+      setIsIndexing(false)
+    }
+  }
+
   return (
     <>
       <SectionLayout
@@ -228,6 +289,8 @@ export function ProjectsSection({
                 projects.map((project) => {
                   const isActive = selectedProject?.id === project.id
                   const isWslProject = isWslPath(project.path)
+                  const projectIndex = engineIndexes ? engineIndexes[project.id] ?? null : null
+                  const projectSession = searchSessions ? searchSessions[project.id] ?? null : null
                   return (
                     <button
                       key={project.id}
@@ -245,6 +308,18 @@ export function ProjectsSection({
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{project.name}</p>
                         <p className="truncate text-xs text-muted-foreground">{project.path}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {projectIndex ? (
+                            <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
+                              {projectIndex.fileCount} files
+                            </Badge>
+                          ) : null}
+                          {projectSession ? (
+                            <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
+                              {projectSession.result.totalMatches} hits
+                            </Badge>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1.5">
                         {isWslProject ? (
@@ -339,6 +414,87 @@ export function ProjectsSection({
                   <p className="text-xs text-destructive">{actionError}</p>
                 ) : null}
                 <Separator />
+                <div className="space-y-3 rounded-md border border-border/60 bg-background/40 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Search Index</p>
+                      <p className="text-sm text-foreground">
+                        {selectedIndex ? `${selectedIndex.fileCount} files indexed` : 'No search index yet'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedIndex ? `Last updated ${new Date(selectedIndex.lastIndexed).toLocaleString()}` : 'Index this project to enable code search and stats.'}
+                      </p>
+                    </div>
+                    <Badge variant={engineStatus?.available ? 'secondary' : 'destructive'}>
+                      {engineStatus?.available ? 'Engine ready' : 'Engine unavailable'}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="gap-1.5"
+                      onClick={handleIndexProject}
+                      disabled={!onIndexProject || !engineStatus?.available || isIndexing}
+                    >
+                      <Zap className="h-4 w-4" />
+                      {isIndexing ? 'Indexing...' : selectedIndex ? 'Reindex' : 'Index'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => selectedProject && onOpenSearch?.(selectedProject.id)}
+                      disabled={!onOpenSearch || !selectedProject}
+                    >
+                      <SearchCode className="h-4 w-4" />
+                      {selectedSession ? 'Resume Search' : 'Open Search'}
+                    </Button>
+                  </div>
+                  {selectedSession ? (
+                    <div className="rounded-xl border border-border/60 bg-card/70 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Latest Search</p>
+                          <p className="text-sm font-medium text-foreground">{selectedSession.query}</p>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1">
+                              <Clock3 className="h-3.5 w-3.5" />
+                              {formatRelativeDate(selectedSession.updatedAt)}
+                            </span>
+                            <span className="text-border">•</span>
+                            <span>{selectedSession.result.totalMatches} hits</span>
+                            {selectedSession.regex ? (
+                              <>
+                                <span className="text-border">•</span>
+                                <span>Regex</span>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1.5"
+                          onClick={() => onOpenSearch?.(selectedProject.id)}
+                          disabled={!onOpenSearch}
+                        >
+                          <SearchCode className="h-4 w-4" />
+                          View Results
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {selectedIndex ? (
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2 py-1">
+                        <Database className="h-3.5 w-3.5" />
+                        {selectedIndex.dbPath}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+                <Separator />
                 <div className="mt-auto space-y-3 rounded-md border border-border/60 bg-muted/20 p-4">
                   <div className="space-y-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -387,7 +543,9 @@ export function ProjectsSection({
                           }
                           disabled={!prefsDraft}
                         />
-                        <p className="text-xs text-muted-foreground">Use {'{path}'} for the project folder.</p>
+                        <p className="text-xs text-muted-foreground">
+                          Use {'{path}'} for the project folder. Search-result launches also support {'{file}'}, {'{line}'}, and {'{column}'}.
+                        </p>
                       </div>
                     ) : null}
                   </div>

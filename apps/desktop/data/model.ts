@@ -59,7 +59,43 @@ export interface AppPreferences {
   terminal: AppPreference
 }
 
-export const DATA_VERSION = 2 as const
+export interface EngineIndexMeta {
+  projectId: string
+  dbPath: string
+  lastIndexed: string
+  fileCount: number
+}
+
+export interface EngineSearchMatch {
+  line: number
+  column: number
+  snippet: string
+  contextBefore: string[]
+  contextAfter: string[]
+}
+
+export interface EngineSearchFileResult {
+  path: string
+  language: string | null
+  score: number
+  matches: EngineSearchMatch[]
+}
+
+export interface EngineSearchSession {
+  projectId: string
+  query: string
+  regex: boolean
+  updatedAt: string
+  result: {
+    ok: boolean
+    query: string
+    results: EngineSearchFileResult[]
+    totalMatches: number
+    durationMs: number
+  }
+}
+
+export const DATA_VERSION = 3 as const
 
 export interface DataStore {
   version: typeof DATA_VERSION
@@ -68,4 +104,6 @@ export interface DataStore {
   runHistory: RunHistoryEntry[]
   notes: Record<string, ProjectNotes>
   preferences: AppPreferences
+  engineIndexes?: Record<string, EngineIndexMeta>
+  engineSearchSessions?: Record<string, EngineSearchSession>
 }

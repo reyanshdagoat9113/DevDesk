@@ -1,4 +1,10 @@
-import type { AppPreferences, Command, Container, Project, ProjectNotes, RunHistoryEntry } from '../types'
+import type { AppPreferences, Command, Container, EngineIndexMeta, EngineSearchSession, Project, ProjectNotes, RunHistoryEntry } from '../types'
+import type {
+  EngineIndexResult,
+  EngineSearchResult,
+  EngineStats,
+  EngineStatus,
+} from '../../../desktop/engine/types'
 
 export interface ElectronAPI {
   getProjects: () => Promise<Project[]>
@@ -8,7 +14,13 @@ export interface ElectronAPI {
   updateProject: (id: string, updates: { name: string }) => Promise<Project>
   openProjectFolderDialog: (startPath?: string) => Promise<{ canceled: boolean; path?: string }>
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
+  openProjectFileInFolder: (id: string, relativePath: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
+  openProjectFileInEditor: (
+    id: string,
+    relativePath: string,
+    location?: { line?: number; column?: number }
+  ) => Promise<{ success: boolean; error?: string }>
   openProjectInTerminal: (id: string) => Promise<{ success: boolean; error?: string }>
   getPreferences: () => Promise<AppPreferences>
   updatePreferences: (preferences: Partial<AppPreferences>) => Promise<{ success: boolean }>
@@ -38,6 +50,14 @@ export interface ElectronAPI {
 
   getNotes: (projectId: string) => Promise<ProjectNotes>
   updateNotes: (projectId: string, notes: Partial<ProjectNotes>) => Promise<{ success: boolean }>
+
+  engineStatus: () => Promise<EngineStatus>
+  engineIndexes: () => Promise<Record<string, EngineIndexMeta>>
+  engineSearchSessions: () => Promise<Record<string, EngineSearchSession>>
+  clearEngineSearchSession: (projectId: string) => Promise<{ success: boolean }>
+  engineIndex: (projectId: string) => Promise<EngineIndexResult>
+  engineSearch: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
+  engineStats: (projectId: string) => Promise<EngineStats>
 }
 
 declare global {

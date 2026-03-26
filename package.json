@@ -5,6 +5,23 @@
   "main": "dist/main/index.js",
   "author": "DevDesk",
   "license": "MIT",
+  "build": {
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../devdesk-addons/devdesk-engine/dist",
+        "to": "engine",
+        "filter": [
+          "cli.js",
+          "devdesk-scan",
+          "devdesk-scan.exe"
+        ]
+      }
+    ]
+  },
   "scripts": {
     "dev": "npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5180 && electron .\"",
     "dev:renderer": "vite",
@@ -12,6 +29,7 @@
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build:preload": "tsc -p tsconfig.preload.json",
+    "test:desktop": "npm run build:main && node --test dist/main/engine/*.test.js",
     "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
     "typecheck": "tsc --noEmit"
   },

@@ -1,4 +1,25 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type {
+  EngineIndexResult,
+  EngineSearchResult,
+  EngineStats,
+  EngineStatus,
+} from './engine/types'
+
+interface EngineIndexMeta {
+  projectId: string
+  dbPath: string
+  lastIndexed: string
+  fileCount: number
+}
+
+interface EngineSearchSession {
+  projectId: string
+  query: string
+  regex: boolean
+  updatedAt: string
+  result: EngineSearchResult
+}
 
 // Define the API interface
 interface ElectronAPI {
@@ -9,7 +30,13 @@ interface ElectronAPI {
   updateProject: (id: string, updates: { name: string }) => Promise<{ id: string; name: string }>
   openProjectFolderDialog: (startPath?: string) => Promise<{ canceled: boolean; path?: string }>
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
+  openProjectFileInFolder: (id: string, relativePath: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
+  openProjectFileInEditor: (
+    id: string,
+    relativePath: string,
+    location?: { line?: number; column?: number }
+  ) => Promise<{ success: boolean; error?: string }>
   openProjectInTerminal: (id: string) => Promise<{ success: boolean; error?: string }>
   getPreferences: () => Promise<{ editor: { id: string; command?: string }; terminal: { id: string; command?: string } }>
   updatePreferences: (preferences: {
@@ -42,6 +69,14 @@ interface ElectronAPI {
 
   getNotes: (projectId: string) => Promise<{ setupSteps: string; todos: string; reminders: string }>
   updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) => Promise<{ success: boolean }>
+
+  engineStatus: () => Promise<EngineStatus>
+  engineIndexes: () => Promise<Record<string, EngineIndexMeta>>
+  engineSearchSessions: () => Promise<Record<string, EngineSearchSession>>
+  clearEngineSearchSession: (projectId: string) => Promise<{ success: boolean }>
+  engineIndex: (projectId: string) => Promise<EngineIndexResult>
+  engineSearch: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
+  engineStats: (projectId: string) => Promise<EngineStats>
 }
 
 // Expose a safe API to the renderer process
@@ -55,7 +90,10 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('projects:update', id, updates),
   openProjectFolderDialog: (startPath?: string) => ipcRenderer.invoke('dialog:open-folder', startPath),
   openProjectFolder: (id: string) => ipcRenderer.invoke('projects:open-folder', id),
+  openProjectFileInFolder: (id: string, relativePath: string) => ipcRenderer.invoke('projects:reveal-file', id, relativePath),
   openProjectInEditor: (id: string) => ipcRenderer.invoke('projects:open-editor', id),
+  openProjectFileInEditor: (id: string, relativePath: string, location?: { line?: number; column?: number }) =>
+    ipcRenderer.invoke('projects:open-editor-file', id, relativePath, location),
   openProjectInTerminal: (id: string) => ipcRenderer.invoke('projects:open-terminal', id),
   getPreferences: () => ipcRenderer.invoke('preferences:get'),
   updatePreferences: (preferences: { editor?: { id: string; command?: string }; terminal?: { id: string; command?: string } }) =>
@@ -107,6 +145,16 @@ const electronAPI: ElectronAPI = {
   getNotes: (projectId: string) => ipcRenderer.invoke('notes:get', projectId),
   updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) =>
     ipcRenderer.invoke('notes:update', projectId, notes),
+
+  // Engine - Performance Engine
+  engineStatus: () => ipcRenderer.invoke('engine:status'),
+  engineIndexes: () => ipcRenderer.invoke('engine:indexes'),
+  engineSearchSessions: () => ipcRenderer.invoke('engine:search-sessions'),
+  clearEngineSearchSession: (projectId: string) => ipcRenderer.invoke('engine:clear-search-session', projectId),
+  engineIndex: (projectId: string) => ipcRenderer.invoke('engine:index', projectId),
+  engineSearch: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) =>
+    ipcRenderer.invoke('engine:search', projectId, query, options),
+  engineStats: (projectId: string) => ipcRenderer.invoke('engine:stats', projectId),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

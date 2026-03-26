@@ -54,3 +54,58 @@ export interface AppPreferences {
   editor: AppPreference
   terminal: AppPreference
 }
+
+export interface EngineIndexMeta {
+  projectId: string
+  dbPath: string
+  lastIndexed: string
+  fileCount: number
+}
+
+export interface EngineStatus {
+  available: boolean
+  version?: string
+  error?: string
+}
+
+export interface EngineSearchMatch {
+  line: number
+  column: number
+  snippet: string
+  contextBefore: string[]
+  contextAfter: string[]
+}
+
+export interface EngineSearchFileResult {
+  path: string
+  language: string | null
+  score: number
+  matches: EngineSearchMatch[]
+}
+
+export interface EngineSearchResult {
+  ok: boolean
+  query: string
+  results: EngineSearchFileResult[]
+  totalMatches: number
+  durationMs: number
+}
+
+export interface EngineSearchSession {
+  projectId: string
+  query: string
+  regex: boolean
+  updatedAt: string
+  result: EngineSearchResult
+}
+
+export interface EngineStats {
+  ok: boolean
+  db: string
+  stats: {
+    totalFiles: number
+    totalSizeBytes: number
+    byLanguage: Record<string, number>
+    indexedAt: string
+  }
+}

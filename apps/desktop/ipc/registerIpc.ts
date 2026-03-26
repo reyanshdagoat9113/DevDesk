@@ -514,6 +514,35 @@ const WINDOWS_EDITOR_COMMANDS: Record<string, { command: string; args: (projectP
   'visual-studio': { command: 'devenv', args: (projectPath) => [projectPath] },
 }
 
+const LINUX_EDITOR_COMMANDS: Record<string, { command: string; args: (projectPath: string, target?: EditorTarget) => string[] }> = {
+  vscode: {
+    command: 'code',
+    args: (projectPath, target) => (target ? ['--goto', buildEditorFileArgument(target)] : [projectPath]),
+  },
+  cursor: {
+    command: 'cursor',
+    args: (projectPath, target) => (target ? ['--goto', buildEditorFileArgument(target)] : [projectPath]),
+  },
+  webstorm: {
+    command: 'webstorm',
+    args: (_projectPath, target) => [target?.path ?? _projectPath],
+  },
+  intellij: {
+    command: 'idea',
+    args: (_projectPath, target) => [target?.path ?? _projectPath],
+  },
+  sublime: {
+    command: 'subl',
+    args: (_projectPath, target) => [target ? buildEditorFileArgument(target) : _projectPath],
+  },
+}
+
+type EditorTarget = {
+  path: string
+  line?: number
+  column?: number
+}
+
 const WINDOWS_TERMINAL_COMMANDS: Record<string, { command: string; args: (projectPath: string) => string[] }> = {
   'windows-terminal': { command: 'wt', args: (projectPath) => ['-d', projectPath] },
   powershell: {
@@ -521,6 +550,12 @@ const WINDOWS_TERMINAL_COMMANDS: Record<string, { command: string; args: (projec
     args: (projectPath) => ['-NoExit', '-Command', `Set-Location -LiteralPath "${projectPath}"`],
   },
   cmd: { command: 'cmd.exe', args: (projectPath) => ['/k', `cd /d "${projectPath}"`] },
+}
+
+const LINUX_TERMINAL_COMMANDS: Record<string, { command: string; args: (projectPath: string) => string[] }> = {
+  terminal: { command: 'x-terminal-emulator', args: (projectPath) => ['--working-directory', projectPath] },
+  gnome: { command: 'gnome-terminal', args: (projectPath) => ['--working-directory', projectPath] },
+  konsole: { command: 'konsole', args: (projectPath) => ['--workdir', projectPath] },
 }
 
 async function getProjectPath(projectId: string): Promise<string> {
@@ -598,14 +633,87 @@ function spawnShellDetached(command: string) {
   })
 }
 
-function resolveCustomCommand(preference: AppPreference, projectPath: string) {
+function buildEditorFileArgument(target: EditorTarget) {
+  const line = target.line && target.line > 0 ? target.line : 1
+  const column = target.column && target.column > 0 ? target.column : 1
+  return `${target.path}:${line}:${column}`
+}
+
+async function openEditorPath(preference: AppPreference, projectPath: string, target?: EditorTarget) {
+  if (preference.id === 'custom') {
+    return resolveCustomCommand(preference, projectPath, target)
+  }
+
+  const openPath = target?.path ?? projectPath
+
+  if (process.platform === 'darwin') {
+    if (preference.id === 'vscode' || preference.id === 'cursor') {
+      const command = preference.id === 'cursor' ? 'cursor' : 'code'
+      const args = target ? ['--goto', buildEditorFileArgument(target)] : [projectPath]
+      const result = await spawnDetached(command, args)
+      if (result.success) {
+        return result
+      }
+    }
+
+    const appName = MAC_EDITOR_APPS[preference.id] ?? MAC_EDITOR_APPS.vscode
+    return spawnDetached('open', ['-a', appName, openPath])
+  }
+
+  if (process.platform === 'win32') {
+    if (preference.id === 'vscode') {
+      const args = target ? ['--goto', buildEditorFileArgument(target)] : [projectPath]
+      return spawnDetached('code', args)
+    }
+
+    const command = WINDOWS_EDITOR_COMMANDS[preference.id] ?? WINDOWS_EDITOR_COMMANDS.vscode
+    return spawnDetached(command.command, command.args(openPath))
+  }
+
+  const command = LINUX_EDITOR_COMMANDS[preference.id] ?? LINUX_EDITOR_COMMANDS.vscode
+  return spawnDetached(command.command, command.args(projectPath, target))
+}
+
+function resolveCustomCommand(preference: AppPreference, projectPath: string, target?: EditorTarget) {
   if (!preference.command) {
     return { success: false, error: 'Custom command is required.' }
   }
-  const command = preference.command.includes('{path}')
-    ? preference.command.split('{path}').join(`"${projectPath}"`)
-    : `${preference.command} "${projectPath}"`
+  const filePath = target?.path ?? projectPath
+  const line = String(target?.line && target.line > 0 ? target.line : 1)
+  const column = String(target?.column && target.column > 0 ? target.column : 1)
+  const interpolated = preference.command
+    .split('{path}')
+    .join(`"${projectPath}"`)
+    .split('{file}')
+    .join(`"${filePath}"`)
+    .split('{line}')
+    .join(line)
+    .split('{column}')
+    .join(column)
+  const command = interpolated === preference.command ? `${preference.command} "${filePath}"` : interpolated
   return spawnShellDetached(command)
+}
+
+function resolveProjectFilePath(projectPath: string, relativePath: string) {
+  const trimmed = relativePath.trim()
+  if (!trimmed) {
+    throw new Error('File path is required.')
+  }
+
+  if (path.isAbsolute(trimmed) || /^[a-zA-Z]:[\\/]/.test(trimmed)) {
+    throw new Error('Expected a project-relative file path.')
+  }
+
+  const absolutePath = path.resolve(projectPath, trimmed)
+  const relativeToProject = path.relative(projectPath, absolutePath)
+  const isOutsideProject =
+    relativeToProject === '' ? false : relativeToProject === '..' || relativeToProject.startsWith(`..${path.sep}`)
+
+  if (isOutsideProject) {
+    throw new Error('File path must stay within the project.')
+  }
+
+  return absolutePath
 }
 
 function getProjectName(projectPath: string): string {
@@ -764,32 +872,46 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
+  ipcMain.handle('projects:reveal-file', async (_event, projectId: string, relativePath: string) => {
+    const projectPath = await getProjectPath(projectId)
+    const targetPath = resolveProjectFilePath(projectPath, relativePath)
+    shell.showItemInFolder(targetPath)
+    return { success: true }
+  })
+
   ipcMain.handle('projects:open-editor', async (_event, _id: string) => {
     const projectPath = await getProjectPath(_id)
-    const wslLocation = parseWslProjectPath(projectPath)
     const preferences = await getPreferences()
     const preference = preferences.editor
-    if (preference.id === 'custom') {
-      return resolveCustomCommand(preference, projectPath)
-    }
-    if (process.platform === 'darwin') {
-      const appName = MAC_EDITOR_APPS[preference.id] ?? MAC_EDITOR_APPS.vscode
-      return spawnDetached('open', ['-a', appName, projectPath])
-    }
-    if (process.platform === 'win32') {
-      if (wslLocation && preference.id === 'vscode') {
-        const remoteUri = getWslVscodeFolderUri(wslLocation)
-        const openRemoteResult = await spawnDetached('code', ['--folder-uri', remoteUri])
-        if (openRemoteResult.success) {
-          return openRemoteResult
-        }
-        return spawnDetached('code', [projectPath])
+    const wslLocation = parseWslProjectPath(projectPath)
+    if (process.platform === 'win32' && wslLocation && preference.id === 'vscode') {
+      const remoteUri = getWslVscodeFolderUri(wslLocation)
+      const openRemoteResult = await spawnDetached('code', ['--folder-uri', remoteUri])
+      if (openRemoteResult.success) {
+        return openRemoteResult
       }
-      const command = WINDOWS_EDITOR_COMMANDS[preference.id] ?? WINDOWS_EDITOR_COMMANDS.vscode
-      return spawnDetached(command.command, command.args(projectPath))
     }
-    return spawnDetached('code', [projectPath])
+    return openEditorPath(preference, projectPath)
   })
+
+  ipcMain.handle(
+    'projects:open-editor-file',
+    async (
+      _event,
+      projectId: string,
+      relativePath: string,
+      location?: { line?: number; column?: number }
+    ) => {
+      const projectPath = await getProjectPath(projectId)
+      const preferences = await getPreferences()
+      const targetPath = resolveProjectFilePath(projectPath, relativePath)
+      return openEditorPath(preferences.editor, projectPath, {
+        path: targetPath,
+        line: location?.line,
+        column: location?.column,
+      })
+    }
+  )
 
   ipcMain.handle('projects:open-terminal', async (_event, _id: string) => {
     const projectPath = await getProjectPath(_id)
@@ -810,7 +932,8 @@ export function registerIpcHandlers() {
       const command = WINDOWS_TERMINAL_COMMANDS[preference.id] ?? WINDOWS_TERMINAL_COMMANDS['windows-terminal']
       return spawnDetached(command.command, command.args(projectPath))
     }
-    return spawnDetached('x-terminal-emulator', ['--working-directory', projectPath])
+    const command = LINUX_TERMINAL_COMMANDS[preference.id] ?? LINUX_TERMINAL_COMMANDS.terminal
+    return spawnDetached(command.command, command.args(projectPath))
   })
 
   // Commands
@@ -1156,5 +1279,80 @@ export function registerIpcHandlers() {
     })
 
     return { success: true }
+  })
+
+  // Engine - Performance Engine Integration
+  ipcMain.handle('engine:status', async () => {
+    const { getEngineStatus } = await import('../engine/binary.js')
+    return getEngineStatus()
+  })
+
+  ipcMain.handle('engine:indexes', async () => {
+    const store = await getStore()
+    return store.engineIndexes ?? {}
+  })
+
+  ipcMain.handle('engine:search-sessions', async () => {
+    const store = await getStore()
+    return store.engineSearchSessions ?? {}
+  })
+
+  ipcMain.handle('engine:clear-search-session', async (_event, projectId: string) => {
+    await updateStore((draft) => {
+      if (!draft.engineSearchSessions) {
+        return
+      }
+      delete draft.engineSearchSessions[projectId]
+    })
+    return { success: true }
+  })
+
+  ipcMain.handle('engine:index', async (_event, projectId: string) => {
+    const store = await getStore()
+    const project = store.projects.find((p) => p.id === projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { engineIndex, getEngineDbPath } = await import('../engine/binary.js')
+    const result = await engineIndex(project.path, projectId)
+
+    // Store index metadata
+    await updateStore((draft) => {
+      if (!draft.engineIndexes) {
+        draft.engineIndexes = {}
+      }
+      draft.engineIndexes[projectId] = {
+        projectId,
+        dbPath: getEngineDbPath(projectId),
+        lastIndexed: new Date().toISOString(),
+        fileCount: result.filesIndexed,
+      }
+    })
+
+    return result
+  })
+
+  ipcMain.handle('engine:search', async (_event, projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => {
+    const { engineSearch } = await import('../engine/binary.js')
+    const result = await engineSearch(projectId, query, options)
+    await updateStore((draft) => {
+      if (!draft.engineSearchSessions) {
+        draft.engineSearchSessions = {}
+      }
+      draft.engineSearchSessions[projectId] = {
+        projectId,
+        query,
+        regex: options?.regex ?? false,
+        updatedAt: new Date().toISOString(),
+        result,
+      }
+    })
+    return result
+  })
+
+  ipcMain.handle('engine:stats', async (_event, projectId: string) => {
+    const { engineStats } = await import('../engine/binary.js')
+    return engineStats(projectId)
   })
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Container, FolderKanban, History, Plus, StickyNote, Terminal, Folder, Globe } from 'lucide-react'
+import { Container, FolderKanban, History, Plus, StickyNote, Terminal, Folder, Globe, SearchCode } from 'lucide-react'
 import { Button } from './components/ui/Button'
 import { Input } from './components/ui/Input'
 import { Label } from './components/ui/Label'
@@ -26,12 +26,26 @@ import { ContainersSection } from './sections/ContainersSection'
 import { HistorySection } from './sections/HistorySection'
 import { NotesSection } from './sections/NotesSection'
 import { ProjectsSection } from './sections/ProjectsSection'
-import type { AppPreferences, Command, Container as ContainerType, Project, ProjectNotes, RunHistoryEntry } from './types'
+import { EngineSection } from './sections/EngineSection'
+import type {
+  AppPreferences,
+  Command,
+  Container as ContainerType,
+  EngineIndexMeta,
+  EngineSearchResult,
+  EngineSearchSession,
+  EngineStats,
+  EngineStatus,
+  Project,
+  ProjectNotes,
+  RunHistoryEntry,
+} from './types'
 
-type TabValue = 'projects' | 'commands' | 'containers' | 'history' | 'notes'
+type TabValue = 'projects' | 'engine' | 'commands' | 'containers' | 'history' | 'notes'
 
 const navItems = [
   { value: 'projects', label: 'Projects', icon: FolderKanban },
+  { value: 'engine', label: 'Search', icon: SearchCode },
   { value: 'commands', label: 'Commands', icon: Terminal },
   { value: 'containers', label: 'Containers', icon: Container },
   { value: 'history', label: 'History', icon: History },
@@ -53,6 +67,10 @@ function App() {
   const [history, setHistory] = useState<RunHistoryEntry[]>([])
   const [notes, setNotes] = useState<Record<string, ProjectNotes>>({})
   const [preferences, setPreferences] = useState<AppPreferences | null>(null)
+  const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null)
+  const [engineIndexes, setEngineIndexes] = useState<Record<string, EngineIndexMeta>>({})
+  const [engineSearchSessions, setEngineSearchSessions] = useState<Record<string, EngineSearchSession>>({})
+  const [engineSelectedProjectId, setEngineSelectedProjectId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [containerError, setContainerError] = useState<string | null>(null)
@@ -85,6 +103,7 @@ function App() {
   const navItemsWithCounts = useMemo(() => {
     const counts: Record<TabValue, number> = {
       projects: projects.length,
+      engine: projects.length,
       commands: commands.length,
       containers: containers.length,
       history: history.length,
@@ -101,13 +120,16 @@ function App() {
     setLoadError(null)
     setContainerError(null)
     try {
-      const [projectsResult, commandsResult, containersResult, historyResult, preferencesResult] =
+      const [projectsResult, commandsResult, containersResult, historyResult, preferencesResult, engineStatusResult, engineIndexesResult, engineSearchSessionsResult] =
         await Promise.allSettled([
           window.electronAPI.getProjects(),
           window.electronAPI.getCommands(),
           window.electronAPI.getContainers(),
           window.electronAPI.getRunHistory(),
           window.electronAPI.getPreferences(),
+          window.electronAPI.engineStatus(),
+          window.electronAPI.engineIndexes(),
+          window.electronAPI.engineSearchSessions(),
         ])
 
       const errors: string[] = []
@@ -147,6 +169,31 @@ function App() {
         setPreferences(null)
       }
 
+      if (engineStatusResult.status === 'fulfilled') {
+        setEngineStatus(engineStatusResult.value)
+      } else {
+        errors.push(engineStatusResult.reason instanceof Error ? engineStatusResult.reason.message : 'Failed to load engine status.')
+        setEngineStatus(null)
+      }
+
+      if (engineIndexesResult.status === 'fulfilled') {
+        setEngineIndexes(engineIndexesResult.value)
+      } else {
+        errors.push(engineIndexesResult.reason instanceof Error ? engineIndexesResult.reason.message : 'Failed to load engine indexes.')
+        setEngineIndexes({})
+      }
+
+      if (engineSearchSessionsResult.status === 'fulfilled') {
+        setEngineSearchSessions(engineSearchSessionsResult.value)
+      } else {
+        errors.push(
+          engineSearchSessionsResult.reason instanceof Error
+            ? engineSearchSessionsResult.reason.message
+            : 'Failed to load saved engine searches.'
+        )
+        setEngineSearchSessions({})
+      }
+
       if (projectsResult.status === 'fulfilled') {
         try {
           const notesEntries = await Promise.all(
@@ -176,6 +223,16 @@ function App() {
   useEffect(() => {
     loadAll()
   }, [loadAll])
+
+  useEffect(() => {
+    if (!projects.length) {
+      setEngineSelectedProjectId(null)
+      return
+    }
+    if (!engineSelectedProjectId || !projects.some((project) => project.id === engineSelectedProjectId)) {
+      setEngineSelectedProjectId(projects[0].id)
+    }
+  }, [engineSelectedProjectId, projects])
 
   useEffect(() => {
     const unsubscribeOutput = window.electronAPI.onRunOutput(({ runId, chunk }) => {
@@ -561,6 +618,129 @@ function App() {
     setPreferences(next)
   }
 
+  const refreshEngineState = async () => {
+    const [nextStatus, nextIndexes] = await Promise.all([
+      window.electronAPI.engineStatus(),
+      window.electronAPI.engineIndexes(),
+    ])
+    setEngineStatus(nextStatus)
+    setEngineIndexes(nextIndexes)
+  }
+
+  const handleIndexProject = async (projectId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.engineIndex(projectId)
+      await refreshEngineState()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to index project.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleEngineSearch = async (
+    projectId: string,
+    query: string,
+    options?: { regex?: boolean; limit?: number }
+  ): Promise<EngineSearchResult> => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.engineSearch(projectId, query, options)
+      setEngineSearchSessions((prev) => ({
+        ...prev,
+        [projectId]: {
+          projectId,
+          query,
+          regex: options?.regex ?? false,
+          updatedAt: new Date().toISOString(),
+          result,
+        },
+      }))
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Engine search failed.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleLoadEngineStats = async (projectId: string): Promise<EngineStats> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.engineStats(projectId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load engine stats.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleOpenEngineResult = async (
+    projectId: string,
+    relativePath: string,
+    location?: { line?: number; column?: number }
+  ) => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.openProjectFileInEditor(projectId, relativePath, location)
+      if (!result.success) {
+        throw new Error(result.error ?? 'Failed to open search result.')
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open search result.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRevealEngineResult = async (projectId: string, relativePath: string) => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.openProjectFileInFolder(projectId, relativePath)
+      if (!result.success) {
+        throw new Error(result.error ?? 'Failed to reveal search result.')
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to reveal search result.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleOpenProjectTerminal = async (projectId: string) => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.openProjectInTerminal(projectId)
+      if (!result.success) {
+        throw new Error(result.error ?? 'Failed to open project terminal.')
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open project terminal.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleClearEngineSearchSession = async (projectId: string) => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.clearEngineSearchSession(projectId)
+      if (!result.success) {
+        throw new Error('Failed to clear saved search.')
+      }
+      setEngineSearchSessions((prev) => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to clear saved search.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
   const handleStartContainer = async (containerId: string) => {
     await runContainerAction(
       () => window.electronAPI.startContainer(containerId),
@@ -670,6 +850,34 @@ function App() {
               onSavePreferences={handleSavePreferences}
               onUpdateProject={handleUpdateProject}
               onRemoveProject={handleRemoveProject}
+              engineStatus={engineStatus}
+              engineIndexes={engineIndexes}
+              searchSessions={engineSearchSessions}
+              onIndexProject={handleIndexProject}
+              onOpenSearch={(projectId) => {
+                setEngineSelectedProjectId(projectId)
+                setActiveTab('engine')
+              }}
+            />
+          )}
+          {activeTab === 'engine' && (
+            <EngineSection
+              projects={projects}
+              engineStatus={engineStatus}
+              engineIndexes={engineIndexes}
+              searchSessions={engineSearchSessions}
+              selectedProjectId={engineSelectedProjectId}
+              onSelectProject={setEngineSelectedProjectId}
+              isLoading={isLoading}
+              error={loadError}
+              onRefreshStatus={refreshEngineState}
+              onIndexProject={handleIndexProject}
+              onSearch={handleEngineSearch}
+              onLoadStats={handleLoadEngineStats}
+              onOpenResult={handleOpenEngineResult}
+              onRevealResult={handleRevealEngineResult}
+              onOpenProjectTerminal={handleOpenProjectTerminal}
+              onClearSearchSession={handleClearEngineSearchSession}
             />
           )}
           {activeTab === 'commands' && (
