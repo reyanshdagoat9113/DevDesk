@@ -19,6 +19,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["apps/desktop/preload.ts", "apps/desktop/engine/**/*.ts"],
+  "include": ["apps/desktop/preload.ts", "apps/desktop/engine/**/*.ts", "apps/desktop/data/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

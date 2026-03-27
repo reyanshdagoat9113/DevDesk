@@ -1,20 +1,47 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Clock3, Code2, Database, Eraser, FolderOpen, RefreshCcw, Search, Terminal, Zap } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert'
+import {
+  Activity,
+  Clock,
+  Database,
+  FileCode2,
+  FileSearch,
+  Flame,
+  FolderOpen,
+  GitBranch,
+  Layers,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Trash2,
+  X,
+  Zap,
+} from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { SectionLayout } from '../layout/SectionLayout'
-import type { EngineIndexMeta, EngineSearchResult, EngineSearchSession, EngineStats, EngineStatus, Project } from '../types'
-
-const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm'
+import { cn } from '../../lib/utils'
+import type {
+  EngineGitInsights,
+  EngineIndexMeta,
+  EngineSearchResult,
+  EngineSearchSession,
+  EngineStats,
+  EngineStatus,
+  Project,
+} from '../types'
 
 function formatDate(value?: string) {
-  if (!value) return 'Not indexed yet'
+  if (!value) return 'Never'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
+  return date.toLocaleString(undefined, { 
+    month: 'short', 
+    day: 'numeric', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })
 }
 
 function formatBytes(bytes: number) {
@@ -29,8 +56,8 @@ function formatBytes(bytes: number) {
   return `${current.toFixed(current >= 10 || index === 0 ? 0 : 1)} ${units[index]}`
 }
 
-function formatRelativeDate(value?: string) {
-  if (!value) return 'No saved search'
+function formatRelativeTime(value?: string) {
+  if (!value) return null
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
 
@@ -43,6 +70,164 @@ function formatRelativeDate(value?: string) {
   const diffDays = Math.round(diffHours / 24)
   if (diffDays < 7) return `${diffDays}d ago`
   return date.toLocaleDateString()
+}
+
+interface StatCardProps {
+  label: string
+  value: string | number
+  subtext?: string
+  icon: React.ComponentType<{ className?: string }>
+  trend?: 'up' | 'down' | 'neutral'
+}
+
+function StatCard({ label, value, subtext, icon: Icon, trend }: StatCardProps) {
+  return (
+    <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-card to-card/50 border border-border/50 p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="relative flex items-start justify-between">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+          <p className="mt-1.5 text-2xl font-bold tracking-tight">{value}</p>
+          {subtext && (
+            <p className={cn(
+              "mt-0.5 text-xs",
+              trend === 'up' && "text-emerald-400",
+              trend === 'down' && "text-rose-400",
+              trend === 'neutral' && "text-muted-foreground"
+            )}>
+              {subtext}
+            </p>
+          )}
+        </div>
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface LanguageBadgeProps {
+  language: string
+  count: number
+  total: number
+}
+
+function LanguageBadge({ language, count, total }: LanguageBadgeProps) {
+  const percentage = Math.round((count / total) * 100)
+  const getLanguageColor = (lang: string) => {
+    const colors: Record<string, string> = {
+      typescript: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      javascript: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+      python: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      rust: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+      go: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+      java: 'bg-red-500/20 text-red-400 border-red-500/30',
+      html: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+      css: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      json: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+      markdown: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    }
+    return colors[lang.toLowerCase()] || 'bg-primary/10 text-primary border-primary/20'
+  }
+
+  return (
+    <div className={cn(
+      "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:scale-105",
+      getLanguageColor(language)
+    )}>
+      <span className="capitalize">{language}</span>
+      <span className="opacity-60">{count.toLocaleString()}</span>
+      <span className="opacity-40">({percentage}%)</span>
+    </div>
+  )
+}
+
+interface SearchResultItemProps {
+  result: EngineSearchResult['results'][0]
+  onOpen: (path: string, location?: { line?: number; column?: number }) => void
+  onReveal: (path: string) => void
+  isOpening: boolean
+  isRevealing: boolean
+  openingKey: string | null
+}
+
+function SearchResultItem({ result, onOpen, onReveal, isOpening, isRevealing, openingKey }: SearchResultItemProps) {
+  return (
+    <div className="group rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:border-primary/30 hover:bg-card/50">
+      {/* File Header */}
+      <div className="flex items-center gap-3 border-b border-border/30 bg-card/50 px-4 py-3">
+        <FileCode2 className="h-4 w-4 text-muted-foreground" />
+        <div className="flex-1 min-w-0">
+          <p className="truncate text-sm font-medium text-foreground">{result.path}</p>
+        </div>
+        {result.language && (
+          <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+            {result.language}
+          </Badge>
+        )}
+        <Badge variant="secondary" className="text-[10px]">
+          {result.score.toFixed(2)}
+        </Badge>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0"
+            onClick={() => onReveal(result.path)}
+            disabled={isRevealing}
+            title="Reveal in folder"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0"
+            onClick={() => onOpen(result.path)}
+            disabled={isOpening}
+            title="Open file"
+          >
+            {openingKey === `${result.path}:0:0` ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileSearch className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Matches */}
+      {result.matches.length > 0 && (
+        <div className="divide-y divide-border/30">
+          {result.matches.map((match, idx) => (
+            <div
+              key={`${match.line}:${match.column}:${idx}`}
+              className="flex items-start gap-3 px-4 py-3 hover:bg-primary/5 transition-colors cursor-pointer"
+              onClick={() => onOpen(result.path, { line: match.line, column: match.column })}
+            >
+              <div className="flex flex-col items-end gap-0.5 min-w-[3rem]">
+                <span className="text-[11px] font-mono text-muted-foreground">L{match.line}</span>
+                <span className="text-[10px] font-mono text-muted-foreground/60">C{match.column}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <pre className="text-xs font-mono text-foreground/90 whitespace-pre-wrap break-all leading-relaxed">
+                  {match.snippet}
+                </pre>
+              </div>
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                {openingKey === `${result.path}:${match.line}:${match.column}` ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
+                ) : (
+                  <FileSearch className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function EngineSection({
@@ -58,9 +243,9 @@ export function EngineSection({
   onIndexProject,
   onSearch,
   onLoadStats,
+  onLoadGitInsights,
   onOpenResult,
   onRevealResult,
-  onOpenProjectTerminal,
   onClearSearchSession,
 }: {
   projects: Project[]
@@ -72,27 +257,28 @@ export function EngineSection({
   isLoading?: boolean
   error?: string | null
   onRefreshStatus?: () => Promise<void>
-  onIndexProject?: (projectId: string) => Promise<void>
+  onIndexProject?: (projectId: string) => Promise<unknown>
   onSearch?: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
   onLoadStats?: (projectId: string) => Promise<EngineStats>
+  onLoadGitInsights?: (projectId: string) => Promise<EngineGitInsights>
   onOpenResult?: (projectId: string, relativePath: string, location?: { line?: number; column?: number }) => Promise<void>
   onRevealResult?: (projectId: string, relativePath: string) => Promise<void>
-  onOpenProjectTerminal?: (projectId: string) => Promise<void>
   onClearSearchSession?: (projectId: string) => Promise<void>
 }) {
   const [query, setQuery] = useState('')
   const [regex, setRegex] = useState(false)
   const [searchResult, setSearchResult] = useState<EngineSearchResult | null>(null)
   const [stats, setStats] = useState<EngineStats | null>(null)
+  const [gitInsights, setGitInsights] = useState<EngineGitInsights | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [isRefreshingStatus, setIsRefreshingStatus] = useState(false)
   const [isIndexing, setIsIndexing] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
+  const [isLoadingGitInsights, setIsLoadingGitInsights] = useState(false)
   const [openingResultKey, setOpeningResultKey] = useState<string | null>(null)
   const [revealingResultKey, setRevealingResultKey] = useState<string | null>(null)
-  const [isOpeningTerminal, setIsOpeningTerminal] = useState(false)
-  const [isClearingSearch, setIsClearingSearch] = useState(false)
+  const [showRegexInfo, setShowRegexInfo] = useState(false)
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -100,8 +286,20 @@ export function EngineSection({
   )
   const selectedIndex = selectedProject ? engineIndexes[selectedProject.id] ?? null : null
   const selectedSession = selectedProject ? searchSessions[selectedProject.id] ?? null : null
-  const hasDraftQueryChanges =
-    query.trim() !== (selectedSession?.query ?? '') || regex !== (selectedSession?.regex ?? false)
+
+  useEffect(() => {
+    if (!projects.length) return
+    if (!selectedProjectId || !projects.some((project) => project.id === selectedProjectId)) {
+      onSelectProject?.(projects[0].id)
+    }
+  }, [onSelectProject, projects, selectedProjectId])
+
+  useEffect(() => {
+    setActionError(null)
+    setQuery(selectedSession?.query ?? '')
+    setRegex(selectedSession?.regex ?? false)
+    setSearchResult(selectedSession?.result ?? null)
+  }, [selectedProjectId, selectedSession])
 
   useEffect(() => {
     if (!selectedProject || !selectedIndex || !onLoadStats) {
@@ -113,33 +311,39 @@ export function EngineSection({
     setIsLoadingStats(true)
     onLoadStats(selectedProject.id)
       .then((result) => {
-        if (!cancelled) {
-          setStats(result)
-        }
+        if (!cancelled) setStats(result)
       })
-      .catch((nextError) => {
-        if (!cancelled) {
-          setActionError(nextError instanceof Error ? nextError.message : 'Failed to load engine stats.')
-          setStats(null)
-        }
+      .catch(() => {
+        if (!cancelled) setStats(null)
       })
       .finally(() => {
-        if (!cancelled) {
-          setIsLoadingStats(false)
-        }
+        if (!cancelled) setIsLoadingStats(false)
       })
 
-    return () => {
-      cancelled = true
-    }
-  }, [selectedProject, selectedIndex?.lastIndexed, onLoadStats])
+    return () => { cancelled = true }
+  }, [onLoadStats, selectedIndex?.lastIndexed, selectedProject])
 
   useEffect(() => {
-    setActionError(null)
-    setQuery(selectedSession?.query ?? '')
-    setRegex(selectedSession?.regex ?? false)
-    setSearchResult(selectedSession?.result ?? null)
-  }, [selectedProjectId, selectedSession])
+    if (!selectedProject || !onLoadGitInsights) {
+      setGitInsights(null)
+      return
+    }
+
+    let cancelled = false
+    setIsLoadingGitInsights(true)
+    onLoadGitInsights(selectedProject.id)
+      .then((result) => {
+        if (!cancelled) setGitInsights(result)
+      })
+      .catch(() => {
+        if (!cancelled) setGitInsights(null)
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingGitInsights(false)
+      })
+
+    return () => { cancelled = true }
+  }, [onLoadGitInsights, selectedProject])
 
   const handleRefreshStatus = async () => {
     if (!onRefreshStatus || isRefreshingStatus) return
@@ -148,7 +352,7 @@ export function EngineSection({
     try {
       await onRefreshStatus()
     } catch (nextError) {
-      setActionError(nextError instanceof Error ? nextError.message : 'Failed to refresh engine status.')
+      setActionError(nextError instanceof Error ? nextError.message : 'Failed to refresh status')
     } finally {
       setIsRefreshingStatus(false)
     }
@@ -161,29 +365,35 @@ export function EngineSection({
     try {
       await onIndexProject(selectedProject.id)
     } catch (nextError) {
-      setActionError(nextError instanceof Error ? nextError.message : 'Failed to index project.')
+      setActionError(nextError instanceof Error ? nextError.message : 'Failed to index project')
     } finally {
       setIsIndexing(false)
     }
   }
 
   const handleSearch = async () => {
-    if (!selectedProject || !selectedIndex || !onSearch || isSearching) return
+    if (!selectedProject || !onSearch || isSearching || !engineStatus?.available) return
     const trimmed = query.trim()
     if (!trimmed) {
-      setActionError('Search query is required.')
+      setActionError('Enter a search query')
       return
     }
 
     setActionError(null)
     setIsSearching(true)
     try {
-      const result = await onSearch(selectedProject.id, trimmed, { regex, limit: 25 })
+      const result = await onSearch(selectedProject.id, trimmed, { regex, limit: 50 })
       setSearchResult(result)
     } catch (nextError) {
-      setActionError(nextError instanceof Error ? nextError.message : 'Search failed.')
+      setActionError(nextError instanceof Error ? nextError.message : 'Search failed')
     } finally {
       setIsSearching(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      handleSearch()
     }
   }
 
@@ -195,7 +405,7 @@ export function EngineSection({
     try {
       await onOpenResult(selectedProject.id, relativePath, location)
     } catch (nextError) {
-      setActionError(nextError instanceof Error ? nextError.message : 'Failed to open search result.')
+      setActionError(nextError instanceof Error ? nextError.message : 'Failed to open file')
     } finally {
       setOpeningResultKey(null)
     }
@@ -208,332 +418,467 @@ export function EngineSection({
     try {
       await onRevealResult(selectedProject.id, relativePath)
     } catch (nextError) {
-      setActionError(nextError instanceof Error ? nextError.message : 'Failed to reveal search result.')
+      setActionError(nextError instanceof Error ? nextError.message : 'Failed to reveal file')
     } finally {
       setRevealingResultKey(null)
     }
   }
 
-  const handleOpenTerminal = async () => {
-    if (!selectedProject || !onOpenProjectTerminal || isOpeningTerminal) return
+  const handleClearSearch = async () => {
+    if (!selectedProject || !onClearSearchSession) return
     setActionError(null)
-    setIsOpeningTerminal(true)
-    try {
-      await onOpenProjectTerminal(selectedProject.id)
-    } catch (nextError) {
-      setActionError(nextError instanceof Error ? nextError.message : 'Failed to open project terminal.')
-    } finally {
-      setIsOpeningTerminal(false)
-    }
-  }
-
-  const handleClearSearchSession = async () => {
-    if (!selectedProject || !onClearSearchSession || isClearingSearch) return
-    setActionError(null)
-    setIsClearingSearch(true)
     try {
       await onClearSearchSession(selectedProject.id)
       setQuery('')
       setRegex(false)
       setSearchResult(null)
     } catch (nextError) {
-      setActionError(nextError instanceof Error ? nextError.message : 'Failed to clear saved search.')
-    } finally {
-      setIsClearingSearch(false)
+      setActionError(nextError instanceof Error ? nextError.message : 'Failed to clear search')
     }
   }
+
+  const totalFiles = stats?.stats.totalFiles ?? selectedIndex?.fileCount ?? 0
+  const languageEntries = stats ? Object.entries(stats.stats.byLanguage).sort((a, b) => b[1] - a[1]) : []
 
   return (
     <SectionLayout
       list={
-        <div className={panelClass}>
-          <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Indexed Projects</p>
-          </div>
-          <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-            <Badge variant={engineStatus?.available ? 'secondary' : 'destructive'}>
-              {engineStatus?.available ? 'Available' : 'Unavailable'}
-            </Badge>
-            <Button size="sm" variant="outline" className="gap-2" onClick={handleRefreshStatus} disabled={isRefreshingStatus}>
-              <RefreshCcw className={`h-4 w-4 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-          <div className="flex-1 overflow-auto">
-            {isLoading ? (
-              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-                Loading projects...
+        <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-border/50 bg-card/20 backdrop-blur-sm">
+          {/* Header */}
+          <div className="border-b border-border/50 px-4 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "flex h-2 w-2 rounded-full",
+                  engineStatus?.available ? "bg-emerald-500 shadow-lg shadow-emerald-500/50" : "bg-rose-500"
+                )} />
+                <span className="text-xs font-medium text-muted-foreground">
+                  {engineStatus?.available ? 'Engine Ready' : 'Engine Offline'}
+                </span>
               </div>
-            ) : projects.length === 0 ? (
-              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-                No projects added yet.
-              </div>
-            ) : (
-              projects.map((project) => {
-                const projectIndex = engineIndexes[project.id]
-                const projectSession = searchSessions[project.id]
-                const isActive = project.id === selectedProjectId
-                return (
-                  <button
-                    key={project.id}
-                    onClick={() => onSelectProject?.(project.id)}
-                    className={`group relative flex w-full items-start gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors ${
-                      isActive
-                        ? "bg-accent/70 before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:bg-primary before:content-['']"
-                        : 'hover:bg-accent/50'
-                    }`}
-                  >
-                    <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
-                      {project.name.slice(0, 1).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-medium">{project.name}</p>
-                        <Badge variant={projectIndex ? 'secondary' : 'outline'} className="text-[10px] uppercase">
-                          {projectIndex ? 'indexed' : 'idle'}
-                        </Badge>
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground">{project.path}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                        <span>{projectIndex ? `${projectIndex.fileCount} files` : 'No index yet'}</span>
-                        {projectSession ? (
-                          <>
-                            <span className="text-border">•</span>
-                            <span>{projectSession.result.totalMatches} hits</span>
-                            <span className="text-border">•</span>
-                            <span>{formatRelativeDate(projectSession.updatedAt)}</span>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  </button>
-                )
-              })
-            )}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0"
+                onClick={handleRefreshStatus}
+                disabled={isRefreshingStatus}
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", isRefreshingStatus && "animate-spin")} />
+              </Button>
+            </div>
           </div>
+
+          {/* Project List */}
+          <ScrollArea className="flex-1">
+            <div className="p-2 space-y-1">
+              {isLoading ? (
+                <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Loading...
+                </div>
+              ) : projects.length === 0 ? (
+                <div className="flex h-32 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+                  <Layers className="h-8 w-8 opacity-50" />
+                  <p>No projects yet</p>
+                </div>
+              ) : (
+                projects.map((project) => {
+                  const projectIndex = engineIndexes[project.id]
+                  const projectSession = searchSessions[project.id]
+                  const isActive = project.id === selectedProjectId
+                  
+                  return (
+                    <button
+                      key={project.id}
+                      onClick={() => onSelectProject?.(project.id)}
+                      className={cn(
+                        "group w-full rounded-xl border p-3 text-left transition-all duration-200",
+                        isActive
+                          ? "border-primary/50 bg-primary/10 shadow-lg shadow-primary/5"
+                          : "border-transparent hover:border-border/50 hover:bg-card/50"
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-colors",
+                          isActive 
+                            ? "bg-primary text-primary-foreground" 
+                            : "bg-muted text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary"
+                        )}>
+                          {project.name.slice(0, 1).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-medium">{project.name}</p>
+                          </div>
+                          <p className="truncate text-[11px] text-muted-foreground">{project.path}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            {projectIndex ? (
+                              <Badge variant="outline" className="h-5 text-[10px] border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                                <Database className="mr-1 h-3 w-3" />
+                                {projectIndex.fileCount.toLocaleString()} files
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="h-5 text-[10px]">
+                                Not indexed
+                              </Badge>
+                            )}
+                            {projectSession && (
+                              <Badge variant="outline" className="h-5 text-[10px]">
+                                <Search className="mr-1 h-3 w-3" />
+                                {projectSession.result.totalMatches} hits
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </ScrollArea>
+
+          {/* Footer Info */}
+          {engineStatus?.version && (
+            <div className="border-t border-border/50 px-4 py-2">
+              <p className="text-[10px] text-muted-foreground/60">
+                Engine v{engineStatus.version}
+              </p>
+            </div>
+          )}
         </div>
       }
       detail={
-        <div className="grid h-full gap-4 lg:grid-rows-[auto_auto_minmax(0,1fr)]">
-          <div className={panelClass}>
-            <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Engine</p>
-                  <h2 className="mt-1 text-base font-semibold">{selectedProject?.name ?? 'No project selected'}</h2>
-                </div>
-                <Button className="gap-2" onClick={handleIndex} disabled={!selectedProject || !engineStatus?.available || isIndexing}>
-                  <Zap className="h-4 w-4" />
-                  {isIndexing ? 'Indexing...' : selectedIndex ? 'Reindex Project' : 'Index Project'}
-                </Button>
+        <div className="flex h-full flex-col gap-4">
+          {/* Error Banner */}
+          {(error || actionError) && (
+            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+              <div className="flex items-center gap-2">
+                <X className="h-4 w-4" />
+                {actionError ?? error}
               </div>
             </div>
-            <div className="grid gap-3 px-4 py-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-lg border border-border/60 bg-background/60 p-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Engine</p>
-                <p className="mt-2 text-sm font-medium">{engineStatus?.available ? 'Available' : 'Unavailable'}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{engineStatus?.version ?? engineStatus?.error ?? 'No version reported'}</p>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-background/60 p-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Last Indexed</p>
-                <p className="mt-2 text-sm font-medium">{formatDate(selectedIndex?.lastIndexed)}</p>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-background/60 p-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Indexed Files</p>
-                <p className="mt-2 text-sm font-medium">{selectedIndex?.fileCount ?? 0}</p>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-background/60 p-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Index Size</p>
-                <p className="mt-2 text-sm font-medium">{stats ? formatBytes(stats.stats.totalSizeBytes) : isLoadingStats ? 'Loading...' : 'N/A'}</p>
-              </div>
-            </div>
-            {error || actionError ? (
-              <div className="px-4 pb-4">
-                <Alert variant="destructive">
-                  <AlertTitle>Engine error</AlertTitle>
-                  <AlertDescription>{actionError ?? error}</AlertDescription>
-                </Alert>
-              </div>
-            ) : null}
+          )}
+
+          {/* Stats Grid */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Status"
+              value={selectedIndex ? 'Indexed' : 'Not Indexed'}
+              subtext={selectedIndex ? formatRelativeTime(selectedIndex.lastIndexed) || formatDate(selectedIndex.lastIndexed) : 'Click to index'}
+              icon={selectedIndex ? Zap : Database}
+              trend={selectedIndex ? 'up' : 'neutral'}
+            />
+            <StatCard
+              label="Files"
+              value={totalFiles.toLocaleString()}
+              subtext={stats ? `${Object.keys(stats.stats.byLanguage).length} languages` : 'Loading...'}
+              icon={Layers}
+              trend="neutral"
+            />
+            <StatCard
+              label="Index Size"
+              value={stats ? formatBytes(stats.stats.totalSizeBytes) : isLoadingStats ? '...' : 'N/A'}
+              subtext={selectedIndex ? 'SQLite + FTS5' : 'Not created'}
+              icon={Database}
+              trend="neutral"
+            />
+            <StatCard
+              label="Git Activity"
+              value={gitInsights ? `${gitInsights.totalCommits}` : isLoadingGitInsights ? '...' : 'N/A'}
+              subtext={gitInsights ? `${gitInsights.contributors.length} contributors` : 'No data'}
+              icon={GitBranch}
+              trend="neutral"
+            />
           </div>
 
-          <div className={panelClass}>
-            <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Search</p>
-            </div>
-            <div className="flex flex-col gap-3 px-4 py-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={selectedSession ? 'secondary' : 'outline'}>
-                  {selectedSession ? 'Saved search' : 'No saved search'}
-                </Badge>
-                {selectedSession ? (
-                  <>
-                    <Badge variant="outline" className="gap-1">
-                      <Clock3 className="h-3.5 w-3.5" />
-                      {formatRelativeDate(selectedSession.updatedAt)}
-                    </Badge>
-                    <Badge variant="outline">{selectedSession.result.totalMatches} hits</Badge>
-                    {selectedSession.regex ? <Badge variant="outline">Regex</Badge> : null}
-                  </>
-                ) : null}
-                {hasDraftQueryChanges ? <Badge variant="outline">Unsaved edits</Badge> : null}
-              </div>
-              <div className="flex flex-col gap-3 lg:flex-row">
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search indexed content"
-                  disabled={!selectedProject || !selectedIndex}
-                />
-                <Button variant={regex ? 'secondary' : 'outline'} onClick={() => setRegex((current) => !current)}>
-                  Regex {regex ? 'On' : 'Off'}
-                </Button>
-                <Button className="gap-2" onClick={handleSearch} disabled={!selectedProject || !selectedIndex || isSearching}>
-                  <Search className="h-4 w-4" />
-                  {isSearching ? 'Searching...' : 'Search'}
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="gap-2"
-                  onClick={handleClearSearchSession}
-                  disabled={!selectedSession || isClearingSearch}
-                >
-                  <Eraser className="h-4 w-4" />
-                  {isClearingSearch ? 'Clearing...' : 'Clear Saved'}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {selectedIndex
-                  ? `Searching ${selectedProject?.name}. Regex mode returns line-level snippets.`
-                  : 'Index the selected project before searching.'}
-              </p>
-              {selectedSession ? (
-                <div className="rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Last query:</span> {selectedSession.query}
-                </div>
-              ) : null}
-            </div>
-          </div>
+          {/* Main Content Grid */}
+          <div className="grid flex-1 gap-4 lg:grid-cols-[1fr_320px] min-h-0">
+            {/* Left Column - Search & Results */}
+            <div className="flex min-h-0 flex-col gap-4">
+              {/* Search Bar */}
+              <div className="rounded-2xl border border-border/50 bg-card/20 backdrop-blur-sm p-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={selectedIndex ? `Search ${selectedProject?.name}...` : 'Index project to search'}
+                      disabled={!selectedProject || !engineStatus?.available || !selectedIndex}
+                      className="pl-10 h-11 bg-background/50 border-border/50 focus:border-primary/50"
+                    />
+                    {query && (
+                      <button
+                        onClick={() => setQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  <Button
+                    variant={regex ? 'default' : 'outline'}
+                    size="icon"
+                    className="h-11 w-11 shrink-0"
+                    onClick={() => setRegex(!regex)}
+                    disabled={!selectedProject || !engineStatus?.available}
+                    onMouseEnter={() => setShowRegexInfo(true)}
+                    onMouseLeave={() => setShowRegexInfo(false)}
+                  >
+                    <span className="text-xs font-mono font-bold">.*</span>
+                  </Button>
 
-          <div className={panelClass}>
-            <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Results</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  {searchResult ? <Badge variant="secondary">{searchResult.totalMatches} hits</Badge> : null}
-                  {searchResult ? <Badge variant="outline">{searchResult.durationMs} ms</Badge> : null}
-                </div>
-              </div>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="space-y-3 p-4">
-                {stats ? (
-                  <div className="rounded-lg border border-border/60 bg-background/60 p-3">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <Database className="h-4 w-4 text-muted-foreground" />
-                      Index Stats
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {Object.entries(stats.stats.byLanguage).map(([language, count]) => (
-                        <Badge key={language} variant="outline">
-                          {language}: {count}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                  <Button
+                    className="h-11 gap-2 px-6"
+                    onClick={handleSearch}
+                    disabled={!selectedProject || !engineStatus?.available || isSearching || !selectedIndex}
+                  >
+                    {isSearching ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                    Search
+                  </Button>
 
-                {!searchResult ? (
-                  <div className="rounded-lg border border-dashed border-border/60 px-4 py-8 text-center text-sm text-muted-foreground">
-                    {selectedSession ? 'Saved search cleared. Run a new search to populate results.' : 'Search results will appear here.'}
-                  </div>
-                ) : searchResult.results.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/60 px-4 py-8 text-center text-sm text-muted-foreground">
-                    No matches found for <span className="font-medium text-foreground">{searchResult.query}</span>.
-                  </div>
-                ) : (
-                  searchResult.results.map((result) => (
-                    <div key={result.path} className="rounded-lg border border-border/60 bg-background/60 p-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="break-all text-sm font-medium">{result.path}</p>
-                        {result.language ? <Badge variant="outline">{result.language}</Badge> : null}
-                        <Badge variant="secondary">score {result.score.toFixed(3)}</Badge>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="gap-1.5"
-                          onClick={() => void handleOpenTerminal()}
-                          disabled={!onOpenProjectTerminal || isOpeningTerminal}
-                        >
-                          <Terminal className="h-4 w-4" />
-                          {isOpeningTerminal ? 'Opening...' : 'Terminal'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="gap-1.5"
-                          onClick={() => void handleRevealResult(result.path)}
-                          disabled={!onRevealResult || revealingResultKey === result.path}
-                        >
-                          <FolderOpen className="h-4 w-4" />
-                          {revealingResultKey === result.path ? 'Revealing...' : 'Reveal'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="ml-auto gap-1.5"
-                          onClick={() => void handleOpenResult(result.path)}
-                          disabled={!onOpenResult || openingResultKey === `${result.path}:0:0`}
-                        >
-                          <Code2 className="h-4 w-4" />
-                          {openingResultKey === `${result.path}:0:0` ? 'Opening...' : 'Open File'}
-                        </Button>
-                      </div>
-                      {result.matches.length > 0 ? (
-                        <div className="mt-3 space-y-2">
-                          {result.matches.map((match) => (
-                            <div key={`${result.path}:${match.line}:${match.column}`} className="rounded-md border border-border/50 bg-card px-3 py-2">
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="text-xs font-medium text-muted-foreground">
-                                  Line {match.line}, Column {match.column}
-                                </p>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 gap-1.5 px-2 text-xs"
-                                  onClick={() => void handleOpenResult(result.path, { line: match.line, column: match.column })}
-                                  disabled={
-                                    !onOpenResult ||
-                                    openingResultKey === `${result.path}:${match.line}:${match.column}`
-                                  }
-                                >
-                                  <Code2 className="h-3.5 w-3.5" />
-                                  {openingResultKey === `${result.path}:${match.line}:${match.column}` ? 'Opening...' : 'Open Match'}
-                                </Button>
-                              </div>
-                              <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-foreground">{match.snippet}</pre>
-                            </div>
-                          ))}
-                        </div>
+                  {!selectedIndex && selectedProject && (
+                    <Button
+                      className="h-11 gap-2"
+                      onClick={handleIndex}
+                      disabled={!engineStatus?.available || isIndexing}
+                    >
+                      {isIndexing ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
                       ) : (
-                        <p className="mt-3 text-xs text-muted-foreground">FTS result without line-level snippets. Enable regex mode for exact match context.</p>
+                        <Sparkles className="h-4 w-4" />
                       )}
-                    </div>
-                  ))
+                      Index
+                    </Button>
+                  )}
+                </div>
+
+                {/* Search Meta */}
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {selectedSession ? (
+                      <>
+                        <Badge variant="outline" className="text-[10px]">
+                          <Clock className="mr-1 h-3 w-3" />
+                          {formatRelativeTime(selectedSession.updatedAt)}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {selectedSession.result.totalMatches} matches
+                        </Badge>
+                        {selectedSession.regex && (
+                          <Badge variant="outline" className="text-[10px]">Regex</Badge>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {selectedProject ? `Search in ${selectedProject.name}` : 'Select a project to search'}
+                      </span>
+                    )}
+                  </div>
+
+                  {selectedSession && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={handleClearSearch}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Clear
+                    </Button>
+                  )}
+                </div>
+
+                {/* Regex Tooltip */}
+                {showRegexInfo && regex && (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Regex mode enabled - searches will use pattern matching
+                  </div>
                 )}
               </div>
-            </ScrollArea>
+
+              {/* Search Results */}
+              <div className="flex-1 min-h-0 rounded-2xl border border-border/50 bg-card/20 backdrop-blur-sm overflow-hidden">
+                <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <FileSearch className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Results</span>
+                    {searchResult && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {searchResult.results.length} files
+                      </Badge>
+                    )}
+                  </div>
+                  {searchResult && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{searchResult.totalMatches} total matches</span>
+                      <span className="text-border">•</span>
+                      <span>{searchResult.durationMs}ms</span>
+                    </div>
+                  )}
+                </div>
+
+                <ScrollArea className="h-[calc(100%-49px)]">
+                  <div className="p-4 space-y-3">
+                    {!searchResult ? (
+                      <div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+                        <Search className="h-12 w-12 opacity-20" />
+                        <div>
+                          <p className="text-sm font-medium">No search yet</p>
+                          <p className="text-xs">Enter a query and hit search to find files</p>
+                        </div>
+                      </div>
+                    ) : searchResult.results.length === 0 ? (
+                      <div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+                        <X className="h-12 w-12 opacity-20" />
+                        <div>
+                          <p className="text-sm font-medium">No matches found</p>
+                          <p className="text-xs">Try a different query or check your regex</p>
+                        </div>
+                      </div>
+                    ) : (
+                      searchResult.results.map((result) => (
+                        <SearchResultItem
+                          key={result.path}
+                          result={result}
+                          onOpen={handleOpenResult}
+                          onReveal={handleRevealResult}
+                          isOpening={!!openingResultKey}
+                          isRevealing={!!revealingResultKey}
+                          openingKey={openingResultKey}
+                        />
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+
+            {/* Right Column - Insights */}
+            <div className="flex min-h-0 flex-col gap-4">
+              {/* Language Distribution */}
+              <div className="rounded-2xl border border-border/50 bg-card/20 backdrop-blur-sm overflow-hidden">
+                <div className="border-b border-border/50 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Languages</span>
+                  </div>
+                </div>
+                <ScrollArea className="h-[200px]">
+                  <div className="p-3 space-y-2">
+                    {languageEntries.length > 0 ? (
+                      languageEntries.map(([language, count]) => (
+                        <LanguageBadge
+                          key={language}
+                          language={language}
+                          count={count}
+                          total={totalFiles}
+                        />
+                      ))
+                    ) : (
+                      <div className="flex h-full items-center justify-center py-8 text-xs text-muted-foreground">
+                        Index project to see language stats
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* Git Insights */}
+              <div className="flex-1 min-h-0 rounded-2xl border border-border/50 bg-card/20 backdrop-blur-sm overflow-hidden">
+                <div className="border-b border-border/50 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Git Insights</span>
+                  </div>
+                </div>
+                <ScrollArea className="h-[calc(100%-49px)]">
+                  <div className="p-4 space-y-4">
+                    {gitInsights ? (
+                      <>
+                        {/* Branch & Stats */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="rounded-lg bg-card/50 p-3 text-center">
+                            <GitBranch className="mx-auto h-4 w-4 text-muted-foreground mb-1" />
+                            <p className="text-xs font-medium truncate">{gitInsights.branch || 'detached'}</p>
+                          </div>
+                          <div className="rounded-lg bg-card/50 p-3 text-center">
+                            <Activity className="mx-auto h-4 w-4 text-muted-foreground mb-1" />
+                            <p className="text-xs font-medium">{gitInsights.totalCommits} commits</p>
+                          </div>
+                        </div>
+
+                        {/* Contributors */}
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Top Contributors</p>
+                          <div className="space-y-1.5">
+                            {gitInsights.contributors.slice(0, 5).map((contributor) => (
+                              <div key={contributor} className="flex items-center justify-between rounded-lg bg-card/30 px-3 py-2">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium truncate">{contributor}</p>
+                                </div>
+                                <Badge variant="outline" className="text-[10px]">
+                                  author
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Hotspots */}
+                        {gitInsights.hotspots.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-2">Hotspots</p>
+                            <div className="space-y-1.5">
+                              {gitInsights.hotspots.slice(0, 3).map((hotspot) => (
+                                <div
+                                  key={hotspot.path}
+                                  className="rounded-lg border border-border/30 bg-card/30 px-3 py-2 cursor-pointer hover:bg-card/50 transition-colors"
+                                  onClick={() => handleOpenResult(hotspot.path)}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="truncate text-[11px] font-medium">{hotspot.path}</p>
+                                    <Badge
+                                      variant={hotspot.risk === 'high' ? 'destructive' : hotspot.risk === 'medium' ? 'default' : 'outline'}
+                                      className="text-[9px] h-4"
+                                    >
+                                      {hotspot.risk}
+                                    </Badge>
+                                  </div>
+                                  <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                                    <Flame className="h-3 w-3" />
+                                    {hotspot.commits} commits
+                                    <span className="text-border">•</span>
+                                    {hotspot.recency}d ago
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex h-32 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
+                        <GitBranch className="h-8 w-8 opacity-30" />
+                        <p className="text-xs">Git insights unavailable</p>
+                        <p className="text-[10px]">Ensure this is a git repository</p>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
           </div>
         </div>
       }
     />
   )
 }
-  useEffect(() => {
-    if (!projects.length) {
-      return
-    }
-    if (!selectedProjectId || !projects.some((project) => project.id === selectedProjectId)) {
-      onSelectProject?.(projects[0].id)
-    }
-  }, [onSelectProject, projects, selectedProjectId])

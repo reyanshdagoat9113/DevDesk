@@ -1,224 +1,130 @@
-/**
- * Engine Service - Wrapper for devdesk-engine integration
- *
- * This service provides a safe interface to the devdesk-engine performance engine.
- * It handles errors gracefully and provides fallback behavior.
- */
-
-import { app } from 'electron'
-import path from 'node:path'
 import fs from 'node:fs/promises'
+import path from 'node:path'
+import {
+  clearEngineIndexMeta,
+  clearEngineSearchSession,
+  listEngineIndexes,
+  listEngineSearchSessions,
+  upsertEngineIndex,
+  upsertEngineSearchSession,
+} from '../data/store'
+import type { EngineIndexMeta, EngineSearchSession } from '../data/model'
+import {
+  engineGit,
+  engineIndex,
+  engineSearch,
+  engineStats,
+  getEngineDbPath,
+  getEngineStatus,
+} from './binary'
+import type {
+  EngineGitInsights,
+  EngineIndexResult,
+  EngineSearchResult,
+  EngineStats,
+  EngineStatus,
+} from './types'
 
-// Lazy-loaded engine module
-let engineModule: typeof import('devdesk-engine') | null = null
-
-// Types from devdesk-engine
-export interface EngineIndexResult {
-  ok: boolean
-  repo: string
-  db: string
-  filesIndexed: number
-  filesSkipped: number
-  durationMs: number
-  warnings: string[]
+export interface EngineSnapshot {
+  status: EngineStatus
+  indexes: Record<string, EngineIndexMeta>
+  searchSessions: Record<string, EngineSearchSession>
 }
 
-export interface EngineSearchMatch {
-  line: number
-  column: number
-  snippet: string
-  contextBefore: string[]
-  contextAfter: string[]
-}
-
-export interface EngineFileSearchResult {
-  path: string
-  language: string | null
-  score: number
-  matches: EngineSearchMatch[]
-}
-
-export interface EngineSearchResult {
-  ok: boolean
-  query: string
-  results: EngineFileSearchResult[]
-  totalMatches: number
-  durationMs: number
-}
-
-export interface EngineStatsResult {
-  ok: boolean
-  db: string
-  stats: {
-    totalFiles: number
-    totalSizeBytes: number
-    byLanguage: Record<string, number>
-    indexedAt: string
-  }
-}
-
-export interface EngineGitInsights {
-  branch: string
-  totalCommits: number
-  contributors: string[]
-  hotspots: Array<{
-    path: string
-    score: number
-    commits: number
-    recency: number
-    risk: 'low' | 'medium' | 'high'
-  }>
-  recentCommits: Array<{
-    hash: string
-    author: string
-    date: string
-    message: string
-    files: string[]
-  }>
-  churnFiles: Array<{
-    path: string
-    commits: number
-    authors: string[]
-    lastModified: string
-    linesAdded: number
-    linesDeleted: number
-  }>
-}
-
-// Engine state per project
-interface EngineState {
-  dbPath: string
-  projectPath: string
-  isIndexed: boolean
-  lastIndexedAt?: number
-}
-
-const engineStates = new Map<string, EngineState>()
-
-/**
- * Get the database path for a project
- */
-function getDbPath(projectId: string): string {
-  const userDataPath = app.getPath('userData')
-  const engineDir = path.join(userDataPath, 'engine')
-
-  // Ensure directory exists
-  fs.mkdir(engineDir, { recursive: true }).catch(() => {})
-
-  return path.join(engineDir, `${projectId}.sqlite`)
-}
-
-/**
- * Get or create engine state for a project
- */
-function getOrCreateState(projectId: string, projectPath: string): EngineState {
-  let state = engineStates.get(projectId)
-
-  if (!state || state.projectPath !== projectPath) {
-    state = {
-      dbPath: getDbPath(projectId),
-      projectPath,
-      isIndexed: false,
-    }
-    engineStates.set(projectId, state)
-  }
-
-  return state
-}
-
-/**
- * Try to import the engine module
- */
-async function getEngine(): Promise<typeof import('devdesk-engine') | null> {
-  if (engineModule !== null) {
-    return engineModule
+async function hasIndexMetadata(projectId: string) {
+  const indexes = await listEngineIndexes()
+  const entry = indexes[projectId]
+  if (entry) {
+    return entry
   }
 
   try {
-    engineModule = await import('devdesk-engine')
-    return engineModule
-  } catch (error) {
-    console.error('[EngineService] Failed to load devdesk-engine:', error)
+    await fs.access(getEngineDbPath(projectId))
+    return {
+      projectId,
+      dbPath: getEngineDbPath(projectId),
+      lastIndexed: '',
+      fileCount: 0,
+    } satisfies EngineIndexMeta
+  } catch {
     return null
   }
 }
 
-/**
- * Index a project using the engine
- */
-export async function indexProject(
-  projectId: string,
-  projectPath: string
-): Promise<EngineIndexResult> {
-  const engine = await getEngine()
-
-  if (!engine) {
-    return {
-      ok: false,
-      repo: projectPath,
-      db: getDbPath(projectId),
-      filesIndexed: 0,
-      filesSkipped: 0,
-      durationMs: 0,
-      warnings: ['devdesk-engine is not available'],
-    }
+async function persistIndexMetadata(projectId: string, result: EngineIndexResult) {
+  const entry: EngineIndexMeta = {
+    projectId,
+    dbPath: result.db,
+    lastIndexed: new Date().toISOString(),
+    fileCount: result.filesIndexed,
   }
+  await upsertEngineIndex(entry)
+  return entry
+}
 
-  const state = getOrCreateState(projectId, projectPath)
+async function persistSearchSession(projectId: string, query: string, regex: boolean, result: EngineSearchResult) {
+  const session: EngineSearchSession = {
+    projectId,
+    query,
+    regex,
+    updatedAt: new Date().toISOString(),
+    result,
+  }
+  await upsertEngineSearchSession(session)
+  return session
+}
 
-  try {
-    const result = await engine.indexRepository({
-      repo: projectPath,
-      db: state.dbPath,
-      incremental: state.isIndexed,
-    })
+function normalizeSearchResultPaths(projectPath: string, result: EngineSearchResult): EngineSearchResult {
+  return {
+    ...result,
+    results: result.results.map((entry) => {
+      const relativePath = path.relative(projectPath, entry.path)
+      const normalizedPath =
+        relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
+          ? relativePath.replace(/\\/g, '/')
+          : entry.path.replace(/\\/g, '/')
 
-    if (result.ok) {
-      state.isIndexed = true
-      state.lastIndexedAt = Date.now()
-    }
-
-    return result
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error('[EngineService] Index failed:', message)
-
-    return {
-      ok: false,
-      repo: projectPath,
-      db: state.dbPath,
-      filesIndexed: 0,
-      filesSkipped: 0,
-      durationMs: 0,
-      warnings: [`Indexing failed: ${message}`],
-    }
+      return {
+        ...entry,
+        path: normalizedPath,
+      }
+    }),
   }
 }
 
-/**
- * Search a project using the engine
- */
+export async function loadEngineSnapshot(): Promise<EngineSnapshot> {
+  const [status, indexes, searchSessions] = await Promise.all([
+    getEngineStatus(),
+    listEngineIndexes(),
+    listEngineSearchSessions(),
+  ])
+
+  return {
+    status,
+    indexes,
+    searchSessions,
+  }
+}
+
+export async function indexProject(projectId: string, projectPath: string): Promise<EngineIndexResult> {
+  const result = await engineIndex(projectPath, projectId)
+
+  if (result.ok) {
+    await persistIndexMetadata(projectId, result)
+  }
+
+  return result
+}
+
 export async function searchProject(
   projectId: string,
   projectPath: string,
   query: string,
   options?: { regex?: boolean; limit?: number }
 ): Promise<EngineSearchResult> {
-  const engine = await getEngine()
-  const state = getOrCreateState(projectId, projectPath)
+  const existingIndex = await hasIndexMetadata(projectId)
 
-  if (!engine) {
-    return {
-      ok: false,
-      query,
-      results: [],
-      totalMatches: 0,
-      durationMs: 0,
-    }
-  }
-
-  if (!state.isIndexed) {
-    // Auto-index if not indexed
+  if (!existingIndex) {
     const indexResult = await indexProject(projectId, projectPath)
     if (!indexResult.ok) {
       return {
@@ -231,105 +137,59 @@ export async function searchProject(
     }
   }
 
-  try {
-    const result = await engine.searchIndex({
-      db: state.dbPath,
-      query,
-      regex: options?.regex ?? false,
-      limit: options?.limit ?? 50,
-    })
+  const result = normalizeSearchResultPaths(projectPath, await engineSearch(projectId, query, options))
+  await persistSearchSession(projectId, query, Boolean(options?.regex), result)
+  return result
+}
 
+export async function getProjectStats(projectId: string): Promise<EngineStats | null> {
+  const existingIndex = await hasIndexMetadata(projectId)
+  if (!existingIndex) {
+    return null
+  }
+
+  try {
+    const result = await engineStats(projectId)
+    if (existingIndex.lastIndexed === '' || existingIndex.fileCount === 0) {
+      await upsertEngineIndex({
+        projectId,
+        dbPath: result.db,
+        lastIndexed: result.stats.indexedAt,
+        fileCount: result.stats.totalFiles,
+      })
+    }
     return result
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error('[EngineService] Search failed:', message)
-
-    return {
-      ok: false,
-      query,
-      results: [],
-      totalMatches: 0,
-      durationMs: 0,
-    }
+  } catch {
+    return null
   }
 }
 
-/**
- * Get stats for a project index
- */
-export async function getProjectStats(
-  projectId: string,
-  projectPath: string
-): Promise<EngineStatsResult | null> {
-  const engine = await getEngine()
-  const state = getOrCreateState(projectId, projectPath)
-
-  if (!engine || !state.isIndexed) {
-    return null
-  }
-
+export async function getProjectGitInsights(projectPath: string): Promise<EngineGitInsights | null> {
   try {
-    return engine.getStats(state.dbPath)
-  } catch (error) {
-    console.error('[EngineService] Get stats failed:', error)
+    return await engineGit(projectPath)
+  } catch {
     return null
   }
 }
 
-/**
- * Get git insights for a project
- */
-export async function getProjectGitInsights(
-  projectPath: string
-): Promise<EngineGitInsights | null> {
-  const engine = await getEngine()
-
-  if (!engine) {
-    return null
-  }
-
-  try {
-    return engine.getGitInsights(projectPath)
-  } catch (error) {
-    console.error('[EngineService] Get git insights failed:', error)
-    return null
-  }
-}
-
-/**
- * Clear the engine index for a project
- */
 export async function clearProjectIndex(projectId: string): Promise<{ success: boolean }> {
-  const state = engineStates.get(projectId)
+  const dbPath = getEngineDbPath(projectId)
 
-  if (state) {
-    state.isIndexed = false
-    state.lastIndexedAt = undefined
+  await Promise.all([
+    clearEngineIndexMeta(projectId),
+    clearEngineSearchSession(projectId),
+    fs.unlink(dbPath).catch(() => undefined),
+  ])
 
-    // Delete the database file
-    try {
-      await fs.unlink(state.dbPath)
-    } catch {
-      // File might not exist, that's fine
-    }
-  }
-
-  engineStates.delete(projectId)
   return { success: true }
 }
 
-/**
- * Check if the engine is available
- */
-export async function isEngineAvailable(): Promise<boolean> {
-  const engine = await getEngine()
-  return engine !== null
+export async function clearProjectSearchSession(projectId: string): Promise<{ success: boolean }> {
+  await clearEngineSearchSession(projectId)
+  return { success: true }
 }
 
-/**
- * Check if a project is indexed
- */
-export function isProjectIndexed(projectId: string): boolean {
-  const state = engineStates.get(projectId)
-  return state?.isIndexed ?? false
+export async function isEngineAvailable(): Promise<boolean> {
+  const status = await getEngineStatus()
+  return status.available
 }

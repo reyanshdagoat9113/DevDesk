@@ -42,6 +42,34 @@ export interface EngineStats {
   }
 }
 
+export interface EngineGitInsights {
+  branch: string
+  totalCommits: number
+  contributors: string[]
+  hotspots: Array<{
+    path: string
+    score: number
+    commits: number
+    recency: number
+    risk: 'low' | 'medium' | 'high'
+  }>
+  recentCommits: Array<{
+    hash: string
+    author: string
+    date: string
+    message: string
+    files: string[]
+  }>
+  churnFiles: Array<{
+    path: string
+    commits: number
+    authors: string[]
+    lastModified: string
+    linesAdded: number
+    linesDeleted: number
+  }>
+}
+
 export interface EngineStatus {
   available: boolean
   version?: string

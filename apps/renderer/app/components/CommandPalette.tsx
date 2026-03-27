@@ -25,11 +25,23 @@ import {
   Globe,
   ArrowLeft,
   CornerDownLeft,
-  FileText,
   File,
+  Search,
+  Database,
+  Eraser,
+  RefreshCcw,
 } from 'lucide-react'
 import { VariablePromptModal } from './VariablePromptModal'
-import type { Project, Command, Container as ContainerType, RunStatus, CommandVariable } from '../types'
+import type {
+  Project,
+  Command,
+  Container as ContainerType,
+  RunStatus,
+  CommandVariable,
+  EngineIndexMeta,
+  EngineSearchResult,
+  EngineStatus,
+} from '../types'
 
 type LightweightHistoryEntry = {
   id: string
@@ -40,7 +52,7 @@ type LightweightHistoryEntry = {
   endTime?: string
 }
 
-type TabValue = 'projects' | 'commands' | 'containers' | 'history' | 'notes'
+type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history' | 'notes'
 
 type PaletteItem = {
   id: string
@@ -56,8 +68,12 @@ type PaletteItem = {
 type PaletteMode =
   | { type: 'main' }
   | { type: 'projectPick'; command: Command }
-  | { type: 'fileProjectPick' }
-  | { type: 'fileSearch'; project: Project }
+  | { type: 'engineIndexProjectPick' }
+  | { type: 'engineSearchProjectPick' }
+  | { type: 'engineOpenProjectPick' }
+  | { type: 'engineClearIndexProjectPick' }
+  | { type: 'engineClearSearchProjectPick' }
+  | { type: 'engineSearch'; project: Project }
   | { type: 'variableInput'; command: Command; projectId: string; inputs: CommandVariable[]; preview: string }
 
 interface CommandPaletteProps {
@@ -67,10 +83,21 @@ interface CommandPaletteProps {
   commands: Command[]
   containers: ContainerType[]
   history: LightweightHistoryEntry[]
+  engineStatus: EngineStatus | null
+  engineIndexes: Record<string, EngineIndexMeta>
   onNavigate: (tab: TabValue) => void
   onOpenProjectInEditor: (projectId: string) => Promise<void>
   onOpenProjectInTerminal: (projectId: string) => Promise<void>
   onOpenProjectFolder: (projectId: string) => Promise<void>
+  onOpenProjectEngine: (projectId: string) => void
+  onIndexProject: (projectId: string) => Promise<unknown>
+  onSearchProjectContent: (
+    projectId: string,
+    query: string,
+    options?: { regex?: boolean; limit?: number }
+  ) => Promise<EngineSearchResult>
+  onClearProjectIndex: (projectId: string) => Promise<void>
+  onClearProjectSearchSession: (projectId: string) => Promise<void>
   onRunCommand: (commandId: string, projectId: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }>
   onStartContainer: (containerId: string) => Promise<void>
   onStopContainer: (containerId: string) => Promise<void>
@@ -78,7 +105,7 @@ interface CommandPaletteProps {
   onPauseContainer: (containerId: string) => Promise<void>
   onUnpauseContainer: (containerId: string) => Promise<void>
   onError: (message: string) => void
-  onOpenFileInEditor?: (projectId: string, relativePath: string) => Promise<void>
+  onOpenFileInEditor?: (projectId: string, relativePath: string, line?: number, column?: number) => Promise<void>
 }
 
 function getStatusIcon(status: RunStatus) {
@@ -124,6 +151,7 @@ export function CommandPalette({
   onOpenProjectInEditor,
   onOpenProjectInTerminal,
   onOpenProjectFolder,
+  onOpenProjectEngine,
   onRunCommand,
   onStartContainer,
   onStopContainer,
@@ -132,10 +160,16 @@ export function CommandPalette({
   onUnpauseContainer,
   onError,
   onOpenFileInEditor,
+  engineStatus,
+  engineIndexes,
+  onIndexProject,
+  onSearchProjectContent,
+  onClearProjectIndex,
+  onClearProjectSearchSession,
 }: CommandPaletteProps) {
   const [mode, setMode] = useState<PaletteMode>({ type: 'main' })
   const [searchQuery, setSearchQuery] = useState('')
-  const [pendingFileQuery, setPendingFileQuery] = useState('')
+  const [pendingEngineQuery, setPendingEngineQuery] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
   // Reset mode when palette opens
@@ -143,7 +177,7 @@ export function CommandPalette({
     if (open) {
       setMode({ type: 'main' })
       setSearchQuery('')
-      setPendingFileQuery('')
+      setPendingEngineQuery('')
     }
   }, [open])
 
@@ -266,19 +300,60 @@ export function CommandPalette({
     [commands]
   )
 
-  const openFileSearchFromMain = useCallback(() => {
+  const openEngineSearchFromMain = useCallback(() => {
     const initialQuery = searchQuery.trim()
     if (projects.length === 1) {
-      setMode({ type: 'fileSearch', project: projects[0] })
+      setMode({ type: 'engineSearch', project: projects[0] })
       setSearchQuery(initialQuery)
-      setPendingFileQuery('')
+      setPendingEngineQuery('')
       return
     }
 
-    setPendingFileQuery(initialQuery)
-    setMode({ type: 'fileProjectPick' })
+    setPendingEngineQuery(initialQuery)
+    setMode({ type: 'engineSearchProjectPick' })
     setSearchQuery('')
   }, [projects, searchQuery])
+
+  const openEngineIndexFromMain = useCallback(() => {
+    if (projects.length === 1) {
+      void runWithErrorHandling(() => onIndexProject(projects[0].id))
+      return
+    }
+
+    setMode({ type: 'engineIndexProjectPick' })
+    setSearchQuery('')
+  }, [onIndexProject, projects, runWithErrorHandling])
+
+  const openEngineDashboardFromMain = useCallback(() => {
+    if (projects.length === 1) {
+      onOpenProjectEngine(projects[0].id)
+      onOpenChange(false)
+      return
+    }
+
+    setMode({ type: 'engineOpenProjectPick' })
+    setSearchQuery('')
+  }, [onOpenChange, onOpenProjectEngine, projects])
+
+  const openEngineClearIndexFromMain = useCallback(() => {
+    if (projects.length === 1) {
+      void runWithErrorHandling(() => onClearProjectIndex(projects[0].id))
+      return
+    }
+
+    setMode({ type: 'engineClearIndexProjectPick' })
+    setSearchQuery('')
+  }, [onClearProjectIndex, projects, runWithErrorHandling])
+
+  const openEngineClearSearchFromMain = useCallback(() => {
+    if (projects.length === 1) {
+      void runWithErrorHandling(() => onClearProjectSearchSession(projects[0].id))
+      return
+    }
+
+    setMode({ type: 'engineClearSearchProjectPick' })
+    setSearchQuery('')
+  }, [onClearProjectSearchSession, projects, runWithErrorHandling])
 
   const mainItems: PaletteItem[] = useMemo(() => {
     const items: PaletteItem[] = []
@@ -286,6 +361,7 @@ export function CommandPalette({
     const navItems: { tab: TabValue; label: string; icon: React.ReactNode }[] = [
       { tab: 'projects', label: 'Go to Projects', icon: <FolderKanban className="h-4 w-4" /> },
       { tab: 'commands', label: 'Go to Commands', icon: <Terminal className="h-4 w-4" /> },
+      { tab: 'engine', label: 'Go to Engine', icon: <Search className="h-4 w-4" /> },
       { tab: 'containers', label: 'Go to Containers', icon: <Container className="h-4 w-4" /> },
       { tab: 'history', label: 'Go to History', icon: <History className="h-4 w-4" /> },
       { tab: 'notes', label: 'Go to Notes', icon: <StickyNote className="h-4 w-4" /> },
@@ -303,12 +379,53 @@ export function CommandPalette({
     }
 
     items.push({
-      id: 'nav-files',
+      id: 'nav-engine-search',
       group: 'Navigation',
-      title: 'Find File in Project',
-      keywords: ['file', 'search', 'find', 'open', 'navigate'],
-      icon: <FileText className="h-4 w-4" />,
-      action: openFileSearchFromMain,
+      title: 'Search Project with Performance Engine',
+      subtitle: engineStatus?.available ? 'Search indexed code, filenames, and paths' : 'Performance engine unavailable',
+      keywords: ['engine', 'search', 'code', 'files', 'index', 'find', 'open', 'navigate'],
+      icon: <Search className="h-4 w-4" />,
+      action: engineStatus?.available ? openEngineSearchFromMain : () => onError(engineStatus?.error || 'Performance engine is unavailable'),
+    })
+
+    items.push({
+      id: 'nav-engine-index',
+      group: 'Navigation',
+      title: 'Index Project with Performance Engine',
+      subtitle: engineStatus?.available ? 'Build or refresh the project index' : 'Performance engine unavailable',
+      keywords: ['engine', 'index', 'reindex', 'performance', 'search'],
+      icon: <Database className="h-4 w-4" />,
+      action: engineStatus?.available ? openEngineIndexFromMain : () => onError(engineStatus?.error || 'Performance engine is unavailable'),
+    })
+
+    items.push({
+      id: 'nav-engine-open',
+      group: 'Navigation',
+      title: 'Open Project in Performance Engine',
+      subtitle: 'Open the full engine workspace for a project',
+      keywords: ['engine', 'open', 'dashboard', 'stats', 'git', 'insights'],
+      icon: <Search className="h-4 w-4" />,
+      action: openEngineDashboardFromMain,
+    })
+
+    items.push({
+      id: 'nav-engine-clear-index',
+      group: 'Navigation',
+      title: 'Clear Project Engine Index',
+      subtitle: 'Remove the saved local index for a project',
+      keywords: ['engine', 'clear', 'index', 'reset', 'remove'],
+      icon: <Eraser className="h-4 w-4" />,
+      action: openEngineClearIndexFromMain,
+    })
+
+    items.push({
+      id: 'nav-engine-clear-search',
+      group: 'Navigation',
+      title: 'Clear Saved Engine Search',
+      subtitle: 'Remove the last saved engine search for a project',
+      keywords: ['engine', 'clear', 'search', 'saved', 'reset'],
+      icon: <RefreshCcw className="h-4 w-4" />,
+      action: openEngineClearSearchFromMain,
     })
 
     // Sort projects: pinned first, then by name
@@ -486,7 +603,13 @@ export function CommandPalette({
     runWithErrorHandling,
     getProjectName,
     getCommandName,
-    openFileSearchFromMain,
+    openEngineSearchFromMain,
+    openEngineIndexFromMain,
+    openEngineDashboardFromMain,
+    openEngineClearIndexFromMain,
+    openEngineClearSearchFromMain,
+    engineStatus,
+    onError,
   ])
 
   const projectPickItems: PaletteItem[] = useMemo(() => {
@@ -503,23 +626,86 @@ export function CommandPalette({
     }))
   }, [mode, projects, runCommandWithVariables])
 
-  const fileProjectPickItems: PaletteItem[] = useMemo(() => {
-    if (mode.type !== 'fileProjectPick') return []
+  const engineIndexProjectPickItems: PaletteItem[] = useMemo(() => {
+    if (mode.type !== 'engineIndexProjectPick') return []
 
     return projects.map((project) => ({
-      id: `file-pick-project-${project.id}`,
+      id: `engine-index-project-${project.id}`,
       group: 'Projects',
       title: project.name,
-      subtitle: project.path,
-      keywords: [project.name, project.path, 'select', 'project', 'file'],
+      subtitle: engineIndexes[project.id]
+        ? `Indexed ${new Date(engineIndexes[project.id].lastIndexed).toLocaleString()}`
+        : 'Not indexed yet',
+      keywords: [project.name, project.path, 'select', 'project', 'engine', 'index'],
+      icon: <span className="text-lg">{project.icon}</span>,
+      action: () => runWithErrorHandling(() => onIndexProject(project.id)),
+    }))
+  }, [mode, projects, engineIndexes, runWithErrorHandling, onIndexProject])
+
+  const engineSearchProjectPickItems: PaletteItem[] = useMemo(() => {
+    if (mode.type !== 'engineSearchProjectPick') return []
+
+    return projects.map((project) => ({
+      id: `engine-search-project-${project.id}`,
+      group: 'Projects',
+      title: project.name,
+      subtitle: engineIndexes[project.id]
+        ? `Indexed ${new Date(engineIndexes[project.id].lastIndexed).toLocaleString()}`
+        : 'Will auto-index on first search',
+      keywords: [project.name, project.path, 'select', 'project', 'engine', 'search'],
       icon: <span className="text-lg">{project.icon}</span>,
       action: () => {
-        setMode({ type: 'fileSearch', project })
-        setSearchQuery(pendingFileQuery)
-        setPendingFileQuery('')
+        setMode({ type: 'engineSearch', project })
+        setSearchQuery(pendingEngineQuery)
+        setPendingEngineQuery('')
       },
     }))
-  }, [mode, projects, pendingFileQuery])
+  }, [mode, projects, engineIndexes, pendingEngineQuery])
+
+  const engineOpenProjectPickItems: PaletteItem[] = useMemo(() => {
+    if (mode.type !== 'engineOpenProjectPick') return []
+
+    return projects.map((project) => ({
+      id: `engine-open-project-${project.id}`,
+      group: 'Projects',
+      title: project.name,
+      subtitle: 'Open engine workspace',
+      keywords: [project.name, project.path, 'engine', 'open', 'dashboard'],
+      icon: <span className="text-lg">{project.icon}</span>,
+      action: () =>
+        runWithErrorHandling(() => {
+          onOpenProjectEngine(project.id)
+        }),
+    }))
+  }, [mode, onOpenProjectEngine, projects, runWithErrorHandling])
+
+  const engineClearIndexProjectPickItems: PaletteItem[] = useMemo(() => {
+    if (mode.type !== 'engineClearIndexProjectPick') return []
+
+    return projects.map((project) => ({
+      id: `engine-clear-index-project-${project.id}`,
+      group: 'Projects',
+      title: project.name,
+      subtitle: engineIndexes[project.id] ? 'Clear saved index' : 'No saved index',
+      keywords: [project.name, project.path, 'engine', 'clear', 'index'],
+      icon: <span className="text-lg">{project.icon}</span>,
+      action: () => runWithErrorHandling(() => onClearProjectIndex(project.id)),
+    }))
+  }, [mode, projects, engineIndexes, runWithErrorHandling, onClearProjectIndex])
+
+  const engineClearSearchProjectPickItems: PaletteItem[] = useMemo(() => {
+    if (mode.type !== 'engineClearSearchProjectPick') return []
+
+    return projects.map((project) => ({
+      id: `engine-clear-search-project-${project.id}`,
+      group: 'Projects',
+      title: project.name,
+      subtitle: searchQuery ? 'Clear saved engine search' : 'Clear saved engine search',
+      keywords: [project.name, project.path, 'engine', 'clear', 'search'],
+      icon: <span className="text-lg">{project.icon}</span>,
+      action: () => runWithErrorHandling(() => onClearProjectSearchSession(project.id)),
+    }))
+  }, [mode, projects, runWithErrorHandling, onClearProjectSearchSession, searchQuery])
 
   const currentItems = useMemo(() => {
     switch (mode.type) {
@@ -527,14 +713,31 @@ export function CommandPalette({
         return mainItems
       case 'projectPick':
         return projectPickItems
-      case 'fileProjectPick':
-        return fileProjectPickItems
-      case 'fileSearch':
+      case 'engineIndexProjectPick':
+        return engineIndexProjectPickItems
+      case 'engineSearchProjectPick':
+        return engineSearchProjectPickItems
+      case 'engineOpenProjectPick':
+        return engineOpenProjectPickItems
+      case 'engineClearIndexProjectPick':
+        return engineClearIndexProjectPickItems
+      case 'engineClearSearchProjectPick':
+        return engineClearSearchProjectPickItems
+      case 'engineSearch':
         return []
       default:
         return mainItems
     }
-  }, [mainItems, projectPickItems, fileProjectPickItems, mode])
+  }, [
+    mainItems,
+    projectPickItems,
+    engineIndexProjectPickItems,
+    engineSearchProjectPickItems,
+    engineOpenProjectPickItems,
+    engineClearIndexProjectPickItems,
+    engineClearSearchProjectPickItems,
+    mode,
+  ])
 
   const fuse = useMemo(() => {
     return new Fuse(currentItems, {
@@ -552,20 +755,20 @@ export function CommandPalette({
 
     if (mode.type === 'main') {
       const quickFileSearchItem: PaletteItem = {
-        id: 'nav-files-query',
+        id: 'nav-engine-search-query',
         group: 'Navigation',
-        title: `Find file "${query}" in project`,
+        title: `Search "${query}" with Performance Engine`,
         subtitle: projects.length === 1 ? `Search in ${projects[0]?.name}` : 'Select project then search',
-        keywords: ['file', 'search', 'find', query],
-        icon: <FileText className="h-4 w-4" />,
-        action: openFileSearchFromMain,
+        keywords: ['engine', 'search', 'code', 'find', query],
+        icon: <Search className="h-4 w-4" />,
+        action: openEngineSearchFromMain,
       }
 
       return [quickFileSearchItem, ...results]
     }
 
     return results
-  }, [fuse, searchQuery, currentItems, mode.type, projects, openFileSearchFromMain])
+  }, [fuse, searchQuery, currentItems, mode.type, projects, openEngineSearchFromMain])
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, PaletteItem[]> = {
@@ -588,19 +791,27 @@ export function CommandPalette({
   const groupOrder: PaletteItem['group'][] = ['Navigation', 'Projects', 'Commands', 'Containers', 'History']
 
   const handleBack = () => {
-    if (mode.type === 'fileSearch') {
-      setMode({ type: 'fileProjectPick' })
+    if (mode.type === 'engineSearch') {
+      setMode({ type: 'engineSearchProjectPick' })
     } else {
       setMode({ type: 'main' })
     }
     setSearchQuery('')
   }
 
-  const [fileSearchResults, setFileSearchResults] = useState<Array<{ relativePath: string; kind: 'file' | 'dir' }>>([])
+  const [fileSearchResults, setFileSearchResults] = useState<Array<{
+    relativePath: string
+    line?: number
+    column?: number
+    snippet?: string
+    language?: string | null
+    score: number
+    matchCount: number
+  }>>([])
   const [isSearchingFiles, setIsSearchingFiles] = useState(false)
 
   useEffect(() => {
-    if (mode.type !== 'fileSearch') {
+    if (mode.type !== 'engineSearch') {
       setFileSearchResults([])
       return
     }
@@ -614,8 +825,21 @@ export function CommandPalette({
     setIsSearchingFiles(true)
     const timeoutId = setTimeout(async () => {
       try {
-        const results = await window.electronAPI.searchProjectFiles(mode.project.id, query, 50)
-        setFileSearchResults(results)
+        const results = await onSearchProjectContent(mode.project.id, query, { limit: 50 })
+        setFileSearchResults(
+          results.results.map((result) => {
+            const firstMatch = result.matches[0]
+            return {
+              relativePath: result.path,
+              line: firstMatch?.line,
+              column: firstMatch?.column,
+              snippet: firstMatch?.snippet,
+              language: result.language,
+              score: result.score,
+              matchCount: result.matches.length,
+            }
+          })
+        )
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Search failed'
         onError(message)
@@ -626,16 +850,16 @@ export function CommandPalette({
     }, 150)
 
     return () => clearTimeout(timeoutId)
-  }, [searchQuery, mode, onError])
+  }, [searchQuery, mode, onError, onSearchProjectContent])
 
   const handleOpenFile = useCallback(
-    (relativePath: string) => {
-      if (mode.type !== 'fileSearch') return
+    (relativePath: string, line?: number, column?: number) => {
+      if (mode.type !== 'engineSearch') return
       void runWithErrorHandling(async () => {
         if (onOpenFileInEditor) {
-          await onOpenFileInEditor(mode.project.id, relativePath)
+          await onOpenFileInEditor(mode.project.id, relativePath, line, column)
         } else {
-          const result = await window.electronAPI.openFileInEditor(mode.project.id, relativePath)
+          const result = await window.electronAPI.openFileInEditor(mode.project.id, relativePath, line, column)
           if (!result.success) {
             throw new Error(result.error || 'Failed to open file')
           }
@@ -651,10 +875,18 @@ export function CommandPalette({
         placeholder={
           mode.type === 'projectPick'
             ? `Select project to run "${mode.command.name}"...`
-            : mode.type === 'fileProjectPick'
-              ? 'Select a project to search files...'
-              : mode.type === 'fileSearch'
-                ? `Search files in ${mode.project.name}...`
+            : mode.type === 'engineIndexProjectPick'
+              ? 'Select a project to index...'
+              : mode.type === 'engineSearchProjectPick'
+                ? 'Select a project to search with the engine...'
+                : mode.type === 'engineOpenProjectPick'
+                  ? 'Select a project to open in the engine...'
+                  : mode.type === 'engineClearIndexProjectPick'
+                    ? 'Select a project index to clear...'
+                    : mode.type === 'engineClearSearchProjectPick'
+                      ? 'Select a saved search to clear...'
+                : mode.type === 'engineSearch'
+                  ? `Search indexed code in ${mode.project.name}...`
                 : mode.type === 'variableInput'
                   ? `Enter variables for "${mode.command.name}"...`
                   : 'Search commands, projects, containers...'
@@ -667,9 +899,9 @@ export function CommandPalette({
           <div className="py-6 text-center text-sm text-muted-foreground">Loading...</div>
         ) : (
           <>
-            {mode.type !== 'fileSearch' ? <CommandEmpty>No results found.</CommandEmpty> : null}
+            {mode.type !== 'engineSearch' ? <CommandEmpty>No results found.</CommandEmpty> : null}
 
-            {(mode.type === 'projectPick' || mode.type === 'fileProjectPick' || mode.type === 'fileSearch' || mode.type === 'variableInput') && (
+            {(mode.type === 'projectPick' || mode.type === 'engineIndexProjectPick' || mode.type === 'engineSearchProjectPick' || mode.type === 'engineOpenProjectPick' || mode.type === 'engineClearIndexProjectPick' || mode.type === 'engineClearSearchProjectPick' || mode.type === 'engineSearch' || mode.type === 'variableInput') && (
               <CommandGroup heading="Actions">
                 <CommandItem onSelect={handleBack}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
@@ -678,36 +910,38 @@ export function CommandPalette({
               </CommandGroup>
             )}
 
-            {mode.type === 'fileSearch' ? (
+            {mode.type === 'engineSearch' ? (
               <>
                 {isSearchingFiles ? (
                   <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
                 ) : fileSearchResults.length > 0 ? (
-                  <CommandGroup heading={`Files (${fileSearchResults.length})`}>
+                  <CommandGroup heading={`Engine Results (${fileSearchResults.length})`}>
                     {fileSearchResults.map((result) => (
                       <CommandItem
-                        key={result.relativePath}
-                        onSelect={() => handleOpenFile(result.relativePath)}
+                        key={`${result.relativePath}:${result.line ?? 0}:${result.column ?? 0}`}
+                        onSelect={() => handleOpenFile(result.relativePath, result.line, result.column)}
                         disabled={isLoading}
                       >
                         <span className="mr-2 flex items-center justify-center w-4 h-4">
-                          {result.kind === 'dir' ? (
-                            <Folder className="h-4 w-4 text-blue-400" />
-                          ) : (
-                            <File className="h-4 w-4 text-gray-400" />
-                          )}
+                          <File className="h-4 w-4 text-gray-400" />
                         </span>
                         <div className="flex flex-col flex-1 min-w-0">
                           <span className="truncate">{result.relativePath}</span>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {result.line ? `Line ${result.line}` : 'Path match'}
+                            {result.language ? ` • ${result.language}` : ''}
+                            {result.matchCount > 0 ? ` • ${result.matchCount} matches` : ''}
+                            {result.snippet ? ` • ${result.snippet}` : ''}
+                          </span>
                         </div>
                       </CommandItem>
                     ))}
                   </CommandGroup>
                 ) : searchQuery.trim() ? (
-                  <div className="py-6 text-center text-sm text-muted-foreground">No files found</div>
+                  <div className="py-6 text-center text-sm text-muted-foreground">No indexed matches found</div>
                 ) : (
                   <div className="py-6 text-center text-sm text-muted-foreground">
-                    Type to search files in {mode.project.name}
+                    Type to search indexed code in {mode.project.name}
                   </div>
                 )}
               </>

@@ -107,14 +107,38 @@ interface ElectronAPI {
   listProjectFiles: (projectId: string, dir?: string) => Promise<{ entries: Array<{ name: string; relativePath: string; kind: 'file' | 'dir' }>; truncated: boolean }>
   searchProjectFiles: (projectId: string, query: string, limit?: number) => Promise<Array<{ relativePath: string; kind: 'file' | 'dir' }>>
   openFileInEditor: (projectId: string, relativePath: string, line?: number, column?: number) => Promise<{ success: boolean; error?: string }>
+  revealFileInFolder: (projectId: string, relativePath: string) => Promise<{ success: boolean; error?: string }>
   clearFileIndex: (projectId: string) => Promise<{ success: boolean }>
 
   // Engine
+  getEngineState: () => Promise<{
+    status: { available: boolean; version?: string; error?: string }
+    indexes: Record<string, { projectId: string; dbPath: string; lastIndexed: string; fileCount: number }>
+    searchSessions: Record<string, {
+      projectId: string
+      query: string
+      regex: boolean
+      updatedAt: string
+      result: {
+        ok: boolean
+        query: string
+        results: Array<{
+          path: string
+          language: string | null
+          score: number
+          matches: Array<{ line: number; column: number; snippet: string; contextBefore: string[]; contextAfter: string[] }>
+        }>
+        totalMatches: number
+        durationMs: number
+      }
+    }>
+  }>
   indexProject: (projectId: string) => Promise<{ ok: boolean; repo: string; db: string; filesIndexed: number; filesSkipped: number; durationMs: number; warnings: string[] }>
   searchProjectContent: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<{ ok: boolean; query: string; results: Array<{ path: string; language: string | null; score: number; matches: Array<{ line: number; column: number; snippet: string; contextBefore: string[]; contextAfter: string[] }> }>; totalMatches: number; durationMs: number }>
   getProjectStats: (projectId: string) => Promise<{ ok: boolean; db: string; stats: { totalFiles: number; totalSizeBytes: number; byLanguage: Record<string, number>; indexedAt: string } } | null>
-  getProjectGitInsights: (projectId: string) => Promise<{ branch: string; totalCommits: number; contributors: string[]; hotspots: Array<{ path: string; score: number; commits: number; recency: number; risk: string }>; recentCommits: Array<{ hash: string; author: string; date: string; message: string; files: string[] }>; churnFiles: Array<{ path: string; commits: number; authors: string[]; lastModified: string }> } | null>
+  getProjectGitInsights: (projectId: string) => Promise<{ branch: string; totalCommits: number; contributors: string[]; hotspots: Array<{ path: string; score: number; commits: number; recency: number; risk: string }>; recentCommits: Array<{ hash: string; author: string; date: string; message: string; files: string[] }>; churnFiles: Array<{ path: string; commits: number; authors: string[]; lastModified: string; linesAdded: number; linesDeleted: number }> } | null>
   clearProjectIndex: (projectId: string) => Promise<{ success: boolean }>
+  clearProjectSearchSession: (projectId: string) => Promise<{ success: boolean }>
   isEngineAvailable: () => Promise<boolean>
 }
 
@@ -303,15 +327,19 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('files:search', projectId, query, limit),
   openFileInEditor: (projectId: string, relativePath: string, line?: number, column?: number) =>
     ipcRenderer.invoke('files:openInEditor', projectId, relativePath, line, column),
+  revealFileInFolder: (projectId: string, relativePath: string) =>
+    ipcRenderer.invoke('files:revealInFolder', projectId, relativePath),
   clearFileIndex: (projectId: string) => ipcRenderer.invoke('files:clearIndex', projectId),
 
   // Engine (devdesk-engine integration)
+  getEngineState: () => ipcRenderer.invoke('engine:state'),
   indexProject: (projectId: string) => ipcRenderer.invoke('engine:index', projectId),
   searchProjectContent: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) =>
     ipcRenderer.invoke('engine:search', projectId, query, options),
   getProjectStats: (projectId: string) => ipcRenderer.invoke('engine:stats', projectId),
   getProjectGitInsights: (projectId: string) => ipcRenderer.invoke('engine:git-insights', projectId),
   clearProjectIndex: (projectId: string) => ipcRenderer.invoke('engine:clear', projectId),
+  clearProjectSearchSession: (projectId: string) => ipcRenderer.invoke('engine:clear-search-session', projectId),
   isEngineAvailable: () => ipcRenderer.invoke('engine:is-available'),
 }
 

@@ -13,6 +13,8 @@ import {
   type CommandTriggerEvent,
   type CommandVariable,
   type DataStore,
+  type EngineIndexMeta,
+  type EngineSearchSession,
   type Project,
   type ProjectNotes,
   type RunHistoryEntry,
@@ -550,6 +552,21 @@ function createSchema(database: Database.Database) {
       command TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS engine_indexes (
+      project_id TEXT PRIMARY KEY,
+      db_path TEXT NOT NULL,
+      last_indexed TEXT NOT NULL,
+      file_count INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS engine_search_sessions (
+      project_id TEXT PRIMARY KEY,
+      query TEXT NOT NULL,
+      regex INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      result_json TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_commands_project_id ON commands(project_id);
     CREATE INDEX IF NOT EXISTS idx_chains_project_id ON chains(project_id);
     CREATE INDEX IF NOT EXISTS idx_triggers_project_id ON triggers(project_id);
@@ -558,6 +575,8 @@ function createSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_run_history_start_time ON run_history(start_time DESC);
     CREATE INDEX IF NOT EXISTS idx_run_history_command_id ON run_history(command_id);
     CREATE INDEX IF NOT EXISTS idx_run_history_project_id ON run_history(project_id);
+    CREATE INDEX IF NOT EXISTS idx_engine_indexes_last_indexed ON engine_indexes(last_indexed DESC);
+    CREATE INDEX IF NOT EXISTS idx_engine_search_sessions_updated_at ON engine_search_sessions(updated_at DESC);
   `)
 }
 
@@ -630,6 +649,16 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
     VALUES (@key, @id, @command)
   `)
 
+  const insertEngineIndex = database.prepare(`
+    INSERT INTO engine_indexes (project_id, db_path, last_indexed, file_count)
+    VALUES (@projectId, @dbPath, @lastIndexed, @fileCount)
+  `)
+
+  const insertEngineSearchSession = database.prepare(`
+    INSERT INTO engine_search_sessions (project_id, query, regex, updated_at, result_json)
+    VALUES (@projectId, @query, @regex, @updatedAt, @resultJson)
+  `)
+
   const writeTransaction = database.transaction((payload: DataStore) => {
       database.prepare('DELETE FROM projects').run()
       database.prepare('DELETE FROM commands').run()
@@ -638,6 +667,8 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
       database.prepare('DELETE FROM run_history').run()
       database.prepare('DELETE FROM notes').run()
       database.prepare('DELETE FROM preferences').run()
+      database.prepare('DELETE FROM engine_indexes').run()
+      database.prepare('DELETE FROM engine_search_sessions').run()
 
     for (const project of payload.projects) {
       insertProject.run({
@@ -729,6 +760,25 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
       id: payload.preferences.terminal.id,
       command: payload.preferences.terminal.command ?? null,
     })
+
+    for (const entry of Object.values(payload.engineIndexes ?? {})) {
+      insertEngineIndex.run({
+        projectId: entry.projectId,
+        dbPath: entry.dbPath,
+        lastIndexed: entry.lastIndexed,
+        fileCount: entry.fileCount,
+      })
+    }
+
+    for (const session of Object.values(payload.engineSearchSessions ?? {})) {
+      insertEngineSearchSession.run({
+        projectId: session.projectId,
+        query: session.query,
+        regex: session.regex ? 1 : 0,
+        updatedAt: session.updatedAt,
+        resultJson: JSON.stringify(session.result),
+      })
+    }
   })
 
   writeTransaction(store)
@@ -855,6 +905,8 @@ export async function removeProject(projectId: string): Promise<void> {
       database.prepare('DELETE FROM triggers WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM run_history WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM notes WHERE project_id = ?').run(id)
+      database.prepare('DELETE FROM engine_indexes WHERE project_id = ?').run(id)
+      database.prepare('DELETE FROM engine_search_sessions WHERE project_id = ?').run(id)
     })
     transaction(projectId)
   }))
@@ -1234,6 +1286,126 @@ export async function upsertProjectNotes(projectId: string, updates: Partial<Pro
       )
       .run(projectId, next.setupSteps, next.todos, next.reminders)
 
+  })
+}
+
+export async function listEngineIndexes(): Promise<Record<string, EngineIndexMeta>> {
+  await ensureDbInitialized()
+  const rows = getDbOrThrow()
+    .prepare(
+      `
+        SELECT project_id, db_path, last_indexed, file_count
+        FROM engine_indexes
+        ORDER BY last_indexed DESC, rowid DESC
+      `
+    )
+    .all() as Array<{
+    project_id: string
+    db_path: string
+    last_indexed: string
+    file_count: number
+  }>
+
+  return rows.reduce<Record<string, EngineIndexMeta>>((acc, row) => {
+    acc[row.project_id] = {
+      projectId: row.project_id,
+      dbPath: row.db_path,
+      lastIndexed: row.last_indexed,
+      fileCount: row.file_count,
+    }
+    return acc
+  }, {})
+}
+
+export async function upsertEngineIndex(entry: EngineIndexMeta): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO engine_indexes (project_id, db_path, last_indexed, file_count)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(project_id) DO UPDATE SET
+            db_path = excluded.db_path,
+            last_indexed = excluded.last_indexed,
+            file_count = excluded.file_count
+        `
+      )
+      .run(entry.projectId, entry.dbPath, entry.lastIndexed, entry.fileCount)
+  })
+}
+
+export async function clearEngineIndexMeta(projectId: string): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow().prepare('DELETE FROM engine_indexes WHERE project_id = ?').run(projectId)
+  })
+}
+
+export async function listEngineSearchSessions(): Promise<Record<string, EngineSearchSession>> {
+  await ensureDbInitialized()
+  const rows = getDbOrThrow()
+    .prepare(
+      `
+        SELECT project_id, query, regex, updated_at, result_json
+        FROM engine_search_sessions
+        ORDER BY updated_at DESC, rowid DESC
+      `
+    )
+    .all() as Array<{
+    project_id: string
+    query: string
+    regex: number
+    updated_at: string
+    result_json: string
+  }>
+
+  return rows.reduce<Record<string, EngineSearchSession>>((acc, row) => {
+    try {
+      const result = JSON.parse(row.result_json) as EngineSearchSession['result']
+      acc[row.project_id] = {
+        projectId: row.project_id,
+        query: row.query,
+        regex: parseBoolean(row.regex),
+        updatedAt: row.updated_at,
+        result,
+      }
+    } catch {
+      // Ignore malformed legacy payloads.
+    }
+    return acc
+  }, {})
+}
+
+export async function upsertEngineSearchSession(session: EngineSearchSession): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO engine_search_sessions (project_id, query, regex, updated_at, result_json)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(project_id) DO UPDATE SET
+            query = excluded.query,
+            regex = excluded.regex,
+            updated_at = excluded.updated_at,
+            result_json = excluded.result_json
+        `
+      )
+      .run(
+        session.projectId,
+        session.query,
+        session.regex ? 1 : 0,
+        session.updatedAt,
+        JSON.stringify(session.result)
+      )
+  })
+}
+
+export async function clearEngineSearchSession(projectId: string): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow().prepare('DELETE FROM engine_search_sessions WHERE project_id = ?').run(projectId)
   })
 }
 

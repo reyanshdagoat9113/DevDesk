@@ -20,9 +20,20 @@ import {
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { ScrollArea } from '../components/ui/ScrollArea'
+import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
-import type { AppPreferences, Container, Project } from '../types'
+import type {
+  AppPreferences,
+  Container,
+  EngineGitInsights,
+  EngineIndexMeta,
+  EngineSearchResult,
+  EngineSearchSession,
+  EngineStats,
+  EngineStatus,
+  Project,
+} from '../types'
 
 const selectClass =
   'flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
@@ -87,6 +98,9 @@ export function ProjectsSection({
   containersLoading,
   containersError,
   preferences,
+  engineStatus,
+  engineIndexes,
+  engineSearchSessions,
   onSavePreferences,
   onUpdateProject,
   onSetLinkedContainers,
@@ -96,6 +110,15 @@ export function ProjectsSection({
   onRemoveProject,
   onToggleProjectPin,
   onSelectProject,
+  onIndexProject,
+  onSearchProjectContent,
+  onLoadEngineStats,
+  onLoadEngineGitInsights,
+  onOpenEngineResult,
+  onRevealEngineResult,
+  onClearProjectIndex,
+  onClearProjectSearchSession,
+  onOpenProjectEngine,
 }: {
   projects: Project[]
   containers: Container[]
@@ -104,6 +127,9 @@ export function ProjectsSection({
   containersLoading?: boolean
   containersError?: string | null
   preferences?: AppPreferences | null
+  engineStatus?: EngineStatus | null
+  engineIndexes?: Record<string, EngineIndexMeta>
+  engineSearchSessions?: Record<string, EngineSearchSession>
   onSavePreferences?: (next: AppPreferences) => Promise<void>
   onUpdateProject?: (projectId: string, updates: { name: string }) => Promise<void>
   onSetLinkedContainers?: (projectId: string, linkedContainerNames: string[]) => Promise<Project>
@@ -113,6 +139,15 @@ export function ProjectsSection({
   onRemoveProject?: (projectId: string) => Promise<void>
   onToggleProjectPin?: (projectId: string) => Promise<void>
   onSelectProject?: (projectId: string) => void
+  onIndexProject?: (projectId: string) => Promise<unknown>
+  onSearchProjectContent?: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
+  onLoadEngineStats?: (projectId: string) => Promise<EngineStats>
+  onLoadEngineGitInsights?: (projectId: string) => Promise<EngineGitInsights>
+  onOpenEngineResult?: (projectId: string, relativePath: string, location?: { line?: number; column?: number }) => Promise<void>
+  onRevealEngineResult?: (projectId: string, relativePath: string) => Promise<void>
+  onClearProjectIndex?: (projectId: string) => Promise<void>
+  onClearProjectSearchSession?: (projectId: string) => Promise<void>
+  onOpenProjectEngine?: (projectId: string) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -756,6 +791,36 @@ export function ProjectsSection({
                       </div>
                     )}
                   </div>
+
+                  {/* Dev Stack */}
+                  {selectedProject &&
+                  engineIndexes &&
+                  engineSearchSessions &&
+                  onIndexProject &&
+                  onSearchProjectContent &&
+                  onLoadEngineStats &&
+                  onLoadEngineGitInsights &&
+                  onOpenEngineResult &&
+                  onRevealEngineResult &&
+                  onClearProjectIndex &&
+                  onClearProjectSearchSession &&
+                  onOpenProjectEngine ? (
+                    <ProjectEnginePanel
+                      project={selectedProject}
+                      engineStatus={engineStatus ?? null}
+                      engineIndexes={engineIndexes}
+                      searchSessions={engineSearchSessions}
+                      onIndexProject={onIndexProject}
+                      onSearch={onSearchProjectContent}
+                      onLoadStats={onLoadEngineStats}
+                      onLoadGitInsights={onLoadEngineGitInsights}
+                      onOpenResult={onOpenEngineResult}
+                      onRevealResult={onRevealEngineResult}
+                      onClearProjectIndex={onClearProjectIndex}
+                      onClearSearchSession={onClearProjectSearchSession}
+                      onOpenEngine={onOpenProjectEngine}
+                    />
+                  ) : null}
 
                   {/* Dev Stack */}
                   <div className="space-y-5">

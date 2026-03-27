@@ -3,16 +3,19 @@
  * Handles locating and spawning the devdesk-engine binary
  */
 
-import { spawn } from 'node:child_process'
+import { fork, spawn } from 'node:child_process'
 import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { app } from 'electron'
 import type {
+  EngineGitInsights,
   EngineIndexResult,
   EngineSearchResult,
   EngineStats,
   EngineStatus,
 } from './types'
 import {
+  buildEngineGitArgs,
   buildEngineIndexArgs,
   buildEngineSearchArgs,
   buildEngineStatsArgs,
@@ -72,22 +75,31 @@ async function runEngineCommand(args: string[]): Promise<string> {
   const enginePath = getEngineBinaryPath()
 
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [enginePath, ...args], {
-      windowsHide: true,
-      env: {
-        ...process.env,
-        ELECTRON_RUN_AS_NODE: '1',
-      },
-    })
+    const child =
+      path.extname(enginePath).toLowerCase() === '.js'
+        ? fork(enginePath, args, {
+            execPath: process.execPath,
+            silent: true,
+            env: {
+              ...process.env,
+              ELECTRON_RUN_AS_NODE: '1',
+            },
+          })
+        : spawn(enginePath, args, {
+            windowsHide: true,
+            env: {
+              ...process.env,
+            },
+          })
 
     let stdout = ''
     let stderr = ''
 
-    child.stdout.on('data', (chunk: Buffer) => {
+    child.stdout?.on('data', (chunk: Buffer) => {
       stdout += chunk.toString()
     })
 
-    child.stderr.on('data', (chunk: Buffer) => {
+    child.stderr?.on('data', (chunk: Buffer) => {
       stderr += chunk.toString()
     })
 
@@ -142,7 +154,19 @@ export async function engineStats(projectId: string): Promise<EngineStats> {
   return JSON.parse(result) as EngineStats
 }
 
+export async function engineGit(projectPath: string): Promise<EngineGitInsights> {
+  const result = await runEngineCommand(buildEngineGitArgs(projectPath))
+  const parsed = JSON.parse(result) as EngineGitInsights & { ok?: boolean; error?: string }
+
+  if ('ok' in parsed && parsed.ok === false) {
+    throw new Error(parsed.error || 'Failed to load git insights.')
+  }
+
+  return parsed
+}
+
 export type {
+  EngineGitInsights,
   EngineIndexResult,
   EngineSearchResult,
   EngineStats,

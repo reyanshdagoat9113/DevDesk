@@ -59,5 +59,21 @@
     "typescript": "~5.7.2",
     "vite": "^6.3.5",
     "wait-on": "^8.0.1"
+  },
+  "build": {
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/devdesk-engine/dist",
+        "to": "engine",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   }
 }

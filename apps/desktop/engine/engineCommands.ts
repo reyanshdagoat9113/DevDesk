@@ -15,7 +15,7 @@
  */
 
 import type { BrowserWindow } from 'electron'
-import type { EngineIndexResult, EngineSearchResult, EngineStatsResult, EngineGitInsights } from './engineService'
+import type { EngineGitInsights, EngineIndexResult, EngineSearchResult, EngineStats as EngineStatsResult } from './types'
 import {
   indexProject,
   searchProject,
@@ -107,7 +107,7 @@ export async function handleGetProjectStats(
     return null
   }
 
-  return getProjectStats(projectId, projectPath)
+  return getProjectStats(projectId)
 }
 
 /**
