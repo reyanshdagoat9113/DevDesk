@@ -605,8 +605,8 @@ export function ProjectsSection({
                   {error}
                 </div>
               ) : projects.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50">
-                  <FolderGit2 className="h-10 w-10 mb-2 opacity-20" />
+                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50 animate-fade-in">
+                  <FolderGit2 className="h-10 w-10 mb-2 opacity-20 animate-pulse-subtle" />
                   <p className="text-sm">No projects added yet.</p>
                 </div>
               ) : (
@@ -663,15 +663,16 @@ export function ProjectsSection({
                           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">All Projects</p>
                         </div>
                       )}
-                      {unpinnedProjects.map((project) => {
+                      {unpinnedProjects.map((project, index) => {
                         const isActive = selectedProject?.id === project.id
                         const isWslProject = isWslPath(project.path)
                         return (
                           <button
                             key={project.id}
                             onClick={() => setSelectedId(project.id)}
+                            style={{ animationDelay: `${(index + pinnedProjects.length) * 50}ms` }}
                             className={cn(
-                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all",
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all animate-slide-up opacity-0",
                               isActive
                                 ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
                                 : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"

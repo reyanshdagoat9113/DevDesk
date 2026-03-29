@@ -154,26 +154,26 @@ interface SearchResultItemProps {
 
 function SearchResultItem({ result, onOpen, onReveal, isOpening, isRevealing, openingKey }: SearchResultItemProps) {
   return (
-    <div className="group rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:border-primary/30 hover:bg-card/50">
+    <div className="group rounded-xl border border-border/40 bg-card/20 backdrop-blur-md overflow-hidden transition-all duration-300 hover:border-primary/40 hover:bg-card/40 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5">
       {/* File Header */}
-      <div className="flex items-center gap-3 border-b border-border/30 bg-card/50 px-4 py-3">
-        <FileCode2 className="h-4 w-4 text-muted-foreground" />
+      <div className="flex items-center gap-3 border-b border-border/30 bg-gradient-to-r from-card/60 to-transparent px-4 py-3">
+        <FileCode2 className="h-4 w-4 text-primary/70 drop-shadow-sm" />
         <div className="flex-1 min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">{result.path}</p>
+          <p className="truncate text-sm font-semibold text-foreground/90">{result.path}</p>
         </div>
         {result.language && (
-          <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+          <Badge variant="secondary" className="text-[10px] uppercase tracking-widest bg-background/50 border-border/50">
             {result.language}
           </Badge>
         )}
-        <Badge variant="secondary" className="text-[10px]">
+        <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground/80 border-border/40">
           {result.score.toFixed(2)}
         </Badge>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0"
+            className="h-7 w-7 p-0 hover:bg-background/80 hover:text-primary transition-colors"
             onClick={() => onReveal(result.path)}
             disabled={isRevealing}
             title="Reveal in folder"
@@ -183,7 +183,7 @@ function SearchResultItem({ result, onOpen, onReveal, isOpening, isRevealing, op
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0"
+            className="h-7 w-7 p-0 hover:bg-background/80 hover:text-primary transition-colors"
             onClick={() => onOpen(result.path)}
             disabled={isOpening}
             title="Open file"
@@ -199,27 +199,27 @@ function SearchResultItem({ result, onOpen, onReveal, isOpening, isRevealing, op
 
       {/* Matches */}
       {result.matches.length > 0 && (
-        <div className="divide-y divide-border/30">
+        <div className="divide-y divide-border/20">
           {result.matches.map((match, idx) => (
             <div
               key={`${match.line}:${match.column}:${idx}`}
-              className="flex items-start gap-3 px-4 py-3 hover:bg-primary/5 transition-colors cursor-pointer"
+              className="flex items-start gap-3 px-4 py-3 hover:bg-primary/10 transition-colors duration-200 cursor-pointer"
               onClick={() => onOpen(result.path, { line: match.line, column: match.column })}
             >
               <div className="flex flex-col items-end gap-0.5 min-w-[3rem]">
-                <span className="text-[11px] font-mono text-muted-foreground">L{match.line}</span>
-                <span className="text-[10px] font-mono text-muted-foreground/60">C{match.column}</span>
+                <span className="text-[11px] font-mono font-medium text-primary/70">L{match.line}</span>
+                <span className="text-[10px] font-mono text-muted-foreground/50">C{match.column}</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <pre className="text-xs font-mono text-foreground/90 whitespace-pre-wrap break-all leading-relaxed">
+              <div className="flex-1 min-w-0 rounded bg-background/30 p-2 border border-border/20">
+                <pre className="text-xs font-mono text-foreground/80 whitespace-pre-wrap break-all leading-relaxed">
                   {match.snippet}
                 </pre>
               </div>
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 self-center">
                 {openingKey === `${result.path}:${match.line}:${match.column}` ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <RefreshCw className="h-4 w-4 animate-spin text-primary" />
                 ) : (
-                  <FileSearch className="h-3.5 w-3.5 text-muted-foreground" />
+                  <FileSearch className="h-4 w-4 text-muted-foreground/50 hover:text-primary transition-colors" />
                 )}
               </div>
             </div>
