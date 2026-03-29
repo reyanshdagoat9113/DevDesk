@@ -91,7 +91,7 @@ export async function indexRepository(options: IndexOptions): Promise<IndexResul
         size_bytes: file.size_bytes,
         mtime_ms: file.mtime_ms,
         content_hash: file.content_hash,
-        language,
+        language: language === 'unknown' ? null : language,
         is_binary: false,
         content: file.content,
       });
@@ -111,7 +111,7 @@ export async function indexRepository(options: IndexOptions): Promise<IndexResul
     db.close();
 
     if (skipped > 0) {
-      warnings.push(`Skipped ${skipped} binary/unknown files`);
+      warnings.push(`Skipped ${skipped} binary or unsupported files`);
     }
 
     return { indexed, skipped, warnings };
@@ -138,7 +138,7 @@ async function runScanner(repoPath: string, includeContent: boolean = false): Pr
     throw new Error(`Scanner binary not found: ${scannerPath}. Run 'npm run build:rust' first.`);
   }
 
-  const args = ['scan', '--path', repoPath];
+  const args = ['scan', '--path', repoPath, '--hidden'];
   if (includeContent) {
     args.push('--content');
   }

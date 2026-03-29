@@ -60,15 +60,43 @@ const EXTENSION_MAP: Record<string, string> = {
 
   // Data/Config
   json: 'json',
+  json5: 'json',
+  jsonc: 'json',
   yaml: 'yaml',
   yml: 'yaml',
   toml: 'toml',
   xml: 'xml',
   ini: 'ini',
+  conf: 'config',
+  config: 'config',
+  properties: 'properties',
+  plist: 'plist',
+  svg: 'svg',
+  map: 'sourcemap',
+
+  // API/Schema
+  graphql: 'graphql',
+  gql: 'graphql',
+  prisma: 'prisma',
+  proto: 'protobuf',
+
+  // Template engines
+  hbs: 'handlebars',
+  handlebars: 'handlebars',
+  ejs: 'ejs',
+  pug: 'pug',
+  njk: 'nunjucks',
+  mustache: 'mustache',
+  liquid: 'liquid',
+
+  // IaC
+  tf: 'terraform',
+  tfvars: 'terraform',
 
   // Documentation
   md: 'markdown',
   mdx: 'mdx',
+  adoc: 'asciidoc',
   rst: 'restructuredtext',
   txt: 'text',
 
@@ -86,12 +114,15 @@ const EXTENSION_MAP: Record<string, string> = {
   clj: 'clojure',
   lisp: 'lisp',
   r: 'r',
+  astro: 'astro',
+  pegjs: 'pegjs',
 
   // Build
   makefile: 'makefile',
   cmake: 'cmake',
   dockerfile: 'dockerfile',
   gradle: 'gradle',
+  lock: 'lockfile',
 };
 
 const FILENAME_MAP: Record<string, string> = {
@@ -104,8 +135,20 @@ const FILENAME_MAP: Record<string, string> = {
   podfile: 'ruby',
   cargofile: 'toml',
   '.gitignore': 'gitignore',
+  '.npmignore': 'gitignore',
+  '.eslintignore': 'gitignore',
+  '.prettierignore': 'gitignore',
   '.env': 'env',
   '.editorconfig': 'editorconfig',
+  '.eslintrc': 'json',
+  '.prettierrc': 'json',
+  '.babelrc': 'json',
+  '.stylelintrc': 'json',
+  '.npmrc': 'config',
+  '.yarnrc': 'config',
+  '.nvmrc': 'config',
+  '.node-version': 'config',
+  '.browserslistrc': 'config',
   license: 'text',
   readme: 'markdown',
   changelog: 'markdown',
@@ -179,7 +222,7 @@ export function isProgrammingLanguage(language: string): boolean {
  */
 export function shouldIndex(language: string): boolean {
   const skipLanguages = new Set([
-    'unknown', 'binary', 'image', 'font', 'lockfile',
+    'binary', 'image', 'font', 'lockfile',
   ]);
   return !skipLanguages.has(language);
 }

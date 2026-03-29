@@ -1,10 +1,27 @@
 use std::fs::{self, File};
 use std::io::{self, BufReader, Read, Write};
-use std::path::Path;
+use std::path::{Component, Path};
 use std::time::UNIX_EPOCH;
 
 use ignore::WalkBuilder;
 use serde::Serialize;
+
+const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "bower_components",
+    "vendor",
+    "dist",
+    "build",
+    "target",
+    "coverage",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    ".turbo",
+    ".yarn",
+    ".pnpm-store",
+];
 
 #[derive(Serialize)]
 pub struct FileInfo {
@@ -38,10 +55,10 @@ pub fn scan(
     // Build walker with .gitignore support
     let mut builder = WalkBuilder::new(path);
     builder
-        .hidden(!include_hidden)
-        .git_ignore(true)
-        .git_global(true)
-        .git_exclude(true)
+        .hidden(false)
+        .git_ignore(false)
+        .git_global(false)
+        .git_exclude(false)
         .follow_links(false);
 
     if max_depth > 0 {
@@ -51,8 +68,7 @@ pub fn scan(
     for entry in builder.build().filter_map(|e| e.ok()) {
         let file_path = entry.path();
 
-        // Skip directories
-        if !file_path.is_file() {
+        if should_skip_path(path, file_path, include_hidden) {
             continue;
         }
 
@@ -69,6 +85,35 @@ pub fn scan(
     }
 
     Ok(())
+}
+
+fn should_skip_path(root: &Path, candidate: &Path, include_hidden: bool) -> bool {
+    if !candidate.is_file() {
+        return true;
+    }
+
+    let relative = match candidate.strip_prefix(root) {
+        Ok(relative) => relative,
+        Err(_) => candidate,
+    };
+
+    for component in relative.components() {
+        let Component::Normal(name) = component else {
+            continue;
+        };
+
+        let name = name.to_string_lossy();
+
+        if DEFAULT_EXCLUDED_DIRS.contains(&name.as_ref()) {
+            return true;
+        }
+
+        if !include_hidden && name.starts_with('.') {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Process a single file
@@ -266,6 +311,26 @@ mod tests {
         // We can't easily test the stdout output, but we can verify no errors
         let result = scan(dir.path().to_str().unwrap(), false, 0, false);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_should_skip_known_dependency_dirs() {
+        let dir = TempDir::new().unwrap();
+        let dep_file = create_test_file(&dir, "node_modules/pkg/index.js", b"export {}");
+        let src_file = create_test_file(&dir, "src/index.ts", b"export const ok = true");
+
+        assert!(should_skip_path(dir.path(), &dep_file, true));
+        assert!(!should_skip_path(dir.path(), &src_file, true));
+    }
+
+    #[test]
+    fn test_should_include_hidden_files_when_requested() {
+        let dir = TempDir::new().unwrap();
+        let hidden_file = create_test_file(&dir, ".env", b"TEST=true");
+        let git_file = create_test_file(&dir, ".git/config", b"[core]");
+
+        assert!(!should_skip_path(dir.path(), &hidden_file, true));
+        assert!(should_skip_path(dir.path(), &git_file, true));
     }
 
     #[test]
