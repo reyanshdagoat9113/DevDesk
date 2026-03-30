@@ -40,6 +40,7 @@ import type {
   CommandVariable,
   EngineIndexMeta,
   EngineSearchResult,
+  EngineSearchSession,
   EngineStatus,
 } from '../types'
 
@@ -85,6 +86,7 @@ interface CommandPaletteProps {
   history: LightweightHistoryEntry[]
   engineStatus: EngineStatus | null
   engineIndexes: Record<string, EngineIndexMeta>
+  engineSearchSessions: Record<string, EngineSearchSession>
   onNavigate: (tab: TabValue) => void
   onOpenProjectInEditor: (projectId: string) => Promise<void>
   onOpenProjectInTerminal: (projectId: string) => Promise<void>
@@ -162,6 +164,7 @@ export function CommandPalette({
   onOpenFileInEditor,
   engineStatus,
   engineIndexes,
+  engineSearchSessions,
   onIndexProject,
   onSearchProjectContent,
   onClearProjectIndex,
@@ -700,12 +703,12 @@ export function CommandPalette({
       id: `engine-clear-search-project-${project.id}`,
       group: 'Projects',
       title: project.name,
-      subtitle: searchQuery ? 'Clear saved engine search' : 'Clear saved engine search',
+      subtitle: engineSearchSessions[project.id] ? 'Clear saved engine search' : 'No saved engine search',
       keywords: [project.name, project.path, 'engine', 'clear', 'search'],
       icon: <span className="text-lg">{project.icon}</span>,
       action: () => runWithErrorHandling(() => onClearProjectSearchSession(project.id)),
     }))
-  }, [mode, projects, runWithErrorHandling, onClearProjectSearchSession, searchQuery])
+  }, [mode, projects, runWithErrorHandling, onClearProjectSearchSession, engineSearchSessions])
 
   const currentItems = useMemo(() => {
     switch (mode.type) {

@@ -15,6 +15,7 @@ import { Input } from './ui/Input'
 import { ScrollArea } from './ui/ScrollArea'
 import type {
   EngineGitInsights,
+  EngineIndexResult,
   EngineIndexMeta,
   EngineSearchResult,
   EngineSearchSession,
@@ -56,11 +57,15 @@ export function ProjectEnginePanel({
   onClearProjectIndex,
   onClearSearchSession,
   onOpenEngine,
+  indexingProjects,
+  latestIndexResults,
 }: {
   project: Project
   engineStatus: EngineStatus | null
   engineIndexes: Record<string, EngineIndexMeta>
   searchSessions: Record<string, EngineSearchSession>
+  indexingProjects: Record<string, boolean>
+  latestIndexResults: Record<string, EngineIndexResult>
   onIndexProject: (projectId: string) => Promise<unknown>
   onSearch: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
   onLoadStats: (projectId: string) => Promise<EngineStats>
@@ -73,13 +78,14 @@ export function ProjectEnginePanel({
 }) {
   const selectedIndex = engineIndexes[project.id] ?? null
   const selectedSession = searchSessions[project.id] ?? null
+  const latestIndexResult = latestIndexResults[project.id] ?? null
   const [query, setQuery] = useState('')
   const [regex, setRegex] = useState(false)
   const [searchResult, setSearchResult] = useState<EngineSearchResult | null>(null)
   const [stats, setStats] = useState<EngineStats | null>(null)
   const [gitInsights, setGitInsights] = useState<EngineGitInsights | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [isIndexing, setIsIndexing] = useState(false)
+  const [isIndexing, setIsIndexing] = useState(Boolean(indexingProjects[project.id]))
   const [isSearching, setIsSearching] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [isLoadingGitInsights, setIsLoadingGitInsights] = useState(false)
@@ -103,6 +109,10 @@ export function ProjectEnginePanel({
     setRegex(selectedSession?.regex ?? false)
     setSearchResult(selectedSession?.result ?? null)
   }, [project.id, selectedSession])
+
+  useEffect(() => {
+    setIsIndexing(Boolean(indexingProjects[project.id]))
+  }, [indexingProjects, project.id])
 
   useEffect(() => {
     if (!selectedIndex) {
@@ -320,7 +330,7 @@ export function ProjectEnginePanel({
                     void handleSearch()
                   }
                 }}
-                placeholder={`Search indexed code in ${project.name}`}
+                placeholder={selectedIndex ? `Search indexed code in ${project.name}` : `Search ${project.name} (auto-indexes on first search)`}
                 className="h-10 bg-background"
               />
               <div className="flex gap-2">
@@ -351,6 +361,46 @@ export function ProjectEnginePanel({
                 <>This project has not been indexed yet. Search will auto-index it on first run.</>
               )}
             </div>
+
+            {latestIndexResult ? (
+              <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-[11px]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={latestIndexResult.ok ? 'success' : 'destructive'} className="text-[10px] uppercase tracking-wider">
+                    {latestIndexResult.ok ? 'Last Index Succeeded' : 'Last Index Failed'}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    {latestIndexResult.filesIndexed.toLocaleString()} indexed
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    {latestIndexResult.filesSkipped.toLocaleString()} skipped
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    {latestIndexResult.durationMs}ms
+                  </Badge>
+                </div>
+                <div className="mt-2 grid gap-1 text-[10px] text-muted-foreground">
+                  {latestIndexResult.repo && (
+                    <div className="flex items-center gap-1.5">
+                      <GitBranch className="h-3 w-3 shrink-0" />
+                      <span className="truncate" title={latestIndexResult.repo}>{latestIndexResult.repo}</span>
+                    </div>
+                  )}
+                  {latestIndexResult.db && (
+                    <div className="flex items-center gap-1.5">
+                      <Database className="h-3 w-3 shrink-0" />
+                      <span className="truncate" title={latestIndexResult.db}>{latestIndexResult.db}</span>
+                    </div>
+                  )}
+                </div>
+                {latestIndexResult.warnings.length > 0 ? (
+                  <div className="mt-2 space-y-1 text-muted-foreground border-t border-border/30 pt-2">
+                    {latestIndexResult.warnings.slice(0, 3).map((warning) => (
+                      <p key={warning}>Warning: {warning}</p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {searchResult ? (
               <div className="rounded-xl border border-border/40 bg-background/50">
@@ -409,10 +459,31 @@ export function ProjectEnginePanel({
                               </div>
                             </div>
                             {firstMatch ? (
-                              <div className="rounded-md bg-background px-3 py-2 text-[11px] text-muted-foreground">
-                                <span className="font-semibold text-foreground">Line {firstMatch.line}:</span>{' '}
-                                {firstMatch.snippet}
-                              </div>
+                              <button
+                                type="button"
+                                className="w-full rounded-md bg-background px-3 py-2 text-left text-[11px] text-muted-foreground"
+                                onClick={() =>
+                                  void handleOpenResult(
+                                    result.path,
+                                    { line: firstMatch.line, column: firstMatch.column }
+                                  )
+                                }
+                              >
+                                {firstMatch.contextBefore.map((line, index) => (
+                                  <div key={`before-${index}`} className="font-mono opacity-70">
+                                    {line}
+                                  </div>
+                                ))}
+                                <div className="font-mono">
+                                  <span className="font-semibold text-foreground">Line {firstMatch.line}:</span>{' '}
+                                  {firstMatch.snippet}
+                                </div>
+                                {firstMatch.contextAfter.map((line, index) => (
+                                  <div key={`after-${index}`} className="font-mono opacity-70">
+                                    {line}
+                                  </div>
+                                ))}
+                              </button>
                             ) : null}
                           </div>
                         )
@@ -440,6 +511,7 @@ export function ProjectEnginePanel({
                     <div className="rounded-lg border border-border/30 bg-muted/20 p-3">
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Size</p>
                       <p className="mt-1 text-lg font-semibold">{formatBytes(stats.stats.totalSizeBytes)}</p>
+                      {stats.db && <p className="mt-1 truncate text-[9px] text-muted-foreground" title={stats.db}>{stats.db.split(/[\\/]/).pop()}</p>}
                     </div>
                   </div>
                   <div className="space-y-2">

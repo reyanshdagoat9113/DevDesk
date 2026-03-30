@@ -2354,7 +2354,10 @@ export function registerIpcHandlers() {
     }
 
     const { indexProject } = await import('../engine/engineService')
-    return indexProject(projectId, project.path)
+    _event.sender.send('engine:indexing-started', { projectId })
+    const result = await indexProject(projectId, project.path)
+    _event.sender.send('engine:indexing-completed', { projectId, result })
+    return result
   })
 
   ipcMain.handle('engine:search', async (

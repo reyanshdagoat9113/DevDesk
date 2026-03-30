@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
   Zap,
+  AlertTriangle,
 } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -24,6 +25,7 @@ import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import type {
   EngineGitInsights,
+  EngineIndexResult,
   EngineIndexMeta,
   EngineSearchResult,
   EngineSearchSession,
@@ -84,22 +86,22 @@ function StatCard({ label, value, subtext, icon: Icon, trend }: StatCardProps) {
   return (
     <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-card to-card/50 border border-border/50 p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      <div className="relative flex items-start justify-between">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight">{value}</p>
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground truncate">{label}</p>
+          <p className="mt-1.5 text-2xl font-bold tracking-tight truncate">{value}</p>
           {subtext && (
             <p className={cn(
-              "mt-0.5 text-xs",
+              "mt-0.5 text-xs truncate",
               trend === 'up' && "text-emerald-400",
               trend === 'down' && "text-rose-400",
               trend === 'neutral' && "text-muted-foreground"
-            )}>
+            )} title={subtext}>
               {subtext}
             </p>
           )}
         </div>
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Icon className="h-4 w-4" />
         </div>
       </div>
@@ -211,9 +213,20 @@ function SearchResultItem({ result, onOpen, onReveal, isOpening, isRevealing, op
                 <span className="text-[10px] font-mono text-muted-foreground/50">C{match.column}</span>
               </div>
               <div className="flex-1 min-w-0 rounded bg-background/30 p-2 border border-border/20">
-                <pre className="text-xs font-mono text-foreground/80 whitespace-pre-wrap break-all leading-relaxed">
-                  {match.snippet}
-                </pre>
+                {[...match.contextBefore, match.snippet, ...match.contextAfter].map((line, lineIndex) => {
+                  const isActiveLine = lineIndex === match.contextBefore.length
+                  return (
+                    <pre
+                      key={`${match.line}:${match.column}:${lineIndex}`}
+                      className={cn(
+                        'text-xs font-mono whitespace-pre-wrap break-all leading-relaxed',
+                        isActiveLine ? 'text-foreground/80' : 'text-muted-foreground'
+                      )}
+                    >
+                      {line}
+                    </pre>
+                  )
+                })}
               </div>
               <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 self-center">
                 {openingKey === `${result.path}:${match.line}:${match.column}` ? (
@@ -235,6 +248,8 @@ export function EngineSection({
   engineStatus,
   engineIndexes,
   searchSessions,
+  indexingProjects,
+  latestIndexResults,
   selectedProjectId,
   onSelectProject,
   isLoading,
@@ -246,12 +261,15 @@ export function EngineSection({
   onLoadGitInsights,
   onOpenResult,
   onRevealResult,
+  onClearIndex,
   onClearSearchSession,
 }: {
   projects: Project[]
   engineStatus: EngineStatus | null
   engineIndexes: Record<string, EngineIndexMeta>
   searchSessions: Record<string, EngineSearchSession>
+  indexingProjects: Record<string, boolean>
+  latestIndexResults: Record<string, EngineIndexResult>
   selectedProjectId?: string | null
   onSelectProject?: (projectId: string) => void
   isLoading?: boolean
@@ -263,6 +281,7 @@ export function EngineSection({
   onLoadGitInsights?: (projectId: string) => Promise<EngineGitInsights>
   onOpenResult?: (projectId: string, relativePath: string, location?: { line?: number; column?: number }) => Promise<void>
   onRevealResult?: (projectId: string, relativePath: string) => Promise<void>
+  onClearIndex?: (projectId: string) => Promise<void>
   onClearSearchSession?: (projectId: string) => Promise<void>
 }) {
   const [query, setQuery] = useState('')
@@ -276,6 +295,7 @@ export function EngineSection({
   const [isSearching, setIsSearching] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [isLoadingGitInsights, setIsLoadingGitInsights] = useState(false)
+  const [isClearingIndex, setIsClearingIndex] = useState(false)
   const [openingResultKey, setOpeningResultKey] = useState<string | null>(null)
   const [revealingResultKey, setRevealingResultKey] = useState<string | null>(null)
   const [showRegexInfo, setShowRegexInfo] = useState(false)
@@ -286,6 +306,8 @@ export function EngineSection({
   )
   const selectedIndex = selectedProject ? engineIndexes[selectedProject.id] ?? null : null
   const selectedSession = selectedProject ? searchSessions[selectedProject.id] ?? null : null
+  const latestIndexResult = selectedProject ? latestIndexResults[selectedProject.id] ?? null : null
+  const isProjectIndexing = selectedProject ? Boolean(indexingProjects[selectedProject.id]) : false
 
   useEffect(() => {
     if (!projects.length) return
@@ -397,6 +419,21 @@ export function EngineSection({
     }
   }
 
+  const handleClearIndex = async () => {
+    if (!selectedProject || !onClearIndex || isClearingIndex) return
+    setActionError(null)
+    setIsClearingIndex(true)
+    try {
+      await onClearIndex(selectedProject.id)
+      setSearchResult(null)
+      setStats(null)
+    } catch (nextError) {
+      setActionError(nextError instanceof Error ? nextError.message : 'Failed to clear index')
+    } finally {
+      setIsClearingIndex(false)
+    }
+  }
+
   const handleOpenResult = async (relativePath: string, location?: { line?: number; column?: number }) => {
     if (!selectedProject || !onOpenResult) return
     const nextKey = `${relativePath}:${location?.line ?? 0}:${location?.column ?? 0}`
@@ -470,7 +507,7 @@ export function EngineSection({
 
           {/* Project List */}
           <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1">
+            <div className="p-2 pr-4 space-y-1">
               {isLoading ? (
                 <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
                   <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -562,13 +599,13 @@ export function EngineSection({
           )}
 
           {/* Stats Grid */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 shrink-0">
             <StatCard
               label="Status"
               value={selectedIndex ? 'Indexed' : 'Not Indexed'}
               subtext={selectedIndex ? formatRelativeTime(selectedIndex.lastIndexed) || formatDate(selectedIndex.lastIndexed) : 'Click to index'}
               icon={selectedIndex ? Zap : Database}
-              trend={selectedIndex ? 'up' : 'neutral'}
+              trend={isProjectIndexing ? 'neutral' : selectedIndex ? 'up' : 'neutral'}
             />
             <StatCard
               label="Files"
@@ -580,7 +617,7 @@ export function EngineSection({
             <StatCard
               label="Index Size"
               value={stats ? formatBytes(stats.stats.totalSizeBytes) : isLoadingStats ? '...' : 'N/A'}
-              subtext={selectedIndex ? 'SQLite + FTS5' : 'Not created'}
+              subtext={stats?.db ? stats.db.split(/[\\/]/).pop() : selectedIndex ? 'SQLite + FTS5' : 'Not created'}
               icon={Database}
               trend="neutral"
             />
@@ -594,9 +631,9 @@ export function EngineSection({
           </div>
 
           {/* Main Content Grid */}
-          <div className="grid flex-1 gap-4 lg:grid-cols-[1fr_320px] min-h-0">
+          <div className="grid flex-1 gap-4 lg:grid-cols-[1fr_280px] xl:grid-cols-[1fr_320px] min-h-0 min-w-0">
             {/* Left Column - Search & Results */}
-            <div className="flex min-h-0 flex-col gap-4">
+            <div className="flex min-w-0 min-h-0 flex-col gap-4">
               {/* Search Bar */}
               <div className="rounded-2xl border border-border/50 bg-card/20 backdrop-blur-sm p-4">
                 <div className="flex items-center gap-3">
@@ -606,8 +643,14 @@ export function EngineSection({
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={selectedIndex ? `Search ${selectedProject?.name}...` : 'Index project to search'}
-                      disabled={!selectedProject || !engineStatus?.available || !selectedIndex}
+                      placeholder={
+                        selectedIndex
+                          ? `Search ${selectedProject?.name}...`
+                          : selectedProject
+                            ? `Search ${selectedProject.name} (auto-indexes first)`
+                            : 'Select a project to search'
+                      }
+                      disabled={!selectedProject || !engineStatus?.available}
                       className="pl-10 h-11 bg-background/50 border-border/50 focus:border-primary/50"
                     />
                     {query && (
@@ -635,7 +678,7 @@ export function EngineSection({
                   <Button
                     className="h-11 gap-2 px-6"
                     onClick={handleSearch}
-                    disabled={!selectedProject || !engineStatus?.available || isSearching || !selectedIndex}
+                    disabled={!selectedProject || !engineStatus?.available || isSearching}
                   >
                     {isSearching ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />
@@ -645,18 +688,18 @@ export function EngineSection({
                     Search
                   </Button>
 
-                  {!selectedIndex && selectedProject && (
+                  {selectedProject && (
                     <Button
                       className="h-11 gap-2"
                       onClick={handleIndex}
-                      disabled={!engineStatus?.available || isIndexing}
+                      disabled={!engineStatus?.available || isIndexing || isProjectIndexing}
                     >
-                      {isIndexing ? (
+                      {isIndexing || isProjectIndexing ? (
                         <RefreshCw className="h-4 w-4 animate-spin" />
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      Index
+                      {selectedIndex ? 'Reindex' : 'Index'}
                     </Button>
                   )}
                 </div>
@@ -684,18 +727,73 @@ export function EngineSection({
                     )}
                   </div>
 
-                  {selectedSession && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={handleClearSearch}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Clear
-                    </Button>
+                  {(selectedSession || selectedIndex) && (
+                    <div className="flex items-center gap-1">
+                      {selectedSession ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={handleClearSearch}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Clear Search
+                        </Button>
+                      ) : null}
+                      {selectedIndex ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={handleClearIndex}
+                          disabled={!onClearIndex || isClearingIndex}
+                        >
+                          <Database className="h-3.5 w-3.5" />
+                          {isClearingIndex ? 'Clearing...' : 'Clear Index'}
+                        </Button>
+                      ) : null}
+                    </div>
                   )}
                 </div>
+
+                {latestIndexResult ? (
+                  <div className="mt-3 rounded-xl border border-border/50 bg-background/40 px-3 py-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <Badge variant={latestIndexResult.ok ? 'success' : 'destructive'} className="text-[10px] uppercase tracking-wider">
+                        {latestIndexResult.ok ? 'Indexed' : 'Index failed'}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px]">{latestIndexResult.filesIndexed.toLocaleString()} files</Badge>
+                      <Badge variant="outline" className="text-[10px]">{latestIndexResult.filesSkipped.toLocaleString()} skipped</Badge>
+                      <Badge variant="outline" className="text-[10px]">{latestIndexResult.durationMs}ms</Badge>
+                    </div>
+                    
+                    <div className="grid gap-1 mb-2 text-[10px] text-muted-foreground">
+                      {latestIndexResult.repo && (
+                        <div className="flex items-center gap-1.5">
+                          <GitBranch className="h-3 w-3 shrink-0" />
+                          <span className="truncate" title={latestIndexResult.repo}>{latestIndexResult.repo}</span>
+                        </div>
+                      )}
+                      {latestIndexResult.db && (
+                        <div className="flex items-center gap-1.5">
+                          <Database className="h-3 w-3 shrink-0" />
+                          <span className="truncate" title={latestIndexResult.db}>{latestIndexResult.db}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {latestIndexResult.warnings.length > 0 ? (
+                      <div className="mt-2 space-y-1 text-muted-foreground border-t border-border/30 pt-2">
+                        {latestIndexResult.warnings.slice(0, 3).map((warning) => (
+                          <div key={warning} className="flex items-start gap-2">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500/70" />
+                            <span>{warning}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {/* Regex Tooltip */}
                 {showRegexInfo && regex && (
@@ -727,7 +825,7 @@ export function EngineSection({
                 </div>
 
                 <ScrollArea className="h-[calc(100%-49px)]">
-                  <div className="p-4 space-y-3">
+                  <div className="p-4 pr-5 space-y-3">
                     {!searchResult ? (
                       <div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
                         <Search className="h-12 w-12 opacity-20" />
@@ -773,7 +871,7 @@ export function EngineSection({
                   </div>
                 </div>
                 <ScrollArea className="h-[200px]">
-                  <div className="p-3 space-y-2">
+                  <div className="p-3 pr-4 space-y-2">
                     {languageEntries.length > 0 ? (
                       languageEntries.map(([language, count]) => (
                         <LanguageBadge
@@ -801,7 +899,7 @@ export function EngineSection({
                   </div>
                 </div>
                 <ScrollArea className="h-[calc(100%-49px)]">
-                  <div className="p-4 space-y-4">
+                  <div className="p-4 pr-5 space-y-4">
                     {gitInsights ? (
                       <>
                         {/* Branch & Stats */}
@@ -858,6 +956,65 @@ export function EngineSection({
                                     {hotspot.commits} commits
                                     <span className="text-border">•</span>
                                     {hotspot.recency}d ago
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {gitInsights.recentCommits.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-2">Recent Commits</p>
+                            <div className="space-y-1.5">
+                              {gitInsights.recentCommits.slice(0, 4).map((commit) => (
+                                <div key={commit.hash} className="rounded-lg bg-card/30 px-3 py-2">
+                                  <div className="flex justify-between gap-2">
+                                    <p className="truncate text-[11px] font-medium">{commit.message}</p>
+                                    {commit.files && commit.files.length > 0 && (
+                                      <Badge variant="outline" className="text-[9px] h-4 whitespace-nowrap bg-background/50">
+                                        {commit.files.length} files
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                                    <span>{commit.author}</span>
+                                    <span className="text-border">•</span>
+                                    <span>{formatRelativeTime(commit.date) ?? commit.date}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {gitInsights.churnFiles.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-2">Churn Files</p>
+                            <div className="space-y-1.5">
+                              {gitInsights.churnFiles.slice(0, 4).map((file) => (
+                                <div
+                                  key={file.path}
+                                  className="rounded-lg border border-border/30 bg-card/30 px-3 py-2 cursor-pointer hover:bg-card/50 transition-colors"
+                                  onClick={() => handleOpenResult(file.path)}
+                                >
+                                  <p className="truncate text-[11px] font-medium">{file.path}</p>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                                    <span>{file.commits} commits</span>
+                                    <span className="text-border">•</span>
+                                    <span>+{file.linesAdded} / -{file.linesDeleted}</span>
+                                    {file.authors && file.authors.length > 0 && (
+                                      <>
+                                        <span className="text-border">•</span>
+                                        <span>{file.authors.length} authors</span>
+                                      </>
+                                    )}
+                                    {file.lastModified && (
+                                      <>
+                                        <span className="text-border">•</span>
+                                        <span>{formatRelativeTime(file.lastModified) ?? formatDate(file.lastModified)}</span>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               ))}

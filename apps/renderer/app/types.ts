@@ -190,6 +190,16 @@ export interface EngineIndexMeta {
   fileCount: number
 }
 
+export interface EngineIndexResult {
+  ok: boolean
+  repo: string
+  db: string
+  filesIndexed: number
+  filesSkipped: number
+  durationMs: number
+  warnings: string[]
+}
+
 export interface EngineStatus {
   available: boolean
   version?: string
@@ -264,4 +274,12 @@ export interface EngineGitInsights {
     linesAdded: number
     linesDeleted: number
   }>
+}
+
+export interface EngineIndexLifecyclePayload {
+  projectId: string
+}
+
+export interface EngineIndexCompletedPayload extends EngineIndexLifecyclePayload {
+  result: EngineIndexResult
 }

@@ -140,6 +140,13 @@ interface ElectronAPI {
   clearProjectIndex: (projectId: string) => Promise<{ success: boolean }>
   clearProjectSearchSession: (projectId: string) => Promise<{ success: boolean }>
   isEngineAvailable: () => Promise<boolean>
+  onEngineIndexingStarted: (handler: (payload: { projectId: string }) => void) => () => void
+  onEngineIndexingCompleted: (
+    handler: (payload: {
+      projectId: string
+      result: { ok: boolean; repo: string; db: string; filesIndexed: number; filesSkipped: number; durationMs: number; warnings: string[] }
+    }) => void
+  ) => () => void
 }
 
 // Expose a safe API to the renderer process
@@ -341,6 +348,31 @@ const electronAPI: ElectronAPI = {
   clearProjectIndex: (projectId: string) => ipcRenderer.invoke('engine:clear', projectId),
   clearProjectSearchSession: (projectId: string) => ipcRenderer.invoke('engine:clear-search-session', projectId),
   isEngineAvailable: () => ipcRenderer.invoke('engine:is-available'),
+  onEngineIndexingStarted: (handler: (payload: { projectId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: { projectId: string }) => {
+      handler(payload)
+    }
+    ipcRenderer.on('engine:indexing-started', listener)
+    return () => ipcRenderer.removeListener('engine:indexing-started', listener)
+  },
+  onEngineIndexingCompleted: (
+    handler: (payload: {
+      projectId: string
+      result: { ok: boolean; repo: string; db: string; filesIndexed: number; filesSkipped: number; durationMs: number; warnings: string[] }
+    }) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: {
+        projectId: string
+        result: { ok: boolean; repo: string; db: string; filesIndexed: number; filesSkipped: number; durationMs: number; warnings: string[] }
+      }
+    ) => {
+      handler(payload)
+    }
+    ipcRenderer.on('engine:indexing-completed', listener)
+    return () => ipcRenderer.removeListener('engine:indexing-completed', listener)
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

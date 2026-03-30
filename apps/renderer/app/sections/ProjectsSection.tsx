@@ -27,6 +27,7 @@ import type {
   AppPreferences,
   Container,
   EngineGitInsights,
+  EngineIndexResult,
   EngineIndexMeta,
   EngineSearchResult,
   EngineSearchSession,
@@ -101,6 +102,8 @@ export function ProjectsSection({
   engineStatus,
   engineIndexes,
   engineSearchSessions,
+  engineIndexingProjects,
+  engineLatestIndexResults,
   onSavePreferences,
   onUpdateProject,
   onSetLinkedContainers,
@@ -130,6 +133,8 @@ export function ProjectsSection({
   engineStatus?: EngineStatus | null
   engineIndexes?: Record<string, EngineIndexMeta>
   engineSearchSessions?: Record<string, EngineSearchSession>
+  engineIndexingProjects?: Record<string, boolean>
+  engineLatestIndexResults?: Record<string, EngineIndexResult>
   onSavePreferences?: (next: AppPreferences) => Promise<void>
   onUpdateProject?: (projectId: string, updates: { name: string }) => Promise<void>
   onSetLinkedContainers?: (projectId: string, linkedContainerNames: string[]) => Promise<Project>
@@ -811,6 +816,8 @@ export function ProjectsSection({
                       engineStatus={engineStatus ?? null}
                       engineIndexes={engineIndexes}
                       searchSessions={engineSearchSessions}
+                      indexingProjects={engineIndexingProjects ?? {}}
+                      latestIndexResults={engineLatestIndexResults ?? {}}
                       onIndexProject={onIndexProject}
                       onSearch={onSearchProjectContent}
                       onLoadStats={onLoadEngineStats}

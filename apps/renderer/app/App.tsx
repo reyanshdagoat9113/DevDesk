@@ -38,6 +38,9 @@ import type {
   CreateCommandTriggerInput,
   CreateCommandInput,
   EngineGitInsights,
+  EngineIndexCompletedPayload,
+  EngineIndexLifecyclePayload,
+  EngineIndexResult,
   EngineIndexMeta,
   EngineSearchSession,
   EngineStats,
@@ -146,6 +149,8 @@ function App() {
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null)
   const [engineIndexes, setEngineIndexes] = useState<Record<string, EngineIndexMeta>>({})
   const [engineSearchSessions, setEngineSearchSessions] = useState<Record<string, EngineSearchSession>>({})
+  const [engineIndexingProjects, setEngineIndexingProjects] = useState<Record<string, boolean>>({})
+  const [engineLatestIndexResults, setEngineLatestIndexResults] = useState<Record<string, EngineIndexResult>>({})
   const [selectedEngineProjectId, setSelectedEngineProjectId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -200,6 +205,8 @@ function App() {
     setContainers([])
     setChainRuns({})
     setTriggerConfirmations([])
+    setEngineLatestIndexResults({})
+    setEngineIndexingProjects({})
     setHasLoadedContainers(false)
     setHasAttemptedContainersLoad(false)
     try {
@@ -276,6 +283,8 @@ function App() {
         setEngineSearchSessions({})
       }
 
+      setEngineIndexingProjects({})
+
       if (projectsResult.status === 'fulfilled') {
         try {
           const notesEntries = await Promise.all(
@@ -330,6 +339,32 @@ function App() {
   useEffect(() => {
     loadAll()
   }, [loadAll])
+
+  useEffect(() => {
+    const handleIndexStarted = ({ projectId }: EngineIndexLifecyclePayload) => {
+      setEngineIndexingProjects((prev) => ({ ...prev, [projectId]: true }))
+    }
+
+    const handleIndexCompleted = ({ projectId, result }: EngineIndexCompletedPayload) => {
+      setEngineIndexingProjects((prev) => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
+      setEngineLatestIndexResults((prev) => ({ ...prev, [projectId]: result }))
+      void syncEngineState().catch((error) => {
+        setLoadError(error instanceof Error ? error.message : 'Failed to refresh engine state.')
+      })
+    }
+
+    const unsubscribeStarted = window.electronAPI.onEngineIndexingStarted(handleIndexStarted)
+    const unsubscribeCompleted = window.electronAPI.onEngineIndexingCompleted(handleIndexCompleted)
+
+    return () => {
+      unsubscribeStarted()
+      unsubscribeCompleted()
+    }
+  }, [syncEngineState])
 
   useEffect(() => {
     const needsContainers = activeTab === 'containers' || activeTab === 'projects'
@@ -827,6 +862,7 @@ function App() {
     setLoadError(null)
     try {
       const result = await window.electronAPI.indexProject(projectId)
+      setEngineLatestIndexResults((prev) => ({ ...prev, [projectId]: result }))
       await syncEngineState()
       return result
     } catch (error) {
@@ -901,6 +937,16 @@ function App() {
     setLoadError(null)
     try {
       await window.electronAPI.clearProjectIndex(projectId)
+      setEngineIndexingProjects((prev) => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
+      setEngineLatestIndexResults((prev) => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
       await syncEngineState()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to clear project index.'
@@ -1152,6 +1198,8 @@ function App() {
               engineStatus={engineStatus}
               engineIndexes={engineIndexes}
               engineSearchSessions={engineSearchSessions}
+              engineIndexingProjects={engineIndexingProjects}
+              engineLatestIndexResults={engineLatestIndexResults}
               onSavePreferences={handleSavePreferences}
               onUpdateProject={handleUpdateProject}
               onSetLinkedContainers={handleSetProjectLinkedContainers}
@@ -1202,6 +1250,8 @@ function App() {
               engineStatus={engineStatus}
               engineIndexes={engineIndexes}
               searchSessions={engineSearchSessions}
+              indexingProjects={engineIndexingProjects}
+              latestIndexResults={engineLatestIndexResults}
               selectedProjectId={selectedEngineProjectId}
               onSelectProject={setSelectedEngineProjectId}
               isLoading={isLoading}
@@ -1213,6 +1263,7 @@ function App() {
               onLoadGitInsights={handleLoadEngineGitInsights}
               onOpenResult={handleOpenEngineResult}
               onRevealResult={handleRevealEngineResult}
+              onClearIndex={handleClearEngineProject}
               onClearSearchSession={handleClearEngineSearchSession}
             />
           )}
@@ -1445,6 +1496,7 @@ function App() {
         history={history}
         engineStatus={engineStatus}
         engineIndexes={engineIndexes}
+        engineSearchSessions={engineSearchSessions}
         onNavigate={setActiveTab}
         onOpenProjectInEditor={async (id) => {
           const result = await window.electronAPI.openProjectInEditor(id)
