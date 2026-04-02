@@ -320,8 +320,11 @@ export {
   getCurrentBranch,
   getContributors,
   getCommitCount,
+  getWorkingTree,
   type GitInsights,
   type GitCommit,
   type FileChurn,
   type HotspotFile,
+  type GitChangedFile,
+  type GitWorkingTree,
 } from './git.js';
