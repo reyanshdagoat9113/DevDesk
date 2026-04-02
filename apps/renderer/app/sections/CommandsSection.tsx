@@ -461,18 +461,18 @@ export function CommandsSection({
       list={
         <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
           <div className="border-b border-border/40 bg-muted/20 px-4 py-3 space-y-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Commands</p>
                 {filteredCommands.length > 0 && (
                   <Badge variant="outline" className="text-[10px] font-medium">{filteredCommands.length}</Badge>
                 )}
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 gap-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                  className="h-8 gap-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.12em]"
                   onClick={() => setPresetDialogOpen(true)}
                   disabled={!onCreatePresetCommand || projectsWithPresets.length === 0}
                   title={projectsWithPresets.length === 0 ? 'Add a Node, Python, Rust, or Go project to unlock presets.' : 'Add preset command'}
@@ -484,7 +484,7 @@ export function CommandsSection({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-6 px-2 text-[10px]"
+                    className="h-7 px-2.5 text-[10px]"
                     onClick={() => {
                       setSelectedTags([])
                       setQuery('')
@@ -519,7 +519,7 @@ export function CommandsSection({
                   ) : null}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {untaggedCount > 0 ? (
                     <button
                       type="button"
@@ -878,46 +878,48 @@ export function CommandsSection({
                 <div className="flex flex-col gap-5">
                   <div className="flex flex-col gap-3">
                     <Label htmlFor="run-project" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Target Deployment Project</Label>
-                    <div className="flex gap-3">
-                    <select
-                      id="run-project"
-                      className={cn(selectClass, "flex-1 bg-background shadow-sm h-10 px-4")}
-                      value={selectedProject?.id ?? ''}
-                      onChange={(event) => setSelectedProjectId(event.target.value)}
-                      disabled={!!commandProject || availableProjects.length === 0}
-                    >
-                      {availableProjects.length === 0 ? (
-                         <option value="" disabled>No projects available</option>
-                      ) : (
-                        availableProjects.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.name}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                    <Button
-                      className="h-10 px-6 gap-2.5 shadow-lg shadow-primary/10 font-bold uppercase tracking-wider text-[11px]"
-                      onClick={handleRun}
-                      disabled={!selectedCommand || !selectedProject || runStatus === 'running'}
-                    >
-                      {runStatus === 'running' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <PlayCircle className="h-4 w-4" />
-                      )}
-                      {runStatus === 'running' ? 'Deploying...' : 'Execute Script'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-10 px-4 gap-2 text-[11px] font-bold uppercase tracking-wider"
-                      onClick={() => selectedCommand && onAddToChain?.(selectedCommand)}
-                      disabled={!selectedCommand || !onAddToChain}
-                    >
-                      <PlusCircle className="h-4 w-4" />
-                      Add To Chain
-                    </Button>
-                  </div>
+                    <div className="flex flex-col gap-3 xl:flex-row">
+                      <select
+                        id="run-project"
+                        className={cn(selectClass, "min-w-0 flex-1 bg-background shadow-sm h-10 px-4")}
+                        value={selectedProject?.id ?? ''}
+                        onChange={(event) => setSelectedProjectId(event.target.value)}
+                        disabled={!!commandProject || availableProjects.length === 0}
+                      >
+                        {availableProjects.length === 0 ? (
+                           <option value="" disabled>No projects available</option>
+                        ) : (
+                          availableProjects.map((project) => (
+                            <option key={project.id} value={project.id}>
+                              {project.name}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <div className="flex flex-wrap gap-3 xl:justify-end">
+                        <Button
+                          className="h-10 px-6 gap-2.5 shadow-lg shadow-primary/10 font-bold uppercase tracking-wider text-[11px]"
+                          onClick={handleRun}
+                          disabled={!selectedCommand || !selectedProject || runStatus === 'running'}
+                        >
+                          {runStatus === 'running' ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <PlayCircle className="h-4 w-4" />
+                          )}
+                          {runStatus === 'running' ? 'Deploying...' : 'Execute Script'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-10 px-4 gap-2 text-[11px] font-bold uppercase tracking-wider"
+                          onClick={() => selectedCommand && onAddToChain?.(selectedCommand)}
+                          disabled={!selectedCommand || !onAddToChain}
+                        >
+                          <PlusCircle className="h-4 w-4" />
+                          Add To Chain
+                        </Button>
+                      </div>
+                    </div>
                 </div>
                 
                 {runError && (

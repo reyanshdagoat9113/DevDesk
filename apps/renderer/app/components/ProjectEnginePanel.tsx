@@ -74,7 +74,7 @@ export function ProjectEnginePanel({
   onRevealResult: (projectId: string, relativePath: string) => Promise<void>
   onClearProjectIndex: (projectId: string) => Promise<void>
   onClearSearchSession: (projectId: string) => Promise<void>
-  onOpenEngine: (projectId: string) => void
+  onOpenEngine?: (projectId: string) => void
 }) {
   const selectedIndex = engineIndexes[project.id] ?? null
   const selectedSession = searchSessions[project.id] ?? null
@@ -287,15 +287,17 @@ export function ProjectEnginePanel({
             <Database className="h-3.5 w-3.5" />
             {isIndexing ? 'Indexing...' : selectedIndex ? 'Reindex Project' : 'Index Project'}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-2 text-[11px] font-semibold"
-            onClick={() => onOpenEngine(project.id)}
-          >
-            <Search className="h-3.5 w-3.5" />
-            Open Engine Workspace
-          </Button>
+          {onOpenEngine ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-2 text-[11px] font-semibold"
+              onClick={() => onOpenEngine(project.id)}
+            >
+              <Search className="h-3.5 w-3.5" />
+              Open Engine Workspace
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
@@ -429,8 +431,8 @@ export function ProjectEnginePanel({
                                 <p className="truncate font-mono text-xs font-semibold">{result.path}</p>
                                 <p className="mt-1 text-[11px] text-muted-foreground">
                                   Score {result.score.toFixed(2)}
-                                  {result.language ? ` • ${result.language}` : ''}
-                                  {result.matches.length > 0 ? ` • ${result.matches.length} matches` : ''}
+                                  {result.language ? ` / ${result.language}` : ''}
+                                  {result.matches.length > 0 ? ` / ${result.matches.length} matches` : ''}
                                 </p>
                               </div>
                               <div className="flex gap-2">
@@ -563,7 +565,7 @@ export function ProjectEnginePanel({
                       <div key={hotspot.path} className="rounded-lg border border-border/30 bg-muted/20 px-3 py-2">
                         <p className="truncate font-mono text-[11px] font-semibold">{hotspot.path}</p>
                         <p className="mt-1 text-[10px] text-muted-foreground">
-                          Risk {hotspot.risk} • {hotspot.commits} commits • score {hotspot.score.toFixed(1)}
+                          Risk {hotspot.risk} / {hotspot.commits} commits / score {hotspot.score.toFixed(1)}
                         </p>
                       </div>
                     ))}
