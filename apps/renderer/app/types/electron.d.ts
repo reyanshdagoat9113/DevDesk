@@ -1,8 +1,5 @@
 import type {
   AppPreferences,
-  Board,
-  BoardRestorePoint,
-  BoardSnapshot,
   Command,
   CommandChain,
   CommandChainRunState,
@@ -101,16 +98,6 @@ export interface ElectronAPI {
 
   getNotes: (projectId: string) => Promise<ProjectNotes>
   updateNotes: (projectId: string, notes: Partial<ProjectNotes>) => Promise<{ success: boolean }>
-  getBoards: (projectId: string) => Promise<Board[]>
-  createBoard: (projectId: string, name?: string) => Promise<Board>
-  renameBoard: (boardId: string, name: string) => Promise<Board>
-  deleteBoard: (boardId: string) => Promise<{ success: boolean }>
-  duplicateBoard: (boardId: string) => Promise<Board>
-  getBoardSnapshot: (boardId: string) => Promise<BoardSnapshot | null>
-  saveBoardSnapshot: (boardId: string, snapshot: { document: unknown; session: unknown }) => Promise<BoardSnapshot>
-  createBoardRestorePoint: (boardId: string, snapshot: { document: unknown; session: unknown; reason: string }) => Promise<BoardRestorePoint>
-  getBoardRestorePoints: (boardId: string) => Promise<BoardRestorePoint[]>
-  restoreBoardSnapshot: (boardId: string, restorePointId: string) => Promise<BoardSnapshot>
 
   // File Navigation
   listProjectFiles: (projectId: string, dir?: string) => Promise<{ entries: Array<{ name: string; relativePath: string; kind: 'file' | 'dir' }>; truncated: boolean }>

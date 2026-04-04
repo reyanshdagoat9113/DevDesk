@@ -103,16 +103,6 @@ interface ElectronAPI {
 
   getNotes: (projectId: string) => Promise<{ setupSteps: string; todos: string; reminders: string }>
   updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) => Promise<{ success: boolean }>
-  getBoards: (projectId: string) => Promise<Array<{ id: string; projectId: string; name: string; createdAt: string; updatedAt: string; lastOpenedAt?: string }>>
-  createBoard: (projectId: string, name?: string) => Promise<{ id: string; projectId: string; name: string; createdAt: string; updatedAt: string; lastOpenedAt?: string }>
-  renameBoard: (boardId: string, name: string) => Promise<{ id: string; projectId: string; name: string; createdAt: string; updatedAt: string; lastOpenedAt?: string }>
-  deleteBoard: (boardId: string) => Promise<{ success: boolean }>
-  duplicateBoard: (boardId: string) => Promise<{ id: string; projectId: string; name: string; createdAt: string; updatedAt: string; lastOpenedAt?: string }>
-  getBoardSnapshot: (boardId: string) => Promise<{ boardId: string; document: unknown; session: unknown; savedAt: string } | null>
-  saveBoardSnapshot: (boardId: string, snapshot: { document: unknown; session: unknown }) => Promise<{ boardId: string; document: unknown; session: unknown; savedAt: string }>
-  createBoardRestorePoint: (boardId: string, snapshot: { document: unknown; session: unknown; reason: string }) => Promise<{ id: string; boardId: string; document: unknown; session: unknown; savedAt: string; createdAt: string; reason: string }>
-  getBoardRestorePoints: (boardId: string) => Promise<Array<{ id: string; boardId: string; document: unknown; session: unknown; savedAt: string; createdAt: string; reason: string }>>
-  restoreBoardSnapshot: (boardId: string, restorePointId: string) => Promise<{ boardId: string; document: unknown; session: unknown; savedAt: string }>
 
   listProjectFiles: (projectId: string, dir?: string) => Promise<{ entries: Array<{ name: string; relativePath: string; kind: 'file' | 'dir' }>; truncated: boolean }>
   searchProjectFiles: (projectId: string, query: string, limit?: number) => Promise<Array<{ relativePath: string; kind: 'file' | 'dir' }>>
@@ -343,19 +333,6 @@ const electronAPI: ElectronAPI = {
   getNotes: (projectId: string) => ipcRenderer.invoke('notes:get', projectId),
   updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) =>
     ipcRenderer.invoke('notes:update', projectId, notes),
-  getBoards: (projectId: string) => ipcRenderer.invoke('boards:list', projectId),
-  createBoard: (projectId: string, name?: string) => ipcRenderer.invoke('boards:create', projectId, name),
-  renameBoard: (boardId: string, name: string) => ipcRenderer.invoke('boards:rename', boardId, name),
-  deleteBoard: (boardId: string) => ipcRenderer.invoke('boards:delete', boardId),
-  duplicateBoard: (boardId: string) => ipcRenderer.invoke('boards:duplicate', boardId),
-  getBoardSnapshot: (boardId: string) => ipcRenderer.invoke('boards:get-snapshot', boardId),
-  saveBoardSnapshot: (boardId: string, snapshot: { document: unknown; session: unknown }) =>
-    ipcRenderer.invoke('boards:save-snapshot', boardId, snapshot),
-  createBoardRestorePoint: (boardId: string, snapshot: { document: unknown; session: unknown; reason: string }) =>
-    ipcRenderer.invoke('boards:create-restore-point', boardId, snapshot),
-  getBoardRestorePoints: (boardId: string) => ipcRenderer.invoke('boards:get-restore-points', boardId),
-  restoreBoardSnapshot: (boardId: string, restorePointId: string) =>
-    ipcRenderer.invoke('boards:restore-snapshot', boardId, restorePointId),
 
   // Files
   listProjectFiles: (projectId: string, dir?: string) => ipcRenderer.invoke('files:list', projectId, dir),

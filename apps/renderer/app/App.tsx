@@ -1,5 +1,5 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
-import { Container, FolderKanban, History, LayoutGrid, Plus, Search, StickyNote, Terminal } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Container, FolderKanban, History, Plus, Search, StickyNote, Terminal } from 'lucide-react'
 import { Button } from './components/ui/Button'
 import { Input } from './components/ui/Input'
 import { Label } from './components/ui/Label'
@@ -59,7 +59,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ProjectDirectorySelector } from './components/ProjectDirectorySelector'
 
-type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history' | 'notes' | 'boards'
+type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history' | 'notes'
 
 const navItems = [
   { value: 'projects', label: 'Projects', icon: FolderKanban },
@@ -68,7 +68,6 @@ const navItems = [
   { value: 'containers', label: 'Containers', icon: Container },
   { value: 'history', label: 'History', icon: History },
   { value: 'notes', label: 'Notes', icon: StickyNote },
-  { value: 'boards', label: 'Boards', icon: LayoutGrid },
 ] as const
 
 const actionLabels: Partial<Record<TabValue, string>> = {
@@ -76,7 +75,6 @@ const actionLabels: Partial<Record<TabValue, string>> = {
 }
 
 const GLOBAL_COMMAND_VALUE = '__global__'
-const BoardsSection = lazy(() => import('./sections/BoardsSection').then((module) => ({ default: module.BoardsSection })))
 
 function unwrapIpcErrorMessage(error: unknown, fallbackMessage: string) {
   const raw = error instanceof Error ? error.message : fallbackMessage
@@ -198,7 +196,6 @@ function App() {
       containers: containers.length,
       history: history.length,
       notes: projects.length,
-      boards: projects.length,
     }
     return navItems.map((item) => ({
       ...item,
@@ -330,7 +327,6 @@ function App() {
     } catch (error) {
       const message = toUserContainerError(error, 'Failed to load containers.')
       setContainerError(message)
-      throw new Error(message)
     } finally {
       setIsContainersLoading(false)
     }
@@ -1220,7 +1216,6 @@ function App() {
     } catch (error) {
       const message = toUserContainerError(error, fallbackMessage)
       setContainerError(message)
-      throw new Error(message)
     }
   }
 
@@ -1391,21 +1386,6 @@ function App() {
               error={loadError}
               onSaveNotes={handleSaveNotes}
             />
-          )}
-          {activeTab === 'boards' && (
-            <Suspense
-              fallback={
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  Loading boards workspace...
-                </div>
-              }
-            >
-              <BoardsSection
-                projects={projects}
-                isLoading={isLoading}
-                error={loadError}
-              />
-            </Suspense>
           )}
         </div>
       </AppShell>

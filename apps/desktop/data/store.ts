@@ -6,9 +6,6 @@ import Database from 'better-sqlite3'
 import {
   DATA_VERSION,
   type AppPreferences,
-  type Board,
-  type BoardRestorePoint,
-  type BoardSnapshot,
   type ChainStep,
   type Command,
   type CommandChain,
@@ -31,8 +28,6 @@ const SQL_SLOW_MS = Number.parseInt(process.env.DEVDESK_SQL_SLOW_MS ?? '20', 10)
 
 const VALID_PROJECT_TYPES = new Set(['node', 'python', 'rust', 'go', 'unknown'])
 const VALID_TRIGGER_EVENTS = new Set<CommandTriggerEvent>(['onProjectOpen', 'afterContainerStart', 'onStartup'])
-const MAX_BOARD_RESTORE_POINTS = 20
-const DEFAULT_BOARD_NAME = 'Untitled Board'
 
 function parseBoolean(value: string | number | null | undefined): boolean {
   if (value === null || value === undefined) return false
@@ -105,79 +100,6 @@ function parseJsonArray(value: string | null | undefined): string[] {
     return parsed.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
   } catch {
     return []
-  }
-}
-
-function parseJsonObject(value: string | null | undefined): unknown {
-  if (!value) {
-    return {}
-  }
-
-  try {
-    return JSON.parse(value)
-  } catch {
-    return {}
-  }
-}
-
-function stringifyJson(value: unknown): string {
-  return JSON.stringify(value ?? {})
-}
-
-function sanitizeBoardName(name: string | null | undefined): string {
-  const trimmed = typeof name === 'string' ? name.trim() : ''
-  return trimmed || DEFAULT_BOARD_NAME
-}
-
-function mapBoardRow(row: {
-  id: string
-  project_id: string
-  name: string
-  created_at: string
-  updated_at: string
-  last_opened_at: string | null
-}): Board {
-  return {
-    id: row.id,
-    projectId: row.project_id,
-    name: row.name,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    lastOpenedAt: row.last_opened_at ?? undefined,
-  }
-}
-
-function mapBoardSnapshotRow(row: {
-  board_id: string
-  document_json: string
-  session_json: string
-  saved_at: string
-}): BoardSnapshot {
-  return {
-    boardId: row.board_id,
-    document: parseJsonObject(row.document_json),
-    session: parseJsonObject(row.session_json),
-    savedAt: row.saved_at,
-  }
-}
-
-function mapBoardRestorePointRow(row: {
-  id: string
-  board_id: string
-  document_json: string
-  session_json: string
-  saved_at: string
-  created_at: string
-  reason: string
-}): BoardRestorePoint {
-  return {
-    id: row.id,
-    boardId: row.board_id,
-    document: parseJsonObject(row.document_json),
-    session: parseJsonObject(row.session_json),
-    savedAt: row.saved_at,
-    createdAt: row.created_at,
-    reason: row.reason,
   }
 }
 
@@ -624,32 +546,6 @@ function createSchema(database: Database.Database) {
       reminders TEXT NOT NULL DEFAULT ''
     );
 
-    CREATE TABLE IF NOT EXISTS boards (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      last_opened_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS board_snapshots (
-      board_id TEXT PRIMARY KEY,
-      document_json TEXT NOT NULL,
-      session_json TEXT NOT NULL,
-      saved_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS board_restore_points (
-      id TEXT PRIMARY KEY,
-      board_id TEXT NOT NULL,
-      document_json TEXT NOT NULL,
-      session_json TEXT NOT NULL,
-      saved_at TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      reason TEXT NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS preferences (
       key TEXT PRIMARY KEY,
       id TEXT NOT NULL,
@@ -679,10 +575,6 @@ function createSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_run_history_start_time ON run_history(start_time DESC);
     CREATE INDEX IF NOT EXISTS idx_run_history_command_id ON run_history(command_id);
     CREATE INDEX IF NOT EXISTS idx_run_history_project_id ON run_history(project_id);
-    CREATE INDEX IF NOT EXISTS idx_boards_project_id ON boards(project_id);
-    CREATE INDEX IF NOT EXISTS idx_boards_updated_at ON boards(updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_board_restore_points_board_id ON board_restore_points(board_id);
-    CREATE INDEX IF NOT EXISTS idx_board_restore_points_created_at ON board_restore_points(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_engine_indexes_last_indexed ON engine_indexes(last_indexed DESC);
     CREATE INDEX IF NOT EXISTS idx_engine_search_sessions_updated_at ON engine_search_sessions(updated_at DESC);
   `)
@@ -1013,12 +905,6 @@ export async function removeProject(projectId: string): Promise<void> {
       database.prepare('DELETE FROM triggers WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM run_history WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM notes WHERE project_id = ?').run(id)
-      const boardRows = database.prepare('SELECT id FROM boards WHERE project_id = ?').all(id) as Array<{ id: string }>
-      for (const boardRow of boardRows) {
-        database.prepare('DELETE FROM board_restore_points WHERE board_id = ?').run(boardRow.id)
-        database.prepare('DELETE FROM board_snapshots WHERE board_id = ?').run(boardRow.id)
-      }
-      database.prepare('DELETE FROM boards WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM engine_indexes WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM engine_search_sessions WHERE project_id = ?').run(id)
     })
@@ -1403,284 +1289,6 @@ export async function upsertProjectNotes(projectId: string, updates: Partial<Pro
   })
 }
 
-
-export async function listBoards(projectId: string): Promise<Board[]> {
-  await ensureDbInitialized()
-  const rows = getDbOrThrow()
-    .prepare(
-      `
-        SELECT id, project_id, name, created_at, updated_at, last_opened_at
-        FROM boards
-        WHERE project_id = ?
-        ORDER BY COALESCE(last_opened_at, updated_at) DESC, updated_at DESC, rowid DESC
-      `
-    )
-    .all(projectId) as Array<{
-    id: string
-    project_id: string
-    name: string
-    created_at: string
-    updated_at: string
-    last_opened_at: string | null
-  }>
-
-  return rows.map(mapBoardRow)
-}
-
-export async function getBoardById(boardId: string): Promise<Board | null> {
-  await ensureDbInitialized()
-  const row = getDbOrThrow()
-    .prepare(
-      `
-        SELECT id, project_id, name, created_at, updated_at, last_opened_at
-        FROM boards
-        WHERE id = ?
-      `
-    )
-    .get(boardId) as {
-    id: string
-    project_id: string
-    name: string
-    created_at: string
-    updated_at: string
-    last_opened_at: string | null
-  } | undefined
-
-  return row ? mapBoardRow(row) : null
-}
-
-export async function createBoard(board: Board): Promise<void> {
-  await queueWrite(async () => {
-    await ensureDbInitialized()
-    getDbOrThrow()
-      .prepare(
-        `
-          INSERT INTO boards (id, project_id, name, created_at, updated_at, last_opened_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `
-      )
-      .run(
-        board.id,
-        board.projectId,
-        sanitizeBoardName(board.name),
-        board.createdAt,
-        board.updatedAt,
-        board.lastOpenedAt ?? null
-      )
-  })
-}
-
-export async function renameBoard(boardId: string, name: string): Promise<boolean> {
-  return queueWrite(async () => {
-    await ensureDbInitialized()
-    const nextName = sanitizeBoardName(name)
-    const now = new Date().toISOString()
-    const result = getDbOrThrow()
-      .prepare('UPDATE boards SET name = ?, updated_at = ? WHERE id = ?')
-      .run(nextName, now, boardId)
-    return result.changes > 0
-  })
-}
-
-export async function touchBoardOpened(boardId: string, openedAt: string): Promise<boolean> {
-  return queueWrite(async () => {
-    await ensureDbInitialized()
-    const result = getDbOrThrow()
-      .prepare('UPDATE boards SET last_opened_at = ? WHERE id = ?')
-      .run(openedAt, boardId)
-    return result.changes > 0
-  })
-}
-
-export async function deleteBoard(boardId: string): Promise<void> {
-  await queueWrite(async () => {
-    await ensureDbInitialized()
-    const database = getDbOrThrow()
-    const transaction = database.transaction((id: string) => {
-      database.prepare('DELETE FROM board_restore_points WHERE board_id = ?').run(id)
-      database.prepare('DELETE FROM board_snapshots WHERE board_id = ?').run(id)
-      database.prepare('DELETE FROM boards WHERE id = ?').run(id)
-    })
-    transaction(boardId)
-  })
-}
-
-export async function getBoardSnapshot(boardId: string): Promise<BoardSnapshot | null> {
-  await ensureDbInitialized()
-  const row = getDbOrThrow()
-    .prepare(
-      `
-        SELECT board_id, document_json, session_json, saved_at
-        FROM board_snapshots
-        WHERE board_id = ?
-      `
-    )
-    .get(boardId) as {
-    board_id: string
-    document_json: string
-    session_json: string
-    saved_at: string
-  } | undefined
-
-  return row ? mapBoardSnapshotRow(row) : null
-}
-
-export async function upsertBoardSnapshot(
-  boardId: string,
-  snapshot: { document: unknown; session: unknown; savedAt: string }
-): Promise<BoardSnapshot> {
-  return queueWrite(async () => {
-    await ensureDbInitialized()
-    const database = getDbOrThrow()
-    const transaction = database.transaction(() => {
-      database
-        .prepare(
-          `
-            INSERT INTO board_snapshots (board_id, document_json, session_json, saved_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(board_id) DO UPDATE SET
-              document_json = excluded.document_json,
-              session_json = excluded.session_json,
-              saved_at = excluded.saved_at
-          `
-        )
-        .run(boardId, stringifyJson(snapshot.document), stringifyJson(snapshot.session), snapshot.savedAt)
-      database
-        .prepare('UPDATE boards SET updated_at = ? WHERE id = ?')
-        .run(snapshot.savedAt, boardId)
-    })
-    transaction()
-    return {
-      boardId,
-      document: snapshot.document,
-      session: snapshot.session,
-      savedAt: snapshot.savedAt,
-    }
-  })
-}
-
-export async function listBoardRestorePoints(boardId: string): Promise<BoardRestorePoint[]> {
-  await ensureDbInitialized()
-  const rows = getDbOrThrow()
-    .prepare(
-      `
-        SELECT id, board_id, document_json, session_json, saved_at, created_at, reason
-        FROM board_restore_points
-        WHERE board_id = ?
-        ORDER BY created_at DESC, rowid DESC
-      `
-    )
-    .all(boardId) as Array<{
-    id: string
-    board_id: string
-    document_json: string
-    session_json: string
-    saved_at: string
-    created_at: string
-    reason: string
-  }>
-
-  return rows.map(mapBoardRestorePointRow)
-}
-
-export async function createBoardRestorePoint(restorePoint: BoardRestorePoint): Promise<void> {
-  await queueWrite(async () => {
-    await ensureDbInitialized()
-    getDbOrThrow()
-      .prepare(
-        `
-          INSERT INTO board_restore_points (id, board_id, document_json, session_json, saved_at, created_at, reason)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `
-      )
-      .run(
-        restorePoint.id,
-        restorePoint.boardId,
-        stringifyJson(restorePoint.document),
-        stringifyJson(restorePoint.session),
-        restorePoint.savedAt,
-        restorePoint.createdAt,
-        restorePoint.reason
-      )
-  })
-
-  await pruneBoardRestorePoints(restorePoint.boardId, MAX_BOARD_RESTORE_POINTS)
-}
-
-export async function pruneBoardRestorePoints(boardId: string, keepCount = MAX_BOARD_RESTORE_POINTS): Promise<void> {
-  await queueWrite(async () => {
-    await ensureDbInitialized()
-    getDbOrThrow()
-      .prepare(
-        `
-          DELETE FROM board_restore_points
-          WHERE board_id = ?
-            AND id NOT IN (
-              SELECT id
-              FROM board_restore_points
-              WHERE board_id = ?
-              ORDER BY created_at DESC, rowid DESC
-              LIMIT ?
-            )
-        `
-      )
-      .run(boardId, boardId, keepCount)
-  })
-}
-
-export async function restoreBoardFromRestorePoint(boardId: string, restorePointId: string): Promise<BoardSnapshot> {
-  return queueWrite(async () => {
-    await ensureDbInitialized()
-    const database = getDbOrThrow()
-    const row = database
-      .prepare(
-        `
-          SELECT id, board_id, document_json, session_json, saved_at, created_at, reason
-          FROM board_restore_points
-          WHERE id = ? AND board_id = ?
-        `
-      )
-      .get(restorePointId, boardId) as {
-      id: string
-      board_id: string
-      document_json: string
-      session_json: string
-      saved_at: string
-      created_at: string
-      reason: string
-    } | undefined
-
-    if (!row) {
-      throw new Error('Restore point not found.')
-    }
-
-    const restoredAt = new Date().toISOString()
-    const snapshot = {
-      boardId,
-      document: parseJsonObject(row.document_json),
-      session: parseJsonObject(row.session_json),
-      savedAt: restoredAt,
-    }
-
-    const transaction = database.transaction(() => {
-      database
-        .prepare(
-          `
-            INSERT INTO board_snapshots (board_id, document_json, session_json, saved_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(board_id) DO UPDATE SET
-              document_json = excluded.document_json,
-              session_json = excluded.session_json,
-              saved_at = excluded.saved_at
-          `
-        )
-        .run(boardId, row.document_json, row.session_json, restoredAt)
-      database.prepare('UPDATE boards SET updated_at = ? WHERE id = ?').run(restoredAt, boardId)
-    })
-    transaction()
-    return snapshot
-  })
-}
 
 export async function listEngineIndexes(): Promise<Record<string, EngineIndexMeta>> {
   await ensureDbInitialized()

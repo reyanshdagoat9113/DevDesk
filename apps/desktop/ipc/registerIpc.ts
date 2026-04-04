@@ -5,21 +5,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   clearRunHistoryInStore,
-  createBoard,
-  createBoardRestorePoint,
   createChain,
   createTrigger,
   getCommandById,
   getChainById,
-  getBoardById,
-  getBoardSnapshot,
   getPreferencesFromStore,
   getProjectById,
   getProjectNotesById,
   getRunHistoryOutputById,
   getTriggerById,
-  listBoardRestorePoints,
-  listBoards,
   listChains,
   listCommands,
   listProjects,
@@ -35,26 +29,20 @@ import {
   removeProject,
   removeRunHistoryEntry,
   removeTrigger,
-  renameBoard,
   renameProject,
   replaceChain,
   replaceTrigger,
   replaceCommand,
   updatePreferencesInStore,
   updateProjectLinkedContainers,
-  upsertBoardSnapshot,
   upsertProjectNotes,
   toggleProjectPin,
   toggleCommandPin,
-  touchBoardOpened,
-  deleteBoard,
-  restoreBoardFromRestorePoint,
 } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
 import type {
   AppPreference,
   AppPreferences,
-  Board,
   ChainStep,
   Command,
   CommandChain,
@@ -455,11 +443,36 @@ async function listWslDistros(): Promise<string[]> {
   return [defaultEntry, ...sorted]
 }
 
+function formatProcessExitCode(code: number | null) {
+  if (code === null) {
+    return 'unknown'
+  }
+
+  return code > 0x7fffffff ? `${code - 0x100000000}` : `${code}`
+}
+
 function runDockerCommandWith(command: string, args: string[]) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(command, args, { windowsHide: true })
     let stdout = ''
     let stderr = ''
+    let settled = false
+
+    const resolveOnce = (value: string) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      resolve(value)
+    }
+
+    const rejectOnce = (error: Error) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      reject(error)
+    }
 
     child.stdout.on('data', (chunk) => {
       stdout += chunk.toString()
@@ -470,16 +483,22 @@ function runDockerCommandWith(command: string, args: string[]) {
     })
 
     child.on('error', (error) => {
-      reject(error)
+      rejectOnce(error)
     })
 
     child.on('close', (code) => {
-      if (code === 0) {
-        resolve(stdout.trimEnd())
+      if (settled) {
         return
       }
-      const message = stderr.trim() || `Docker command failed (exit ${code}).`
-      reject(new Error(message))
+
+      if (code === 0) {
+        resolveOnce(stdout.trimEnd())
+        return
+      }
+
+      const formattedCode = formatProcessExitCode(code)
+      const message = stderr.trim() || `Docker command failed (exit ${formattedCode}).`
+      rejectOnce(new Error(message))
     })
   })
 }
@@ -2274,259 +2293,6 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-
-  ipcMain.handle('boards:list', async (_event, projectId: string) => {
-    if (!projectId?.trim()) {
-      throw new Error('Project id is required.')
-    }
-
-    const project = await getProjectById(projectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    return listBoards(projectId)
-  })
-
-  ipcMain.handle('boards:create', async (_event, projectId: string, name?: string) => {
-    if (!projectId?.trim()) {
-      throw new Error('Project id is required.')
-    }
-
-    const project = await getProjectById(projectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    const existingBoards = await listBoards(projectId)
-    const now = new Date().toISOString()
-    const nextBoard: Board = {
-      id: randomUUID(),
-      projectId,
-      name: typeof name === 'string' && name.trim() ? name.trim() : `Board ${existingBoards.length + 1}`,
-      createdAt: now,
-      updatedAt: now,
-      lastOpenedAt: now,
-    }
-
-    await createBoard(nextBoard)
-    await upsertBoardSnapshot(nextBoard.id, {
-      document: {},
-      session: {},
-      savedAt: now,
-    })
-    await createBoardRestorePoint({
-      id: randomUUID(),
-      boardId: nextBoard.id,
-      document: {},
-      session: {},
-      savedAt: now,
-      createdAt: now,
-      reason: 'Initial board',
-    })
-
-    const createdBoard = await getBoardById(nextBoard.id)
-    if (!createdBoard) {
-      throw new Error('Failed to create board.')
-    }
-
-    return createdBoard
-  })
-
-  ipcMain.handle('boards:rename', async (_event, boardId: string, name: string) => {
-    if (!boardId?.trim()) {
-      throw new Error('Board id is required.')
-    }
-
-    const updated = await renameBoard(boardId, name)
-    if (!updated) {
-      throw new Error('Board not found.')
-    }
-
-    const board = await getBoardById(boardId)
-    if (!board) {
-      throw new Error('Board not found.')
-    }
-
-    return board
-  })
-
-  ipcMain.handle('boards:delete', async (_event, boardId: string) => {
-    if (!boardId?.trim()) {
-      throw new Error('Board id is required.')
-    }
-
-    const board = await getBoardById(boardId)
-    if (!board) {
-      throw new Error('Board not found.')
-    }
-
-    const snapshot = await getBoardSnapshot(boardId)
-    if (snapshot) {
-      const now = new Date().toISOString()
-      await createBoardRestorePoint({
-        id: randomUUID(),
-        boardId,
-        document: snapshot.document,
-        session: snapshot.session,
-        savedAt: snapshot.savedAt,
-        createdAt: now,
-        reason: 'Before delete',
-      })
-    }
-
-    await deleteBoard(boardId)
-    return { success: true }
-  })
-
-  ipcMain.handle('boards:duplicate', async (_event, boardId: string) => {
-    if (!boardId?.trim()) {
-      throw new Error('Board id is required.')
-    }
-
-    const board = await getBoardById(boardId)
-    if (!board) {
-      throw new Error('Board not found.')
-    }
-
-    const sourceSnapshot = await getBoardSnapshot(boardId)
-    const document = sourceSnapshot?.document ?? {}
-    const session = sourceSnapshot?.session ?? {}
-    const now = new Date().toISOString()
-    const duplicate: Board = {
-      id: randomUUID(),
-      projectId: board.projectId,
-      name: `${board.name} Copy`,
-      createdAt: now,
-      updatedAt: now,
-      lastOpenedAt: now,
-    }
-
-    await createBoard(duplicate)
-    await upsertBoardSnapshot(duplicate.id, {
-      document,
-      session,
-      savedAt: now,
-    })
-    await createBoardRestorePoint({
-      id: randomUUID(),
-      boardId: duplicate.id,
-      document,
-      session,
-      savedAt: now,
-      createdAt: now,
-      reason: `Duplicated from ${board.name}`,
-    })
-
-    const duplicatedBoard = await getBoardById(duplicate.id)
-    if (!duplicatedBoard) {
-      throw new Error('Failed to duplicate board.')
-    }
-
-    return duplicatedBoard
-  })
-
-  ipcMain.handle('boards:get-snapshot', async (_event, boardId: string) => {
-    if (!boardId?.trim()) {
-      throw new Error('Board id is required.')
-    }
-
-    const board = await getBoardById(boardId)
-    if (!board) {
-      throw new Error('Board not found.')
-    }
-
-    await touchBoardOpened(boardId, new Date().toISOString())
-    return getBoardSnapshot(boardId)
-  })
-
-  ipcMain.handle('boards:save-snapshot', async (_event, boardId: string, snapshot: unknown) => {
-    if (!boardId?.trim()) {
-      throw new Error('Board id is required.')
-    }
-
-    const board = await getBoardById(boardId)
-    if (!board) {
-      throw new Error('Board not found.')
-    }
-
-    const payload = typeof snapshot === 'object' && snapshot ? snapshot as { document?: unknown; session?: unknown } : {}
-    const savedAt = new Date().toISOString()
-    return upsertBoardSnapshot(boardId, {
-      document: payload.document ?? {},
-      session: payload.session ?? {},
-      savedAt,
-    })
-  })
-
-
-  ipcMain.handle('boards:create-restore-point', async (_event, boardId: string, snapshot: unknown) => {
-    if (!boardId?.trim()) {
-      throw new Error('Board id is required.')
-    }
-
-    const board = await getBoardById(boardId)
-    if (!board) {
-      throw new Error('Board not found.')
-    }
-
-    const payload = typeof snapshot === 'object' && snapshot ? snapshot as { document?: unknown; session?: unknown; reason?: string } : {}
-    const now = new Date().toISOString()
-    const restorePoint = {
-      id: randomUUID(),
-      boardId,
-      document: payload.document ?? {},
-      session: payload.session ?? {},
-      savedAt: now,
-      createdAt: now,
-      reason: typeof payload.reason === 'string' && payload.reason.trim() ? payload.reason.trim() : 'Restore point',
-    }
-
-    await createBoardRestorePoint(restorePoint)
-    return restorePoint
-  })
-
-  ipcMain.handle('boards:get-restore-points', async (_event, boardId: string) => {
-    if (!boardId?.trim()) {
-      throw new Error('Board id is required.')
-    }
-
-    const board = await getBoardById(boardId)
-    if (!board) {
-      throw new Error('Board not found.')
-    }
-
-    return listBoardRestorePoints(boardId)
-  })
-
-  ipcMain.handle('boards:restore-snapshot', async (_event, boardId: string, restorePointId: string) => {
-    if (!boardId?.trim()) {
-      throw new Error('Board id is required.')
-    }
-    if (!restorePointId?.trim()) {
-      throw new Error('Restore point id is required.')
-    }
-
-    const board = await getBoardById(boardId)
-    if (!board) {
-      throw new Error('Board not found.')
-    }
-
-    const currentSnapshot = await getBoardSnapshot(boardId)
-    if (currentSnapshot) {
-      await createBoardRestorePoint({
-        id: randomUUID(),
-        boardId,
-        document: currentSnapshot.document,
-        session: currentSnapshot.session,
-        savedAt: currentSnapshot.savedAt,
-        createdAt: new Date().toISOString(),
-        reason: 'Before restore',
-      })
-    }
-
-    return restoreBoardFromRestorePoint(boardId, restorePointId)
-  })
 
   // File navigation
   ipcMain.handle('files:list', async (_event, projectId: string, dir?: string) => {

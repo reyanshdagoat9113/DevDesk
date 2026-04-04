@@ -102,28 +102,6 @@ export interface ProjectNotes {
   reminders: string
 }
 
-export interface Board {
-  id: string
-  projectId: string
-  name: string
-  createdAt: string
-  updatedAt: string
-  lastOpenedAt?: string
-}
-
-export interface BoardSnapshot {
-  boardId: string
-  document: unknown
-  session: unknown
-  savedAt: string
-}
-
-export interface BoardRestorePoint extends BoardSnapshot {
-  id: string
-  createdAt: string
-  reason: string
-}
-
 export interface AppPreference {
   id: string
   command?: string
@@ -181,9 +159,6 @@ export interface DataStore {
   runHistory: RunHistoryEntry[]
   notes: Record<string, ProjectNotes>
   preferences: AppPreferences
-  boards?: Board[]
-  boardSnapshots?: Record<string, BoardSnapshot>
-  boardRestorePoints?: Record<string, BoardRestorePoint[]>
   engineIndexes?: Record<string, EngineIndexMeta>
   engineSearchSessions?: Record<string, EngineSearchSession>
 }

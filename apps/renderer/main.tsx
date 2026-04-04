@@ -3,60 +3,6 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './app/App'
 
-const originalFetch = window.fetch.bind(window)
-
-function createEmptyJsonResponse() {
-  return new Response('{}', {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
-}
-
-function getRequestUrl(input: URL | RequestInfo) {
-  if (typeof input === 'string') {
-    return input
-  }
-
-  if (input instanceof URL) {
-    return input.toString()
-  }
-
-  return input.url
-}
-
-function isTldrawTranslationUrl(url: string) {
-  try {
-    const parsed = new URL(url, window.location.href)
-    return (
-      parsed.hostname === 'cdn.tldraw.com' &&
-      /\/translations\/[a-z-]+\.json$/i.test(parsed.pathname)
-    )
-  } catch {
-    return false
-  }
-}
-
-window.fetch = async (input: URL | RequestInfo, init?: RequestInit) => {
-  const url = getRequestUrl(input)
-
-  if (isTldrawTranslationUrl(url)) {
-    return createEmptyJsonResponse()
-  }
-
-  try {
-    return await originalFetch(input, init)
-  } catch (error) {
-    if (isTldrawTranslationUrl(url)) {
-      console.warn('[renderer:tldraw-translation-fallback]', url, error)
-      return createEmptyJsonResponse()
-    }
-
-    throw error
-  }
-}
-
 function renderBootstrapError(message: string, details?: string) {
   const root = document.getElementById('root')
   if (!root) {
@@ -79,6 +25,7 @@ window.addEventListener('error', (event) => {
   const error = event.error instanceof Error ? event.error : null
   const message = error?.message ?? event.message ?? 'Unknown renderer error'
   const details = error?.stack ?? undefined
+
   console.error('[renderer:window-error]', message, details ?? '')
   renderBootstrapError(message, details)
 })
@@ -87,6 +34,7 @@ window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason
   const message = reason instanceof Error ? reason.message : String(reason)
   const details = reason instanceof Error ? reason.stack : undefined
+
   console.error('[renderer:unhandled-rejection]', message, details ?? '')
   renderBootstrapError(message, details)
 })
@@ -102,4 +50,4 @@ try {
   const details = error instanceof Error ? error.stack : undefined
   console.error('[renderer:bootstrap-error]', message, details ?? '')
   renderBootstrapError(message, details)
-}
+}

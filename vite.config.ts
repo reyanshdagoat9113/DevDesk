@@ -8,10 +8,6 @@ function getVendorChunkName(id: string) {
   }
 
   const normalizedId = id.replace(/\\/g, '/')
-  if (normalizedId.includes('/node_modules/tldraw/') || normalizedId.includes('/node_modules/@tldraw/')) {
-    return 'vendor-tldraw'
-  }
-
   if (
     normalizedId.includes('/node_modules/react/') ||
     normalizedId.includes('/node_modules/react-dom/') ||
@@ -42,9 +38,6 @@ export default defineConfig({
   build: {
     outDir: '../../dist/renderer',
     emptyOutDir: true,
-    // The remaining tldraw vendor bundle is lazy-loaded with BoardsSection, so
-    // the default 500 kB warning is too aggressive for this renderer build.
-    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         manualChunks: getVendorChunkName,
