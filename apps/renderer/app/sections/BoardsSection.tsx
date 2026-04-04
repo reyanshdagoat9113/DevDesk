@@ -10,7 +10,7 @@ import {
   StickyNote,
   Trash2,
 } from 'lucide-react'
-import { Editor, Tldraw, getSnapshot, loadSnapshot } from 'tldraw'
+import { Editor, LANGUAGES, Tldraw, getSnapshot, loadSnapshot } from 'tldraw'
 import 'tldraw/tldraw.css'
 
 import { cn } from '../../lib/utils'
@@ -42,6 +42,14 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 type SnapshotPayload = {
   document: unknown
   session: unknown
+}
+
+const EMPTY_TLDRAW_TRANSLATION_URL = 'data:application/json,%7B%7D'
+
+const LOCAL_TLDRAW_ASSET_URLS = {
+  translations: Object.fromEntries(
+    LANGUAGES.map(({ locale }) => [locale, EMPTY_TLDRAW_TRANSLATION_URL]),
+  ) as Record<(typeof LANGUAGES)[number]['locale'], string>,
 }
 
 function createEmptySnapshot(boardId: string): BoardSnapshot {
@@ -115,7 +123,7 @@ function BoardCanvas({
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden rounded-[1.25rem] border border-border/40 bg-black/30 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-      <Tldraw key={`${boardId}:${snapshot.savedAt}`} onMount={handleMount} />
+      <Tldraw key={`${boardId}:${snapshot.savedAt}`} assetUrls={LOCAL_TLDRAW_ASSET_URLS} onMount={handleMount} />
     </div>
   )
 }
