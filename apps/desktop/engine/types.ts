@@ -68,6 +68,32 @@ export interface EngineGitInsights {
     linesAdded: number
     linesDeleted: number
   }>
+  workingTree: {
+    isClean: boolean
+    hasStagedChanges: boolean
+    hasUnstagedChanges: boolean
+    hasUntrackedChanges: boolean
+    hasConflicts: boolean
+    stagedCount: number
+    unstagedCount: number
+    untrackedCount: number
+    conflictedCount: number
+    ahead: number
+    behind: number
+    files: Array<{
+      path: string
+      previousPath?: string
+      indexStatus: string
+      workingTreeStatus: string
+      staged: boolean
+      unstaged: boolean
+      untracked: boolean
+      conflicted: boolean
+      summary: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'conflicted' | 'unknown'
+      additions: number
+      deletions: number
+    }>
+  }
 }
 
 export interface EngineStatus {

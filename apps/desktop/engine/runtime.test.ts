@@ -9,6 +9,10 @@ import {
   resolveEngineBinaryPath,
 } from './runtime'
 
+function normalizePath(value: string) {
+  return value.replace(/\\/g, '/')
+}
+
 test('resolveEngineBinaryPath prefers existing dev candidate when unpackaged', () => {
   const appPath = '/workspace/DevDesk'
   const moduleDirname = '/workspace/DevDesk/dist/main/engine'
@@ -26,6 +30,7 @@ test('resolveEngineBinaryPath prefers existing dev candidate when unpackaged', (
 })
 
 test('resolveEngineBinaryPath uses packaged resource path when packaged', () => {
+  const expectedPath = '/workspace/DevDesk/dist/linux-unpacked/resources/engine/cli.js'
   const resolved = resolveEngineBinaryPath({
     appPath: '/workspace/DevDesk',
     moduleDirname: '/workspace/DevDesk/dist/main/engine',
@@ -34,13 +39,14 @@ test('resolveEngineBinaryPath uses packaged resource path when packaged', () => 
     existsSync: () => false,
   })
 
-  assert.equal(resolved, '/workspace/DevDesk/dist/linux-unpacked/resources/engine/cli.js')
+  assert.equal(normalizePath(resolved), expectedPath)
 })
 
 test('getEngineDbPathFromUserData keeps dbs under the app user data directory', () => {
+  const expectedPath = '/tmp/devdesk-user/engine/project-123.sqlite'
   assert.equal(
-    getEngineDbPathFromUserData('/tmp/devdesk-user', 'project-123'),
-    '/tmp/devdesk-user/engine/project-123.sqlite'
+    normalizePath(getEngineDbPathFromUserData('/tmp/devdesk-user', 'project-123')),
+    expectedPath
   )
 })
 

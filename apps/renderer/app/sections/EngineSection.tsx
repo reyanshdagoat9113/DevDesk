@@ -20,6 +20,11 @@ import type {
   EngineSearchSession,
   EngineStats,
   EngineStatus,
+  GitCommitResult,
+  GitCreatePullRequestResult,
+  GitDiffResult,
+  GitPushResult,
+  GitWorkflowState,
   Project,
 } from '../types'
 
@@ -39,10 +44,16 @@ export function EngineSection({
   onSearch,
   onLoadStats,
   onLoadGitInsights,
+  onLoadGitState,
+  onLoadGitDiff,
+  onCommitChanges,
+  onPushBranch,
+  onCreatePullRequest,
   onOpenResult,
   onRevealResult,
   onClearIndex,
   onClearSearchSession,
+  onOpenExternalUrl,
 }: {
   projects: Project[]
   engineStatus: EngineStatus | null
@@ -59,10 +70,19 @@ export function EngineSection({
   onSearch?: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
   onLoadStats?: (projectId: string) => Promise<EngineStats>
   onLoadGitInsights?: (projectId: string) => Promise<EngineGitInsights>
+  onLoadGitState?: (projectId: string) => Promise<GitWorkflowState>
+  onLoadGitDiff?: (projectId: string, relativePath: string) => Promise<GitDiffResult>
+  onCommitChanges?: (projectId: string, message: string) => Promise<GitCommitResult>
+  onPushBranch?: (projectId: string) => Promise<GitPushResult>
+  onCreatePullRequest?: (
+    projectId: string,
+    input: { title: string; body: string; isDraft: boolean; baseBranch?: string }
+  ) => Promise<GitCreatePullRequestResult>
   onOpenResult?: (projectId: string, relativePath: string, location?: { line?: number; column?: number }) => Promise<void>
   onRevealResult?: (projectId: string, relativePath: string) => Promise<void>
   onClearIndex?: (projectId: string) => Promise<void>
   onClearSearchSession?: (projectId: string) => Promise<void>
+  onOpenExternalUrl?: (url: string) => Promise<void>
 }) {
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(projects[0]?.id ?? null)
   const isControlled = selectedProjectId !== undefined
@@ -220,10 +240,16 @@ export function EngineSection({
               onSearch &&
               onLoadStats &&
               onLoadGitInsights &&
+              onLoadGitState &&
+              onLoadGitDiff &&
+              onCommitChanges &&
+              onPushBranch &&
+              onCreatePullRequest &&
               onOpenResult &&
               onRevealResult &&
               onClearIndex &&
-              onClearSearchSession ? (
+              onClearSearchSession &&
+              onOpenExternalUrl ? (
                 <ProjectEnginePanel
                   project={selectedProject}
                   engineStatus={engineStatus}
@@ -235,10 +261,16 @@ export function EngineSection({
                   onSearch={onSearch}
                   onLoadStats={onLoadStats}
                   onLoadGitInsights={onLoadGitInsights}
+                  onLoadGitState={onLoadGitState}
+                  onLoadGitDiff={onLoadGitDiff}
+                  onCommitChanges={onCommitChanges}
+                  onPushBranch={onPushBranch}
+                  onCreatePullRequest={onCreatePullRequest}
                   onOpenResult={onOpenResult}
                   onRevealResult={onRevealResult}
                   onClearProjectIndex={onClearIndex}
                   onClearSearchSession={onClearSearchSession}
+                  onOpenExternalUrl={onOpenExternalUrl}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/40 bg-card/30 p-12 text-center">

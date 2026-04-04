@@ -21,6 +21,7 @@ import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
+import { ProjectGitSummary } from '../components/ProjectGitSummary'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import type {
@@ -33,6 +34,11 @@ import type {
   EngineSearchSession,
   EngineStats,
   EngineStatus,
+  GitCommitResult,
+  GitCreatePullRequestResult,
+  GitDiffResult,
+  GitPushResult,
+  GitWorkflowState,
   Project,
 } from '../types'
 
@@ -117,10 +123,16 @@ export function ProjectsSection({
   onSearchProjectContent,
   onLoadEngineStats,
   onLoadEngineGitInsights,
+  onLoadGitState,
+  onLoadGitDiff,
+  onCommitProjectChanges,
+  onPushProjectBranch,
+  onCreateProjectPullRequest,
   onOpenEngineResult,
   onRevealEngineResult,
   onClearProjectIndex,
   onClearProjectSearchSession,
+  onOpenExternalUrl,
   onOpenProjectEngine,
 }: {
   projects: Project[]
@@ -148,10 +160,19 @@ export function ProjectsSection({
   onSearchProjectContent?: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
   onLoadEngineStats?: (projectId: string) => Promise<EngineStats>
   onLoadEngineGitInsights?: (projectId: string) => Promise<EngineGitInsights>
+  onLoadGitState?: (projectId: string) => Promise<GitWorkflowState>
+  onLoadGitDiff?: (projectId: string, relativePath: string) => Promise<GitDiffResult>
+  onCommitProjectChanges?: (projectId: string, message: string) => Promise<GitCommitResult>
+  onPushProjectBranch?: (projectId: string) => Promise<GitPushResult>
+  onCreateProjectPullRequest?: (
+    projectId: string,
+    input: { title: string; body: string; isDraft: boolean; baseBranch?: string }
+  ) => Promise<GitCreatePullRequestResult>
   onOpenEngineResult?: (projectId: string, relativePath: string, location?: { line?: number; column?: number }) => Promise<void>
   onRevealEngineResult?: (projectId: string, relativePath: string) => Promise<void>
   onClearProjectIndex?: (projectId: string) => Promise<void>
   onClearProjectSearchSession?: (projectId: string) => Promise<void>
+  onOpenExternalUrl?: (url: string) => Promise<void>
   onOpenProjectEngine?: (projectId: string) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
@@ -806,28 +827,47 @@ export function ProjectsSection({
                   onSearchProjectContent &&
                   onLoadEngineStats &&
                   onLoadEngineGitInsights &&
+                  onLoadGitState &&
+                  onLoadGitDiff &&
+                  onCommitProjectChanges &&
+                  onPushProjectBranch &&
+                  onCreateProjectPullRequest &&
                   onOpenEngineResult &&
                   onRevealEngineResult &&
                   onClearProjectIndex &&
                   onClearProjectSearchSession &&
+                  onOpenExternalUrl &&
                   onOpenProjectEngine ? (
-                    <ProjectEnginePanel
-                      project={selectedProject}
-                      engineStatus={engineStatus ?? null}
-                      engineIndexes={engineIndexes}
-                      searchSessions={engineSearchSessions}
-                      indexingProjects={engineIndexingProjects ?? {}}
-                      latestIndexResults={engineLatestIndexResults ?? {}}
-                      onIndexProject={onIndexProject}
-                      onSearch={onSearchProjectContent}
-                      onLoadStats={onLoadEngineStats}
-                      onLoadGitInsights={onLoadEngineGitInsights}
-                      onOpenResult={onOpenEngineResult}
-                      onRevealResult={onRevealEngineResult}
-                      onClearProjectIndex={onClearProjectIndex}
-                      onClearSearchSession={onClearProjectSearchSession}
-                      onOpenEngine={onOpenProjectEngine}
-                    />
+                    <div className="space-y-5">
+                      <ProjectGitSummary
+                        project={selectedProject}
+                        onLoadGitInsights={onLoadEngineGitInsights}
+                        onOpenWorkspace={onOpenProjectEngine}
+                      />
+                      <ProjectEnginePanel
+                        project={selectedProject}
+                        engineStatus={engineStatus ?? null}
+                        engineIndexes={engineIndexes}
+                        searchSessions={engineSearchSessions}
+                        indexingProjects={engineIndexingProjects ?? {}}
+                        latestIndexResults={engineLatestIndexResults ?? {}}
+                        onIndexProject={onIndexProject}
+                        onSearch={onSearchProjectContent}
+                        onLoadStats={onLoadEngineStats}
+                        onLoadGitInsights={onLoadEngineGitInsights}
+                        onLoadGitState={onLoadGitState}
+                        onLoadGitDiff={onLoadGitDiff}
+                        onCommitChanges={onCommitProjectChanges}
+                        onPushBranch={onPushProjectBranch}
+                        onCreatePullRequest={onCreateProjectPullRequest}
+                        onOpenResult={onOpenEngineResult}
+                        onRevealResult={onRevealEngineResult}
+                        onClearProjectIndex={onClearProjectIndex}
+                        onClearSearchSession={onClearProjectSearchSession}
+                        onOpenExternalUrl={onOpenExternalUrl}
+                        onOpenEngine={onOpenProjectEngine}
+                      />
+                    </div>
                   ) : null}
 
                   {/* Dev Stack */}

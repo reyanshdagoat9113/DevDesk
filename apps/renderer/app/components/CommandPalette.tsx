@@ -30,6 +30,10 @@ import {
   Database,
   Eraser,
   RefreshCcw,
+  GitBranch,
+  Send,
+  Github,
+  Diff,
 } from 'lucide-react'
 import { VariablePromptModal } from './VariablePromptModal'
 import type {
@@ -72,6 +76,11 @@ type PaletteMode =
   | { type: 'engineIndexProjectPick' }
   | { type: 'engineSearchProjectPick' }
   | { type: 'engineOpenProjectPick' }
+  | { type: 'gitWorkspaceProjectPick' }
+  | { type: 'gitCommitProjectPick' }
+  | { type: 'gitPushProjectPick' }
+  | { type: 'gitPullRequestProjectPick' }
+  | { type: 'gitDiffProjectPick' }
   | { type: 'engineClearIndexProjectPick' }
   | { type: 'engineClearSearchProjectPick' }
   | { type: 'engineSearch'; project: Project }
@@ -98,6 +107,7 @@ interface CommandPaletteProps {
     query: string,
     options?: { regex?: boolean; limit?: number }
   ) => Promise<EngineSearchResult>
+  onPushProjectBranch?: (projectId: string) => Promise<unknown>
   onClearProjectIndex: (projectId: string) => Promise<void>
   onClearProjectSearchSession: (projectId: string) => Promise<void>
   onRunCommand: (commandId: string, projectId: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }>
@@ -167,6 +177,7 @@ export function CommandPalette({
   engineSearchSessions,
   onIndexProject,
   onSearchProjectContent,
+  onPushProjectBranch,
   onClearProjectIndex,
   onClearProjectSearchSession,
 }: CommandPaletteProps) {
@@ -338,6 +349,60 @@ export function CommandPalette({
     setSearchQuery('')
   }, [onOpenChange, onOpenProjectEngine, projects])
 
+  const openGitWorkspaceFromMain = useCallback(() => {
+    if (projects.length === 1) {
+      onOpenProjectEngine(projects[0].id)
+      onOpenChange(false)
+      return
+    }
+
+    setMode({ type: 'gitWorkspaceProjectPick' })
+    setSearchQuery('')
+  }, [onOpenChange, onOpenProjectEngine, projects])
+
+  const openGitCommitFromMain = useCallback(() => {
+    if (projects.length === 1) {
+      onOpenProjectEngine(projects[0].id)
+      onOpenChange(false)
+      return
+    }
+
+    setMode({ type: 'gitCommitProjectPick' })
+    setSearchQuery('')
+  }, [onOpenChange, onOpenProjectEngine, projects])
+
+  const openGitPushFromMain = useCallback(() => {
+    if (projects.length === 1 && onPushProjectBranch) {
+      void runWithErrorHandling(() => onPushProjectBranch(projects[0].id))
+      return
+    }
+
+    setMode({ type: 'gitPushProjectPick' })
+    setSearchQuery('')
+  }, [onPushProjectBranch, projects, runWithErrorHandling])
+
+  const openGitPullRequestFromMain = useCallback(() => {
+    if (projects.length === 1) {
+      onOpenProjectEngine(projects[0].id)
+      onOpenChange(false)
+      return
+    }
+
+    setMode({ type: 'gitPullRequestProjectPick' })
+    setSearchQuery('')
+  }, [onOpenChange, onOpenProjectEngine, projects])
+
+  const openGitDiffFromMain = useCallback(() => {
+    if (projects.length === 1) {
+      onOpenProjectEngine(projects[0].id)
+      onOpenChange(false)
+      return
+    }
+
+    setMode({ type: 'gitDiffProjectPick' })
+    setSearchQuery('')
+  }, [onOpenChange, onOpenProjectEngine, projects])
+
   const openEngineClearIndexFromMain = useCallback(() => {
     if (projects.length === 1) {
       void runWithErrorHandling(() => onClearProjectIndex(projects[0].id))
@@ -409,6 +474,58 @@ export function CommandPalette({
       keywords: ['engine', 'open', 'dashboard', 'stats', 'git', 'insights'],
       icon: <Search className="h-4 w-4" />,
       action: openEngineDashboardFromMain,
+    })
+
+    items.push({
+      id: 'nav-git-workspace',
+      group: 'Navigation',
+      title: 'Open Git Workspace',
+      subtitle: 'Review diffs, commit, push, and file pull requests',
+      keywords: ['git', 'workspace', 'engine', 'status', 'diff', 'commit', 'push', 'pull request'],
+      icon: <GitBranch className="h-4 w-4" />,
+      action: openGitWorkspaceFromMain,
+    })
+
+    items.push({
+      id: 'nav-git-commit',
+      group: 'Navigation',
+      title: 'Commit All Changes',
+      subtitle: 'Open the git workspace with the inline commit composer',
+      keywords: ['git', 'commit', 'changes', 'workspace'],
+      icon: <GitBranch className="h-4 w-4" />,
+      action: openGitCommitFromMain,
+    })
+
+    items.push({
+      id: 'nav-git-push',
+      group: 'Navigation',
+      title: 'Push Current Branch',
+      subtitle: onPushProjectBranch ? 'Push the selected project branch now' : 'Git push unavailable',
+      keywords: ['git', 'push', 'branch', 'remote'],
+      icon: <Send className="h-4 w-4" />,
+      action: onPushProjectBranch
+        ? openGitPushFromMain
+        : () => onError('Git push is unavailable.'),
+    })
+
+    items.push({
+      id: 'nav-git-pr',
+      group: 'Navigation',
+      title: 'Create Pull Request',
+      subtitle: 'Open the git workspace PR flow',
+      keywords: ['git', 'pull request', 'pr', 'github'],
+      icon: <Github className="h-4 w-4" />,
+      action: openGitPullRequestFromMain,
+    })
+
+    items.push({
+      id: 'nav-git-diff',
+      group: 'Navigation',
+      title: 'Open Changed File Diff',
+      subtitle: 'Open the git workspace diff viewer',
+      keywords: ['git', 'diff', 'changes', 'files'],
+      icon: <Diff className="h-4 w-4" />,
+      action: openGitDiffFromMain,
     })
 
     items.push({
@@ -609,9 +726,15 @@ export function CommandPalette({
     openEngineSearchFromMain,
     openEngineIndexFromMain,
     openEngineDashboardFromMain,
+    openGitWorkspaceFromMain,
+    openGitCommitFromMain,
+    openGitPushFromMain,
+    openGitPullRequestFromMain,
+    openGitDiffFromMain,
     openEngineClearIndexFromMain,
     openEngineClearSearchFromMain,
     engineStatus,
+    onPushProjectBranch,
     onError,
   ])
 
@@ -682,6 +805,68 @@ export function CommandPalette({
     }))
   }, [mode, onOpenProjectEngine, projects, runWithErrorHandling])
 
+  const gitProjectPickItems: PaletteItem[] = useMemo(() => {
+    const buildItem = (project: Project, title: string, subtitle: string, action: () => Promise<void> | void): PaletteItem => ({
+      id: `${mode.type}-${project.id}`,
+      group: 'Projects',
+      title,
+      subtitle,
+      keywords: [project.name, project.path, 'git', 'workspace', 'commit', 'push', 'pull request', 'diff'],
+      icon: <span className="text-lg">{project.icon}</span>,
+      action,
+    })
+
+    if (mode.type === 'gitWorkspaceProjectPick') {
+      return projects.map((project) =>
+        buildItem(project, project.name, 'Open git workspace', () =>
+          runWithErrorHandling(() => {
+            onOpenProjectEngine(project.id)
+          })
+        )
+      )
+    }
+
+    if (mode.type === 'gitCommitProjectPick') {
+      return projects.map((project) =>
+        buildItem(project, project.name, 'Open workspace to write a commit message', () =>
+          runWithErrorHandling(() => {
+            onOpenProjectEngine(project.id)
+          })
+        )
+      )
+    }
+
+    if (mode.type === 'gitPushProjectPick') {
+      return projects.map((project) =>
+        buildItem(project, project.name, 'Push current branch', () =>
+          runWithErrorHandling(() => onPushProjectBranch ? onPushProjectBranch(project.id) : Promise.reject(new Error('Git push is unavailable.')))
+        )
+      )
+    }
+
+    if (mode.type === 'gitPullRequestProjectPick') {
+      return projects.map((project) =>
+        buildItem(project, project.name, 'Open workspace PR flow', () =>
+          runWithErrorHandling(() => {
+            onOpenProjectEngine(project.id)
+          })
+        )
+      )
+    }
+
+    if (mode.type === 'gitDiffProjectPick') {
+      return projects.map((project) =>
+        buildItem(project, project.name, 'Open workspace diff viewer', () =>
+          runWithErrorHandling(() => {
+            onOpenProjectEngine(project.id)
+          })
+        )
+      )
+    }
+
+    return []
+  }, [mode.type, onOpenProjectEngine, onPushProjectBranch, projects, runWithErrorHandling])
+
   const engineClearIndexProjectPickItems: PaletteItem[] = useMemo(() => {
     if (mode.type !== 'engineClearIndexProjectPick') return []
 
@@ -722,6 +907,12 @@ export function CommandPalette({
         return engineSearchProjectPickItems
       case 'engineOpenProjectPick':
         return engineOpenProjectPickItems
+      case 'gitWorkspaceProjectPick':
+      case 'gitCommitProjectPick':
+      case 'gitPushProjectPick':
+      case 'gitPullRequestProjectPick':
+      case 'gitDiffProjectPick':
+        return gitProjectPickItems
       case 'engineClearIndexProjectPick':
         return engineClearIndexProjectPickItems
       case 'engineClearSearchProjectPick':
@@ -737,6 +928,7 @@ export function CommandPalette({
     engineIndexProjectPickItems,
     engineSearchProjectPickItems,
     engineOpenProjectPickItems,
+    gitProjectPickItems,
     engineClearIndexProjectPickItems,
     engineClearSearchProjectPickItems,
     mode,
@@ -904,7 +1096,7 @@ export function CommandPalette({
           <>
             {mode.type !== 'engineSearch' ? <CommandEmpty>No results found.</CommandEmpty> : null}
 
-            {(mode.type === 'projectPick' || mode.type === 'engineIndexProjectPick' || mode.type === 'engineSearchProjectPick' || mode.type === 'engineOpenProjectPick' || mode.type === 'engineClearIndexProjectPick' || mode.type === 'engineClearSearchProjectPick' || mode.type === 'engineSearch' || mode.type === 'variableInput') && (
+            {(mode.type === 'projectPick' || mode.type === 'engineIndexProjectPick' || mode.type === 'engineSearchProjectPick' || mode.type === 'engineOpenProjectPick' || mode.type === 'gitWorkspaceProjectPick' || mode.type === 'gitCommitProjectPick' || mode.type === 'gitPushProjectPick' || mode.type === 'gitPullRequestProjectPick' || mode.type === 'gitDiffProjectPick' || mode.type === 'engineClearIndexProjectPick' || mode.type === 'engineClearSearchProjectPick' || mode.type === 'engineSearch' || mode.type === 'variableInput') && (
               <CommandGroup heading="Actions">
                 <CommandItem onSelect={handleBack}>
                   <ArrowLeft className="mr-2 h-4 w-4" />

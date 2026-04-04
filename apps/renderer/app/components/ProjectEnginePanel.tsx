@@ -2,13 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Database,
   Eraser,
-  Flame,
   FolderOpen,
   GitBranch,
   RefreshCcw,
   Search,
-  Users,
 } from 'lucide-react'
+import { GitWorkspacePanel } from './GitWorkspacePanel'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -21,6 +20,11 @@ import type {
   EngineSearchSession,
   EngineStats,
   EngineStatus,
+  GitCommitResult,
+  GitCreatePullRequestResult,
+  GitDiffResult,
+  GitPushResult,
+  GitWorkflowState,
   Project,
 } from '../types'
 
@@ -52,10 +56,16 @@ export function ProjectEnginePanel({
   onSearch,
   onLoadStats,
   onLoadGitInsights,
+  onLoadGitState,
+  onLoadGitDiff,
+  onCommitChanges,
+  onPushBranch,
+  onCreatePullRequest,
   onOpenResult,
   onRevealResult,
   onClearProjectIndex,
   onClearSearchSession,
+  onOpenExternalUrl,
   onOpenEngine,
   indexingProjects,
   latestIndexResults,
@@ -70,10 +80,19 @@ export function ProjectEnginePanel({
   onSearch: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
   onLoadStats: (projectId: string) => Promise<EngineStats>
   onLoadGitInsights: (projectId: string) => Promise<EngineGitInsights>
+  onLoadGitState: (projectId: string) => Promise<GitWorkflowState>
+  onLoadGitDiff: (projectId: string, relativePath: string) => Promise<GitDiffResult>
+  onCommitChanges: (projectId: string, message: string) => Promise<GitCommitResult>
+  onPushBranch: (projectId: string) => Promise<GitPushResult>
+  onCreatePullRequest: (
+    projectId: string,
+    input: { title: string; body: string; isDraft: boolean; baseBranch?: string }
+  ) => Promise<GitCreatePullRequestResult>
   onOpenResult: (projectId: string, relativePath: string, location?: { line?: number; column?: number }) => Promise<void>
   onRevealResult: (projectId: string, relativePath: string) => Promise<void>
   onClearProjectIndex: (projectId: string) => Promise<void>
   onClearSearchSession: (projectId: string) => Promise<void>
+  onOpenExternalUrl: (url: string) => Promise<void>
   onOpenEngine?: (projectId: string) => void
 }) {
   const selectedIndex = engineIndexes[project.id] ?? null
@@ -83,12 +102,10 @@ export function ProjectEnginePanel({
   const [regex, setRegex] = useState(false)
   const [searchResult, setSearchResult] = useState<EngineSearchResult | null>(null)
   const [stats, setStats] = useState<EngineStats | null>(null)
-  const [gitInsights, setGitInsights] = useState<EngineGitInsights | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [isIndexing, setIsIndexing] = useState(Boolean(indexingProjects[project.id]))
   const [isSearching, setIsSearching] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
-  const [isLoadingGitInsights, setIsLoadingGitInsights] = useState(false)
   const [isClearingIndex, setIsClearingIndex] = useState(false)
   const [isClearingSearch, setIsClearingSearch] = useState(false)
   const [openingResultKey, setOpeningResultKey] = useState<string | null>(null)
@@ -144,32 +161,6 @@ export function ProjectEnginePanel({
       cancelled = true
     }
   }, [onLoadStats, project.id, selectedIndex?.lastIndexed])
-
-  useEffect(() => {
-    let cancelled = false
-    setIsLoadingGitInsights(true)
-    onLoadGitInsights(project.id)
-      .then((result) => {
-        if (!cancelled) {
-          setGitInsights(result)
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setActionError(error instanceof Error ? error.message : 'Failed to load git insights.')
-          setGitInsights(null)
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoadingGitInsights(false)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [onLoadGitInsights, project.id])
 
   const handleIndex = async () => {
     if (isIndexing) return
@@ -320,7 +311,7 @@ export function ProjectEnginePanel({
           </Button>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(260px,1fr)]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_320px]">
           <div className="space-y-4">
             <div className="flex flex-col gap-3 xl:flex-row">
               <Input
@@ -497,7 +488,7 @@ export function ProjectEnginePanel({
             ) : null}
           </div>
 
-          <div className="space-y-4">
+          <div>
             <div className="rounded-xl border border-border/40 bg-background/50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold">Index Summary</p>
@@ -537,51 +528,21 @@ export function ProjectEnginePanel({
                 </p>
               )}
             </div>
-
-            <div className="rounded-xl border border-border/40 bg-background/50 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold">Git Insights</p>
-                {isLoadingGitInsights ? <span className="text-[10px] text-muted-foreground">Loading...</span> : null}
-              </div>
-              {gitInsights ? (
-                <>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="gap-1.5 text-[10px] uppercase tracking-wider">
-                      <GitBranch className="h-3 w-3" />
-                      {gitInsights.branch}
-                    </Badge>
-                    <Badge variant="outline" className="gap-1.5 text-[10px] uppercase tracking-wider">
-                      <Users className="h-3 w-3" />
-                      {gitInsights.contributors.length} contributors
-                    </Badge>
-                    <Badge variant="outline" className="gap-1.5 text-[10px] uppercase tracking-wider">
-                      <Flame className="h-3 w-3" />
-                      {gitInsights.hotspots.length} hotspots
-                    </Badge>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Top Hotspots</p>
-                    {gitInsights.hotspots.slice(0, 3).map((hotspot) => (
-                      <div key={hotspot.path} className="rounded-lg border border-border/30 bg-muted/20 px-3 py-2">
-                        <p className="truncate font-mono text-[11px] font-semibold">{hotspot.path}</p>
-                        <p className="mt-1 text-[10px] text-muted-foreground">
-                          Risk {hotspot.risk} / {hotspot.commits} commits / score {hotspot.score.toFixed(1)}
-                        </p>
-                      </div>
-                    ))}
-                    {gitInsights.hotspots.length === 0 ? (
-                      <p className="text-[11px] text-muted-foreground">No hotspot data available.</p>
-                    ) : null}
-                  </div>
-                </>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">
-                  Git insights appear here when repository history is available.
-                </p>
-              )}
-            </div>
           </div>
         </div>
+
+        <GitWorkspacePanel
+          project={project}
+          onLoadGitInsights={onLoadGitInsights}
+          onLoadGitState={onLoadGitState}
+          onLoadGitDiff={onLoadGitDiff}
+          onCommitChanges={onCommitChanges}
+          onPushBranch={onPushBranch}
+          onCreatePullRequest={onCreatePullRequest}
+          onOpenExternalUrl={onOpenExternalUrl}
+          onOpenResult={async (projectId, relativePath) => onOpenResult(projectId, relativePath)}
+          onRevealResult={onRevealResult}
+        />
 
         {actionError ? (
           <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
