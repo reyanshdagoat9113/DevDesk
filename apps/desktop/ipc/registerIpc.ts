@@ -5,15 +5,21 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   clearRunHistoryInStore,
+  createBoard,
+  createBoardRestorePoint,
   createChain,
   createTrigger,
   getCommandById,
   getChainById,
+  getBoardById,
+  getBoardSnapshot,
   getPreferencesFromStore,
   getProjectById,
   getProjectNotesById,
   getRunHistoryOutputById,
   getTriggerById,
+  listBoardRestorePoints,
+  listBoards,
   listChains,
   listCommands,
   listProjects,
@@ -29,20 +35,26 @@ import {
   removeProject,
   removeRunHistoryEntry,
   removeTrigger,
+  renameBoard,
   renameProject,
   replaceChain,
   replaceTrigger,
   replaceCommand,
   updatePreferencesInStore,
   updateProjectLinkedContainers,
+  upsertBoardSnapshot,
   upsertProjectNotes,
   toggleProjectPin,
   toggleCommandPin,
+  touchBoardOpened,
+  deleteBoard,
+  restoreBoardFromRestorePoint,
 } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
 import type {
   AppPreference,
   AppPreferences,
+  Board,
   ChainStep,
   Command,
   CommandChain,
@@ -2262,6 +2274,260 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
+
+  ipcMain.handle('boards:list', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return listBoards(projectId)
+  })
+
+  ipcMain.handle('boards:create', async (_event, projectId: string, name?: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const existingBoards = await listBoards(projectId)
+    const now = new Date().toISOString()
+    const nextBoard: Board = {
+      id: randomUUID(),
+      projectId,
+      name: typeof name === 'string' && name.trim() ? name.trim() : `Board ${existingBoards.length + 1}`,
+      createdAt: now,
+      updatedAt: now,
+      lastOpenedAt: now,
+    }
+
+    await createBoard(nextBoard)
+    await upsertBoardSnapshot(nextBoard.id, {
+      document: {},
+      session: {},
+      savedAt: now,
+    })
+    await createBoardRestorePoint({
+      id: randomUUID(),
+      boardId: nextBoard.id,
+      document: {},
+      session: {},
+      savedAt: now,
+      createdAt: now,
+      reason: 'Initial board',
+    })
+
+    const createdBoard = await getBoardById(nextBoard.id)
+    if (!createdBoard) {
+      throw new Error('Failed to create board.')
+    }
+
+    return createdBoard
+  })
+
+  ipcMain.handle('boards:rename', async (_event, boardId: string, name: string) => {
+    if (!boardId?.trim()) {
+      throw new Error('Board id is required.')
+    }
+
+    const updated = await renameBoard(boardId, name)
+    if (!updated) {
+      throw new Error('Board not found.')
+    }
+
+    const board = await getBoardById(boardId)
+    if (!board) {
+      throw new Error('Board not found.')
+    }
+
+    return board
+  })
+
+  ipcMain.handle('boards:delete', async (_event, boardId: string) => {
+    if (!boardId?.trim()) {
+      throw new Error('Board id is required.')
+    }
+
+    const board = await getBoardById(boardId)
+    if (!board) {
+      throw new Error('Board not found.')
+    }
+
+    const snapshot = await getBoardSnapshot(boardId)
+    if (snapshot) {
+      const now = new Date().toISOString()
+      await createBoardRestorePoint({
+        id: randomUUID(),
+        boardId,
+        document: snapshot.document,
+        session: snapshot.session,
+        savedAt: snapshot.savedAt,
+        createdAt: now,
+        reason: 'Before delete',
+      })
+    }
+
+    await deleteBoard(boardId)
+    return { success: true }
+  })
+
+  ipcMain.handle('boards:duplicate', async (_event, boardId: string) => {
+    if (!boardId?.trim()) {
+      throw new Error('Board id is required.')
+    }
+
+    const board = await getBoardById(boardId)
+    if (!board) {
+      throw new Error('Board not found.')
+    }
+
+    const sourceSnapshot = await getBoardSnapshot(boardId)
+    const document = sourceSnapshot?.document ?? {}
+    const session = sourceSnapshot?.session ?? {}
+    const now = new Date().toISOString()
+    const duplicate: Board = {
+      id: randomUUID(),
+      projectId: board.projectId,
+      name: `${board.name} Copy`,
+      createdAt: now,
+      updatedAt: now,
+      lastOpenedAt: now,
+    }
+
+    await createBoard(duplicate)
+    await upsertBoardSnapshot(duplicate.id, {
+      document,
+      session,
+      savedAt: now,
+    })
+    await createBoardRestorePoint({
+      id: randomUUID(),
+      boardId: duplicate.id,
+      document,
+      session,
+      savedAt: now,
+      createdAt: now,
+      reason: `Duplicated from ${board.name}`,
+    })
+
+    const duplicatedBoard = await getBoardById(duplicate.id)
+    if (!duplicatedBoard) {
+      throw new Error('Failed to duplicate board.')
+    }
+
+    return duplicatedBoard
+  })
+
+  ipcMain.handle('boards:get-snapshot', async (_event, boardId: string) => {
+    if (!boardId?.trim()) {
+      throw new Error('Board id is required.')
+    }
+
+    const board = await getBoardById(boardId)
+    if (!board) {
+      throw new Error('Board not found.')
+    }
+
+    await touchBoardOpened(boardId, new Date().toISOString())
+    return getBoardSnapshot(boardId)
+  })
+
+  ipcMain.handle('boards:save-snapshot', async (_event, boardId: string, snapshot: unknown) => {
+    if (!boardId?.trim()) {
+      throw new Error('Board id is required.')
+    }
+
+    const board = await getBoardById(boardId)
+    if (!board) {
+      throw new Error('Board not found.')
+    }
+
+    const payload = typeof snapshot === 'object' && snapshot ? snapshot as { document?: unknown; session?: unknown } : {}
+    const savedAt = new Date().toISOString()
+    return upsertBoardSnapshot(boardId, {
+      document: payload.document ?? {},
+      session: payload.session ?? {},
+      savedAt,
+    })
+  })
+
+
+  ipcMain.handle('boards:create-restore-point', async (_event, boardId: string, snapshot: unknown) => {
+    if (!boardId?.trim()) {
+      throw new Error('Board id is required.')
+    }
+
+    const board = await getBoardById(boardId)
+    if (!board) {
+      throw new Error('Board not found.')
+    }
+
+    const payload = typeof snapshot === 'object' && snapshot ? snapshot as { document?: unknown; session?: unknown; reason?: string } : {}
+    const now = new Date().toISOString()
+    const restorePoint = {
+      id: randomUUID(),
+      boardId,
+      document: payload.document ?? {},
+      session: payload.session ?? {},
+      savedAt: now,
+      createdAt: now,
+      reason: typeof payload.reason === 'string' && payload.reason.trim() ? payload.reason.trim() : 'Restore point',
+    }
+
+    await createBoardRestorePoint(restorePoint)
+    return restorePoint
+  })
+
+  ipcMain.handle('boards:get-restore-points', async (_event, boardId: string) => {
+    if (!boardId?.trim()) {
+      throw new Error('Board id is required.')
+    }
+
+    const board = await getBoardById(boardId)
+    if (!board) {
+      throw new Error('Board not found.')
+    }
+
+    return listBoardRestorePoints(boardId)
+  })
+
+  ipcMain.handle('boards:restore-snapshot', async (_event, boardId: string, restorePointId: string) => {
+    if (!boardId?.trim()) {
+      throw new Error('Board id is required.')
+    }
+    if (!restorePointId?.trim()) {
+      throw new Error('Restore point id is required.')
+    }
+
+    const board = await getBoardById(boardId)
+    if (!board) {
+      throw new Error('Board not found.')
+    }
+
+    const currentSnapshot = await getBoardSnapshot(boardId)
+    if (currentSnapshot) {
+      await createBoardRestorePoint({
+        id: randomUUID(),
+        boardId,
+        document: currentSnapshot.document,
+        session: currentSnapshot.session,
+        savedAt: currentSnapshot.savedAt,
+        createdAt: new Date().toISOString(),
+        reason: 'Before restore',
+      })
+    }
+
+    return restoreBoardFromRestorePoint(boardId, restorePointId)
+  })
+
   // File navigation
   ipcMain.handle('files:list', async (_event, projectId: string, dir?: string) => {
     if (!projectId) {
@@ -2335,6 +2601,97 @@ export function registerIpcHandlers() {
   ipcMain.handle('files:clearIndex', async (_event, projectId: string) => {
     clearFileIndex(projectId)
     return { success: true }
+  })
+
+  ipcMain.handle('shell:open-external', async (_event, url: string) => {
+    if (!url?.trim()) {
+      return { success: false }
+    }
+
+    await shell.openExternal(url)
+    return { success: true }
+  })
+
+  ipcMain.handle('git:get-state', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getGitWorkflowState } = await import('../git/service')
+    return getGitWorkflowState(project.path)
+  })
+
+  ipcMain.handle('git:get-diff', async (_event, projectId: string, relativePath: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!relativePath?.trim()) {
+      throw new Error('File path is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getGitDiff } = await import('../git/service')
+    return getGitDiff(project.path, relativePath)
+  })
+
+  ipcMain.handle('git:commit', async (_event, projectId: string, message: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { commitAllChanges } = await import('../git/service')
+    return commitAllChanges(project.path, message)
+  })
+
+  ipcMain.handle('git:push', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { pushCurrentBranch } = await import('../git/service')
+    return pushCurrentBranch(project.path)
+  })
+
+  ipcMain.handle('git:create-pr', async (_event, projectId: string, input: {
+    title: string
+    body: string
+    isDraft: boolean
+    baseBranch?: string
+  }) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { createPullRequest } = await import('../git/service')
+    const result = await createPullRequest(project.path, input)
+    if (result.ok && result.url) {
+      await shell.openExternal(result.url)
+    }
+    return result
   })
 
   // Engine operations (devdesk-engine integration)

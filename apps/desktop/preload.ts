@@ -103,12 +103,23 @@ interface ElectronAPI {
 
   getNotes: (projectId: string) => Promise<{ setupSteps: string; todos: string; reminders: string }>
   updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) => Promise<{ success: boolean }>
+  getBoards: (projectId: string) => Promise<Array<{ id: string; projectId: string; name: string; createdAt: string; updatedAt: string; lastOpenedAt?: string }>>
+  createBoard: (projectId: string, name?: string) => Promise<{ id: string; projectId: string; name: string; createdAt: string; updatedAt: string; lastOpenedAt?: string }>
+  renameBoard: (boardId: string, name: string) => Promise<{ id: string; projectId: string; name: string; createdAt: string; updatedAt: string; lastOpenedAt?: string }>
+  deleteBoard: (boardId: string) => Promise<{ success: boolean }>
+  duplicateBoard: (boardId: string) => Promise<{ id: string; projectId: string; name: string; createdAt: string; updatedAt: string; lastOpenedAt?: string }>
+  getBoardSnapshot: (boardId: string) => Promise<{ boardId: string; document: unknown; session: unknown; savedAt: string } | null>
+  saveBoardSnapshot: (boardId: string, snapshot: { document: unknown; session: unknown }) => Promise<{ boardId: string; document: unknown; session: unknown; savedAt: string }>
+  createBoardRestorePoint: (boardId: string, snapshot: { document: unknown; session: unknown; reason: string }) => Promise<{ id: string; boardId: string; document: unknown; session: unknown; savedAt: string; createdAt: string; reason: string }>
+  getBoardRestorePoints: (boardId: string) => Promise<Array<{ id: string; boardId: string; document: unknown; session: unknown; savedAt: string; createdAt: string; reason: string }>>
+  restoreBoardSnapshot: (boardId: string, restorePointId: string) => Promise<{ boardId: string; document: unknown; session: unknown; savedAt: string }>
 
   listProjectFiles: (projectId: string, dir?: string) => Promise<{ entries: Array<{ name: string; relativePath: string; kind: 'file' | 'dir' }>; truncated: boolean }>
   searchProjectFiles: (projectId: string, query: string, limit?: number) => Promise<Array<{ relativePath: string; kind: 'file' | 'dir' }>>
   openFileInEditor: (projectId: string, relativePath: string, line?: number, column?: number) => Promise<{ success: boolean; error?: string }>
   revealFileInFolder: (projectId: string, relativePath: string) => Promise<{ success: boolean; error?: string }>
   clearFileIndex: (projectId: string) => Promise<{ success: boolean }>
+  openExternalUrl: (url: string) => Promise<{ success: boolean }>
 
   // Engine
   getEngineState: () => Promise<{
@@ -136,7 +147,12 @@ interface ElectronAPI {
   indexProject: (projectId: string) => Promise<{ ok: boolean; repo: string; db: string; filesIndexed: number; filesSkipped: number; durationMs: number; warnings: string[] }>
   searchProjectContent: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<{ ok: boolean; query: string; results: Array<{ path: string; language: string | null; score: number; matches: Array<{ line: number; column: number; snippet: string; contextBefore: string[]; contextAfter: string[] }> }>; totalMatches: number; durationMs: number }>
   getProjectStats: (projectId: string) => Promise<{ ok: boolean; db: string; stats: { totalFiles: number; totalSizeBytes: number; byLanguage: Record<string, number>; indexedAt: string } } | null>
-  getProjectGitInsights: (projectId: string) => Promise<{ branch: string; totalCommits: number; contributors: string[]; hotspots: Array<{ path: string; score: number; commits: number; recency: number; risk: string }>; recentCommits: Array<{ hash: string; author: string; date: string; message: string; files: string[] }>; churnFiles: Array<{ path: string; commits: number; authors: string[]; lastModified: string; linesAdded: number; linesDeleted: number }> } | null>
+  getProjectGitInsights: (projectId: string) => Promise<{ branch: string; totalCommits: number; contributors: string[]; hotspots: Array<{ path: string; score: number; commits: number; recency: number; risk: string }>; recentCommits: Array<{ hash: string; author: string; date: string; message: string; files: string[] }>; churnFiles: Array<{ path: string; commits: number; authors: string[]; lastModified: string; linesAdded: number; linesDeleted: number }>; workingTree: { isClean: boolean; hasStagedChanges: boolean; hasUnstagedChanges: boolean; hasUntrackedChanges: boolean; hasConflicts: boolean; stagedCount: number; unstagedCount: number; untrackedCount: number; conflictedCount: number; ahead: number; behind: number; files: Array<{ path: string; previousPath?: string; indexStatus: string; workingTreeStatus: string; staged: boolean; unstaged: boolean; untracked: boolean; conflicted: boolean; summary: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'conflicted' | 'unknown'; additions: number; deletions: number }> } } | null>
+  getProjectGitState: (projectId: string) => Promise<{ ok: boolean; available: boolean; repoPath: string; branch: string | null; upstream: string | null; remoteName: string | null; remoteUrl: string | null; provider: 'github' | 'unknown'; ahead: number; behind: number; canPush: boolean; canCreatePullRequest: boolean; message?: string; workingTree: { isClean: boolean; hasStagedChanges: boolean; hasUnstagedChanges: boolean; hasUntrackedChanges: boolean; hasConflicts: boolean; stagedCount: number; unstagedCount: number; untrackedCount: number; conflictedCount: number; ahead: number; behind: number; files: Array<{ path: string; previousPath?: string; indexStatus: string; workingTreeStatus: string; staged: boolean; unstaged: boolean; untracked: boolean; conflicted: boolean; summary: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'conflicted' | 'unknown'; additions: number; deletions: number }> } | null }>
+  getProjectGitDiff: (projectId: string, relativePath: string) => Promise<{ ok: boolean; path: string; diff: string; generatedForUntracked?: boolean; message?: string }>
+  commitProjectChanges: (projectId: string, message: string) => Promise<{ ok: boolean; message: string; branch: string | null; commitHash?: string }>
+  pushProjectBranch: (projectId: string) => Promise<{ ok: boolean; message: string; branch: string | null; remoteName: string | null; remoteUrl: string | null }>
+  createProjectPullRequest: (projectId: string, input: { title: string; body: string; isDraft: boolean; baseBranch?: string }) => Promise<{ ok: boolean; message: string; url?: string; mode?: 'created' | 'manual'; branch: string | null; baseBranch: string | null; isDraft: boolean }>
   clearProjectIndex: (projectId: string) => Promise<{ success: boolean }>
   clearProjectSearchSession: (projectId: string) => Promise<{ success: boolean }>
   isEngineAvailable: () => Promise<boolean>
@@ -327,6 +343,19 @@ const electronAPI: ElectronAPI = {
   getNotes: (projectId: string) => ipcRenderer.invoke('notes:get', projectId),
   updateNotes: (projectId: string, notes: { setupSteps?: string; todos?: string; reminders?: string }) =>
     ipcRenderer.invoke('notes:update', projectId, notes),
+  getBoards: (projectId: string) => ipcRenderer.invoke('boards:list', projectId),
+  createBoard: (projectId: string, name?: string) => ipcRenderer.invoke('boards:create', projectId, name),
+  renameBoard: (boardId: string, name: string) => ipcRenderer.invoke('boards:rename', boardId, name),
+  deleteBoard: (boardId: string) => ipcRenderer.invoke('boards:delete', boardId),
+  duplicateBoard: (boardId: string) => ipcRenderer.invoke('boards:duplicate', boardId),
+  getBoardSnapshot: (boardId: string) => ipcRenderer.invoke('boards:get-snapshot', boardId),
+  saveBoardSnapshot: (boardId: string, snapshot: { document: unknown; session: unknown }) =>
+    ipcRenderer.invoke('boards:save-snapshot', boardId, snapshot),
+  createBoardRestorePoint: (boardId: string, snapshot: { document: unknown; session: unknown; reason: string }) =>
+    ipcRenderer.invoke('boards:create-restore-point', boardId, snapshot),
+  getBoardRestorePoints: (boardId: string) => ipcRenderer.invoke('boards:get-restore-points', boardId),
+  restoreBoardSnapshot: (boardId: string, restorePointId: string) =>
+    ipcRenderer.invoke('boards:restore-snapshot', boardId, restorePointId),
 
   // Files
   listProjectFiles: (projectId: string, dir?: string) => ipcRenderer.invoke('files:list', projectId, dir),
@@ -337,6 +366,7 @@ const electronAPI: ElectronAPI = {
   revealFileInFolder: (projectId: string, relativePath: string) =>
     ipcRenderer.invoke('files:revealInFolder', projectId, relativePath),
   clearFileIndex: (projectId: string) => ipcRenderer.invoke('files:clearIndex', projectId),
+  openExternalUrl: (url: string) => ipcRenderer.invoke('shell:open-external', url),
 
   // Engine (devdesk-engine integration)
   getEngineState: () => ipcRenderer.invoke('engine:state'),
@@ -345,6 +375,12 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('engine:search', projectId, query, options),
   getProjectStats: (projectId: string) => ipcRenderer.invoke('engine:stats', projectId),
   getProjectGitInsights: (projectId: string) => ipcRenderer.invoke('engine:git-insights', projectId),
+  getProjectGitState: (projectId: string) => ipcRenderer.invoke('git:get-state', projectId),
+  getProjectGitDiff: (projectId: string, relativePath: string) => ipcRenderer.invoke('git:get-diff', projectId, relativePath),
+  commitProjectChanges: (projectId: string, message: string) => ipcRenderer.invoke('git:commit', projectId, message),
+  pushProjectBranch: (projectId: string) => ipcRenderer.invoke('git:push', projectId),
+  createProjectPullRequest: (projectId: string, input: { title: string; body: string; isDraft: boolean; baseBranch?: string }) =>
+    ipcRenderer.invoke('git:create-pr', projectId, input),
   clearProjectIndex: (projectId: string) => ipcRenderer.invoke('engine:clear', projectId),
   clearProjectSearchSession: (projectId: string) => ipcRenderer.invoke('engine:clear-search-session', projectId),
   isEngineAvailable: () => ipcRenderer.invoke('engine:is-available'),

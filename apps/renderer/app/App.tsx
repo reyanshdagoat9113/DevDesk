@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Container, FolderKanban, History, Plus, Search, StickyNote, Terminal } from 'lucide-react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import { Container, FolderKanban, History, LayoutGrid, Plus, Search, StickyNote, Terminal } from 'lucide-react'
 import { Button } from './components/ui/Button'
 import { Input } from './components/ui/Input'
 import { Label } from './components/ui/Label'
@@ -45,6 +45,11 @@ import type {
   EngineSearchSession,
   EngineStats,
   EngineStatus,
+  GitCommitResult,
+  GitCreatePullRequestResult,
+  GitDiffResult,
+  GitPushResult,
+  GitWorkflowState,
   Project,
   ProjectNotes,
   RunHistoryEntry,
@@ -54,7 +59,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ProjectDirectorySelector } from './components/ProjectDirectorySelector'
 
-type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history' | 'notes'
+type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history' | 'notes' | 'boards'
 
 const navItems = [
   { value: 'projects', label: 'Projects', icon: FolderKanban },
@@ -63,6 +68,7 @@ const navItems = [
   { value: 'containers', label: 'Containers', icon: Container },
   { value: 'history', label: 'History', icon: History },
   { value: 'notes', label: 'Notes', icon: StickyNote },
+  { value: 'boards', label: 'Boards', icon: LayoutGrid },
 ] as const
 
 const actionLabels: Partial<Record<TabValue, string>> = {
@@ -70,6 +76,7 @@ const actionLabels: Partial<Record<TabValue, string>> = {
 }
 
 const GLOBAL_COMMAND_VALUE = '__global__'
+const BoardsSection = lazy(() => import('./sections/BoardsSection').then((module) => ({ default: module.BoardsSection })))
 
 function unwrapIpcErrorMessage(error: unknown, fallbackMessage: string) {
   const raw = error instanceof Error ? error.message : fallbackMessage
@@ -191,6 +198,7 @@ function App() {
       containers: containers.length,
       history: history.length,
       notes: projects.length,
+      boards: projects.length,
     }
     return navItems.map((item) => ({
       ...item,
@@ -915,6 +923,73 @@ function App() {
     }
   }, [])
 
+  const handleLoadGitState = useCallback(async (projectId: string): Promise<GitWorkflowState> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.getProjectGitState(projectId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load git workspace.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleLoadGitDiff = useCallback(async (projectId: string, relativePath: string): Promise<GitDiffResult> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.getProjectGitDiff(projectId, relativePath)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load git diff.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleCommitProjectChanges = useCallback(async (projectId: string, message: string): Promise<GitCommitResult> => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.commitProjectChanges(projectId, message)
+      await syncEngineState()
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to commit changes.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [syncEngineState])
+
+  const handlePushProjectBranch = useCallback(async (projectId: string): Promise<GitPushResult> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.pushProjectBranch(projectId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to push the current branch.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleCreateProjectPullRequest = useCallback(async (
+    projectId: string,
+    input: { title: string; body: string; isDraft: boolean; baseBranch?: string }
+  ): Promise<GitCreatePullRequestResult> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.createProjectPullRequest(projectId, input)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open pull request flow.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleOpenExternalUrl = useCallback(async (url: string) => {
+    const result = await window.electronAPI.openExternalUrl(url)
+    if (!result.success) {
+      throw new Error('Failed to open external URL.')
+    }
+  }, [])
+
   const handleOpenEngineResult = useCallback(async (
     projectId: string,
     relativePath: string,
@@ -1213,10 +1288,16 @@ function App() {
               onSearchProjectContent={handleEngineSearch}
               onLoadEngineStats={handleLoadEngineStats}
               onLoadEngineGitInsights={handleLoadEngineGitInsights}
+              onLoadGitState={handleLoadGitState}
+              onLoadGitDiff={handleLoadGitDiff}
+              onCommitProjectChanges={handleCommitProjectChanges}
+              onPushProjectBranch={handlePushProjectBranch}
+              onCreateProjectPullRequest={handleCreateProjectPullRequest}
               onOpenEngineResult={handleOpenEngineResult}
               onRevealEngineResult={handleRevealEngineResult}
               onClearProjectIndex={handleClearEngineProject}
               onClearProjectSearchSession={handleClearEngineSearchSession}
+              onOpenExternalUrl={handleOpenExternalUrl}
               onOpenProjectEngine={handleOpenProjectEngine}
             />
           )}
@@ -1261,10 +1342,16 @@ function App() {
               onSearch={handleEngineSearch}
               onLoadStats={handleLoadEngineStats}
               onLoadGitInsights={handleLoadEngineGitInsights}
+              onLoadGitState={handleLoadGitState}
+              onLoadGitDiff={handleLoadGitDiff}
+              onCommitChanges={handleCommitProjectChanges}
+              onPushBranch={handlePushProjectBranch}
+              onCreatePullRequest={handleCreateProjectPullRequest}
               onOpenResult={handleOpenEngineResult}
               onRevealResult={handleRevealEngineResult}
               onClearIndex={handleClearEngineProject}
               onClearSearchSession={handleClearEngineSearchSession}
+              onOpenExternalUrl={handleOpenExternalUrl}
             />
           )}
           {activeTab === 'containers' && (
@@ -1304,6 +1391,21 @@ function App() {
               error={loadError}
               onSaveNotes={handleSaveNotes}
             />
+          )}
+          {activeTab === 'boards' && (
+            <Suspense
+              fallback={
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Loading boards workspace...
+                </div>
+              }
+            >
+              <BoardsSection
+                projects={projects}
+                isLoading={isLoading}
+                error={loadError}
+              />
+            </Suspense>
           )}
         </div>
       </AppShell>
@@ -1513,6 +1615,7 @@ function App() {
         onOpenProjectEngine={handleOpenProjectEngine}
         onIndexProject={handleIndexEngineProject}
         onSearchProjectContent={handleEngineSearch}
+        onPushProjectBranch={handlePushProjectBranch}
         onClearProjectIndex={handleClearEngineProject}
         onClearProjectSearchSession={handleClearEngineSearchSession}
         onRunCommand={handleRunCommand}

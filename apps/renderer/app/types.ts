@@ -173,6 +173,28 @@ export interface ProjectNotes {
   reminders: string
 }
 
+export interface Board {
+  id: string
+  projectId: string
+  name: string
+  createdAt: string
+  updatedAt: string
+  lastOpenedAt?: string
+}
+
+export interface BoardSnapshot {
+  boardId: string
+  document: unknown
+  session: unknown
+  savedAt: string
+}
+
+export interface BoardRestorePoint extends BoardSnapshot {
+  id: string
+  createdAt: string
+  reason: string
+}
+
 export interface AppPreference {
   id: string
   command?: string
@@ -274,6 +296,82 @@ export interface EngineGitInsights {
     linesAdded: number
     linesDeleted: number
   }>
+  workingTree: {
+    isClean: boolean
+    hasStagedChanges: boolean
+    hasUnstagedChanges: boolean
+    hasUntrackedChanges: boolean
+    hasConflicts: boolean
+    stagedCount: number
+    unstagedCount: number
+    untrackedCount: number
+    conflictedCount: number
+    ahead: number
+    behind: number
+    files: Array<{
+      path: string
+      previousPath?: string
+      indexStatus: string
+      workingTreeStatus: string
+      staged: boolean
+      unstaged: boolean
+      untracked: boolean
+      conflicted: boolean
+      summary: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'conflicted' | 'unknown'
+      additions: number
+      deletions: number
+    }>
+  }
+}
+
+export interface GitWorkflowState {
+  ok: boolean
+  available: boolean
+  repoPath: string
+  branch: string | null
+  upstream: string | null
+  remoteName: string | null
+  remoteUrl: string | null
+  provider: 'github' | 'unknown'
+  ahead: number
+  behind: number
+  canPush: boolean
+  canCreatePullRequest: boolean
+  message?: string
+  workingTree: EngineGitInsights['workingTree'] | null
+}
+
+export interface GitDiffResult {
+  ok: boolean
+  path: string
+  diff: string
+  generatedForUntracked?: boolean
+  message?: string
+}
+
+export interface GitCommitResult {
+  ok: boolean
+  message: string
+  branch: string | null
+  commitHash?: string
+}
+
+export interface GitPushResult {
+  ok: boolean
+  message: string
+  branch: string | null
+  remoteName: string | null
+  remoteUrl: string | null
+}
+
+export interface GitCreatePullRequestResult {
+  ok: boolean
+  message: string
+  url?: string
+  mode?: 'created' | 'manual'
+  branch: string | null
+  baseBranch: string | null
+  isDraft: boolean
 }
 
 export interface EngineIndexLifecyclePayload {
