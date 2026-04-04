@@ -525,8 +525,8 @@ export function BoardsSection({
 
   return (
     <>
-      <div className="grid h-full min-h-0 gap-5 p-4 lg:grid-cols-[240px_300px_minmax(0,1fr)] lg:p-6 xl:gap-6 xl:p-8">
-        <Card className="min-h-0 overflow-hidden border-border/40 bg-card/70">
+      <div className="grid h-full min-h-0 gap-5 p-4 lg:grid-cols-[260px_320px_minmax(0,1fr)] lg:p-6 xl:gap-6 xl:p-8">
+        <Card className="min-h-0 overflow-hidden border-border/40 bg-card/50 shadow-lg">
           <CardHeader className="border-b border-border/30 bg-transparent px-4 py-4">
             <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">Projects</CardTitle>
             <CardDescription className="text-xs text-muted-foreground/70">
@@ -554,11 +554,11 @@ export function BoardsSection({
                     )}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{project.name}</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground/70">{project.path}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">{project.name}</p>
+                        <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{project.path}</p>
                       </div>
-                      {isActive ? <Badge className="bg-primary/15 text-primary">Live</Badge> : null}
+                      {isActive ? <Badge className="shrink-0 bg-primary/15 text-primary">Live</Badge> : null}
                     </div>
                   </button>
                 )
@@ -567,17 +567,17 @@ export function BoardsSection({
           </CardContent>
         </Card>
 
-        <Card className="min-h-0 overflow-hidden border-border/40 bg-card/70">
+        <Card className="min-h-0 overflow-hidden border-border/40 bg-card/50 shadow-lg">
           <CardHeader className="border-b border-border/30 bg-transparent px-4 py-4">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">Boards</CardTitle>
-                <CardDescription className="mt-2 text-xs text-muted-foreground/70">
-                  Multiple canvases per project, with autosave and restore points.
+                <CardDescription className="mt-1.5 text-xs text-muted-foreground/70">
+                  Multiple canvases per project.
                 </CardDescription>
               </div>
-              <Button size="sm" className="shrink-0" onClick={() => void handleCreateBoard()} disabled={!selectedProjectId}>
-                <Plus className="h-3.5 w-3.5" />
+              <Button size="sm" className="w-full shrink-0 xl:w-auto" onClick={() => void handleCreateBoard()} disabled={!selectedProjectId}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
                 New board
               </Button>
             </div>
@@ -588,7 +588,7 @@ export function BoardsSection({
                 Loading boards...
               </div>
             ) : boards.length === 0 ? (
-              <div className="flex h-full min-h-[240px] flex-col items-center justify-center rounded-3xl border border-dashed border-border/30 bg-muted/10 px-6 text-center">
+              <div className="flex h-full min-h-[240px] flex-col items-center justify-center rounded-2xl border border-dashed border-border/40 bg-muted/20 px-6 text-center">
                 <LayoutGrid className="h-9 w-9 text-muted-foreground/40" />
                 <p className="mt-4 text-sm font-semibold">No boards in this project yet.</p>
                 <p className="mt-2 max-w-[220px] text-xs text-muted-foreground/70">
@@ -615,13 +615,13 @@ export function BoardsSection({
                     >
                       <button type="button" className="w-full text-left" onClick={() => void handleBoardSelect(board.id)}>
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{board.name}</p>
-                            <p className="mt-1 text-[11px] text-muted-foreground/70">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-foreground">{board.name}</p>
+                            <p className="mt-1 truncate text-[11px] text-muted-foreground/70">
                               Updated {formatTimestamp(board.updatedAt)}
                             </p>
                           </div>
-                          {isActive ? <Badge className="bg-primary/15 text-primary">Open</Badge> : null}
+                          {isActive ? <Badge className="shrink-0 bg-primary/15 text-primary">Open</Badge> : null}
                         </div>
                       </button>
                       <div className="mt-3 flex items-center gap-2">
@@ -643,13 +643,13 @@ export function BoardsSection({
         </Card>
 
 
-        <div className="min-h-0 overflow-hidden rounded-[1.75rem] border border-border/30 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 shadow-[0_30px_90px_rgba(0,0,0,0.45)] lg:p-5">
+        <div className="min-h-0 overflow-hidden rounded-3xl border border-border/40 bg-card/60 p-4 shadow-2xl lg:p-5">
           {!selectedProject ? (
-            <div className="flex h-full items-center justify-center rounded-[1.5rem] border border-dashed border-border/30 bg-black/20 text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border/30 bg-black/20 text-sm text-muted-foreground">
               Select a project to open its boards.
             </div>
           ) : !selectedBoard ? (
-            <div className="flex h-full flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border/30 bg-black/20 px-8 text-center">
+            <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-border/40 bg-card/30 px-8 text-center shadow-sm">
               <Sparkles className="h-10 w-10 text-muted-foreground/40" />
               <h3 className="mt-5 text-lg font-semibold text-foreground">Canvas space for {selectedProject.name}</h3>
               <p className="mt-3 max-w-md text-sm text-muted-foreground/75">
@@ -734,7 +734,7 @@ export function BoardsSection({
               ) : null}
 
               {isBoardLoading || !boardSnapshot ? (
-                <div className="flex min-h-0 flex-1 items-center justify-center rounded-[1.5rem] border border-border/20 bg-black/20 text-sm text-muted-foreground">
+                <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-border/20 bg-black/20 text-sm text-muted-foreground">
                   Loading board canvas...
                 </div>
               ) : (
