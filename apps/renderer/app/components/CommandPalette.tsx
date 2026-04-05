@@ -311,13 +311,20 @@ export function CommandPalette({
       action: openFileSearchFromMain,
     })
 
-    for (const project of projects) {
+    // Sort projects: pinned first, then by name
+    const sortedProjects = [...projects].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      return a.name.localeCompare(b.name)
+    })
+
+    for (const project of sortedProjects) {
       items.push({
         id: `project-${project.id}`,
         group: 'Projects',
         title: project.name,
         subtitle: project.path,
-        keywords: [project.name, project.path, project.type, 'project'],
+        keywords: [project.name, project.path, project.type, 'project', ...(project.isPinned ? ['pinned', 'star'] : [])],
         icon: <span className="text-lg">{project.icon}</span>,
         action: () => runWithErrorHandling(() => onNavigate('projects')),
       })
@@ -350,7 +357,14 @@ export function CommandPalette({
       })
     }
 
-    for (const command of commands) {
+    // Sort commands: pinned first, then by name
+    const sortedCommands = [...commands].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      return a.name.localeCompare(b.name)
+    })
+
+    for (const command of sortedCommands) {
       const isGlobal = !command.projectId
       const projectName = isGlobal ? 'Global command' : getProjectName(command.projectId)
 
@@ -359,7 +373,7 @@ export function CommandPalette({
         group: 'Commands',
         title: `Run: ${command.name}`,
         subtitle: isGlobal ? 'Global command - select project to run' : projectName,
-        keywords: [command.name, command.command, ...(command.tags ?? []), 'run', 'command'],
+        keywords: [command.name, command.command, ...(command.tags ?? []), 'run', 'command', ...(command.isPinned ? ['pinned', 'star'] : [])],
         icon: isGlobal ? <Globe className="h-4 w-4" /> : <Play className="h-4 w-4" />,
         action: () => {
           if (isGlobal) {

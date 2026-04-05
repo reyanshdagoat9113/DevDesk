@@ -7,6 +7,7 @@ export interface ElectronAPI {
   addProject: (path: string) => Promise<Project>
   removeProject: (id: string) => Promise<{ success: boolean }>
   updateProject: (id: string, updates: { name: string }) => Promise<Project>
+  toggleProjectPin: (id: string) => Promise<Project>
   setProjectLinkedContainers: (id: string, linkedContainerNames: string[]) => Promise<Project>
   startProjectDevStack: (id: string) => Promise<{ success: boolean; started: string[]; resumed: string[]; alreadyRunning: string[]; missing: string[] }>
   stopProjectDevStack: (id: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
@@ -20,6 +21,7 @@ export interface ElectronAPI {
   getCommands: () => Promise<Command[]>
   addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) => Promise<Command>
   updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) => Promise<Command>
+  toggleCommandPin: (id: string) => Promise<Command>
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
   runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: CommandVariable[]; preview: string }>

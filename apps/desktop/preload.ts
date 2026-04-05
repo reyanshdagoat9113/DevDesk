@@ -8,6 +8,7 @@ interface ElectronAPI {
   addProject: (path: string) => Promise<{ id: string; path: string }>
   removeProject: (id: string) => Promise<{ success: boolean }>
   updateProject: (id: string, updates: { name: string }) => Promise<{ id: string; name: string }>
+  toggleProjectPin: (id: string) => Promise<unknown>
   setProjectLinkedContainers: (id: string, linkedContainerNames: string[]) => Promise<unknown>
   startProjectDevStack: (id: string) => Promise<{ success: boolean; started: string[]; resumed: string[]; alreadyRunning: string[]; missing: string[] }>
   stopProjectDevStack: (id: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
@@ -24,6 +25,7 @@ interface ElectronAPI {
   getCommands: () => Promise<unknown[]>
   addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) => Promise<{ id: string }>
   updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) => Promise<{ id: string }>
+  toggleCommandPin: (id: string) => Promise<unknown>
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
   runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: Array<{ name: string; default?: string; required: boolean; description?: string }>; preview: string }>
@@ -70,6 +72,7 @@ const electronAPI: ElectronAPI = {
   removeProject: (id: string) => ipcRenderer.invoke('projects:remove', id),
   updateProject: (id: string, updates: { name: string }) =>
     ipcRenderer.invoke('projects:update', id, updates),
+  toggleProjectPin: (id: string) => ipcRenderer.invoke('projects:toggle-pin', id),
   setProjectLinkedContainers: (id: string, linkedContainerNames: string[]) =>
     ipcRenderer.invoke('projects:set-linked-containers', id, linkedContainerNames),
   startProjectDevStack: (id: string) => ipcRenderer.invoke('projects:start-dev-stack', id),
@@ -88,6 +91,7 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('commands:add', command),
   updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) =>
     ipcRenderer.invoke('commands:update', id, updates),
+  toggleCommandPin: (id: string) => ipcRenderer.invoke('commands:toggle-pin', id),
   removeCommand: (id: string) => ipcRenderer.invoke('commands:remove', id),
   getProjectDirectories: (projectId: string, relativePath?: string) =>
     ipcRenderer.invoke('commands:get-directories', projectId, relativePath),

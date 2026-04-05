@@ -508,6 +508,54 @@ function App() {
     }
   }
 
+  const handleToggleProjectPin = async (projectId: string) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.toggleProjectPin(projectId)
+      setProjects((prev) => {
+        // Sort: pinned first, then by pinnedAt desc, then by original order
+        const updatedList = prev.map((p) => (p.id === projectId ? updated : p))
+        return updatedList.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1
+          if (!a.isPinned && b.isPinned) return 1
+          if (a.isPinned && b.isPinned) {
+            return (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '')
+          }
+          return 0
+        })
+      })
+      return updated
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to toggle project pin.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleToggleCommandPin = async (commandId: string) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.toggleCommandPin(commandId)
+      setCommands((prev) => {
+        // Sort: pinned first, then by pinnedAt desc, then by original order
+        const updatedList = prev.map((c) => (c.id === commandId ? updated : c))
+        return updatedList.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1
+          if (!a.isPinned && b.isPinned) return 1
+          if (a.isPinned && b.isPinned) {
+            return (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '')
+          }
+          return 0
+        })
+      })
+      return updated
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to toggle command pin.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
   const handleRunCommand = async (commandId: string, projectId: string, variables?: Record<string, string>): Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }> => {
     setLoadError(null)
     try {
@@ -732,6 +780,7 @@ function App() {
               preferences={preferences}
               onSavePreferences={handleSavePreferences}
               onUpdateProject={handleUpdateProject}
+              onToggleProjectPin={handleToggleProjectPin}
               onSetLinkedContainers={handleSetProjectLinkedContainers}
               onStartDevStack={handleStartDevStack}
               onStopDevStack={handleStopDevStack}
@@ -747,6 +796,7 @@ function App() {
               error={loadError}
               onRunCommand={handleRunCommand}
               onUpdateCommand={handleUpdateCommand}
+              onToggleCommandPin={handleToggleCommandPin}
               onRemoveCommand={handleRemoveCommand}
             />
           )}

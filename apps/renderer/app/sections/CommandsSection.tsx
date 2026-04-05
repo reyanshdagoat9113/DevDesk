@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable } from 'lucide-react'
+import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import {
   Card,
@@ -35,6 +35,7 @@ export function CommandsSection({
   error,
   onRunCommand,
   onUpdateCommand,
+  onToggleCommandPin,
   onRemoveCommand,
 }: {
   commands: Command[]
@@ -43,6 +44,7 @@ export function CommandsSection({
   error?: string | null
   onRunCommand?: (commandId: string, projectId: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }>
   onUpdateCommand?: (commandId: string, updates: { name: string; command: string; description?: string; tags?: string[] }) => Promise<void>
+  onToggleCommandPin?: (commandId: string) => Promise<Command>
   onRemoveCommand?: (commandId: string) => Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(commands[0]?.id ?? null)
@@ -420,7 +422,10 @@ export function CommandsSection({
                     >
                       <div className="flex w-full items-center justify-between gap-2">
                         <span className="truncate text-sm font-bold leading-none">{command.name}</span>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 items-center">
+                          {command.isPinned && (
+                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                          )}
                           {command.variables && command.variables.length > 0 && (
                             <Badge variant="outline" className={cn(
                               "h-4 px-1 text-[8px] border-border/40 font-bold text-primary",
@@ -468,6 +473,16 @@ export function CommandsSection({
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-1.5 ml-4">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground hover:text-amber-500"
+                    onClick={() => onToggleCommandPin?.(selectedCommand.id)}
+                    disabled={!onToggleCommandPin}
+                    title={selectedCommand.isPinned ? 'Unpin command' : 'Pin command'}
+                  >
+                    <Star className={cn("h-4 w-4", selectedCommand.isPinned && "fill-amber-400 text-amber-400")} />
+                  </Button>
                   <Button
                     size="icon"
                     variant="ghost"

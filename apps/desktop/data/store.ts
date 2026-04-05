@@ -249,7 +249,9 @@ function createSchema(database: Database.Database) {
       name TEXT NOT NULL,
       type TEXT NOT NULL,
       icon TEXT NOT NULL,
-      linked_container_names TEXT NOT NULL DEFAULT '[]'
+      linked_container_names TEXT NOT NULL DEFAULT '[]',
+      is_pinned INTEGER DEFAULT 0,
+      pinned_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS commands (
@@ -260,7 +262,9 @@ function createSchema(database: Database.Database) {
       tags TEXT,
       project_id TEXT,
       working_directory TEXT,
-      variables TEXT
+      variables TEXT,
+      is_pinned INTEGER DEFAULT 0,
+      pinned_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS run_history (
@@ -308,17 +312,34 @@ function ensureSchemaCompatibility(database: Database.Database) {
   if (!hasColumn(database, 'run_history', 'resolved_command')) {
     database.exec('ALTER TABLE run_history ADD COLUMN resolved_command TEXT')
   }
+
+  // Phase 1.3: Favorites / Pinning
+  if (!hasColumn(database, 'projects', 'is_pinned')) {
+    database.exec('ALTER TABLE projects ADD COLUMN is_pinned INTEGER DEFAULT 0')
+  }
+
+  if (!hasColumn(database, 'projects', 'pinned_at')) {
+    database.exec('ALTER TABLE projects ADD COLUMN pinned_at TEXT')
+  }
+
+  if (!hasColumn(database, 'commands', 'is_pinned')) {
+    database.exec('ALTER TABLE commands ADD COLUMN is_pinned INTEGER DEFAULT 0')
+  }
+
+  if (!hasColumn(database, 'commands', 'pinned_at')) {
+    database.exec('ALTER TABLE commands ADD COLUMN pinned_at TEXT')
+  }
 }
 
 function writeStoreToDb(database: Database.Database, store: DataStore) {
   const insertProject = database.prepare(`
-    INSERT INTO projects (id, path, name, type, icon, linked_container_names)
-    VALUES (@id, @path, @name, @type, @icon, @linkedContainerNames)
+    INSERT INTO projects (id, path, name, type, icon, linked_container_names, is_pinned, pinned_at)
+    VALUES (@id, @path, @name, @type, @icon, @linkedContainerNames, @isPinned, @pinnedAt)
   `)
 
   const insertCommand = database.prepare(`
-    INSERT INTO commands (id, name, command, description, tags, project_id, working_directory, variables)
-    VALUES (@id, @name, @command, @description, @tags, @projectId, @workingDirectory, @variables)
+    INSERT INTO commands (id, name, command, description, tags, project_id, working_directory, variables, is_pinned, pinned_at)
+    VALUES (@id, @name, @command, @description, @tags, @projectId, @workingDirectory, @variables, @isPinned, @pinnedAt)
   `)
 
   const insertRunHistory = database.prepare(`
@@ -351,6 +372,8 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
         type: project.type,
         icon: project.icon,
         linkedContainerNames: JSON.stringify(project.linkedContainerNames ?? []),
+        isPinned: project.isPinned ? 1 : 0,
+        pinnedAt: project.pinnedAt ?? null,
       })
     }
 
@@ -364,6 +387,8 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
         projectId: command.projectId ?? null,
         workingDirectory: command.workingDirectory ?? null,
         variables: command.variables ? JSON.stringify(command.variables) : null,
+        isPinned: command.isPinned ? 1 : 0,
+        pinnedAt: command.pinnedAt ?? null,
       })
     }
 
@@ -498,8 +523,8 @@ export async function createProject(project: Project): Promise<void> {
     getDbOrThrow()
       .prepare(
         `
-          INSERT INTO projects (id, path, name, type, icon, linked_container_names)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO projects (id, path, name, type, icon, linked_container_names, is_pinned, pinned_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       .run(
@@ -508,7 +533,9 @@ export async function createProject(project: Project): Promise<void> {
         project.name,
         project.type,
         project.icon,
-        JSON.stringify(project.linkedContainerNames ?? [])
+        JSON.stringify(project.linkedContainerNames ?? []),
+        project.isPinned ? 1 : 0,
+        project.pinnedAt ?? null
       )
   }))
 }
@@ -588,8 +615,8 @@ export async function createCommand(command: Command): Promise<void> {
     getDbOrThrow()
       .prepare(
         `
-          INSERT INTO commands (id, name, command, description, tags, project_id, working_directory, variables)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO commands (id, name, command, description, tags, project_id, working_directory, variables, is_pinned, pinned_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       .run(
@@ -600,7 +627,9 @@ export async function createCommand(command: Command): Promise<void> {
         command.tags ? JSON.stringify(command.tags) : null,
         command.projectId ?? null,
         command.workingDirectory ?? null,
-        command.variables ? JSON.stringify(command.variables) : null
+        command.variables ? JSON.stringify(command.variables) : null,
+        command.isPinned ? 1 : 0,
+        command.pinnedAt ?? null
       )
   }))
 }
@@ -612,7 +641,7 @@ export async function replaceCommand(command: Command): Promise<boolean> {
       .prepare(
         `
           UPDATE commands
-          SET name = ?, command = ?, description = ?, tags = ?, project_id = ?, working_directory = ?, variables = ?
+          SET name = ?, command = ?, description = ?, tags = ?, project_id = ?, working_directory = ?, variables = ?, is_pinned = ?, pinned_at = ?
           WHERE id = ?
         `
       )
@@ -624,6 +653,8 @@ export async function replaceCommand(command: Command): Promise<boolean> {
         command.projectId ?? null,
         command.workingDirectory ?? null,
         command.variables ? JSON.stringify(command.variables) : null,
+        command.isPinned ? 1 : 0,
+        command.pinnedAt ?? null,
         command.id
       )
     if (result.changes > 0) {
@@ -777,7 +808,7 @@ export async function listProjects(): Promise<Project[]> {
   return withSqlTiming('listProjects', async () => {
     await ensureDbInitialized()
     const rows = getDbOrThrow()
-      .prepare('SELECT id, path, name, type, icon, linked_container_names FROM projects ORDER BY rowid ASC')
+      .prepare('SELECT id, path, name, type, icon, linked_container_names, is_pinned, pinned_at FROM projects ORDER BY is_pinned DESC, pinned_at DESC, rowid ASC')
       .all() as Array<{
       id: string
       path: string
@@ -785,6 +816,8 @@ export async function listProjects(): Promise<Project[]> {
       type: Project['type']
       icon: string
       linked_container_names: string | null
+      is_pinned: number
+      pinned_at: string | null
     }>
 
     return rows.map((row) => ({
@@ -794,6 +827,8 @@ export async function listProjects(): Promise<Project[]> {
       type: VALID_PROJECT_TYPES.has(row.type) ? row.type : 'unknown',
       icon: row.icon,
       linkedContainerNames: parseJsonArray(row.linked_container_names),
+      isPinned: row.is_pinned === 1,
+      pinnedAt: row.pinned_at ?? undefined,
     }))
   })
 }
@@ -801,7 +836,7 @@ export async function listProjects(): Promise<Project[]> {
 export async function getProjectById(projectId: string): Promise<Project | null> {
   await ensureDbInitialized()
   const row = getDbOrThrow()
-    .prepare('SELECT id, path, name, type, icon, linked_container_names FROM projects WHERE id = ?')
+    .prepare('SELECT id, path, name, type, icon, linked_container_names, is_pinned, pinned_at FROM projects WHERE id = ?')
     .get(projectId) as {
     id: string
     path: string
@@ -809,6 +844,8 @@ export async function getProjectById(projectId: string): Promise<Project | null>
     type: Project['type']
     icon: string
     linked_container_names: string | null
+    is_pinned: number
+    pinned_at: string | null
   } | undefined
 
   if (!row) {
@@ -822,6 +859,8 @@ export async function getProjectById(projectId: string): Promise<Project | null>
     type: VALID_PROJECT_TYPES.has(row.type) ? row.type : 'unknown',
     icon: row.icon,
     linkedContainerNames: parseJsonArray(row.linked_container_names),
+    isPinned: row.is_pinned === 1,
+    pinnedAt: row.pinned_at ?? undefined,
   }
 }
 
@@ -829,7 +868,7 @@ export async function listCommands(): Promise<Command[]> {
   return withSqlTiming('listCommands', async () => {
     await ensureDbInitialized()
     const rows = getDbOrThrow()
-      .prepare('SELECT id, name, command, description, tags, project_id, working_directory, variables FROM commands ORDER BY rowid ASC')
+      .prepare('SELECT id, name, command, description, tags, project_id, working_directory, variables, is_pinned, pinned_at FROM commands ORDER BY is_pinned DESC, pinned_at DESC, rowid ASC')
       .all() as Array<{
       id: string
       name: string
@@ -839,6 +878,8 @@ export async function listCommands(): Promise<Command[]> {
       project_id: string | null
       working_directory: string | null
       variables: string | null
+      is_pinned: number
+      pinned_at: string | null
     }>
 
     return rows.map((row) => ({
@@ -850,6 +891,8 @@ export async function listCommands(): Promise<Command[]> {
       projectId: row.project_id ?? undefined,
       workingDirectory: row.working_directory ?? undefined,
       variables: parseVariables(row.variables),
+      isPinned: row.is_pinned === 1,
+      pinnedAt: row.pinned_at ?? undefined,
     }))
   })
 }
@@ -857,7 +900,7 @@ export async function listCommands(): Promise<Command[]> {
 export async function getCommandById(commandId: string): Promise<Command | null> {
   await ensureDbInitialized()
   const row = getDbOrThrow()
-    .prepare('SELECT id, name, command, description, tags, project_id, working_directory, variables FROM commands WHERE id = ?')
+    .prepare('SELECT id, name, command, description, tags, project_id, working_directory, variables, is_pinned, pinned_at FROM commands WHERE id = ?')
     .get(commandId) as {
     id: string
     name: string
@@ -867,6 +910,8 @@ export async function getCommandById(commandId: string): Promise<Command | null>
     project_id: string | null
     working_directory: string | null
     variables: string | null
+    is_pinned: number
+    pinned_at: string | null
   } | undefined
 
   if (!row) {
@@ -882,6 +927,8 @@ export async function getCommandById(commandId: string): Promise<Command | null>
     projectId: row.project_id ?? undefined,
     workingDirectory: row.working_directory ?? undefined,
     variables: parseVariables(row.variables),
+    isPinned: row.is_pinned === 1,
+    pinnedAt: row.pinned_at ?? undefined,
   }
 }
 
@@ -931,5 +978,61 @@ export async function listRunHistory(): Promise<RunHistoryEntry[]> {
       output: row.output ?? undefined,
       resolvedCommand: row.resolved_command ?? undefined,
     }))
+  })
+}
+
+export async function toggleProjectPin(projectId: string): Promise<Project> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+    const database = getDbOrThrow()
+    
+    // Get current state
+    const row = database.prepare('SELECT is_pinned, pinned_at FROM projects WHERE id = ?').get(projectId) as {
+      is_pinned: number
+      pinned_at: string | null
+    } | undefined
+    
+    if (!row) {
+      throw new Error('Project not found.')
+    }
+    
+    const newIsPinned = row.is_pinned === 0 ? 1 : 0
+    const newPinnedAt = newIsPinned === 1 ? new Date().toISOString() : null
+    
+    database.prepare('UPDATE projects SET is_pinned = ?, pinned_at = ? WHERE id = ?').run(newIsPinned, newPinnedAt, projectId)
+    
+    const updated = await getProjectById(projectId)
+    if (!updated) {
+      throw new Error('Project not found.')
+    }
+    return updated
+  })
+}
+
+export async function toggleCommandPin(commandId: string): Promise<Command> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+    const database = getDbOrThrow()
+    
+    // Get current state
+    const row = database.prepare('SELECT is_pinned, pinned_at FROM commands WHERE id = ?').get(commandId) as {
+      is_pinned: number
+      pinned_at: string | null
+    } | undefined
+    
+    if (!row) {
+      throw new Error('Command not found.')
+    }
+    
+    const newIsPinned = row.is_pinned === 0 ? 1 : 0
+    const newPinnedAt = newIsPinned === 1 ? new Date().toISOString() : null
+    
+    database.prepare('UPDATE commands SET is_pinned = ?, pinned_at = ? WHERE id = ?').run(newIsPinned, newPinnedAt, commandId)
+    
+    const updated = await getCommandById(commandId)
+    if (!updated) {
+      throw new Error('Command not found.')
+    }
+    return updated
   })
 }

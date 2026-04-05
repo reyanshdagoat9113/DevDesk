@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Code2, Pencil, Terminal, Trash2, FolderGit2, Monitor, Link2, RefreshCw, Activity, Trash } from 'lucide-react'
+import { Code2, Pencil, Terminal, Trash2, FolderGit2, Monitor, Link2, RefreshCw, Activity, Trash, Star } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import {
@@ -89,6 +89,7 @@ export function ProjectsSection({
   preferences,
   onSavePreferences,
   onUpdateProject,
+  onToggleProjectPin,
   onSetLinkedContainers,
   onStartDevStack,
   onStopDevStack,
@@ -104,6 +105,7 @@ export function ProjectsSection({
   preferences?: AppPreferences | null
   onSavePreferences?: (next: AppPreferences) => Promise<void>
   onUpdateProject?: (projectId: string, updates: { name: string }) => Promise<void>
+  onToggleProjectPin?: (projectId: string) => Promise<Project>
   onSetLinkedContainers?: (projectId: string, linkedContainerNames: string[]) => Promise<Project>
   onStartDevStack?: (projectId: string) => Promise<{ success: boolean; started: string[]; resumed: string[]; alreadyRunning: string[]; missing: string[] }>
   onStopDevStack?: (projectId: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
@@ -567,11 +569,16 @@ export function ProjectsSection({
                           <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
                           <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
                         </div>
-                        {isWslProject && (
-                          <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
-                            WSL
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {project.isPinned && (
+                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                          )}
+                          {isWslProject && (
+                            <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
+                              WSL
+                            </Badge>
+                          )}
+                        </div>
                       </button>
                     )
                   })}
@@ -596,11 +603,23 @@ export function ProjectsSection({
                       {selectedProject.path}
                     </CardDescription>
                   </div>
-                  {isWslPath(selectedProject.path) && (
-                    <Badge variant="outline" className="gap-1.5 border-blue-500/20 text-blue-500 bg-blue-500/5 py-1 px-2">
-                      <Monitor className="h-3 w-3" /> <span className="text-[10px] font-bold uppercase tracking-wider">WSL Environment</span>
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-500"
+                      onClick={() => onToggleProjectPin?.(selectedProject.id)}
+                      disabled={!onToggleProjectPin}
+                      title={selectedProject.isPinned ? 'Unpin project' : 'Pin project'}
+                    >
+                      <Star className={cn("h-4 w-4", selectedProject.isPinned && "fill-amber-400 text-amber-400")} />
+                    </Button>
+                    {isWslPath(selectedProject.path) && (
+                      <Badge variant="outline" className="gap-1.5 border-blue-500/20 text-blue-500 bg-blue-500/5 py-1 px-2">
+                        <Monitor className="h-3 w-3" /> <span className="text-[10px] font-bold uppercase tracking-wider">WSL Environment</span>
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               

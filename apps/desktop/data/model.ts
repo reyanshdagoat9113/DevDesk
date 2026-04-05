@@ -7,6 +7,8 @@ export interface Project {
   type: ProjectType
   icon: string
   linkedContainerNames: string[]
+  isPinned?: boolean
+  pinnedAt?: string
 }
 
 export interface CommandVariable {
@@ -30,6 +32,8 @@ export interface Command {
   workingDirectory?: string
   /** Detected/defined variables for this command */
   variables?: CommandVariable[]
+  isPinned?: boolean
+  pinnedAt?: string
 }
 
 export interface Container {
