@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Container, FolderKanban, History, Plus, Search, StickyNote, Terminal } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Button } from './components/ui/Button'
 import { Input } from './components/ui/Input'
 import { Label } from './components/ui/Label'
@@ -58,72 +58,14 @@ import type {
 import { CommandPalette } from './components/CommandPalette'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ProjectDirectorySelector } from './components/ProjectDirectorySelector'
-
-type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history' | 'notes'
-
-const navItems = [
-  { value: 'projects', label: 'Projects', icon: FolderKanban },
-  { value: 'commands', label: 'Commands', icon: Terminal },
-  { value: 'engine', label: 'Engine', icon: Search },
-  { value: 'containers', label: 'Containers', icon: Container },
-  { value: 'history', label: 'History', icon: History },
-  { value: 'notes', label: 'Notes', icon: StickyNote },
-] as const
-
-const actionLabels: Partial<Record<TabValue, string>> = {
-  projects: 'Add Project',
-}
-
-const GLOBAL_COMMAND_VALUE = '__global__'
-
-function unwrapIpcErrorMessage(error: unknown, fallbackMessage: string) {
-  const raw = error instanceof Error ? error.message : fallbackMessage
-  let message = raw.trim()
-  message = message.replace(/^Error invoking remote method '[^']+':\s*/i, '')
-  message = message.replace(/^Error:\s*/i, '')
-  return message || fallbackMessage
-}
-
-function toUserContainerError(error: unknown, fallbackMessage: string) {
-  const message = unwrapIpcErrorMessage(error, fallbackMessage)
-  const normalized = message.toLowerCase()
-
-  if (
-    normalized.includes('docker daemon') ||
-    normalized.includes('failed to connect to the docker api') ||
-    normalized.includes('cannot connect to the docker daemon') ||
-    normalized.includes('dial unix') ||
-    normalized.includes('error during connect')
-  ) {
-    return 'Docker is not running. Start Docker Desktop (or the Docker daemon) and try again.'
-  }
-
-  if (
-    normalized.includes('docker cli not found') ||
-    normalized.includes('command not found') ||
-    normalized.includes('not recognized as an internal or external command')
-  ) {
-    return 'Docker CLI is not available. Install Docker Desktop and try again.'
-  }
-
-  return message
-}
-
-function upsertHistoryEntry(history: RunHistoryEntry[], entry: RunHistoryEntry): RunHistoryEntry[] {
-  const existingIndex = history.findIndex((item) => item.id === entry.id)
-  if (existingIndex === -1) {
-    return [entry, ...history]
-  }
-
-  const next = [...history]
-  next[existingIndex] = {
-    ...next[existingIndex],
-    ...entry,
-    output: entry.output ?? next[existingIndex].output,
-    resolvedCommand: entry.resolvedCommand ?? next[existingIndex].resolvedCommand,
-  }
-  return next
-}
+import {
+  GLOBAL_COMMAND_VALUE,
+  actionLabels,
+  navItems,
+  toUserContainerError,
+  type TabValue,
+  upsertHistoryEntry,
+} from './lib/appShell'
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {

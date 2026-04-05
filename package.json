@@ -13,6 +13,7 @@
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build:preload": "tsc -p tsconfig.preload.json",
+    "lint:architecture": "node scripts/check-architecture.mjs",
     "test:production": "NODE_ENV=production electron .",
     "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
     "typecheck": "tsc --noEmit"

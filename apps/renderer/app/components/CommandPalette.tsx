@@ -18,13 +18,8 @@ import {
   Folder,
   Code,
   Play,
-  Square,
-  RotateCw,
-  Pause,
-  PlayCircle,
   Globe,
   ArrowLeft,
-  CornerDownLeft,
   File,
   Search,
   Database,
@@ -36,6 +31,8 @@ import {
   Diff,
 } from 'lucide-react'
 import { VariablePromptModal } from './VariablePromptModal'
+import { getContainerActionIcon, getStatusIcon } from './commandPaletteHelpers'
+import type { TabValue } from '../lib/appShell'
 import type {
   Project,
   Command,
@@ -56,8 +53,6 @@ type LightweightHistoryEntry = {
   startTime: string
   endTime?: string
 }
-
-type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history' | 'notes'
 
 type PaletteItem = {
   id: string
@@ -118,38 +113,6 @@ interface CommandPaletteProps {
   onUnpauseContainer: (containerId: string) => Promise<void>
   onError: (message: string) => void
   onOpenFileInEditor?: (projectId: string, relativePath: string, line?: number, column?: number) => Promise<void>
-}
-
-function getStatusIcon(status: RunStatus) {
-  switch (status) {
-    case 'running':
-      return <PlayCircle className="h-4 w-4 text-blue-500" />
-    case 'success':
-      return <CornerDownLeft className="h-4 w-4 text-green-500" />
-    case 'failed':
-      return <CornerDownLeft className="h-4 w-4 text-red-500" />
-    case 'stopped':
-      return <Square className="h-4 w-4 text-yellow-500" />
-    default:
-      return <History className="h-4 w-4" />
-  }
-}
-
-function getContainerActionIcon(action: string) {
-  switch (action) {
-    case 'start':
-      return <Play className="h-4 w-4" />
-    case 'stop':
-      return <Square className="h-4 w-4" />
-    case 'restart':
-      return <RotateCw className="h-4 w-4" />
-    case 'pause':
-      return <Pause className="h-4 w-4" />
-    case 'unpause':
-      return <PlayCircle className="h-4 w-4" />
-    default:
-      return <Container className="h-4 w-4" />
-  }
 }
 
 export function CommandPalette({
