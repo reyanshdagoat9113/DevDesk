@@ -14,18 +14,22 @@ export function normalizePath(p: string): string {
 }
 
 /**
+ * Convert a canonical path back to the native OS form for filesystem I/O.
+ */
+export function toNativePath(p: string): string {
+  return path.normalize(p.replace(/\//g, path.sep));
+}
+
+/**
  * Get the path to the Rust scanner binary
  */
 export function getScannerBinaryPath(): string {
   const binaryName = os.platform() === 'win32' ? 'devdesk-scan.exe' : 'devdesk-scan';
 
-  // Check multiple locations
   const possiblePaths = [
-    // Development: in dist folder
     path.join(__dirname, binaryName),
-    // Installed: alongside this file
-    path.join(__dirname, binaryName),
-    // In PATH
+    path.join(__dirname, '..', 'dist', binaryName),
+    path.join(process.cwd(), 'dist', binaryName),
     binaryName,
   ];
 

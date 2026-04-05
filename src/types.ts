@@ -74,6 +74,27 @@ export interface StatsResult {
   };
 }
 
+export interface RepositoryRecord {
+  id: number;
+  path: string;
+  isGit: boolean;
+  branch: string | null;
+  totalCommits: number;
+  contributors: string[];
+  lastIndexedAt: number | null;
+}
+
+export interface GitHotspotRecord {
+  id: number;
+  repositoryPath: string;
+  path: string;
+  score: number;
+  commits: number;
+  recency: number;
+  risk: 'low' | 'medium' | 'high';
+  updatedAt: number;
+}
+
 // Error output
 export interface ErrorOutput {
   ok: false;
@@ -100,6 +121,10 @@ export interface SearchOptions {
 
 export interface StatsOptions {
   db: string;
+}
+
+export interface GitInsightsOptions {
+  limit?: number;
 }
 
 // Database record

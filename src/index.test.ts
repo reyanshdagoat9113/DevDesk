@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getStats } from './index.js';
-import { DatabaseManager } from './db.js';
+import { getStats, indexRepository, searchIndex } from './index.js';
+import { DatabaseManager } from './db/index.js';
 import type {
   FileInfo,
   IndexResult,
@@ -209,77 +209,116 @@ describe('index.ts', () => {
   it('resolvePath handles relative paths', () => {
     const relativePath = 'src/file.ts';
     const resolved = resolvePath(relativePath, '/project');
-    expect(resolved).toBe('/project/src/file.ts');
+    expect(resolved).toBe(path.resolve('/project', 'src/file.ts'));
   });
 });
 
-// ============================================================================
-// Rust-Dependent Tests (require devdesk-scan binary)
-// Run with: npm test -- --grep=rust
-// ============================================================================
+describe('Rust-dependent integration', () => {
+  it('indexes a repository and stores canonical paths', async () => {
+    const repoPath = path.join(tempDir, 'index-repo');
+    fs.mkdirSync(path.join(repoPath, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(repoPath, 'src', 'test.ts'), 'export const answer = 42;\n');
 
-describe.skip('Rust-Dependent Tests (requires devdesk-scan binary)', () => {
-  /**
-   * These tests require the Rust binary to be built.
-   * They are skipped if the binary is not available.
-   *
-   * To run these tests:
-   *   1. Build the Rust binary: npm run build:rust
-   *   2. Run tests: npm test
-   */
+    const result = await indexRepository({
+      repo: repoPath,
+      db: dbPath,
+      incremental: false,
+    });
 
-  // Note: Uncomment these tests after building the Rust binary
-  // They are commented out to allow tests to pass without Rust binary
+    expect(result.ok).toBe(true);
+    expect(result.repo).toBe(normalizePath(repoPath));
+    expect(result.db).toBe(normalizePath(dbPath));
+    expect(result.filesIndexed).toBeGreaterThan(0);
 
-  // describe('indexRepository', () => {
-  //   it('indexes a repository successfully', async () => {
-  //     // Create test files
-  //     const repoPath = path.join(tempDir, 'test-repo');
-  //     fs.mkdirSync(path.join(repoPath, 'src'), { recursive: true });
-  //     fs.writeFileSync(path.join(repoPath, 'src', 'test.ts'), 'const x = 1;');
-  //
-  //     const result = await indexRepository({
-  //       repo: repoPath,
-  //       db: dbPath,
-  //       incremental: false,
-  //     });
-  //
-  //     expect(result.ok).toBe(true);
-  //     expect(result.filesIndexed).toBeGreaterThan(0);
-  //     expect(result.durationMs).toBeGreaterThan(0);
-  //   });
-  //
-  //   it('handles non-existent repository path', async () => {
-  //     const result = await indexRepository({
-  //       repo: '/nonexistent/path',
-  //       db: dbPath,
-  //       incremental: false,
-  //     });
-  //
-  //     expect(result.ok).toBe(false);
-  //     expect(result.warnings).toContainEqual(expect.stringContaining('does not exist'));
-  //   });
-  // });
-  //
-  // describe('searchIndex', () => {
-  //   it('searches indexed content', async () => {
-  //     // First index a repo
-  //     const repoPath = path.join(tempDir, 'search-repo');
-  //     fs.mkdirSync(repoPath, { recursive: true });
-  //     fs.writeFileSync(path.join(repoPath, 'test.ts'), 'export function searchTest() {}');
-  //
-  //     await indexRepository({ repo: repoPath, db: dbPath, incremental: false });
-  //
-  //     const result = await searchIndex({
-  //       db: dbPath,
-  //       query: 'searchTest',
-  //       regex: false,
-  //       limit: 10,
-  //     });
-  //
-  //     expect(result.ok).toBe(true);
-//     expect(result.totalMatches).toBeGreaterThan(0);
-  //   });
-  // });
+    const db = new DatabaseManager(dbPath);
+    const stored = db.getFileByPath(path.join(repoPath, 'src', 'test.ts'));
+    db.close();
+
+    expect(stored?.path).toBe(normalizePath(path.join(repoPath, 'src', 'test.ts')));
+  });
+
+  it('returns normalized paths for regex search results', async () => {
+    const repoPath = path.join(tempDir, 'search-repo');
+    fs.mkdirSync(path.join(repoPath, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(repoPath, 'src', 'search.ts'), 'export function searchTest() {\n  return "needle";\n}\n');
+
+    await indexRepository({
+      repo: repoPath,
+      db: dbPath,
+      incremental: false,
+    });
+
+    const result = await searchIndex({
+      db: dbPath,
+      query: 'needle',
+      regex: true,
+      limit: 10,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.totalMatches).toBeGreaterThan(0);
+    expect(result.results[0].path).toBe(normalizePath(path.join(repoPath, 'src', 'search.ts')));
+  });
+
+  it('boosts ranking when hotspot data is present', async () => {
+    const repoPath = path.join(tempDir, 'hotspot-repo');
+    fs.mkdirSync(path.join(repoPath, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(repoPath, 'src', 'a.ts'), 'export const shared = 1;\n');
+    fs.writeFileSync(path.join(repoPath, 'src', 'b.ts'), 'export const shared = 1;\n');
+
+    const db = new DatabaseManager(dbPath);
+    db.upsertRepository({
+      path: repoPath,
+      isGit: true,
+      branch: 'main',
+      totalCommits: 10,
+      contributors: ['DevDesk <devdesk@example.com>'],
+      lastIndexedAt: Date.now(),
+    });
+    db.upsertFiles([
+      {
+        path: path.join(repoPath, 'src', 'a.ts'),
+        filename: 'a.ts',
+        extension: 'ts',
+        size_bytes: 10,
+        mtime_ms: Date.now(),
+        content_hash: 'a',
+        language: 'typescript',
+        is_binary: false,
+        content: 'export const shared = 1;\n',
+      },
+      {
+        path: path.join(repoPath, 'src', 'b.ts'),
+        filename: 'b.ts',
+        extension: 'ts',
+        size_bytes: 10,
+        mtime_ms: Date.now(),
+        content_hash: 'b',
+        language: 'typescript',
+        is_binary: false,
+        content: 'export const shared = 1;\n',
+      },
+    ]);
+    db.replaceGitHotspots(repoPath, [
+      {
+        path: path.join(repoPath, 'src', 'b.ts'),
+        score: 95,
+        commits: 8,
+        recency: 1,
+        risk: 'high',
+      },
+    ]);
+    db.close();
+
+    const result = await searchIndex({
+      db: dbPath,
+      query: 'shared',
+      regex: false,
+      limit: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.results[0].path).toBe(normalizePath(path.join(repoPath, 'src', 'b.ts')));
+  });
 });
 });

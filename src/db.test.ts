@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { DatabaseManager } from './db.js';
+import { DatabaseManager } from './db/index.js';
+import { normalizePath } from './utils.js';
 
 describe('DatabaseManager', () => {
   let db: DatabaseManager;
@@ -159,6 +160,26 @@ describe('DatabaseManager', () => {
 
     expect(id).toBeGreaterThan(0);
   });
+
+  it('stores normalized paths and resolves lookups using canonical form', () => {
+    const nativePath = path.join(tempDir, 'src', 'canonical.ts');
+
+    db.upsertFile({
+      path: nativePath,
+      filename: 'canonical.ts',
+      extension: 'ts',
+      size_bytes: 64,
+      mtime_ms: Date.now(),
+      content_hash: 'canonical',
+      language: 'typescript',
+      is_binary: false,
+      content: 'export const canonical = true;',
+    });
+
+    const stored = db.getFileByPath(nativePath);
+    expect(stored?.path).toBe(normalizePath(nativePath));
+    expect(Array.from(db.getAllPaths())).toContain(normalizePath(nativePath));
+  });
 });
 
   describe('upsertFiles (batch)', () => {
@@ -240,6 +261,39 @@ describe('DatabaseManager', () => {
 
     const stats = db.getStats();
     expect(stats.totalFiles).toBe(1);
+  });
+
+  describe('git metadata', () => {
+    it('persists repository metadata and hotspot snapshots', () => {
+      db.upsertRepository({
+        path: '/repo',
+        isGit: true,
+        branch: 'main',
+        totalCommits: 12,
+        contributors: ['A <a@example.com>', 'B <b@example.com>'],
+        lastIndexedAt: Date.now(),
+      });
+
+      db.replaceGitHotspots('/repo', [
+        {
+          path: '/repo/src/critical.ts',
+          score: 92,
+          commits: 11,
+          recency: 2,
+          risk: 'high',
+        },
+      ]);
+
+      const repo = db.getPrimaryRepository();
+      expect(repo?.path).toBe('/repo');
+      expect(repo?.isGit).toBe(true);
+      expect(repo?.contributors).toEqual(['A <a@example.com>', 'B <b@example.com>']);
+
+      const hotspots = db.getGitHotspots('/repo');
+      expect(hotspots).toHaveLength(1);
+      expect(hotspots[0].path).toBe('/repo/src/critical.ts');
+      expect(hotspots[0].score).toBe(92);
+    });
   });
 });
 

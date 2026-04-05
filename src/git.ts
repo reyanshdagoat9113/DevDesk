@@ -1,5 +1,8 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
+import * as path from 'path';
+import { normalizePath, resolvePath } from './utils.js';
+import type { GitInsightsOptions } from './types.js';
 
 export interface GitCommit {
   hash: string;
@@ -63,6 +66,10 @@ export interface GitInsights {
   recentCommits: GitCommit[];
   churnFiles: FileChurn[];
   workingTree: GitWorkingTree;
+}
+
+export interface ResolvedGitHotspot extends HotspotFile {
+  repositoryPath: string;
 }
 
 /**
@@ -488,20 +495,35 @@ export function getHotspots(repoPath: string, limit: number = 10): HotspotFile[]
 }
 
 /**
+ * Resolve hotspot paths relative to a repository root.
+ */
+export function resolveHotspots(repoPath: string, hotspots: HotspotFile[]): ResolvedGitHotspot[] {
+  const repoRoot = resolvePath(repoPath);
+
+  return hotspots.map((hotspot) => ({
+    ...hotspot,
+    repositoryPath: normalizePath(repoRoot),
+    path: normalizePath(path.resolve(repoRoot, hotspot.path)),
+  }));
+}
+
+/**
  * Get comprehensive git insights
  */
-export function getGitInsights(repoPath: string): GitInsights {
+export function getGitInsights(repoPath: string, options: GitInsightsOptions = {}): GitInsights {
   if (!isGitRepo(repoPath)) {
     throw new Error('Not a git repository');
   }
+
+  const limit = options.limit ?? 10;
 
   return {
     branch: getCurrentBranch(repoPath),
     totalCommits: getCommitCount(repoPath),
     contributors: getContributors(repoPath),
-    hotspots: getHotspots(repoPath, 10),
-    recentCommits: getRecentCommits(repoPath, 10),
-    churnFiles: getFileChurn(repoPath, 20),
+    hotspots: getHotspots(repoPath, limit),
+    recentCommits: getRecentCommits(repoPath, limit),
+    churnFiles: getFileChurn(repoPath, limit),
     workingTree: getWorkingTree(repoPath),
   };
 }

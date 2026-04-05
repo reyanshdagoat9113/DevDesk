@@ -1,114 +1,110 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { indexRepository, searchIndex, getStats } from './index.js';
-import { getGitInsights, isGitRepo } from './git.js';
+import { fileURLToPath } from 'url';
+import * as path from 'path';
+import { Engine } from './engine.js';
 import { getDefaultDbPath, resolvePath } from './utils.js';
 
 const VERSION = '0.1.0';
 
-const program = new Command();
+export function createProgram(engine: Engine = new Engine()): Command {
+  const program = new Command();
 
-program
-  .name('engine')
-  .description('Fast local code intelligence engine')
-  .version(VERSION);
+  program
+    .name('engine')
+    .description('Fast local code intelligence engine')
+    .version(VERSION);
 
-// Index command
-program
-  .command('index <path>')
-  .description('Index a repository')
-  .option('--db <path>', 'Database path')
-  .option('--full', 'Force full reindex (ignore existing)', false)
-  .action(async (repoPath, options) => {
-    const dbPath = options.db ? resolvePath(options.db) : getDefaultDbPath(repoPath);
-    const result = await indexRepository({
-      repo: repoPath,
-      db: dbPath,
-      incremental: !options.full,
+  program
+    .command('index <path>')
+    .description('Index a repository')
+    .option('--db <path>', 'Database path')
+    .option('--full', 'Force full reindex (ignore existing)', false)
+    .action(async (repoPath, options) => {
+      const dbPath = options.db ? resolvePath(options.db) : getDefaultDbPath(repoPath);
+      const result = await engine.indexRepository({
+        repo: repoPath,
+        db: dbPath,
+        incremental: !options.full,
+      });
+      console.log(JSON.stringify(result, null, 2));
     });
-    console.log(JSON.stringify(result, null, 2));
-  });
 
-// Search command
-program
-  .command('search <query> [path]')
-  .description('Search the index')
-  .option('--db <path>', 'Database path')
-  .option('--regex', 'Treat query as regex', false)
-  .option('-l, --limit <n>', 'Max results', '50')
-  .action(async (query, repoPath, options) => {
-    const dbPath = options.db
-      ? resolvePath(options.db)
-      : getDefaultDbPath(repoPath || '.');
-    const result = await searchIndex({
-      db: dbPath,
-      query,
-      regex: options.regex,
-      limit: parseInt(options.limit, 10),
+  program
+    .command('search <query> [path]')
+    .description('Search the index')
+    .option('--db <path>', 'Database path')
+    .option('--regex', 'Treat query as regex', false)
+    .option('-l, --limit <n>', 'Max results', '50')
+    .action(async (query, repoPath, options) => {
+      const dbPath = options.db ? resolvePath(options.db) : getDefaultDbPath(repoPath || '.');
+      const result = await engine.searchIndex({
+        db: dbPath,
+        query,
+        regex: options.regex,
+        limit: parseInt(options.limit, 10),
+      });
+      console.log(JSON.stringify(result, null, 2));
     });
-    console.log(JSON.stringify(result, null, 2));
-  });
 
-// Stats command
-program
-  .command('stats [path]')
-  .description('Show index statistics')
-  .option('--db <path>', 'Database path')
-  .action((repoPath, options) => {
-    const dbPath = options.db
-      ? resolvePath(options.db)
-      : getDefaultDbPath(repoPath || '.');
-    const result = getStats(dbPath);
-    console.log(JSON.stringify(result, null, 2));
-  });
+  program
+    .command('stats [path]')
+    .description('Show index statistics')
+    .option('--db <path>', 'Database path')
+    .action((repoPath, options) => {
+      const dbPath = options.db ? resolvePath(options.db) : getDefaultDbPath(repoPath || '.');
+      const result = engine.getStats(dbPath);
+      console.log(JSON.stringify(result, null, 2));
+    });
 
-// Git insights command
-program
-  .command('git <path>')
-  .description('Show git insights for a repository')
-  .option('-l, --limit <n>', 'Max hotspots to show', '10')
-  .action((repoPath, options) => {
-    try {
-      if (!isGitRepo(repoPath)) {
+  program
+    .command('git <path>')
+    .description('Show git insights for a repository')
+    .option('-l, --limit <n>', 'Max hotspots to show', '10')
+    .action((repoPath, options) => {
+      try {
+        const result = engine.getGitInsights(resolvePath(repoPath), {
+          limit: parseInt(options.limit, 10),
+        });
+
         console.log(
           JSON.stringify(
             {
-              ok: false,
-              error: 'Not a git repository',
-              path: repoPath,
+              ok: true,
+              ...result,
             },
             null,
             2
           )
         );
-        return;
-      }
-
-      const result = getGitInsights(repoPath);
-      console.log(
-        JSON.stringify(
-          {
-            ok: true,
-            ...result,
-          },
-          null,
-          2
-        )
-      );
-    } catch (error) {
+      } catch (error) {
         console.log(
           JSON.stringify(
             {
               ok: false,
               error: error instanceof Error ? error.message : String(error),
-              path: repoPath,
+              path: resolvePath(repoPath),
             },
             null,
             2
           )
         );
-    }
-  });
+      }
+    });
 
-program.parse(process.argv, { from: 'node' });
+  return program;
+}
+
+export async function runCli(argv: string[] = process.argv): Promise<void> {
+  await createProgram().parseAsync(argv, { from: 'node' });
+}
+
+const isMainModule = path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
+  void runCli().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

@@ -12,6 +12,7 @@ import {
   retry,
   isAbsolutePath,
   resolvePath,
+  toNativePath,
 } from './utils.js';
 
 describe('utils', () => {
@@ -264,18 +265,24 @@ describe('utils', () => {
 
     it('resolves relative paths against custom base directory', () => {
       const result = resolvePath('file.txt', '/custom/base');
-      expect(result).toBe('/custom/base/file.txt');
+      expect(result).toBe(path.resolve('/custom/base', 'file.txt'));
     });
 
     it('handles ./ prefix', () => {
       const result = resolvePath('./file.txt', '/base');
-      expect(result).toMatch(/base.*file\.txt/);
+      expect(result).toBe(path.resolve('/base', 'file.txt'));
     });
 
     it('handles ../ prefix', () => {
       const result = resolvePath('../file.txt', '/base/subdir');
-      expect(result).toContain('base');
-      expect(result).toContain('file.txt');
+      expect(result).toBe(path.resolve('/base/subdir', '../file.txt'));
+    });
+  });
+
+  describe('toNativePath', () => {
+    it('converts canonical paths to native filesystem paths', () => {
+      const native = toNativePath('C:/Users/project/src/file.ts');
+      expect(native).toBe(path.normalize('C:/Users/project/src/file.ts'));
     });
   });
 });
