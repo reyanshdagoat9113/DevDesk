@@ -2,8 +2,8 @@
 
 > A comprehensive implementation guide for evolving DevDesk from MVP to a complete developer workspace platform.
 
-**Last Updated:** 2026-03-01  
-**Current Phase:** Phase 1 Complete → Phase 2.1 Next
+**Last Updated:** 2026-03-02  
+**Current Phase:** Phase 2 Complete → Phase 3.1 Next
 
 ---
 
@@ -167,18 +167,28 @@ ALTER TABLE commands ADD COLUMN pinned_at TEXT;
 - "Pinned" section at top of each list
 - Palette shows pinned items first
 
+**Status:** COMPLETED
+
 ---
 
-## Phase 2: Enhanced Command Vault
+## Phase 2: Enhanced Command Vault ✅ COMPLETE
 
 **Goal:** Transform Command Vault into a powerful automation system.
 
-### 2.1 Command Presets by Project Type 📋
+### 2.1 Command Presets by Project Type ✅ **COMPLETE**
 **Priority:** High  
 **Effort:** 3-4 hours  
 **Dependencies:** 1.2 (variables recommended)
 
 Auto-suggest common commands based on project type detection.
+
+**Status:** COMPLETED
+
+**Implemented:**
+- Renderer preset library for Node, Python, Rust, and Go projects
+- Project-aware preset picker in Command Vault via an `Add Preset` action
+- One-click preset command creation bound to the selected project
+- Duplicate-aware preset state so already-added commands are clearly marked
 
 **Preset Library:**
 ```typescript
@@ -214,12 +224,20 @@ const PROJECT_PRESETS: Record<ProjectType, CommandPreset[]> = {
 
 ---
 
-### 2.2 Advanced Tag Filtering 📋
+### 2.2 Advanced Tag Filtering ✅ **COMPLETE**
 **Priority:** Medium  
 **Effort:** 1-2 hours  
 **Dependencies:** None
 
 Enhanced tag system for command organization.
+
+**Status:** COMPLETED
+
+**Implemented:**
+- Multi-select tag cloud filters in Command Vault
+- Dedicated `Untagged` filter with command counts
+- Quick tag assignment toggles on command detail views
+- Active filter feedback with one-click filter reset
 
 **Features:**
 - Multi-select tag filter in vault
@@ -229,12 +247,20 @@ Enhanced tag system for command organization.
 
 ---
 
-### 2.3 Command Chains 📋
+### 2.3 Command Chains ✅ **COMPLETE**
 **Priority:** High  
 **Effort:** 4-6 hours  
 **Dependencies:** 1.2 (variables), 2.1 (presets)
 
 Run multiple commands sequentially with dependency handling.
+
+**Status:** COMPLETED
+
+**Implemented:**
+- SQLite-backed command chain model with CRUD IPC handlers
+- Chain editor UI with step ordering, delays, and per-step variable overrides
+- `Add to Chain` action from saved commands into the chain editor flow
+- Chain run progress UI with live per-step statuses and history-backed step output
 
 **Data Model:**
 ```typescript
@@ -270,12 +296,20 @@ interface ChainStep {
 
 ---
 
-### 2.4 Command Triggers 📋
+### 2.4 Command Triggers ✅ **COMPLETE**
 **Priority:** Medium  
 **Effort:** 3-4 hours  
 **Dependencies:** 2.3 (chains)
 
 Automatic command execution based on events.
+
+**Status:** COMPLETED
+
+**Implemented:**
+- Persistent trigger registry with project-scoped and global trigger support
+- Main-process automation event bus for startup, project-open, and container-start events
+- Optional trigger confirmation prompts before chain execution
+- Trigger management UI wired into the Automation workspace
 
 **Trigger Types:**
 - `onProjectOpen` - Run when project is selected
@@ -1081,19 +1115,20 @@ Phase 10: Polish
 
 ## Quick Reference: Next 3 Tasks
 
-1. **Command Presets by Project Type** (3-4 hrs)
-   - Add preset library by project type
-   - Build preset picker in Command Vault
-   - Create commands from selected presets
+1. **Terminal Manager Service** (3-4 hrs)
+   - Add PTY session lifecycle in the main process
+   - Wire IPC for create/write/resize/close
+   - Stream terminal output to the renderer
 
-2. **Advanced Tag Filtering** (1-2 hrs)
+2. **Terminal UI Component** (3-4 hrs)
+   - Integrate XTerm.js with theme support
+   - Add fit/search/weblinks addons
+   - Support copy/paste and resizing
+
+3. **Advanced Tag Filtering** (1-2 hrs)
    - Add multi-select tag filter in vault
    - Add "Untagged" filter
    - Add tag cloud visualization
-
-3. **Dev Stack Restart Action** (1-2 hrs)
-   - Add "Restart Dev Stack" operation for linked containers
-   - Surface result summary alongside Start/Stop
 
 ---
 

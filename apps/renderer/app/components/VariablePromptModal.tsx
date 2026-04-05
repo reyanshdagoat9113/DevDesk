@@ -55,7 +55,17 @@ export function VariablePromptModal({
 
     const storageKey = getStorageKey(commandPreview)
     const saved = localStorage.getItem(storageKey)
-    const savedValues = saved ? JSON.parse(saved) : {}
+    let savedValues: Record<string, string> = {}
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          savedValues = parsed as Record<string, string>
+        }
+      } catch {
+        savedValues = {}
+      }
+    }
 
     const initialValues: Record<string, string> = {}
     for (const variable of variables) {

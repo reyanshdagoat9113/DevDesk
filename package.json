@@ -13,6 +13,7 @@
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build:preload": "tsc -p tsconfig.preload.json",
+    "lint:architecture": "node scripts/check-architecture.mjs",
     "test:production": "NODE_ENV=production electron .",
     "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
     "typecheck": "tsc --noEmit"
@@ -31,6 +32,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "devdesk-engine": "file:../devdesk-addons/devdesk-engine",
     "fast-glob": "^3.3.3",
     "fuse.js": "^7.1.0",
     "ignore": "^7.0.5",
@@ -58,5 +60,21 @@
     "typescript": "~5.7.2",
     "vite": "^6.3.5",
     "wait-on": "^8.0.1"
+  },
+  "build": {
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/devdesk-engine/dist",
+        "to": "engine",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   }
 }

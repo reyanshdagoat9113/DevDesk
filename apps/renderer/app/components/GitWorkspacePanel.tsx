@@ -1,0 +1,687 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ArrowUpRight,
+  GitBranch,
+  GitCommitHorizontal,
+  Github,
+  Loader2,
+  RefreshCcw,
+  Send,
+  TriangleAlert,
+} from 'lucide-react'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog'
+import { Input } from './ui/Input'
+import { ScrollArea } from './ui/ScrollArea'
+import { Textarea } from './ui/Textarea'
+import { cn } from '../../lib/utils'
+import type {
+  EngineGitInsights,
+  GitCommitResult,
+  GitCreatePullRequestResult,
+  GitDiffResult,
+  GitPushResult,
+  GitWorkflowState,
+  Project,
+} from '../types'
+
+function formatDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleString()
+}
+
+type GitFileSummary =
+  | 'modified'
+  | 'added'
+  | 'deleted'
+  | 'renamed'
+  | 'copied'
+  | 'untracked'
+  | 'conflicted'
+  | 'unknown'
+
+function summaryBadgeVariant(summary: GitFileSummary | undefined) {
+  switch (summary) {
+    case 'added':
+      return 'success'
+    case 'deleted':
+      return 'destructive'
+    case 'conflicted':
+      return 'warning'
+    default:
+      return 'outline'
+  }
+}
+
+function buildDefaultPrTitle(branch: string | null, recentCommit?: EngineGitInsights['recentCommits'][number]) {
+  if (recentCommit?.message?.trim()) {
+    return recentCommit.message.trim()
+  }
+  if (branch?.trim()) {
+    return branch.replace(/[-_/]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+  return 'Update project'
+}
+
+function buildDefaultPrBody(project: Project, recentCommit?: EngineGitInsights['recentCommits'][number]) {
+  const lines = [
+    '## Summary',
+    `- Updates for ${project.name}`,
+  ]
+
+  if (recentCommit?.message?.trim()) {
+    lines.push(`- Latest commit: ${recentCommit.message.trim()}`)
+  }
+
+  lines.push('', '## Validation', '- Local verification')
+  return lines.join('\n')
+}
+
+export function GitWorkspacePanel({
+  project,
+  onLoadGitInsights,
+  onLoadGitState,
+  onLoadGitDiff,
+  onCommitChanges,
+  onPushBranch,
+  onCreatePullRequest,
+  onOpenExternalUrl,
+  onOpenResult,
+  onRevealResult,
+}: {
+  project: Project
+  onLoadGitInsights: (projectId: string) => Promise<EngineGitInsights>
+  onLoadGitState: (projectId: string) => Promise<GitWorkflowState>
+  onLoadGitDiff: (projectId: string, relativePath: string) => Promise<GitDiffResult>
+  onCommitChanges: (projectId: string, message: string) => Promise<GitCommitResult>
+  onPushBranch: (projectId: string) => Promise<GitPushResult>
+  onCreatePullRequest: (
+    projectId: string,
+    input: { title: string; body: string; isDraft: boolean; baseBranch?: string }
+  ) => Promise<GitCreatePullRequestResult>
+  onOpenExternalUrl: (url: string) => Promise<void>
+  onOpenResult?: (projectId: string, relativePath: string) => Promise<void>
+  onRevealResult?: (projectId: string, relativePath: string) => Promise<void>
+}) {
+  const [gitInsights, setGitInsights] = useState<EngineGitInsights | null>(null)
+  const [gitState, setGitState] = useState<GitWorkflowState | null>(null)
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [diff, setDiff] = useState<GitDiffResult | null>(null)
+  const [commitMessage, setCommitMessage] = useState('')
+  const [status, setStatus] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoadingState, setIsLoadingState] = useState(false)
+  const [isLoadingDiff, setIsLoadingDiff] = useState(false)
+  const [isCommitting, setIsCommitting] = useState(false)
+  const [isPushing, setIsPushing] = useState(false)
+  const [isPrDialogOpen, setIsPrDialogOpen] = useState(false)
+  const [isCreatingPr, setIsCreatingPr] = useState(false)
+  const [prTitle, setPrTitle] = useState('')
+  const [prBody, setPrBody] = useState('')
+  const [prBaseBranch, setPrBaseBranch] = useState('')
+  const [prMode, setPrMode] = useState<'draft' | 'ready'>('draft')
+  const [prResult, setPrResult] = useState<GitCreatePullRequestResult | null>(null)
+
+  const changedFiles = gitState?.workingTree?.files ?? []
+  const recentCommits = gitInsights?.recentCommits ?? []
+  const firstRecentCommit = recentCommits[0]
+
+  const refreshGitData = async () => {
+    setIsLoadingState(true)
+    setError(null)
+    try {
+      const nextState = await onLoadGitState(project.id)
+      setGitState(nextState)
+
+      if (nextState.available) {
+        try {
+          const nextInsights = await onLoadGitInsights(project.id)
+          setGitInsights(nextInsights)
+        } catch (loadError) {
+          setGitInsights(null)
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load git activity.')
+        }
+      } else {
+        setGitInsights(null)
+        setDiff(null)
+      }
+    } catch (loadError) {
+      setGitState(null)
+      setGitInsights(null)
+      setDiff(null)
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load git workspace.')
+    } finally {
+      setIsLoadingState(false)
+    }
+  }
+
+  useEffect(() => {
+    void refreshGitData()
+  }, [project.id])
+
+  useEffect(() => {
+    if (!changedFiles.length) {
+      setSelectedFile(null)
+      setDiff(null)
+      return
+    }
+
+    if (!selectedFile || !changedFiles.some((file) => file.path === selectedFile)) {
+      setSelectedFile(changedFiles[0]?.path ?? null)
+    }
+  }, [changedFiles, selectedFile])
+
+  useEffect(() => {
+    if (!selectedFile || !gitState?.available) {
+      setDiff(null)
+      return
+    }
+
+    let cancelled = false
+    setIsLoadingDiff(true)
+    setError(null)
+
+    onLoadGitDiff(project.id, selectedFile)
+      .then((result) => {
+        if (!cancelled) {
+          setDiff(result)
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setDiff(null)
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load diff.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingDiff(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [gitState?.available, onLoadGitDiff, project.id, selectedFile])
+
+  useEffect(() => {
+    setPrTitle(buildDefaultPrTitle(gitState?.branch ?? null, firstRecentCommit))
+    setPrBody(buildDefaultPrBody(project, firstRecentCommit))
+    setPrBaseBranch(gitState?.remoteName ? 'main' : '')
+    setPrResult(null)
+  }, [firstRecentCommit, gitState?.branch, gitState?.remoteName, project])
+
+  const statusPills = useMemo(() => {
+    const workingTree = gitState?.workingTree
+    if (!workingTree) {
+      return []
+    }
+
+    return [
+      {
+        label: 'Staged',
+        value: workingTree.stagedCount,
+        variant: workingTree.stagedCount > 0 ? 'success' : 'outline',
+      },
+      {
+        label: 'Unstaged',
+        value: workingTree.unstagedCount,
+        variant: workingTree.unstagedCount > 0 ? 'warning' : 'outline',
+      },
+      {
+        label: 'Untracked',
+        value: workingTree.untrackedCount,
+        variant: workingTree.untrackedCount > 0 ? 'outline' : 'outline',
+      },
+      {
+        label: 'Conflicts',
+        value: workingTree.conflictedCount,
+        variant: workingTree.conflictedCount > 0 ? 'destructive' : 'outline',
+      },
+    ] as const
+  }, [gitState?.workingTree])
+
+  const handleCommit = async () => {
+    if (!commitMessage.trim()) {
+      setError('Enter a commit message to continue.')
+      return
+    }
+
+    setIsCommitting(true)
+    setError(null)
+    setStatus(null)
+    try {
+      const result = await onCommitChanges(project.id, commitMessage)
+      if (!result.ok) {
+        setError(result.message)
+        return
+      }
+
+      setCommitMessage('')
+      setStatus(result.message)
+      await refreshGitData()
+    } catch (commitError) {
+      setError(commitError instanceof Error ? commitError.message : 'Failed to commit changes.')
+    } finally {
+      setIsCommitting(false)
+    }
+  }
+
+  const handlePush = async () => {
+    setIsPushing(true)
+    setError(null)
+    setStatus(null)
+    try {
+      const result = await onPushBranch(project.id)
+      if (!result.ok) {
+        setError(result.message)
+        return
+      }
+
+      setStatus(result.message)
+      await refreshGitData()
+    } catch (pushError) {
+      setError(pushError instanceof Error ? pushError.message : 'Failed to push the current branch.')
+    } finally {
+      setIsPushing(false)
+    }
+  }
+
+  const handleCreatePr = async () => {
+    if (!prTitle.trim()) {
+      setError('A pull request title is required.')
+      return
+    }
+
+    setIsCreatingPr(true)
+    setError(null)
+    try {
+      const result = await onCreatePullRequest(project.id, {
+        title: prTitle.trim(),
+        body: prBody.trim(),
+        isDraft: prMode === 'draft',
+        baseBranch: prBaseBranch.trim() || undefined,
+      })
+
+      if (!result.ok) {
+        setError(result.message)
+        return
+      }
+
+      setPrResult(result)
+      setStatus(result.message)
+      setIsPrDialogOpen(false)
+    } catch (prError) {
+      setError(prError instanceof Error ? prError.message : 'Failed to open pull request flow.')
+    } finally {
+      setIsCreatingPr(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+              Git Workspace
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Daily repo flow for {project.name}: review changes, commit, push, and file a pull request.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-2 text-[11px] font-semibold"
+            onClick={() => void refreshGitData()}
+            disabled={isLoadingState}
+          >
+            {isLoadingState ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
+            Refresh
+          </Button>
+        </div>
+
+        <div className="rounded-2xl border border-border/40 bg-background/60 shadow-sm">
+          <div className="border-b border-border/30 px-5 py-4">
+            {!gitState?.available ? (
+              <div className="flex items-start gap-3 rounded-xl bg-muted/40 px-4 py-4 text-sm text-muted-foreground">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-foreground">Git workspace unavailable</p>
+                  <p>{gitState?.message || 'This project does not appear to be a git repository.'}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="gap-1.5 text-[10px] uppercase tracking-wider">
+                    <GitBranch className="h-3 w-3" />
+                    {gitState.branch || 'Detached'}
+                  </Badge>
+                  <Badge
+                    variant={gitState.workingTree?.isClean ? 'success' : 'secondary'}
+                    className="text-[10px] uppercase tracking-wider"
+                  >
+                    {gitState.workingTree?.isClean ? 'Working Tree Clean' : 'Changes Pending'}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                    Ahead {gitState.ahead}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                    Behind {gitState.behind}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {statusPills.map((pill) => (
+                    <Badge key={pill.label} variant={pill.variant} className="text-[10px] uppercase tracking-wider">
+                      {pill.label}: {pill.value}
+                    </Badge>
+                  ))}
+                </div>
+
+                <div className="text-[11px] text-muted-foreground">
+                  {gitState.remoteName ? (
+                    <span>
+                      Remote <span className="font-semibold text-foreground">{gitState.remoteName}</span>
+                      {gitState.upstream ? ` / ${gitState.upstream}` : ''}
+                    </span>
+                  ) : (
+                    'No remote configured yet.'
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {gitState?.available ? (
+            <>
+              <div className="grid min-h-[360px] gap-0 lg:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.4fr)]">
+                <div className="border-b border-border/30 lg:border-b-0 lg:border-r lg:border-border/30">
+                  <div className="px-5 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                      Changed Files
+                    </p>
+                  </div>
+                  <ScrollArea className="h-[280px] lg:h-full">
+                    <div className="space-y-2 px-3 pb-4">
+                      {changedFiles.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-8 text-center text-sm text-muted-foreground">
+                          No pending file changes.
+                        </div>
+                      ) : (
+                        changedFiles.map((file) => {
+                          const isActive = file.path === selectedFile
+                          return (
+                            <button
+                              key={file.path}
+                              type="button"
+                              onClick={() => setSelectedFile(file.path)}
+                              className={cn(
+                                'w-full rounded-xl px-3 py-3 text-left transition-colors',
+                                isActive ? 'bg-primary/8 ring-1 ring-primary/20' : 'hover:bg-muted/50'
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge
+                                      variant={summaryBadgeVariant(file.summary)}
+                                      className="text-[9px] uppercase tracking-wider"
+                                    >
+                                      {file.summary}
+                                    </Badge>
+                                    {file.conflicted ? (
+                                      <Badge variant="destructive" className="text-[9px] uppercase tracking-wider">
+                                        Conflict
+                                      </Badge>
+                                    ) : null}
+                                  </div>
+                                  <p className="truncate font-mono text-[11px] font-semibold text-foreground">
+                                    {file.path}
+                                  </p>
+                                </div>
+                                <div className="shrink-0 text-right text-[10px] text-muted-foreground">
+                                  <div>+{file.additions}</div>
+                                  <div>-{file.deletions}</div>
+                                </div>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {onOpenResult ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-[10px]"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void onOpenResult(project.id, file.path)
+                                    }}
+                                  >
+                                    Open
+                                  </Button>
+                                ) : null}
+                                {onRevealResult ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-[10px]"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void onRevealResult(project.id, file.path)
+                                    }}
+                                  >
+                                    Reveal
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                <div className="min-h-[320px] px-5 py-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                        Unified Diff
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {selectedFile ? selectedFile : 'Select a changed file to inspect the current diff.'}
+                      </p>
+                    </div>
+                    {diff?.generatedForUntracked ? (
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                        Untracked Preview
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-border/30 bg-zinc-950 text-zinc-100 shadow-inner">
+                    <ScrollArea className="h-[300px] lg:h-[340px]">
+                      <pre className="whitespace-pre-wrap px-4 py-4 font-mono text-[11px] leading-6">
+                        {!selectedFile
+                          ? 'Select a changed file to load its diff.'
+                          : isLoadingDiff
+                            ? 'Loading diff...'
+                            : diff?.ok
+                              ? diff.diff || 'No diff available for this file.'
+                              : diff?.message || 'No diff available for this file.'}
+                      </pre>
+                    </ScrollArea>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-border/30 px-5 py-5">
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.8fr)]">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <LabelLine label="Commit Message" meta={gitState.branch ? `Branch ${gitState.branch}` : undefined} />
+                      <Textarea
+                        value={commitMessage}
+                        onChange={(event) => setCommitMessage(event.target.value)}
+                        placeholder="Describe the change set clearly..."
+                        rows={3}
+                        className="min-h-[96px] bg-background"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        className="h-9 gap-2 px-4 text-[11px] font-semibold"
+                        onClick={() => void handleCommit()}
+                        disabled={isCommitting || !commitMessage.trim() || Boolean(gitState.workingTree?.hasConflicts)}
+                      >
+                        {isCommitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitCommitHorizontal className="h-3.5 w-3.5" />}
+                        {isCommitting ? 'Committing...' : 'Commit All'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 gap-2 px-4 text-[11px] font-semibold"
+                        onClick={() => void handlePush()}
+                        disabled={isPushing || !gitState.canPush}
+                      >
+                        {isPushing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        {isPushing ? 'Pushing...' : 'Push Branch'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 gap-2 px-4 text-[11px] font-semibold"
+                        onClick={() => setIsPrDialogOpen(true)}
+                        disabled={!gitState.canCreatePullRequest}
+                      >
+                        <Github className="h-3.5 w-3.5" />
+                        Create PR
+                      </Button>
+                    </div>
+
+                    {status ? (
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-[11px] text-emerald-700 dark:text-emerald-300">
+                        {status}
+                      </div>
+                    ) : null}
+                    {error ? (
+                      <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-[11px] text-destructive">
+                        {error}
+                      </div>
+                    ) : null}
+                    {prResult?.ok && prResult.url ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-[11px]">
+                        <div className="space-y-1">
+                          <p className="font-semibold text-foreground">Pull request link ready</p>
+                          <p className="break-all text-muted-foreground">{prResult.url}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-2 text-[11px] font-semibold"
+                          onClick={() => void onOpenExternalUrl(prResult.url!)}
+                        >
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                          Open PR
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-3">
+                    <LabelLine label="Recent Activity" meta={`${recentCommits.length} commits`} />
+                    <div className="space-y-2">
+                      {recentCommits.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-6 text-sm text-muted-foreground">
+                          Commit history will appear here once git activity is available.
+                        </div>
+                      ) : (
+                        recentCommits.slice(0, 4).map((commit) => (
+                          <div key={commit.hash} className="rounded-xl border border-border/30 bg-muted/20 px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold">{commit.message}</p>
+                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                  {commit.author} · {formatDate(commit.date)}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="shrink-0 text-[10px] uppercase tracking-wider">
+                                {commit.hash.slice(0, 7)}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      <Dialog open={isPrDialogOpen} onOpenChange={setIsPrDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create pull request</DialogTitle>
+            <DialogDescription>
+              Prepare a GitHub pull request for {project.name}. The current flow opens the GitHub compare page in your browser.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPrMode('draft')}
+                className={cn(
+                  'rounded-xl border px-3 py-2 text-left text-sm transition-colors',
+                  prMode === 'draft' ? 'border-primary/30 bg-primary/10 text-foreground' : 'border-border/40 text-muted-foreground hover:bg-muted/40'
+                )}
+              >
+                Draft PR
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrMode('ready')}
+                className={cn(
+                  'rounded-xl border px-3 py-2 text-left text-sm transition-colors',
+                  prMode === 'ready' ? 'border-primary/30 bg-primary/10 text-foreground' : 'border-border/40 text-muted-foreground hover:bg-muted/40'
+                )}
+              >
+                Ready for review
+              </button>
+            </div>
+            <Input value={prTitle} onChange={(event) => setPrTitle(event.target.value)} placeholder="Pull request title" />
+            <Input value={prBaseBranch} onChange={(event) => setPrBaseBranch(event.target.value)} placeholder="Base branch (defaults to main)" />
+            <Textarea value={prBody} onChange={(event) => setPrBody(event.target.value)} rows={8} placeholder="Describe the changes and validation." />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPrDialogOpen(false)} disabled={isCreatingPr}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleCreatePr()} disabled={isCreatingPr || !prTitle.trim()}>
+              {isCreatingPr ? 'Opening...' : 'Open PR Flow'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function LabelLine({ label, meta }: { label: string; meta?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">{label}</p>
+      {meta ? <p className="text-[11px] text-muted-foreground">{meta}</p> : null}
+    </div>
+  )
+}

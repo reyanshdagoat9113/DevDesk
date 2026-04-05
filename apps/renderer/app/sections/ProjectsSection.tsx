@@ -20,64 +20,38 @@ import {
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { ScrollArea } from '../components/ui/ScrollArea'
+import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
+import { ProjectGitSummary } from '../components/ProjectGitSummary'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
-import type { AppPreferences, Container, Project } from '../types'
-
-const selectClass =
-  'flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
-
-function isWslPath(projectPath: string) {
-  return /^\\\\wsl(?:\.localhost|\$)\\/i.test(projectPath)
-}
-
-const macEditorOptions = [
-  { id: 'vscode', label: 'Visual Studio Code' },
-  { id: 'cursor', label: 'Cursor' },
-  { id: 'webstorm', label: 'WebStorm' },
-  { id: 'intellij', label: 'IntelliJ IDEA' },
-  { id: 'sublime', label: 'Sublime Text' },
-  { id: 'xcode', label: 'Xcode' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const windowsEditorOptions = [
-  { id: 'vscode', label: 'Visual Studio Code' },
-  { id: 'visual-studio', label: 'Visual Studio' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const macTerminalOptions = [
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'iterm', label: 'iTerm' },
-  { id: 'ghostty', label: 'Ghostty' },
-  { id: 'warp', label: 'Warp' },
-  { id: 'hyper', label: 'Hyper' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const windowsTerminalOptions = [
-  { id: 'windows-terminal', label: 'Windows Terminal' },
-  { id: 'powershell', label: 'PowerShell' },
-  { id: 'cmd', label: 'Command Prompt' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const linuxEditorOptions = [
-  { id: 'vscode', label: 'Visual Studio Code' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const linuxTerminalOptions = [
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const containerStateBadge: Record<Container['state'], 'success' | 'warning' | 'outline'> = {
-  running: 'success',
-  paused: 'warning',
-  stopped: 'outline',
-}
+import {
+  containerStateBadge,
+  isWslPath,
+  linuxEditorOptions,
+  linuxTerminalOptions,
+  macEditorOptions,
+  macTerminalOptions,
+  selectClass,
+  windowsEditorOptions,
+  windowsTerminalOptions,
+} from './projectsSectionConfig'
+import type {
+  AppPreferences,
+  Container,
+  EngineGitInsights,
+  EngineIndexResult,
+  EngineIndexMeta,
+  EngineSearchResult,
+  EngineSearchSession,
+  EngineStats,
+  EngineStatus,
+  GitCommitResult,
+  GitCreatePullRequestResult,
+  GitDiffResult,
+  GitPushResult,
+  GitWorkflowState,
+  Project,
+} from '../types'
 
 export function ProjectsSection({
   projects,
@@ -87,14 +61,35 @@ export function ProjectsSection({
   containersLoading,
   containersError,
   preferences,
+  engineStatus,
+  engineIndexes,
+  engineSearchSessions,
+  engineIndexingProjects,
+  engineLatestIndexResults,
   onSavePreferences,
   onUpdateProject,
-  onToggleProjectPin,
   onSetLinkedContainers,
   onStartDevStack,
   onStopDevStack,
   onRefreshContainers,
   onRemoveProject,
+  onToggleProjectPin,
+  onSelectProject,
+  onIndexProject,
+  onSearchProjectContent,
+  onLoadEngineStats,
+  onLoadEngineGitInsights,
+  onLoadGitState,
+  onLoadGitDiff,
+  onCommitProjectChanges,
+  onPushProjectBranch,
+  onCreateProjectPullRequest,
+  onOpenEngineResult,
+  onRevealEngineResult,
+  onClearProjectIndex,
+  onClearProjectSearchSession,
+  onOpenExternalUrl,
+  onOpenProjectEngine,
 }: {
   projects: Project[]
   containers: Container[]
@@ -103,6 +98,11 @@ export function ProjectsSection({
   containersLoading?: boolean
   containersError?: string | null
   preferences?: AppPreferences | null
+  engineStatus?: EngineStatus | null
+  engineIndexes?: Record<string, EngineIndexMeta>
+  engineSearchSessions?: Record<string, EngineSearchSession>
+  engineIndexingProjects?: Record<string, boolean>
+  engineLatestIndexResults?: Record<string, EngineIndexResult>
   onSavePreferences?: (next: AppPreferences) => Promise<void>
   onUpdateProject?: (projectId: string, updates: { name: string }) => Promise<void>
   onToggleProjectPin?: (projectId: string) => Promise<Project>
@@ -111,6 +111,25 @@ export function ProjectsSection({
   onStopDevStack?: (projectId: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
   onRefreshContainers?: () => Promise<void>
   onRemoveProject?: (projectId: string) => Promise<void>
+  onSelectProject?: (projectId: string) => void
+  onIndexProject?: (projectId: string) => Promise<unknown>
+  onSearchProjectContent?: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
+  onLoadEngineStats?: (projectId: string) => Promise<EngineStats>
+  onLoadEngineGitInsights?: (projectId: string) => Promise<EngineGitInsights>
+  onLoadGitState?: (projectId: string) => Promise<GitWorkflowState>
+  onLoadGitDiff?: (projectId: string, relativePath: string) => Promise<GitDiffResult>
+  onCommitProjectChanges?: (projectId: string, message: string) => Promise<GitCommitResult>
+  onPushProjectBranch?: (projectId: string) => Promise<GitPushResult>
+  onCreateProjectPullRequest?: (
+    projectId: string,
+    input: { title: string; body: string; isDraft: boolean; baseBranch?: string }
+  ) => Promise<GitCreatePullRequestResult>
+  onOpenEngineResult?: (projectId: string, relativePath: string, location?: { line?: number; column?: number }) => Promise<void>
+  onRevealEngineResult?: (projectId: string, relativePath: string) => Promise<void>
+  onClearProjectIndex?: (projectId: string) => Promise<void>
+  onClearProjectSearchSession?: (projectId: string) => Promise<void>
+  onOpenExternalUrl?: (url: string) => Promise<void>
+  onOpenProjectEngine?: (projectId: string) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -139,6 +158,29 @@ export function ProjectsSection({
   const [liveLogsClosed, setLiveLogsClosed] = useState(false)
   const liveLogsSubscriptionIdRef = useRef<string | null>(null)
 
+  // Sort projects: pinned first, then by name
+  const sortedProjects = useMemo(() => {
+    return [...projects].sort((a, b) => {
+      // Pinned projects come first
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      // If both have same pin status, sort by pinnedAt (most recent first) if pinned
+      if (a.isPinned && b.isPinned) {
+        const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0
+        const bTime = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0
+        return bTime - aTime
+      }
+      // Otherwise sort by name
+      return a.name.localeCompare(b.name)
+    })
+  }, [projects])
+
+  const [pinnedProjects, unpinnedProjects] = useMemo(() => {
+    const pinned = sortedProjects.filter((project) => project.isPinned)
+    const unpinned = sortedProjects.filter((project) => !project.isPinned)
+    return [pinned, unpinned]
+  }, [sortedProjects])
+
   useEffect(() => {
     if (!projects.length) {
       setSelectedId(null)
@@ -162,6 +204,14 @@ export function ProjectsSection({
     if (!projects.length) return null
     return projects.find((project) => project.id === selectedId) ?? projects[0]
   }, [projects, selectedId])
+
+  useEffect(() => {
+    if (!selectedProject?.id) {
+      return
+    }
+
+    onSelectProject?.(selectedProject.id)
+  }, [onSelectProject, selectedProject?.id])
 
   useEffect(() => {
     setEditName(selectedProject?.name ?? '')
@@ -537,51 +587,106 @@ export function ProjectsSection({
                   {error}
                 </div>
               ) : projects.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50">
-                  <FolderGit2 className="h-10 w-10 mb-2 opacity-20" />
+                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50 animate-fade-in">
+                  <FolderGit2 className="h-10 w-10 mb-2 opacity-20 animate-pulse-subtle" />
                   <p className="text-sm">No projects added yet.</p>
                 </div>
               ) : (
                 <div className="space-y-1">
-                  {projects.map((project) => {
-                    const isActive = selectedProject?.id === project.id
-                    const isWslProject = isWslPath(project.path)
-                    return (
-                      <button
-                        key={project.id}
-                        onClick={() => setSelectedId(project.id)}
-                        className={cn(
-                          "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all",
-                          isActive 
-                            ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20" 
-                            : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <div className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors",
-                          isActive 
-                            ? "border-primary/30 bg-background text-primary" 
-                            : "border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60"
-                        )}>
-                          {project.name.slice(0, 1).toUpperCase()}
+                  {pinnedProjects.length > 0 && (
+                    <>
+                      <div className="px-2 py-1">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-600/80">Pinned</p>
+                      </div>
+                      {pinnedProjects.map((project) => {
+                        const isActive = selectedProject?.id === project.id
+                        const isWslProject = isWslPath(project.path)
+                        return (
+                          <button
+                            key={project.id}
+                            onClick={() => setSelectedId(project.id)}
+                            className={cn(
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all",
+                              isActive
+                                ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
+                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            <div className={cn(
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors",
+                              isActive
+                                ? "border-primary/30 bg-background text-primary"
+                                : "border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60"
+                            )}>
+                              {project.name.slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
+                              <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
+                              {isWslProject && (
+                                <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
+                                  WSL
+                                </Badge>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
+
+                  {unpinnedProjects.length > 0 && (
+                    <>
+                      {pinnedProjects.length > 0 && (
+                        <div className="px-2 pt-3 pb-1">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">All Projects</p>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
-                          <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {project.isPinned && (
-                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                          )}
-                          {isWslProject && (
-                            <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
-                              WSL
-                            </Badge>
-                          )}
-                        </div>
-                      </button>
-                    )
-                  })}
+                      )}
+                      {unpinnedProjects.map((project, index) => {
+                        const isActive = selectedProject?.id === project.id
+                        const isWslProject = isWslPath(project.path)
+                        return (
+                          <button
+                            key={project.id}
+                            onClick={() => setSelectedId(project.id)}
+                            style={{ animationDelay: `${(index + pinnedProjects.length) * 50}ms` }}
+                            className={cn(
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all animate-slide-up opacity-0",
+                              isActive
+                                ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
+                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            <div className={cn(
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors",
+                              isActive
+                                ? "border-primary/30 bg-background text-primary"
+                                : "border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60"
+                            )}>
+                              {project.name.slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
+                              <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {project.isPinned && (
+                                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                              )}
+                              {isWslProject && (
+                                <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
+                                  WSL
+                                </Badge>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -672,6 +777,57 @@ export function ProjectsSection({
                       </div>
                     )}
                   </div>
+
+                  {/* Dev Stack */}
+                  {selectedProject &&
+                  engineIndexes &&
+                  engineSearchSessions &&
+                  onIndexProject &&
+                  onSearchProjectContent &&
+                  onLoadEngineStats &&
+                  onLoadEngineGitInsights &&
+                  onLoadGitState &&
+                  onLoadGitDiff &&
+                  onCommitProjectChanges &&
+                  onPushProjectBranch &&
+                  onCreateProjectPullRequest &&
+                  onOpenEngineResult &&
+                  onRevealEngineResult &&
+                  onClearProjectIndex &&
+                  onClearProjectSearchSession &&
+                  onOpenExternalUrl &&
+                  onOpenProjectEngine ? (
+                    <div className="space-y-5">
+                      <ProjectGitSummary
+                        project={selectedProject}
+                        onLoadGitInsights={onLoadEngineGitInsights}
+                        onOpenWorkspace={onOpenProjectEngine}
+                      />
+                      <ProjectEnginePanel
+                        project={selectedProject}
+                        engineStatus={engineStatus ?? null}
+                        engineIndexes={engineIndexes}
+                        searchSessions={engineSearchSessions}
+                        indexingProjects={engineIndexingProjects ?? {}}
+                        latestIndexResults={engineLatestIndexResults ?? {}}
+                        onIndexProject={onIndexProject}
+                        onSearch={onSearchProjectContent}
+                        onLoadStats={onLoadEngineStats}
+                        onLoadGitInsights={onLoadEngineGitInsights}
+                        onLoadGitState={onLoadGitState}
+                        onLoadGitDiff={onLoadGitDiff}
+                        onCommitChanges={onCommitProjectChanges}
+                        onPushBranch={onPushProjectBranch}
+                        onCreatePullRequest={onCreateProjectPullRequest}
+                        onOpenResult={onOpenEngineResult}
+                        onRevealResult={onRevealEngineResult}
+                        onClearProjectIndex={onClearProjectIndex}
+                        onClearSearchSession={onClearProjectSearchSession}
+                        onOpenExternalUrl={onOpenExternalUrl}
+                        onOpenEngine={onOpenProjectEngine}
+                      />
+                    </div>
+                  ) : null}
 
                   {/* Dev Stack */}
                   <div className="space-y-5">

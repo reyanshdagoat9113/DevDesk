@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star } from 'lucide-react'
+import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star, Sparkles, PlusCircle } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import {
   Card,
@@ -22,11 +22,19 @@ import { Badge } from '../components/ui/Badge'
 import { Textarea } from '../components/ui/Textarea'
 import { SectionLayout } from '../layout/SectionLayout'
 import { VariablePromptModal } from '../components/VariablePromptModal'
+import { CommandPresetPickerDialog } from '../components/CommandPresetPickerDialog'
+import { getCommandPresetsForProjectType } from '../lib/commandPresets'
 import { cn } from '../../lib/utils'
-import type { Command, CommandVariable, Project } from '../types'
+import type { Command, CommandVariable, CreateCommandInput, Project } from '../types'
 
 const selectClass =
   'flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
+
+const UNTAGGED_FILTER_KEY = '__untagged__'
+
+function getNormalizedTags(command: Command): string[] {
+  return (command.tags ?? []).map((tag) => tag.trim()).filter(Boolean)
+}
 
 export function CommandsSection({
   commands,
@@ -37,6 +45,8 @@ export function CommandsSection({
   onUpdateCommand,
   onToggleCommandPin,
   onRemoveCommand,
+  onCreatePresetCommand,
+  onAddToChain,
 }: {
   commands: Command[]
   projects: Project[]
@@ -46,13 +56,15 @@ export function CommandsSection({
   onUpdateCommand?: (commandId: string, updates: { name: string; command: string; description?: string; tags?: string[] }) => Promise<void>
   onToggleCommandPin?: (commandId: string) => Promise<Command>
   onRemoveCommand?: (commandId: string) => Promise<void>
+  onCreatePresetCommand?: (command: CreateCommandInput) => Promise<Command>
+  onAddToChain?: (command: Command) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(commands[0]?.id ?? null)
   const [runError, setRunError] = useState<string | null>(null)
   const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'started'>('idle')
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const [editName, setEditName] = useState('')
   const [editCommand, setEditCommand] = useState('')
@@ -62,6 +74,9 @@ export function CommandsSection({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false)
+  const [tagUpdateError, setTagUpdateError] = useState<string | null>(null)
+  const [isUpdatingTags, setIsUpdatingTags] = useState(false)
 
   // Variable prompt state
   const [variablePromptOpen, setVariablePromptOpen] = useState(false)
@@ -81,7 +96,7 @@ export function CommandsSection({
   const tagOptions = useMemo(() => {
     const counts = new Map<string, { label: string; count: number }>()
     for (const cmd of commands) {
-      for (const rawTag of cmd.tags ?? []) {
+      for (const rawTag of getNormalizedTags(cmd)) {
         const trimmed = rawTag.trim()
         if (!trimmed) continue
         const key = trimmed.toLowerCase()
@@ -108,14 +123,34 @@ export function CommandsSection({
     return list
   }, [commands])
 
+  const untaggedCount = useMemo(
+    () => commands.filter((command) => getNormalizedTags(command).length === 0).length,
+    [commands]
+  )
+
+  const maxTagCount = useMemo(
+    () => Math.max(untaggedCount, ...tagOptions.map((tag) => tag.count), 1),
+    [tagOptions, untaggedCount]
+  )
+
+  const projectsWithPresets = useMemo(
+    () => projects.filter((project) => getCommandPresetsForProjectType(project.type).length > 0),
+    [projects]
+  )
+
   const filteredCommands = useMemo(() => {
-    return commands.filter((cmd) => {
-      if (selectedTag) {
-        const matchesTag = (cmd.tags ?? [])
-          .map((tag) => tag.trim().toLowerCase())
-          .filter(Boolean)
-          .includes(selectedTag)
-        if (!matchesTag) return false
+    const filtered = commands.filter((cmd) => {
+      const normalizedTags = getNormalizedTags(cmd).map((tag) => tag.toLowerCase())
+      const selectedNamedTags = selectedTags.filter((tag) => tag !== UNTAGGED_FILTER_KEY)
+      const includesUntagged = selectedTags.includes(UNTAGGED_FILTER_KEY)
+
+      if (selectedTags.length > 0) {
+        const matchesNamedTags = selectedNamedTags.some((tag) => normalizedTags.includes(tag))
+        const matchesUntagged = includesUntagged && normalizedTags.length === 0
+
+        if (!matchesNamedTags && !matchesUntagged) {
+          return false
+        }
       }
 
       if (!normalizedQueryTokens.length) {
@@ -128,7 +163,25 @@ export function CommandsSection({
 
       return normalizedQueryTokens.every((token) => haystack.includes(token))
     })
-  }, [commands, normalizedQueryTokens, selectedTag])
+
+    // Sort: pinned first, then by name
+    return filtered.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      if (a.isPinned && b.isPinned) {
+        const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0
+        const bTime = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0
+        return bTime - aTime
+      }
+      return a.name.localeCompare(b.name)
+    })
+  }, [commands, normalizedQueryTokens, selectedTags])
+
+  const [pinnedCommands, unpinnedCommands] = useMemo(() => {
+    const pinned = filteredCommands.filter((command) => command.isPinned)
+    const unpinned = filteredCommands.filter((command) => !command.isPinned)
+    return [pinned, unpinned]
+  }, [filteredCommands])
 
   useEffect(() => {
     if (!filteredCommands.length) {
@@ -152,39 +205,118 @@ export function CommandsSection({
       setEditDescription('')
       setEditTags('')
       setDetectedVariables([])
+      setTagUpdateError(null)
       return
     }
     setEditName(selectedCommand.name)
     setEditCommand(selectedCommand.command)
     setEditDescription(selectedCommand.description ?? '')
     setEditTags(selectedCommand.tags?.join(', ') ?? '')
-    // Detect variables from the command
+    let cancelled = false
+
     const detect = async () => {
       try {
         const vars = await window.electronAPI.detectCommandVariables(selectedCommand.command)
-        setDetectedVariables(vars)
+        if (!cancelled) {
+          setDetectedVariables(vars)
+        }
       } catch {
-        setDetectedVariables([])
+        if (!cancelled) {
+          setDetectedVariables([])
+        }
       }
     }
-    detect()
+    void detect()
+
+    return () => {
+      cancelled = true
+    }
   }, [selectedCommand])
+
+  const selectedCommandTagKeys = useMemo(
+    () => new Set((selectedCommand ? getNormalizedTags(selectedCommand) : []).map((tag) => tag.toLowerCase())),
+    [selectedCommand]
+  )
+
+  const toggleTagFilter = useCallback((tagKey: string) => {
+    setSelectedTags((current) =>
+      current.includes(tagKey) ? current.filter((tag) => tag !== tagKey) : [...current, tagKey]
+    )
+  }, [])
+
+  const handleToggleCommandTag = useCallback(async (tagLabel: string) => {
+    if (!selectedCommand || !onUpdateCommand || isUpdatingTags) {
+      return
+    }
+
+    const normalizedTag = tagLabel.trim()
+    if (!normalizedTag) {
+      return
+    }
+
+    const tagKey = normalizedTag.toLowerCase()
+    const currentTags = getNormalizedTags(selectedCommand)
+    const hasTag = currentTags.some((tag) => tag.toLowerCase() === tagKey)
+    const nextTags = hasTag
+      ? currentTags.filter((tag) => tag.toLowerCase() !== tagKey)
+      : [...currentTags, normalizedTag]
+
+    setTagUpdateError(null)
+    setIsUpdatingTags(true)
+    try {
+      await onUpdateCommand(selectedCommand.id, {
+        name: selectedCommand.name,
+        command: selectedCommand.command,
+        description: selectedCommand.description,
+        tags: nextTags,
+      })
+    } catch (error) {
+      setTagUpdateError(error instanceof Error ? error.message : 'Failed to update tags.')
+    } finally {
+      setIsUpdatingTags(false)
+    }
+  }, [isUpdatingTags, onUpdateCommand, selectedCommand])
+
+  const getCloudClasses = useCallback((count: number, isActive: boolean) => {
+    const intensity = count / maxTagCount
+    return cn(
+      'rounded-full border transition-all duration-150',
+      intensity > 0.75 && 'px-3.5 py-1.5 text-xs font-semibold',
+      intensity <= 0.75 && intensity > 0.4 && 'px-3 py-1 text-[11px] font-semibold',
+      intensity <= 0.4 && 'px-2.5 py-1 text-[10px] font-medium',
+      isActive
+        ? 'border-primary/50 bg-primary/12 text-primary shadow-sm'
+        : 'border-border/50 bg-background/80 text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
+    )
+  }, [maxTagCount])
 
   // Detect variables as user types in edit mode
   useEffect(() => {
+    let cancelled = false
+
     const detect = async () => {
       if (!editCommand.trim()) {
-        setDetectedVariables([])
+        if (!cancelled) {
+          setDetectedVariables([])
+        }
         return
       }
       try {
         const vars = await window.electronAPI.detectCommandVariables(editCommand)
-        setDetectedVariables(vars)
+        if (!cancelled) {
+          setDetectedVariables(vars)
+        }
       } catch {
-        setDetectedVariables([])
+        if (!cancelled) {
+          setDetectedVariables([])
+        }
       }
     }
-    detect()
+    void detect()
+
+    return () => {
+      cancelled = true
+    }
   }, [editCommand])
 
   // Get the project associated with this command
@@ -329,26 +461,39 @@ export function CommandsSection({
       list={
         <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
           <div className="border-b border-border/40 bg-muted/20 px-4 py-3 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Commands</p>
                 {filteredCommands.length > 0 && (
                   <Badge variant="outline" className="text-[10px] font-medium">{filteredCommands.length}</Badge>
                 )}
               </div>
-              {(selectedTag || normalizedQueryTokens.length > 0) && (
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => {
-                    setSelectedTag(null)
-                    setQuery('')
-                  }}
+                  variant="outline"
+                  className="h-8 gap-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                  onClick={() => setPresetDialogOpen(true)}
+                  disabled={!onCreatePresetCommand || projectsWithPresets.length === 0}
+                  title={projectsWithPresets.length === 0 ? 'Add a Node, Python, Rust, or Go project to unlock presets.' : 'Add preset command'}
                 >
-                  Clear Filters
+                  <Sparkles className="h-3 w-3" />
+                  Add Preset
                 </Button>
-              )}
+                {(selectedTags.length > 0 || normalizedQueryTokens.length > 0) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2.5 text-[10px]"
+                    onClick={() => {
+                      setSelectedTags([])
+                      setQuery('')
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="relative">
@@ -361,27 +506,50 @@ export function CommandsSection({
               />
             </div>
 
-            {tagOptions.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {tagOptions.map((tag) => {
-                  const isActive = selectedTag === tag.key
-                  return (
+            {(tagOptions.length > 0 || untaggedCount > 0) && (
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/75">
+                    Tag Cloud
+                  </p>
+                  {selectedTags.length > 0 ? (
+                    <p className="text-[10px] text-muted-foreground">
+                      {selectedTags.length} active filter{selectedTags.length === 1 ? '' : 's'}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {untaggedCount > 0 ? (
                     <button
-                      key={tag.key}
-                      onClick={() => setSelectedTag((current) => (current === tag.key ? null : tag.key))}
+                      type="button"
+                      onClick={() => toggleTagFilter(UNTAGGED_FILTER_KEY)}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] transition-colors",
-                        isActive 
-                          ? "border-primary/50 bg-primary/10 text-primary" 
-                          : "border-border/50 bg-background hover:bg-muted/50 text-muted-foreground"
+                        getCloudClasses(untaggedCount, selectedTags.includes(UNTAGGED_FILTER_KEY)),
+                        'flex items-center gap-1.5 border-dashed'
                       )}
                     >
-                      <Hash className="h-2.5 w-2.5 opacity-50" />
-                      <span className="font-medium">{tag.label}</span>
-                      <span className="opacity-50 text-[9px]">{tag.count}</span>
+                      <span className="font-medium">Untagged</span>
+                      <span className="text-[9px] opacity-60">{untaggedCount}</span>
                     </button>
-                  )
-                })}
+                  ) : null}
+
+                  {tagOptions.map((tag) => {
+                    const isActive = selectedTags.includes(tag.key)
+                    return (
+                      <button
+                        key={tag.key}
+                        type="button"
+                        onClick={() => toggleTagFilter(tag.key)}
+                        className={cn(getCloudClasses(tag.count, isActive), 'flex items-center gap-1.5')}
+                      >
+                        <Hash className="h-2.5 w-2.5 opacity-50" />
+                        <span>{tag.label}</span>
+                        <span className="text-[9px] opacity-60">{tag.count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -406,51 +574,109 @@ export function CommandsSection({
               </div>
             ) : (
               <div className="space-y-1">
-                {filteredCommands.map((command) => {
-                  const isActive = selectedCommand?.id === command.id
-                  
-                  return (
-                    <button
-                      key={command.id}
-                      onClick={() => setSelectedId(command.id)}
-                      className={cn(
-                        "group flex w-full flex-col gap-1.5 rounded-lg px-3 py-3 text-left transition-all",
-                        isActive 
-                          ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20" 
-                          : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <div className="flex w-full items-center justify-between gap-2">
-                        <span className="truncate text-sm font-bold leading-none">{command.name}</span>
-                        <div className="flex gap-1 items-center">
-                          {command.isPinned && (
-                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+
+                {pinnedCommands.length > 0 && (
+                  <>
+                    <div className="px-2 py-1">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-600/80">Pinned</p>
+                    </div>
+                    {pinnedCommands.map((command) => {
+                      const isActive = selectedCommand?.id === command.id
+
+                      return (
+                        <button
+                          key={command.id}
+                          onClick={() => setSelectedId(command.id)}
+                          className={cn(
+                            "group flex w-full flex-col gap-1.5 rounded-lg px-3 py-3 text-left transition-all",
+                            isActive
+                              ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
+                              : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                           )}
-                          {command.variables && command.variables.length > 0 && (
-                            <Badge variant="outline" className={cn(
-                              "h-4 px-1 text-[8px] border-border/40 font-bold text-primary",
-                              isActive ? "bg-background/50" : "bg-muted/30"
-                            )}>
-                              <Variable className="h-2.5 w-2.5 mr-0.5" />
-                              {command.variables.length}
-                            </Badge>
+                        >
+                          <div className="flex w-full items-center justify-between gap-2">
+                            <span className="truncate text-sm font-bold leading-none">{command.name}</span>
+                            <div className="flex items-center gap-1">
+                              <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
+                              {command.variables && command.variables.length > 0 && (
+                                <Badge variant="outline" className={cn(
+                                  "h-4 px-1 text-[8px] border-border/40 font-bold text-primary",
+                                  isActive ? "bg-background/50" : "bg-muted/30"
+                                )}>
+                                  <Variable className="h-2.5 w-2.5 mr-0.5" />
+                                  {command.variables.length}
+                                </Badge>
+                              )}
+                              {command.tags?.length ? (
+                                <Badge variant="outline" className={cn(
+                                  "h-4 px-1 text-[8px] border-border/40 font-bold",
+                                  isActive ? "bg-background/50" : "bg-muted/30"
+                                )}>
+                                  {command.tags.length}
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
+                            <span className="truncate flex-1">{command.command}</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </>
+                )}
+
+                {unpinnedCommands.length > 0 && (
+                  <>
+                    {pinnedCommands.length > 0 && (
+                      <div className="px-2 pt-3 pb-1">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">All Commands</p>
+                      </div>
+                    )}
+                    {unpinnedCommands.map((command) => {
+                      const isActive = selectedCommand?.id === command.id
+
+                      return (
+                        <button
+                          key={command.id}
+                          onClick={() => setSelectedId(command.id)}
+                          className={cn(
+                            "group flex w-full flex-col gap-1.5 rounded-lg px-3 py-3 text-left transition-all",
+                            isActive
+                              ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
+                              : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                           )}
-                          {command.tags?.length ? (
-                            <Badge variant="outline" className={cn(
-                              "h-4 px-1 text-[8px] border-border/40 font-bold",
-                              isActive ? "bg-background/50" : "bg-muted/30"
-                            )}>
-                              {command.tags.length}
-                            </Badge>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
-                        <span className="truncate flex-1">{command.command}</span>
-                      </div>
-                    </button>
-                  )
-                })}
+                        >
+                          <div className="flex w-full items-center justify-between gap-2">
+                            <span className="truncate text-sm font-bold leading-none">{command.name}</span>
+                            <div className="flex items-center gap-1">
+                              {command.variables && command.variables.length > 0 && (
+                                <Badge variant="outline" className={cn(
+                                  "h-4 px-1 text-[8px] border-border/40 font-bold text-primary",
+                                  isActive ? "bg-background/50" : "bg-muted/30"
+                                )}>
+                                  <Variable className="h-2.5 w-2.5 mr-0.5" />
+                                  {command.variables.length}
+                                </Badge>
+                              )}
+                              {command.tags?.length ? (
+                                <Badge variant="outline" className={cn(
+                                  "h-4 px-1 text-[8px] border-border/40 font-bold",
+                                  isActive ? "bg-background/50" : "bg-muted/30"
+                                )}>
+                                  {command.tags.length}
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
+                            <span className="truncate flex-1">{command.command}</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -476,12 +702,18 @@ export function CommandsSection({
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-muted-foreground hover:text-amber-500"
+
+                    className={cn(
+                      "h-8 w-8 transition-colors",
+                      selectedCommand.isPinned
+                        ? "text-yellow-500 hover:bg-yellow-500/10"
+                        : "text-muted-foreground hover:text-yellow-500 hover:bg-muted/50"
+                    )}
                     onClick={() => onToggleCommandPin?.(selectedCommand.id)}
                     disabled={!onToggleCommandPin}
                     title={selectedCommand.isPinned ? 'Unpin command' : 'Pin command'}
                   >
-                    <Star className={cn("h-4 w-4", selectedCommand.isPinned && "fill-amber-400 text-amber-400")} />
+                    <Star className={cn("h-4 w-4", selectedCommand.isPinned && "fill-yellow-500")} />
                   </Button>
                   <Button
                     size="icon"
@@ -551,20 +783,75 @@ export function CommandsSection({
                 </div>
               </div>
 
-              {selectedCommand.tags && selectedCommand.tags.length > 0 && (
-                <div className="space-y-3">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
                   <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Classification Tags</Label>
+                  {isUpdatingTags ? (
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Updating tags...
+                    </div>
+                  ) : null}
+                </div>
+
+                {getNormalizedTags(selectedCommand).length > 0 ? (
                   <div className="flex flex-wrap gap-2">
-                    {selectedCommand.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-muted/20 border-border/40 hover:bg-muted/30 transition-colors cursor-default">
-                        <Hash className="mr-1.5 h-3 w-3 opacity-40" />
+                    {getNormalizedTags(selectedCommand).map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => void handleToggleCommandTag(tag)}
+                        disabled={!onUpdateCommand || isUpdatingTags}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-primary transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+                        title="Click to remove this tag"
+                      >
+                        <Hash className="h-3 w-3 opacity-60" />
                         {tag}
-                      </Badge>
+                      </button>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border/50 bg-muted/10 px-4 py-3 text-xs text-muted-foreground">
+                    This command is currently untagged.
+                  </div>
+                )}
 
+                {tagOptions.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+                      Quick Tag Assignment
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {tagOptions.map((tag) => {
+                        const isAssigned = selectedCommandTagKeys.has(tag.key)
+                        return (
+                          <button
+                            key={tag.key}
+                            type="button"
+                            onClick={() => void handleToggleCommandTag(tag.label)}
+                            disabled={!onUpdateCommand || isUpdatingTags}
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                              isAssigned
+                                ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15'
+                                : 'border-border/50 bg-background/70 text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
+                            )}
+                            title={isAssigned ? 'Click to remove tag from this command' : 'Click to assign tag to this command'}
+                          >
+                            <Hash className="h-3 w-3 opacity-60" />
+                            {tag.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Click any tag to add or remove it instantly. Create brand new tags from the edit dialog.
+                    </p>
+                  </div>
+                ) : null}
+
+                {tagUpdateError ? <p className="text-xs text-destructive">{tagUpdateError}</p> : null}
+              </div>
               {/* Variables Section */}
               {(selectedCommand.variables && selectedCommand.variables.length > 0) || detectedVariables.length > 0 ? (
                 <div className="space-y-3">
@@ -590,40 +877,51 @@ export function CommandsSection({
             </CardContent>
 
             <div className="border-t border-border/40 bg-muted/5 p-6">
-              <div className="flex flex-col gap-5">
-                <div className="flex flex-col gap-3">
-                  <Label htmlFor="run-project" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Target Deployment Project</Label>
-                  <div className="flex gap-3">
-                    <select
-                      id="run-project"
-                      className={cn(selectClass, "flex-1 bg-background shadow-sm h-10 px-4")}
-                      value={selectedProject?.id ?? ''}
-                      onChange={(event) => setSelectedProjectId(event.target.value)}
-                      disabled={!!commandProject || availableProjects.length === 0}
-                    >
-                      {availableProjects.length === 0 ? (
-                         <option value="" disabled>No projects available</option>
-                      ) : (
-                        availableProjects.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.name}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                    <Button
-                      className="h-10 px-6 gap-2.5 shadow-lg shadow-primary/10 font-bold uppercase tracking-wider text-[11px]"
-                      onClick={handleRun}
-                      disabled={!selectedCommand || !selectedProject || runStatus === 'running'}
-                    >
-                      {runStatus === 'running' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <PlayCircle className="h-4 w-4" />
-                      )}
-                      {runStatus === 'running' ? 'Deploying...' : 'Execute Script'}
-                    </Button>
-                  </div>
+                <div className="flex flex-col gap-5">
+                  <div className="flex flex-col gap-3">
+                    <Label htmlFor="run-project" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Target Deployment Project</Label>
+                    <div className="flex flex-col gap-3 xl:flex-row">
+                      <select
+                        id="run-project"
+                        className={cn(selectClass, "min-w-0 flex-1 bg-background shadow-sm h-10 px-4")}
+                        value={selectedProject?.id ?? ''}
+                        onChange={(event) => setSelectedProjectId(event.target.value)}
+                        disabled={!!commandProject || availableProjects.length === 0}
+                      >
+                        {availableProjects.length === 0 ? (
+                           <option value="" disabled>No projects available</option>
+                        ) : (
+                          availableProjects.map((project) => (
+                            <option key={project.id} value={project.id}>
+                              {project.name}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <div className="flex flex-wrap gap-3 xl:justify-end">
+                        <Button
+                          className="h-10 px-6 gap-2.5 shadow-lg shadow-primary/10 font-bold uppercase tracking-wider text-[11px]"
+                          onClick={handleRun}
+                          disabled={!selectedCommand || !selectedProject || runStatus === 'running'}
+                        >
+                          {runStatus === 'running' ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <PlayCircle className="h-4 w-4" />
+                          )}
+                          {runStatus === 'running' ? 'Deploying...' : 'Execute Script'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-10 px-4 gap-2 text-[11px] font-bold uppercase tracking-wider"
+                          onClick={() => selectedCommand && onAddToChain?.(selectedCommand)}
+                          disabled={!selectedCommand || !onAddToChain}
+                        >
+                          <PlusCircle className="h-4 w-4" />
+                          Add To Chain
+                        </Button>
+                      </div>
+                    </div>
                 </div>
                 
                 {runError && (
@@ -790,6 +1088,17 @@ export function CommandsSection({
         onSubmit={handleVariableSubmit}
         onCancel={handleVariableCancel}
       />
+
+      {onCreatePresetCommand ? (
+        <CommandPresetPickerDialog
+          open={presetDialogOpen}
+          onOpenChange={setPresetDialogOpen}
+          projects={projects}
+          commands={commands}
+          preferredProjectId={selectedProject?.id ?? null}
+          onCreateCommand={onCreatePresetCommand}
+        />
+      ) : null}
     </>
   )
 }

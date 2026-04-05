@@ -5,22 +5,33 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   clearRunHistoryInStore,
+  createChain,
+  createTrigger,
   getCommandById,
+  getChainById,
   getPreferencesFromStore,
   getProjectById,
   getProjectNotesById,
   getRunHistoryOutputById,
+  getTriggerById,
+  listChains,
   listCommands,
   listProjects,
   listRecentRunHistory,
   listRunHistory,
+  listTriggers,
   createCommand,
   createProject,
   createRunHistoryEntry,
   finalizeRunHistoryEntry,
   removeCommand,
+  removeChain,
   removeProject,
+  removeRunHistoryEntry,
+  removeTrigger,
   renameProject,
+  replaceChain,
+  replaceTrigger,
   replaceCommand,
   updatePreferencesInStore,
   updateProjectLinkedContainers,
@@ -29,8 +40,19 @@ import {
   toggleCommandPin,
 } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
-import type { AppPreference, AppPreferences, Command, Container, RunStatus } from '../data/model'
-import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex } from '../files/fileService'
+import type {
+  AppPreference,
+  AppPreferences,
+  ChainStep,
+  Command,
+  CommandChain,
+  CommandTrigger,
+  CommandTriggerEvent,
+  Container,
+  Project,
+  RunStatus,
+} from '../data/model'
+import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
 import { variableResolver } from '../commands/variableResolver'
 import { detectVariables } from '../commands/variableDetector'
 
@@ -38,9 +60,70 @@ type RunningCommand = {
   process: ChildProcessWithoutNullStreams
   output: string
   requestedStop: boolean
+  completion: Promise<RunStatus>
 }
 
 const runningCommands = new Map<string, RunningCommand>()
+
+type ChainStepRunPayload = {
+  stepId: string
+  commandId: string
+  status: 'pending' | 'running' | 'success' | 'failed' | 'stopped' | 'skipped'
+  runId?: string
+  startedAt?: string
+  endedAt?: string
+  error?: string
+}
+
+type ChainRunPayload = {
+  runId: string
+  chainId: string
+  projectId?: string
+  status: 'running' | 'success' | 'failed' | 'stopped'
+  startedAt: string
+  endedAt?: string
+  activeStepId?: string
+  error?: string
+  steps: ChainStepRunPayload[]
+}
+
+const runningChains = new Map<string, ChainRunPayload>()
+
+type TriggerMutationInput = {
+  name: string
+  description?: string
+  projectId?: string
+  chainId: string
+  event: CommandTriggerEvent
+  enabled?: boolean
+  requireConfirmation?: boolean
+}
+
+type TriggerEventContext = {
+  projectId?: string
+  containerNames?: string[]
+}
+
+type TriggerConfirmationRequestPayload = {
+  id: string
+  triggerId: string
+  triggerName: string
+  chainId: string
+  chainName: string
+  event: CommandTriggerEvent
+  projectId?: string
+  projectName?: string
+  containerNames?: string[]
+  createdAt: string
+}
+
+type PendingTriggerConfirmation = {
+  request: TriggerConfirmationRequestPayload
+  resolve: (approved: boolean) => void
+  timeout: NodeJS.Timeout
+}
+
+const pendingTriggerConfirmations = new Map<string, PendingTriggerConfirmation>()
 
 type RunningDockerLogSubscription = {
   process: ChildProcessWithoutNullStreams
@@ -360,11 +443,36 @@ async function listWslDistros(): Promise<string[]> {
   return [defaultEntry, ...sorted]
 }
 
+function formatProcessExitCode(code: number | null) {
+  if (code === null) {
+    return 'unknown'
+  }
+
+  return code > 0x7fffffff ? `${code - 0x100000000}` : `${code}`
+}
+
 function runDockerCommandWith(command: string, args: string[]) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(command, args, { windowsHide: true })
     let stdout = ''
     let stderr = ''
+    let settled = false
+
+    const resolveOnce = (value: string) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      resolve(value)
+    }
+
+    const rejectOnce = (error: Error) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      reject(error)
+    }
 
     child.stdout.on('data', (chunk) => {
       stdout += chunk.toString()
@@ -375,16 +483,22 @@ function runDockerCommandWith(command: string, args: string[]) {
     })
 
     child.on('error', (error) => {
-      reject(error)
+      rejectOnce(error)
     })
 
     child.on('close', (code) => {
-      if (code === 0) {
-        resolve(stdout.trimEnd())
+      if (settled) {
         return
       }
-      const message = stderr.trim() || `Docker command failed (exit ${code}).`
-      reject(new Error(message))
+
+      if (code === 0) {
+        resolveOnce(stdout.trimEnd())
+        return
+      }
+
+      const formattedCode = formatProcessExitCode(code)
+      const message = stderr.trim() || `Docker command failed (exit ${formattedCode}).`
+      rejectOnce(new Error(message))
     })
   })
 }
@@ -757,7 +871,7 @@ async function getProjectPath(projectId: string): Promise<string> {
 
 async function getProjectDirectories(projectId: string, relativePath?: string): Promise<string[]> {
   const projectPath = await getProjectPath(projectId)
-  const targetPath = relativePath ? path.join(projectPath, relativePath) : projectPath
+  const targetPath = resolveProjectPath(projectPath, relativePath)
 
   if (!fs.existsSync(targetPath)) {
     return []
@@ -859,6 +973,555 @@ function getProjectName(projectPath: string): string {
   return path.basename(trimTrailingPathSeparators(projectPath))
 }
 
+type ChainMutationInput = {
+  name: string
+  description?: string
+  projectId?: string
+  steps: Array<{ id: string; commandId: string; variables?: Record<string, string>; delayMs?: number }>
+  stopOnFailure: boolean
+  parallel?: boolean
+}
+
+type CommandNeedsInputResponse = {
+  status: 'needs-input'
+  inputs: Array<{ name: string; default?: string; required: boolean; description?: string }>
+  preview: string
+}
+
+type PreparedCommandExecution = {
+  command: Command
+  project: Project
+  projectPath: string
+  workingDirectoryPath: string
+  workingDirectoryRelative?: string
+  finalCommand: string
+}
+
+type StartedCommandRun = {
+  runId: string
+  status: 'running'
+  startTime: string
+  completion: Promise<RunStatus>
+}
+
+function sanitizeStepVariables(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, entryValue]) => [key.trim(), typeof entryValue === 'string' ? entryValue : String(entryValue ?? '')] as const)
+    .filter(([key, entryValue]) => Boolean(key) && Boolean(entryValue.trim()))
+
+  if (!entries.length) {
+    return undefined
+  }
+
+  return Object.fromEntries(entries)
+}
+
+function sanitizeChainSteps(steps: unknown): ChainStep[] {
+  if (!Array.isArray(steps)) {
+    throw new Error('Chain steps are required.')
+  }
+
+  const sanitized = steps.reduce<ChainStep[]>((acc, entry, index) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new Error(`Step ${index + 1} is invalid.`)
+    }
+
+    const raw = entry as Partial<ChainStep>
+    const stepId = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : randomUUID()
+    const commandId = typeof raw.commandId === 'string' ? raw.commandId.trim() : ''
+    if (!commandId) {
+      throw new Error(`Step ${index + 1} must reference a command.`)
+    }
+
+    const delayMs =
+      typeof raw.delayMs === 'number' && Number.isFinite(raw.delayMs) && raw.delayMs > 0
+        ? Math.max(0, Math.floor(raw.delayMs))
+        : undefined
+
+    acc.push({
+      id: stepId,
+      commandId,
+      variables: sanitizeStepVariables(raw.variables),
+      delayMs,
+    })
+    return acc
+  }, [])
+
+  if (!sanitized.length) {
+    throw new Error('Add at least one step to the chain.')
+  }
+
+  return sanitized
+}
+
+function sanitizeChainInput(input: ChainMutationInput): Omit<CommandChain, 'id' | 'createdAt' | 'updatedAt'> {
+  const name = typeof input?.name === 'string' ? input.name.trim() : ''
+  if (!name) {
+    throw new Error('Chain name is required.')
+  }
+
+  return {
+    name,
+    description: typeof input.description === 'string' && input.description.trim() ? input.description.trim() : undefined,
+    projectId: typeof input.projectId === 'string' && input.projectId.trim() ? input.projectId.trim() : undefined,
+    steps: sanitizeChainSteps(input.steps),
+    stopOnFailure: input.stopOnFailure !== false,
+    parallel: Boolean(input.parallel),
+  }
+}
+
+async function prepareCommandExecution(
+  command: Command,
+  preferredProjectId?: string,
+  variables?: Record<string, string>
+): Promise<PreparedCommandExecution | CommandNeedsInputResponse> {
+  const effectiveProjectId = preferredProjectId ?? command.projectId
+  if (!effectiveProjectId) {
+    throw new Error('Project is required to run a command.')
+  }
+
+  const project = await getProjectById(effectiveProjectId)
+  if (!project) {
+    throw new Error('Project not found.')
+  }
+
+  const projectPath = normalizeProjectPath(project.path)
+  if (!fs.existsSync(projectPath)) {
+    throw new Error('Project path does not exist.')
+  }
+
+  const workingDirectoryRelative = command.workingDirectory?.trim() || undefined
+  const workingDirectoryPath = resolveProjectPath(projectPath, workingDirectoryRelative)
+  const shellDialect =
+    process.platform === 'win32' && !parseWslProjectPath(projectPath) ? 'windows' : 'posix'
+
+  const hasContainerVariables = variableResolver
+    .extractVariables(command.command)
+    .some((variable) => variable.startsWith('container.'))
+
+  let linkedContainers: Container[] = []
+  if (hasContainerVariables) {
+    const containers = await listDockerContainers()
+    linkedContainers = containers.filter((container) =>
+      project.linkedContainerNames.some((name) => container.name.toLowerCase() === name.toLowerCase())
+    )
+  }
+
+  const resolution = variableResolver.resolve(
+    command.command,
+    {
+      project,
+      containers: linkedContainers,
+      env: process.env,
+    },
+    variables,
+    shellDialect
+  )
+
+  if (resolution.unresolvedInputs.length > 0) {
+    return {
+      status: 'needs-input',
+      inputs: resolution.unresolvedInputs,
+      preview: resolution.resolvedCommand,
+    }
+  }
+
+  return {
+    command,
+    project,
+    projectPath,
+    workingDirectoryPath,
+    workingDirectoryRelative,
+    finalCommand: resolution.resolvedCommand,
+  }
+}
+
+async function startPreparedCommandExecution(prepared: PreparedCommandExecution): Promise<StartedCommandRun> {
+  const runId = randomUUID()
+  const startTime = new Date().toISOString()
+
+  await createRunHistoryEntry({
+    id: runId,
+    commandId: prepared.command.id,
+    projectId: prepared.project.id,
+    status: 'running',
+    startTime,
+    output: '',
+    resolvedCommand: prepared.finalCommand,
+  })
+
+  broadcast('runs:started', {
+    id: runId,
+    commandId: prepared.command.id,
+    projectId: prepared.project.id,
+    status: 'running',
+    startTime,
+    output: '',
+    resolvedCommand: prepared.finalCommand,
+  })
+
+  const wslLocation = parseWslProjectPath(prepared.projectPath)
+  const child = wslLocation
+    ? spawn(
+        WSL_EXECUTABLE_PATH,
+        [
+          '-d',
+          wslLocation.distro,
+          '-e',
+          'bash',
+          '-lc',
+          buildWslBashCommand(
+            prepared.finalCommand,
+            resolveWslWorkingDirectory(wslLocation, prepared.workingDirectoryRelative)
+          ),
+        ],
+        {
+          env: process.env,
+          windowsHide: true,
+        }
+      )
+    : spawn(prepared.finalCommand, {
+        cwd: prepared.workingDirectoryPath,
+        shell: true,
+        env: process.env,
+      })
+
+  let resolveCompletion: ((status: RunStatus) => void) | null = null
+  const completion = new Promise<RunStatus>((resolve) => {
+    resolveCompletion = resolve
+  })
+
+  const running: RunningCommand = {
+    process: child,
+    output: '',
+    requestedStop: false,
+    completion,
+  }
+  runningCommands.set(runId, running)
+
+  const flushOutput = async (runStatus?: RunStatus) => {
+    await finalizeRunHistoryEntry(runId, running.output, runStatus)
+  }
+
+  const pushChunk = (chunk: Buffer) => {
+    const text = chunk.toString()
+    running.output += text
+    broadcast('runs:output', { runId, chunk: text })
+  }
+
+  child.stdout.on('data', pushChunk)
+  child.stderr.on('data', pushChunk)
+
+  child.on('error', async (error) => {
+    running.output += `\n${error.message}\n`
+    await flushOutput('failed')
+    runningCommands.delete(runId)
+    broadcast('runs:status', { runId, status: 'failed' })
+    resolveCompletion?.('failed')
+  })
+
+  child.on('close', async (code) => {
+    const status: RunStatus = running.requestedStop ? 'stopped' : code === 0 ? 'success' : 'failed'
+    await flushOutput(status)
+    runningCommands.delete(runId)
+    broadcast('runs:status', { runId, status })
+    resolveCompletion?.(status)
+  })
+
+  return {
+    runId,
+    status: 'running',
+    startTime,
+    completion,
+  }
+}
+
+async function startCommandExecution(
+  command: Command,
+  preferredProjectId?: string,
+  variables?: Record<string, string>
+): Promise<StartedCommandRun | CommandNeedsInputResponse> {
+  const prepared = await prepareCommandExecution(command, preferredProjectId, variables)
+  if ('status' in prepared) {
+    return prepared
+  }
+  return startPreparedCommandExecution(prepared)
+}
+
+function cloneChainRunPayload(payload: ChainRunPayload): ChainRunPayload {
+  return {
+    ...payload,
+    steps: payload.steps.map((step) => ({ ...step })),
+  }
+}
+
+function emitChainProgress(payload: ChainRunPayload) {
+  const snapshot = cloneChainRunPayload(payload)
+  runningChains.set(snapshot.runId, snapshot)
+  broadcast('chains:progress', snapshot)
+  if (snapshot.status !== 'running') {
+    runningChains.delete(snapshot.runId)
+  }
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+function sanitizeTriggerInput(input: TriggerMutationInput): Omit<CommandTrigger, 'id' | 'createdAt' | 'updatedAt'> {
+  const name = typeof input?.name === 'string' ? input.name.trim() : ''
+  if (!name) {
+    throw new Error('Trigger name is required.')
+  }
+
+  const chainId = typeof input.chainId === 'string' ? input.chainId.trim() : ''
+  if (!chainId) {
+    throw new Error('Select a command chain for this trigger.')
+  }
+
+  if (!['onProjectOpen', 'afterContainerStart', 'onStartup'].includes(input.event)) {
+    throw new Error('Trigger event is invalid.')
+  }
+
+  return {
+    name,
+    description: typeof input.description === 'string' && input.description.trim() ? input.description.trim() : undefined,
+    projectId: typeof input.projectId === 'string' && input.projectId.trim() ? input.projectId.trim() : undefined,
+    chainId,
+    event: input.event,
+    enabled: input.enabled !== false,
+    requireConfirmation: input.requireConfirmation === true,
+  }
+}
+
+async function getProjectsLinkedToContainer(containerName: string): Promise<Project[]> {
+  const normalizedName = containerName.trim().toLowerCase()
+  if (!normalizedName) {
+    return []
+  }
+
+  const projects = await listProjects()
+  return projects.filter((project) =>
+    project.linkedContainerNames.some((name) => name.trim().toLowerCase() === normalizedName)
+  )
+}
+
+function getPendingTriggerConfirmationRequests(): TriggerConfirmationRequestPayload[] {
+  return Array.from(pendingTriggerConfirmations.values()).map((entry) => entry.request)
+}
+
+async function requestTriggerConfirmation(
+  trigger: CommandTrigger,
+  chain: CommandChain,
+  context: TriggerEventContext
+): Promise<boolean> {
+  const requestId = randomUUID()
+  const project = context.projectId ? await getProjectById(context.projectId) : null
+  const request: TriggerConfirmationRequestPayload = {
+    id: requestId,
+    triggerId: trigger.id,
+    triggerName: trigger.name,
+    chainId: chain.id,
+    chainName: chain.name,
+    event: trigger.event,
+    projectId: context.projectId,
+    projectName: project?.name,
+    containerNames: context.containerNames,
+    createdAt: new Date().toISOString(),
+  }
+
+  return new Promise<boolean>((resolve) => {
+    const timeout = setTimeout(() => {
+      pendingTriggerConfirmations.delete(requestId)
+      resolve(false)
+    }, 120000)
+
+    pendingTriggerConfirmations.set(requestId, {
+      request,
+      resolve: (approved) => {
+        clearTimeout(timeout)
+        resolve(approved)
+      },
+      timeout,
+    })
+
+    broadcast('triggers:confirmation-requested', request)
+  })
+}
+
+async function executeChainRun(chain: CommandChain, projectId?: string): Promise<{ runId: string; status: 'running' }> {
+  if (!chain.steps.length) {
+    throw new Error('Add at least one step before running this chain.')
+  }
+
+  const effectiveProjectId = projectId?.trim() || chain.projectId
+  const runId = randomUUID()
+  const payload: ChainRunPayload = {
+    runId,
+    chainId: chain.id,
+    projectId: effectiveProjectId,
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    steps: chain.steps.map((step) => ({
+      stepId: step.id,
+      commandId: step.commandId,
+      status: 'pending',
+    })),
+  }
+
+  emitChainProgress(payload)
+
+  void (async () => {
+    let finalStatus: ChainRunPayload['status'] = 'success'
+    let finalError: string | undefined
+
+    for (let index = 0; index < chain.steps.length; index += 1) {
+      const step = chain.steps[index]
+      const stepPayload = payload.steps[index]
+
+      if (step.delayMs && step.delayMs > 0) {
+        await delay(step.delayMs)
+      }
+
+      payload.activeStepId = step.id
+      stepPayload.status = 'running'
+      stepPayload.startedAt = new Date().toISOString()
+      emitChainProgress(payload)
+
+      const command = await getCommandById(step.commandId)
+      if (!command) {
+        stepPayload.status = 'failed'
+        stepPayload.endedAt = new Date().toISOString()
+        stepPayload.error = 'Referenced command no longer exists.'
+        finalStatus = 'failed'
+        finalError = stepPayload.error
+        emitChainProgress(payload)
+        break
+      }
+
+      try {
+        const run = await startCommandExecution(command, command.projectId ?? effectiveProjectId, step.variables)
+
+        if ('status' in run && run.status === 'needs-input') {
+          stepPayload.status = 'failed'
+          stepPayload.endedAt = new Date().toISOString()
+          stepPayload.error = `Missing chain step variables: ${run.inputs.map((input) => input.name).join(', ')}`
+          finalStatus = 'failed'
+          finalError = stepPayload.error
+          emitChainProgress(payload)
+          break
+        }
+
+        stepPayload.runId = run.runId
+        emitChainProgress(payload)
+
+        const runStatus = await run.completion
+        stepPayload.status = runStatus
+        stepPayload.endedAt = new Date().toISOString()
+        emitChainProgress(payload)
+
+        if (runStatus === 'stopped') {
+          finalStatus = 'stopped'
+          break
+        }
+
+        if (runStatus !== 'success') {
+          finalStatus = 'failed'
+          finalError = `Step ${index + 1} failed.`
+          if (chain.stopOnFailure) {
+            break
+          }
+        }
+      } catch (error) {
+        stepPayload.status = 'failed'
+        stepPayload.endedAt = new Date().toISOString()
+        stepPayload.error = error instanceof Error ? error.message : 'Step failed to start.'
+        finalStatus = 'failed'
+        finalError = stepPayload.error
+        emitChainProgress(payload)
+        if (chain.stopOnFailure) {
+          break
+        }
+      }
+    }
+
+    for (const step of payload.steps) {
+      if (step.status === 'pending') {
+        step.status = finalStatus === 'success' ? 'success' : 'skipped'
+      }
+    }
+
+    payload.status = finalStatus
+    payload.error = finalError
+    payload.activeStepId = undefined
+    payload.endedAt = new Date().toISOString()
+    emitChainProgress(payload)
+  })()
+
+  return { runId, status: 'running' }
+}
+
+function doesTriggerMatchEvent(trigger: CommandTrigger, event: CommandTriggerEvent, context: TriggerEventContext): boolean {
+  if (!trigger.enabled || trigger.event !== event) {
+    return false
+  }
+
+  if (trigger.projectId && context.projectId && trigger.projectId !== context.projectId) {
+    return false
+  }
+
+  if (event !== 'onStartup' && trigger.projectId && !context.projectId) {
+    return false
+  }
+
+  return true
+}
+
+async function runTrigger(trigger: CommandTrigger, context: TriggerEventContext): Promise<void> {
+  const chain = await getChainById(trigger.chainId)
+  if (!chain) {
+    return
+  }
+
+  const effectiveProjectId = trigger.projectId ?? context.projectId ?? chain.projectId
+  if (trigger.requireConfirmation) {
+    const approved = await requestTriggerConfirmation(trigger, chain, {
+      ...context,
+      projectId: effectiveProjectId,
+    })
+    if (!approved) {
+      return
+    }
+  }
+
+  await executeChainRun(chain, effectiveProjectId)
+}
+
+async function emitAutomationTriggerEvent(event: CommandTriggerEvent, context: TriggerEventContext = {}): Promise<void> {
+  const triggers = await listTriggers()
+  for (const trigger of triggers) {
+    if (!doesTriggerMatchEvent(trigger, event, context)) {
+      continue
+    }
+
+    try {
+      await runTrigger(trigger, context)
+    } catch {
+      // Keep subsequent triggers running even when one trigger fails.
+    }
+  }
+}
+
+export function emitStartupAutomationTriggers() {
+  void emitAutomationTriggerEvent('onStartup')
+}
+
 // Register all IPC handlers
 export function registerIpcHandlers() {
   ipcMain.handle('wsl:list-distros', async () => {
@@ -932,6 +1595,8 @@ export function registerIpcHandlers() {
       return { success: false }
     }
 
+    const { clearProjectIndex } = await import('../engine/engineService')
+    await clearProjectIndex(_id)
     await removeProject(_id)
 
     return { success: true }
@@ -1028,7 +1693,16 @@ export function registerIpcHandlers() {
       started.push(container.name)
     }
 
-    return { success: true, started, resumed, alreadyRunning, missing }
+    const result = { success: true, started, resumed, alreadyRunning, missing }
+
+    if (started.length > 0 || resumed.length > 0) {
+      void emitAutomationTriggerEvent('afterContainerStart', {
+        projectId,
+        containerNames: [...started, ...resumed],
+      })
+    }
+
+    return result
   })
 
   ipcMain.handle('projects:stop-dev-stack', async (_event, projectId: string) => {
@@ -1072,6 +1746,19 @@ export function registerIpcHandlers() {
     }
 
     return { success: true, stopped, alreadyStopped, missing }
+  })
+
+  ipcMain.handle('projects:toggle-pin', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await toggleProjectPin(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return project
   })
 
   ipcMain.handle('preferences:get', async () => {
@@ -1239,124 +1926,11 @@ export function registerIpcHandlers() {
       throw new Error('Command not found.')
     }
 
-    // Use command's projectId if not provided
-    const effectiveProjectId = _projectId ?? command.projectId
-    if (!effectiveProjectId) {
-      throw new Error('Project is required to run a command.')
+    const run = await startCommandExecution(command, _projectId, _variables)
+    if ('status' in run && run.status === 'needs-input') {
+      return run
     }
-
-    const project = await getProjectById(effectiveProjectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    const projectPath = normalizeProjectPath(project.path)
-    if (!fs.existsSync(projectPath)) {
-      throw new Error('Project path does not exist.')
-    }
-
-    // Get containers for container variable resolution
-    const containers = await listDockerContainers()
-    const linkedContainers = containers.filter((c) =>
-      project.linkedContainerNames.some(
-        (name) => c.name.toLowerCase() === name.toLowerCase()
-      )
-    )
-
-    // Resolve variables
-    const context = {
-      project,
-      containers: linkedContainers,
-      env: process.env,
-    }
-
-    const resolution = variableResolver.resolve(command.command, context, _variables)
-
-    // If there are unresolved input variables, return them for prompting
-    if (resolution.unresolvedInputs.length > 0 && !_variables) {
-      return {
-        status: 'needs-input',
-        inputs: resolution.unresolvedInputs,
-        preview: resolution.resolvedCommand,
-      }
-    }
-
-    // Continue with execution using resolved command
-    const finalCommand = resolution.resolvedCommand
-
-    const runId = randomUUID()
-    const startTime = new Date().toISOString()
-
-    await createRunHistoryEntry({
-      id: runId,
-      commandId: command.id,
-      projectId: project.id,
-      status: 'running',
-      startTime,
-      output: '',
-      resolvedCommand: finalCommand,
-    })
-
-    const wslLocation = parseWslProjectPath(projectPath)
-    const child = wslLocation
-      ? spawn(
-          WSL_EXECUTABLE_PATH,
-          [
-            '-d',
-            wslLocation.distro,
-            '-e',
-            'bash',
-            '-lc',
-            buildWslBashCommand(finalCommand, resolveWslWorkingDirectory(wslLocation, command.workingDirectory)),
-          ],
-          {
-            env: process.env,
-            windowsHide: true,
-          }
-        )
-      : spawn(finalCommand, {
-          cwd: command.workingDirectory ? path.join(projectPath, command.workingDirectory) : projectPath,
-          shell: true,
-          env: process.env,
-        })
-
-    const running: RunningCommand = {
-      process: child,
-      output: '',
-      requestedStop: false,
-    }
-    runningCommands.set(runId, running)
-
-    const flushOutput = async (runStatus?: RunStatus) => {
-      const output = running.output
-      await finalizeRunHistoryEntry(runId, output, runStatus)
-    }
-
-    const pushChunk = (chunk: Buffer) => {
-      const text = chunk.toString()
-      running.output += text
-      broadcast('runs:output', { runId, chunk: text })
-    }
-
-    child.stdout.on('data', pushChunk)
-    child.stderr.on('data', pushChunk)
-
-    child.on('error', async (error) => {
-      running.output += `\n${error.message}\n`
-      await flushOutput('failed')
-      runningCommands.delete(runId)
-      broadcast('runs:status', { runId, status: 'failed' })
-    })
-
-    child.on('close', async (code) => {
-      const status: RunStatus =
-        running.requestedStop ? 'stopped' : code === 0 ? 'success' : 'failed'
-      await flushOutput(status)
-      runningCommands.delete(runId)
-      broadcast('runs:status', { runId, status })
-    })
-
-    return { runId, status: 'running' }
+    return { runId: run.runId, status: run.status, startTime: run.startTime }
   })
 
   ipcMain.handle('commands:detect-variables', async (_event, commandString: string) => {
@@ -1374,6 +1948,159 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
+  ipcMain.handle('commands:toggle-pin', async (_event, commandId: string) => {
+    if (!commandId?.trim()) {
+      throw new Error('Command id is required.')
+    }
+
+    const command = await toggleCommandPin(commandId)
+    if (!command) {
+      throw new Error('Command not found.')
+    }
+
+    return command
+  })
+
+  ipcMain.handle('chains:list', async () => {
+    return listChains()
+  })
+
+  ipcMain.handle('chains:create', async (_event, input: ChainMutationInput) => {
+    const sanitized = sanitizeChainInput(input)
+    const now = new Date().toISOString()
+    const nextChain: CommandChain = {
+      id: randomUUID(),
+      ...sanitized,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    await createChain(nextChain)
+    return nextChain
+  })
+
+  ipcMain.handle('chains:update', async (_event, chainId: string, input: ChainMutationInput) => {
+    if (!chainId?.trim()) {
+      throw new Error('Chain id is required.')
+    }
+
+    const current = await getChainById(chainId)
+    if (!current) {
+      throw new Error('Chain not found.')
+    }
+
+    const sanitized = sanitizeChainInput(input)
+    const updatedChain: CommandChain = {
+      ...current,
+      ...sanitized,
+      updatedAt: new Date().toISOString(),
+    }
+
+    await replaceChain(updatedChain)
+    return updatedChain
+  })
+
+  ipcMain.handle('chains:delete', async (_event, chainId: string) => {
+    if (!chainId?.trim()) {
+      return { success: false }
+    }
+
+    await removeChain(chainId)
+    return { success: true }
+  })
+
+  ipcMain.handle('chains:run', async (_event, chainId: string, projectId?: string) => {
+    if (!chainId?.trim()) {
+      throw new Error('Chain id is required.')
+    }
+
+    const chain = await getChainById(chainId)
+    if (!chain) {
+      throw new Error('Chain not found.')
+    }
+
+    return executeChainRun(chain, projectId)
+  })
+
+  ipcMain.handle('triggers:list', async () => {
+    return listTriggers()
+  })
+
+  ipcMain.handle('triggers:create', async (_event, input: TriggerMutationInput) => {
+    const sanitized = sanitizeTriggerInput(input)
+    const chain = await getChainById(sanitized.chainId)
+    if (!chain) {
+      throw new Error('Selected chain not found.')
+    }
+
+    const now = new Date().toISOString()
+    const nextTrigger: CommandTrigger = {
+      id: randomUUID(),
+      ...sanitized,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    await createTrigger(nextTrigger)
+    return nextTrigger
+  })
+
+  ipcMain.handle('triggers:update', async (_event, triggerId: string, input: TriggerMutationInput) => {
+    if (!triggerId?.trim()) {
+      throw new Error('Trigger id is required.')
+    }
+
+    const current = await getTriggerById(triggerId)
+    if (!current) {
+      throw new Error('Trigger not found.')
+    }
+
+    const sanitized = sanitizeTriggerInput(input)
+    const chain = await getChainById(sanitized.chainId)
+    if (!chain) {
+      throw new Error('Selected chain not found.')
+    }
+
+    const updatedTrigger: CommandTrigger = {
+      ...current,
+      ...sanitized,
+      updatedAt: new Date().toISOString(),
+    }
+
+    await replaceTrigger(updatedTrigger)
+    return updatedTrigger
+  })
+
+  ipcMain.handle('triggers:delete', async (_event, triggerId: string) => {
+    if (!triggerId?.trim()) {
+      return { success: false }
+    }
+
+    await removeTrigger(triggerId)
+    return { success: true }
+  })
+
+  ipcMain.handle('triggers:emit', async (_event, event: CommandTriggerEvent, context: TriggerEventContext) => {
+    await emitAutomationTriggerEvent(event, context)
+    return { success: true }
+  })
+
+  ipcMain.handle('triggers:pending-confirmations', async () => {
+    return getPendingTriggerConfirmationRequests()
+  })
+
+  ipcMain.handle('triggers:respond-confirmation', async (_event, requestId: string, approved: boolean) => {
+    const pending = pendingTriggerConfirmations.get(requestId)
+    if (!pending) {
+      return { success: false }
+    }
+
+    pendingTriggerConfirmations.delete(requestId)
+    clearTimeout(pending.timeout)
+    pending.resolve(Boolean(approved))
+    return { success: true }
+  })
+
   // Containers
   ipcMain.handle('containers:get', async () => {
     return listDockerContainers()
@@ -1382,6 +2109,17 @@ export function registerIpcHandlers() {
   ipcMain.handle('containers:start', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['start', containerId])
+    const containers = await listDockerContainers()
+    const started = containers.find((container) => container.id === containerId)
+    if (started) {
+      const linkedProjects = await getProjectsLinkedToContainer(started.name)
+      for (const project of linkedProjects) {
+        void emitAutomationTriggerEvent('afterContainerStart', {
+          projectId: project.id,
+          containerNames: [started.name],
+        })
+      }
+    }
     return { success: true }
   })
 
@@ -1394,6 +2132,17 @@ export function registerIpcHandlers() {
   ipcMain.handle('containers:restart', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['restart', containerId])
+    const containers = await listDockerContainers()
+    const restarted = containers.find((container) => container.id === containerId)
+    if (restarted) {
+      const linkedProjects = await getProjectsLinkedToContainer(restarted.name)
+      for (const project of linkedProjects) {
+        void emitAutomationTriggerEvent('afterContainerStart', {
+          projectId: project.id,
+          containerNames: [restarted.name],
+        })
+      }
+    }
     return { success: true }
   })
 
@@ -1516,6 +2265,20 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
+  ipcMain.handle('history:remove', async (_event, runId: string) => {
+    const id = runId?.trim()
+    if (!id) {
+      return { success: false }
+    }
+
+    if (runningCommands.has(id)) {
+      throw new Error('Cannot remove a running command.')
+    }
+
+    await removeRunHistoryEntry(id)
+    return { success: true }
+  })
+
   ipcMain.handle('history:output', async (_event, _runId: string) => {
     const running = runningCommands.get(_runId)
     if (running) {
@@ -1543,6 +2306,7 @@ export function registerIpcHandlers() {
 
     return { success: true }
   })
+
 
   // File navigation
   ipcMain.handle('files:list', async (_event, projectId: string, dir?: string) => {
@@ -1596,8 +2360,213 @@ export function registerIpcHandlers() {
     return openFileInEditor(project.path, relativePath, preferences, line, column)
   })
 
+  ipcMain.handle('files:revealInFolder', async (_event, projectId: string, relativePath: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!relativePath) {
+      throw new Error('File path is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const targetPath = resolveProjectPath(project.path, relativePath)
+    shell.showItemInFolder(targetPath)
+    return { success: true }
+  })
+
   ipcMain.handle('files:clearIndex', async (_event, projectId: string) => {
     clearFileIndex(projectId)
     return { success: true }
+  })
+
+  ipcMain.handle('shell:open-external', async (_event, url: string) => {
+    if (!url?.trim()) {
+      return { success: false }
+    }
+
+    await shell.openExternal(url)
+    return { success: true }
+  })
+
+  ipcMain.handle('git:get-state', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getGitWorkflowState } = await import('../git/service')
+    return getGitWorkflowState(project.path)
+  })
+
+  ipcMain.handle('git:get-diff', async (_event, projectId: string, relativePath: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!relativePath?.trim()) {
+      throw new Error('File path is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getGitDiff } = await import('../git/service')
+    return getGitDiff(project.path, relativePath)
+  })
+
+  ipcMain.handle('git:commit', async (_event, projectId: string, message: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { commitAllChanges } = await import('../git/service')
+    return commitAllChanges(project.path, message)
+  })
+
+  ipcMain.handle('git:push', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { pushCurrentBranch } = await import('../git/service')
+    return pushCurrentBranch(project.path)
+  })
+
+  ipcMain.handle('git:create-pr', async (_event, projectId: string, input: {
+    title: string
+    body: string
+    isDraft: boolean
+    baseBranch?: string
+  }) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { createPullRequest } = await import('../git/service')
+    const result = await createPullRequest(project.path, input)
+    if (result.ok && result.url) {
+      await shell.openExternal(result.url)
+    }
+    return result
+  })
+
+  // Engine operations (devdesk-engine integration)
+  ipcMain.handle('engine:state', async () => {
+    const { loadEngineSnapshot } = await import('../engine/engineService')
+    return loadEngineSnapshot()
+  })
+
+  ipcMain.handle('engine:index', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { indexProject } = await import('../engine/engineService')
+    _event.sender.send('engine:indexing-started', { projectId })
+    const result = await indexProject(projectId, project.path)
+    _event.sender.send('engine:indexing-completed', { projectId, result })
+    return result
+  })
+
+  ipcMain.handle('engine:search', async (
+    _event,
+    projectId: string,
+    query: string,
+    options?: { regex?: boolean; limit?: number }
+  ) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!query) {
+      return { ok: true, query: '', results: [], totalMatches: 0, durationMs: 0 }
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { searchProject } = await import('../engine/engineService')
+    return searchProject(projectId, project.path, query, options)
+  })
+
+  ipcMain.handle('engine:stats', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getProjectStats } = await import('../engine/engineService')
+    return getProjectStats(projectId)
+  })
+
+  ipcMain.handle('engine:git-insights', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getProjectGitInsights } = await import('../engine/engineService')
+    return getProjectGitInsights(project.path)
+  })
+
+  ipcMain.handle('engine:clear', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const { clearProjectIndex } = await import('../engine/engineService')
+    return clearProjectIndex(projectId)
+  })
+
+  ipcMain.handle('engine:clear-search-session', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const { clearProjectSearchSession } = await import('../engine/engineService')
+    return clearProjectSearchSession(projectId)
+  })
+
+  ipcMain.handle('engine:is-available', async () => {
+    const { isEngineAvailable } = await import('../engine/engineService')
+    return isEngineAvailable()
   })
 }
