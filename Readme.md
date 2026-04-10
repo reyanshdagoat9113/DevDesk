@@ -2,27 +2,31 @@
 
 A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, and Docker/Compose Manager into one clean, fast workspace.
 
-## Status (2026-02-04)
+## Status (2026-04-10)
 
 Implemented:
 - Electron shell + Vite renderer, shadcn/ui + Radix components.
-- JSON persistence in userData (`devdesk-store.json`).
-- Projects: add, edit, remove, detect type, open folder/IDE/terminal.
+- SQLite persistence in userData (`devdesk.db`) with one-time migration from `devdesk-store.json`.
+- Projects: add, edit, remove, detect type, pin, open folder/IDE/terminal.
 - Preferences for editor/terminal (custom command support).
-- Command Vault: create/edit/delete/run commands with tags + description, project binding, working directory.
+- Command Vault: create/edit/delete/run commands with tags, descriptions, variables, project binding, working directory, and presets per project.
 - Run history with live output streaming + full output viewer + clear history.
 - Project notes (setup steps/todos/reminders).
-- Docker containers: list/start/stop/logs with Windows + WSL fallback.
+- Docker containers: list/start/stop/logs with Windows + WSL fallback and compose-aware labeling.
+- Git summaries per project, including lightweight working-tree status.
+- Public-release packaging on Linux (`AppImage` + `deb`) and packaged engine smoke tests.
 
-In progress:
-- Command search/filter by tag.
-- Run history shows command + project names (not just ids).
-- Production build verification.
+In progress / backlog:
+- Export/import config.
+- Tray quick actions.
+- Additional release polish after public baseline stabilizes.
 
 ## Quick Start
 
 - `npm run dev` - build main/preload, start Vite, launch Electron.
 - `npm run build` - build main/preload and renderer bundle.
+- `npm run smoke:engine-packaged` - verify packaged engine resolution and a real index/search/stats flow.
+- `npm run verify:linux-package` - build and smoke-test the Linux release package.
 
 ## Purpose
 
@@ -47,27 +51,36 @@ If it saves even 5 minutes per day, it is doing its job.
 ### 1) Project Manager
 - Add local project folders and detect project type.
 - Open in editor/terminal or reveal in file explorer.
+- Pin important projects.
 - Acts as the home screen of the app.
 
 ### 2) Command Vault
 - Store frequently used terminal commands.
-- Add descriptions and tags.
+- Add descriptions, tags, and variables.
 - Bind commands to a project or run globally.
 - Support project-relative working directories.
+- Create preset commands per project type.
 
 ### 3) Containers (Docker + Compose)
 - List running and stopped containers.
 - Start, stop, and view logs.
+- Show compose metadata when available.
 - Graceful fallback when Docker is missing; Windows + WSL support.
 
 ### 4) Run History
 - Shows what commands were run.
 - Displays status (running / success / failed / stopped).
+- Shows command and project names.
 - Allows stopping long-running commands.
 - Provides access to output for sharing or debugging.
 
 ### 5) Project Notes
 - Lightweight notes for setup steps, todos, and reminders tied to a project.
+
+### 6) Git Snapshot
+- Lightweight per-project git status summary.
+- Surface branch and working-tree health in the UI.
+- Load repository insights when available.
 
 ## How the App Works (High-Level)
 
@@ -75,7 +88,7 @@ If it saves even 5 minutes per day, it is doing its job.
   - Runs commands.
   - Talks to Docker.
   - Reads the filesystem.
-  - Persists data locally.
+  - Persists data locally in SQLite.
 
 - Renderer (TypeScript + React)
   - Displays UI.
@@ -88,17 +101,14 @@ If it saves even 5 minutes per day, it is doing its job.
 
 ## Data Storage
 
-Current: data lives in a single JSON store in the Electron userData directory:
-- File: `devdesk-store.json`
+Current: data lives in a local SQLite database in the Electron userData directory.
+- File: `devdesk.db`
 - Schema: `apps/desktop/data/model.ts`
-
-Planned: migrate to a local SQLite store using `better-sqlite3` for reliability and performance.
-- File: `devdesk.db` (same userData directory)
 - Migration: one-time import from `devdesk-store.json` if the DB does not exist
 - Mode: WAL enabled, single-writer from the main process
 - No backend required; app remains local-first
 
-Containers are runtime-only and not persisted.
+Engine indexing also uses SQLite under the userData `engine/` directory.
 
 ## MVP Scope (Target)
 
@@ -111,12 +121,9 @@ Containers are runtime-only and not persisted.
 
 ## Possible Future Enhancements (Optional)
 
-- Command presets per project.
-- Port usage inspector.
-- Lightweight Git status per project.
-- Tray mode with quick actions.
 - Export/import configuration.
-- Profiles for different machines.
+- Tray mode with quick actions.
+- Extra polish for compose-aware workflows.
 
 ## Non-Goals
 

@@ -1,30 +1,35 @@
 # DevDesk TODO
 
-## Now
+## Release Baseline
+
 - [x] Verify production build output loads in a packaged app.
 - [x] Add command search/filter by tag.
 - [x] Show command + project names in run history (not just ids).
-- [ ] Replace JSON store with SQLite using `better-sqlite3` (main process only).
-- [ ] One-time migration from `devdesk-store.json` to `devdesk.db`.
-- [ ] Add WAL mode + basic indexes for common queries.
+- [x] Replace JSON store with SQLite using `better-sqlite3` (main process only).
+- [x] One-time migration from `devdesk-store.json` to `devdesk.db`.
+- [x] Add WAL mode + basic indexes for common queries.
+- [x] Variables in commands (e.g. `{{container}}`).
+- [x] Command presets per project.
+- [x] Favorites/pinning for projects and commands.
+- [x] Lightweight git status per project.
+- [x] Compose stack awareness per project.
+- [x] Docker container integration (list/start/stop/logs via CLI, Windows + WSL).
+- [x] Notes, preferences, and run history persistence.
 
-## Next
-- [x] Variables in commands (e.g. {{container}}) - **IMPLEMENTED** (see docs/planning/phase-1.2-command-variables.md)
-- [ ] Command presets per project.
-- [ ] Favorites/pinning for projects and commands.
-- [ ] Export/import config.
+## Backlog / Post-Release
 
-## Later
+- [ ] Export/import config UI and file format.
 - [ ] Tray quick actions.
-- [ ] Compose stack awareness per project.
-- [ ] Lightweight git status per project.
+- [ ] Optional polish for compose-aware workflows.
 
 ## Done
+
 - [x] Base Electron + Vite setup.
 - [x] shadcn/ui + Radix UI component wrappers.
 - [x] Tailwind theme tokens and utilities.
 - [x] Data model for projects, commands, containers, run history, notes, preferences.
 - [x] JSON persistence in userData (`devdesk-store.json`).
+- [x] SQLite persistence in userData (`devdesk.db`).
 - [x] IPC handlers for projects/commands/history/notes/preferences.
 - [x] Renderer wired to preload API (no mock data).
 - [x] Command execution with run history + output streaming.
@@ -33,3 +38,7 @@
 - [x] Docker container integration (list/start/stop/logs via CLI, Windows + WSL).
 - [x] Project removal UI + confirmation.
 - [x] Command edit/delete.
+- [x] Command presets picker and creation flow.
+- [x] Project/command pinning.
+- [x] Packaged engine resolution and smoke checks.
+- [x] IPC integration smoke test for Electron ↔ engine.
