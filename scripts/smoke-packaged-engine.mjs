@@ -14,6 +14,7 @@ const engineRootDir = path.join(repoRoot, '..', 'devdesk-addons', 'devdesk-engin
 const engineDistDir = path.join(engineRootDir, 'dist')
 const engineNodeModulesDir = path.join(engineRootDir, 'node_modules')
 const enginePackageJsonPath = path.join(engineRootDir, 'package.json')
+const appNodeModulesDir = path.join(repoRoot, 'node_modules')
 const electronBinaryPath = path.join(repoRoot, 'node_modules', '.bin', 'electron')
 const builtRuntimePath = path.join(repoRoot, 'dist', 'main', 'engine', 'runtime.js')
 
@@ -34,7 +35,15 @@ async function main() {
     await mkdir(resourcesPath, { recursive: true })
     await cp(engineDistDir, packagedEngineDir, { recursive: true })
     await cp(engineNodeModulesDir, path.join(packagedEngineDir, 'node_modules'), { recursive: true })
+    await rm(path.join(packagedEngineDir, 'node_modules', 'better-sqlite3'), { recursive: true, force: true })
+    await rm(path.join(packagedEngineDir, 'node_modules', 'bindings'), { recursive: true, force: true })
+    await rm(path.join(packagedEngineDir, 'node_modules', 'file-uri-to-path'), { recursive: true, force: true })
+    await cp(path.join(appNodeModulesDir, 'better-sqlite3'), path.join(packagedEngineDir, 'node_modules', 'better-sqlite3'), { recursive: true })
+    await cp(path.join(appNodeModulesDir, 'bindings'), path.join(packagedEngineDir, 'node_modules', 'bindings'), { recursive: true })
+    await cp(path.join(appNodeModulesDir, 'file-uri-to-path'), path.join(packagedEngineDir, 'node_modules', 'file-uri-to-path'), { recursive: true })
     await cp(enginePackageJsonPath, path.join(packagedEngineDir, 'package.json'))
+    assert.ok(existsSync(path.join(packagedEngineDir, 'node_modules', 'commander')))
+    assert.ok(existsSync(path.join(packagedEngineDir, 'node_modules', 'better-sqlite3')))
     await mkdir(repoPath, { recursive: true })
     await mkdir(path.dirname(dbPath), { recursive: true })
     await writeFile(
@@ -58,7 +67,6 @@ async function main() {
     const childEnv = {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',
-      NODE_PATH: [path.join(packagedEngineDir, 'node_modules'), process.env.NODE_PATH].filter(Boolean).join(path.delimiter),
     }
 
     const versionResult = await execFileAsync(electronBinaryPath, [resolvedBinary, '--version'], {
