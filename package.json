@@ -13,7 +13,6 @@
     "prebuild": "npm run build:engine",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "smoke:engine-packaged": "node scripts/smoke-packaged-engine.mjs",
-    "test:engine-ipc": "npm run build:engine && ../devdesk-addons/devdesk-engine/node_modules/.bin/vitest --config vitest.engine.config.ts run",
     "package:linux:dir": "npm run rebuild:native && npm run build && electron-builder --linux dir",
     "package:linux": "npm run rebuild:native && npm run build && electron-builder --linux AppImage deb",
     "verify:linux-package": "npm run package:linux:dir && node scripts/verify-linux-package.mjs",

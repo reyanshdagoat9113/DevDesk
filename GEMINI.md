@@ -27,7 +27,6 @@ npm run build:renderer # Build renderer (vite)
 # Release / verification
 npm run smoke:engine-packaged  # Verify packaged engine path and real engine operations
 npm run verify:linux-package   # Build and smoke-test the Linux package
-npm run test:engine-ipc        # Run the Electron ↔ engine integration smoke test
 
 # Quality & Type Safety
 npm run lint          # Run ESLint

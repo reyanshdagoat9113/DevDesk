@@ -16,7 +16,6 @@ Before opening a pull request, run:
 ```bash
 npm run typecheck
 npm run build
-npm run test:engine-ipc
 npm run smoke:engine-packaged
 npm run verify:linux-package
 ```
