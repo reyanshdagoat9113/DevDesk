@@ -704,7 +704,6 @@ function App() {
           return 0
         })
       })
-      return updated
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to toggle command pin.'
       setLoadError(message)

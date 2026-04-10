@@ -46,10 +46,22 @@ export function ProjectGitSummary({
 
   const statItems = workingTree
     ? [
-        { label: 'Staged', value: workingTree.stagedCount, tone: workingTree.stagedCount > 0 ? 'success' : 'outline' as const },
-        { label: 'Unstaged', value: workingTree.unstagedCount, tone: workingTree.unstagedCount > 0 ? 'warning' : 'outline' as const },
+        {
+          label: 'Staged',
+          value: workingTree.stagedCount,
+          tone: (workingTree.stagedCount > 0 ? 'success' : 'outline') as 'success' | 'outline',
+        },
+        {
+          label: 'Unstaged',
+          value: workingTree.unstagedCount,
+          tone: (workingTree.unstagedCount > 0 ? 'warning' : 'outline') as 'warning' | 'outline',
+        },
         { label: 'Untracked', value: workingTree.untrackedCount, tone: 'outline' as const },
-        { label: 'Conflicts', value: workingTree.conflictedCount, tone: workingTree.conflictedCount > 0 ? 'destructive' : 'outline' as const },
+        {
+          label: 'Conflicts',
+          value: workingTree.conflictedCount,
+          tone: (workingTree.conflictedCount > 0 ? 'destructive' : 'outline') as 'destructive' | 'outline',
+        },
       ]
     : []
 
