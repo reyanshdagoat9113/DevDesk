@@ -35,5 +35,5 @@ if (fs.existsSync(sourcePath)) {
   process.exit(0);
 } else {
   console.error(`Binary not found: ${sourcePath}`);
-  console.exit(1);
+  process.exit(1);
 }
