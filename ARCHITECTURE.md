@@ -31,10 +31,10 @@ The Engine exposes capabilities (not commands). All clients—CLI, DevDesk app, 
 |------------|-------------|
 | `indexRepository()` | Scan, hash, detect language, store in SQLite |
 | `search()` | FTS5 text search with optional regex refinement |
-| `getFileIntelligence()` | Metadata, language, related files |
+| `getFileIntelligence()` | Metadata, language, related files (deferred for the first public release) |
 | `getStats()` | File counts, language breakdown |
 | `getGitHotspots()` | Churn analysis, recent changes (v1.1) |
-| `buildContextBundle()` | Top-N relevant files for LLM context (v1.2) |
+| `buildContextBundle()` | Top-N relevant files for LLM context (deferred for the first public release) |
 
 ---
 
