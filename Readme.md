@@ -19,6 +19,7 @@ Implemented:
 In progress / backlog:
 - Export/import config.
 - Tray quick actions.
+- Context bundling for LLM workflows.
 - Additional release polish after public baseline stabilizes.
 
 ## Quick Start
