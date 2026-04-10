@@ -23,6 +23,21 @@ import {
   resolveEngineBinaryPath,
 } from './runtime'
 
+function buildEngineNodePath(enginePath: string): string {
+  const nodePathEntries = [
+    path.join(app.getAppPath(), 'node_modules'),
+    path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules'),
+    path.join(path.dirname(enginePath), 'node_modules'),
+  ]
+
+  return [
+    ...nodePathEntries,
+    process.env.NODE_PATH,
+  ]
+    .filter((entry): entry is string => Boolean(entry))
+    .join(path.delimiter)
+}
+
 // Get the path to the engine CLI (Node.js script that calls Rust binary)
 function getEngineBinaryPath(): string {
   return resolveEngineBinaryPath({
@@ -75,21 +90,22 @@ async function runEngineCommand(args: string[]): Promise<string> {
   const enginePath = getEngineBinaryPath()
 
   return new Promise((resolve, reject) => {
+    const childEnv = {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      NODE_PATH: buildEngineNodePath(enginePath),
+    }
+
     const child =
       path.extname(enginePath).toLowerCase() === '.js'
         ? fork(enginePath, args, {
             execPath: process.execPath,
             silent: true,
-            env: {
-              ...process.env,
-              ELECTRON_RUN_AS_NODE: '1',
-            },
+            env: childEnv,
           })
         : spawn(enginePath, args, {
             windowsHide: true,
-            env: {
-              ...process.env,
-            },
+            env: childEnv,
           })
 
     let stdout = ''

@@ -14,6 +14,9 @@
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "smoke:engine-packaged": "node scripts/smoke-packaged-engine.mjs",
     "test:engine-ipc": "npm run build:engine && ../devdesk-addons/devdesk-engine/node_modules/.bin/vitest --config vitest.engine.config.ts run",
+    "package:linux:dir": "npm run rebuild:native && npm run build && electron-builder --linux dir",
+    "package:linux": "npm run rebuild:native && npm run build && electron-builder --linux AppImage deb",
+    "verify:linux-package": "npm run package:linux:dir && node scripts/verify-linux-package.mjs",
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build:preload": "tsc -p tsconfig.preload.json",
@@ -66,11 +69,26 @@
     "wait-on": "^8.0.1"
   },
   "build": {
+    "appId": "com.devdesk.app",
+    "productName": "DevDesk",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "files": [
       "dist/**/*",
       "node_modules/**/*",
       "package.json"
     ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "icon": "apps/renderer/assets/devdesk-logo-top-left-transparent.png"
+    },
     "extraResources": [
       {
         "from": "node_modules/devdesk-engine/dist",
@@ -80,11 +98,8 @@
         ]
       },
       {
-        "from": "node_modules/devdesk-engine/node_modules",
-        "to": "engine/node_modules",
-        "filter": [
-          "**/*"
-        ]
+        "from": "node_modules/devdesk-engine/package.json",
+        "to": "engine/package.json"
       }
     ]
   }
