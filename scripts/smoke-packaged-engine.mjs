@@ -1,0 +1,100 @@
+import assert from 'node:assert/strict'
+import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import * as path from 'node:path'
+import * as os from 'node:os'
+import { execFile } from 'node:child_process'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
+
+const execFileAsync = promisify(execFile)
+const scriptDir = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(scriptDir, '..')
+const engineRootDir = path.join(repoRoot, '..', 'devdesk-addons', 'devdesk-engine')
+const engineDistDir = path.join(engineRootDir, 'dist')
+const engineNodeModulesDir = path.join(engineRootDir, 'node_modules')
+const builtRuntimePath = path.join(repoRoot, 'dist', 'main', 'engine', 'runtime.js')
+
+async function main() {
+  if (!existsSync(builtRuntimePath)) {
+    throw new Error(`Build output not found: ${builtRuntimePath}. Run npm run build first.`)
+  }
+
+  const runtime = await import(pathToFileURL(builtRuntimePath).href)
+
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'devdesk-packaged-engine-'))
+  const resourcesPath = path.join(tempRoot, 'resources')
+  const packagedEngineDir = path.join(resourcesPath, 'engine')
+  const repoPath = path.join(tempRoot, 'sample-repo')
+  const dbPath = path.join(tempRoot, 'indexes', 'sample.sqlite')
+
+  try {
+    await mkdir(resourcesPath, { recursive: true })
+    await cp(engineDistDir, packagedEngineDir, { recursive: true })
+    await cp(engineNodeModulesDir, path.join(packagedEngineDir, 'node_modules'), { recursive: true })
+    await mkdir(repoPath, { recursive: true })
+    await mkdir(path.dirname(dbPath), { recursive: true })
+    await writeFile(
+      path.join(repoPath, 'hello.ts'),
+      "export function helloWorld() {\n  return 'hello packaged engine';\n}\n"
+    )
+
+    const resolvedBinary = runtime.resolveEngineBinaryPath({
+      appPath: path.join(tempRoot, 'app'),
+      moduleDirname: path.join(tempRoot, 'app', 'dist', 'main', 'engine'),
+      resourcesPath,
+      isPackaged: true,
+      existsSync,
+    })
+
+    assert.equal(
+      path.normalize(resolvedBinary),
+      path.join(resourcesPath, 'engine', 'cli.js')
+    )
+
+    const versionResult = await execFileAsync(process.execPath, [resolvedBinary, '--version'], {
+      env: {
+        ...process.env,
+      },
+    })
+
+    assert.match(versionResult.stdout.trim(), /^\d+\.\d+\.\d+/)
+
+    const indexResult = await execFileAsync(process.execPath, [
+      resolvedBinary,
+      'index',
+      repoPath,
+      '--db',
+      dbPath,
+    ])
+
+    const parsedIndex = JSON.parse(indexResult.stdout)
+    assert.equal(parsedIndex.ok, true)
+
+    const searchResult = await execFileAsync(process.execPath, [
+      resolvedBinary,
+      'search',
+      'hello',
+      '--db',
+      dbPath,
+    ])
+
+    const parsedSearch = JSON.parse(searchResult.stdout)
+    assert.equal(parsedSearch.ok, true)
+    assert.ok(Array.isArray(parsedSearch.results))
+    assert.ok(parsedSearch.results.some((item) => item.path.endsWith('hello.ts')))
+
+    const statsResult = await execFileAsync(process.execPath, [resolvedBinary, 'stats', '--db', dbPath])
+    const parsedStats = JSON.parse(statsResult.stdout)
+    assert.equal(parsedStats.stats.totalFiles, 1)
+
+    console.log('Packaged engine smoke test passed.')
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true })
+  }
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.stack || error.message : String(error))
+  process.exitCode = 1
+})
