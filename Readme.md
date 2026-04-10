@@ -9,7 +9,7 @@ Implemented:
 - SQLite persistence in userData (`devdesk.db`) with one-time migration from `devdesk-store.json`.
 - Projects: add, edit, remove, detect type, pin, open folder/IDE/terminal.
 - Preferences for editor/terminal (custom command support).
-- Command Vault: create/edit/delete/run commands with tags, descriptions, variables, project binding, working directory, and presets per project.
+- Command Vault: create/edit/delete/run commands with tags, descriptions, variables, project binding, working directory, presets per project, and command/project pinning.
 - Run history with live output streaming + full output viewer + clear history.
 - Project notes (setup steps/todos/reminders).
 - Docker containers: list/start/stop/logs with Windows + WSL fallback and compose-aware labeling.
@@ -122,9 +122,7 @@ Engine indexing also uses SQLite under the userData `engine/` directory.
 
 ## Possible Future Enhancements (Optional)
 
-- Export/import configuration.
-- Tray mode with quick actions.
-- Extra polish for compose-aware workflows.
+See the backlog above for post-release items.
 
 ## Non-Goals
 

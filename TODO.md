@@ -20,7 +20,7 @@
 
 - [ ] Export/import config UI and file format.
 - [ ] Tray quick actions.
-- [ ] Optional polish for compose-aware workflows.
+- [ ] Context bundling for LLM workflows.
 
 ## Done
 

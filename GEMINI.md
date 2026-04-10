@@ -73,9 +73,9 @@ Supported for the first public release:
 - Packaged engine resolution and smoke-verified engine operations
 - Electron-to-engine integration smoke test
 - SQLite-backed app persistence
-- Command presets, command/project pinning, run history, notes, and git snapshots
+- Command presets, command/project pinning, run history, notes, compose awareness, and git snapshots
 
 Deferred/post-release backlog:
 - Export/import config
 - Tray quick actions
-- Extra compose UX polish
+- Context bundling for LLM workflows
