@@ -1741,6 +1741,73 @@ export function registerIpcHandlers() {
     return { success: true, stopped, alreadyStopped, missing }
   })
 
+  ipcMain.handle('projects:restart-dev-stack', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const linkedNames = sanitizeLinkedContainerNames(project.linkedContainerNames)
+    if (!linkedNames.length) {
+      return { success: true, stopped: [], started: [], missing: [] }
+    }
+
+    const containers = await listDockerContainers()
+    const stopped: string[] = []
+    const started: string[] = []
+    const missing: string[] = []
+
+    // First pass: stop all running containers
+    for (const linkedName of linkedNames) {
+      const container = getContainerByLinkedName(containers, linkedName)
+      if (!container) {
+        missing.push(linkedName)
+        continue
+      }
+
+      if (container.state === 'stopped') {
+        // Container is already stopped, will try to start it later
+        continue
+      }
+
+      if (container.state === 'paused') {
+        // Unpause first, then stop
+        await runDockerCommand(['unpause', container.id])
+      }
+
+      await runDockerCommand(['stop', container.id])
+      stopped.push(container.name)
+    }
+
+    // Second pass: start all containers (including those that were already stopped)
+    for (const linkedName of linkedNames) {
+      const container = getContainerByLinkedName(containers, linkedName)
+      if (!container) {
+        // Already tracked in missing array
+        continue
+      }
+
+      // Container should be stopped now, start it
+      await runDockerCommand(['start', container.id])
+      started.push(container.name)
+    }
+
+    const result = { success: true, stopped, started, missing }
+
+    if (started.length > 0) {
+      void emitAutomationTriggerEvent('afterContainerStart', {
+        projectId,
+        containerNames: started,
+      })
+    }
+
+    return result
+  })
+
   ipcMain.handle('projects:toggle-pin', async (_event, projectId: string) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')

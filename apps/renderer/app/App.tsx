@@ -1173,6 +1173,18 @@ function App() {
     }
   }
 
+  const handleRestartDevStack = async (projectId: string) => {
+    try {
+      const result = await window.electronAPI.restartProjectDevStack(projectId)
+      await loadContainers()
+      return result
+    } catch (error) {
+      const message = toUserContainerError(error, 'Failed to restart dev stack.')
+      setContainerError(message)
+      throw new Error(message)
+    }
+  }
+
   const runContainerAction = async (action: () => Promise<{ success: boolean }>, fallbackMessage: string) => {
     setContainerError(null)
     try {
@@ -1241,6 +1253,7 @@ function App() {
               onSetLinkedContainers={handleSetProjectLinkedContainers}
               onStartDevStack={handleStartDevStack}
               onStopDevStack={handleStopDevStack}
+              onRestartDevStack={handleRestartDevStack}
               onRefreshContainers={handleRefreshContainers}
               onRemoveProject={handleRemoveProject}
               onSelectProject={handleProjectSelected}

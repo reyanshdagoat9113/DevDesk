@@ -40,6 +40,7 @@ export interface ElectronAPI {
   setProjectLinkedContainers: (id: string, linkedContainerNames: string[]) => Promise<Project>
   startProjectDevStack: (id: string) => Promise<{ success: boolean; started: string[]; resumed: string[]; alreadyRunning: string[]; missing: string[] }>
   stopProjectDevStack: (id: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
+  restartProjectDevStack: (id: string) => Promise<{ success: boolean; stopped: string[]; started: string[]; missing: string[] }>
   openProjectFolderDialog: (startPath?: string) => Promise<{ canceled: boolean; path?: string }>
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>

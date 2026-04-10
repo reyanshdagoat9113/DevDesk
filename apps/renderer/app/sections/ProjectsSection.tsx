@@ -71,6 +71,7 @@ export function ProjectsSection({
   onSetLinkedContainers,
   onStartDevStack,
   onStopDevStack,
+  onRestartDevStack,
   onRefreshContainers,
   onRemoveProject,
   onToggleProjectPin,
@@ -109,6 +110,7 @@ export function ProjectsSection({
   onSetLinkedContainers?: (projectId: string, linkedContainerNames: string[]) => Promise<Project>
   onStartDevStack?: (projectId: string) => Promise<{ success: boolean; started: string[]; resumed: string[]; alreadyRunning: string[]; missing: string[] }>
   onStopDevStack?: (projectId: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
+  onRestartDevStack?: (projectId: string) => Promise<{ success: boolean; stopped: string[]; started: string[]; missing: string[] }>
   onRefreshContainers?: () => Promise<void>
   onRemoveProject?: (projectId: string) => Promise<void>
   onSelectProject?: (projectId: string) => void
@@ -146,7 +148,7 @@ export function ProjectsSection({
   const [isDeleting, setIsDeleting] = useState(false)
   const [linkedContainerToAdd, setLinkedContainerToAdd] = useState('')
   const [linkingError, setLinkingError] = useState<string | null>(null)
-  const [stackActionLoading, setStackActionLoading] = useState<'start' | 'stop' | null>(null)
+  const [stackActionLoading, setStackActionLoading] = useState<'start' | 'stop' | 'restart' | null>(null)
   const [stackActionError, setStackActionError] = useState<string | null>(null)
   const [stackActionMessage, setStackActionMessage] = useState<string | null>(null)
   const [stopStackDialogOpen, setStopStackDialogOpen] = useState(false)
@@ -425,6 +427,30 @@ export function ProjectsSection({
       setStopStackDialogOpen(false)
     } catch (error) {
       setStackActionError(error instanceof Error ? error.message : 'Failed to stop dev stack.')
+    } finally {
+      setStackActionLoading(null)
+    }
+  }
+
+  const handleRestartDevStack = async () => {
+    if (!selectedProject || !onRestartDevStack || stackActionLoading) {
+      return
+    }
+    setStackActionLoading('restart')
+    setStackActionError(null)
+    setStackActionMessage(null)
+    try {
+      const result = await onRestartDevStack(selectedProject.id)
+      const summary = [
+        formatStackSummary(result.stopped, 'Stopped'),
+        formatStackSummary(result.started, 'Started'),
+        formatStackSummary(result.missing, 'Missing links'),
+      ]
+        .filter(Boolean)
+        .join(' | ')
+      setStackActionMessage(summary || 'No linked containers to restart.')
+    } catch (error) {
+      setStackActionError(error instanceof Error ? error.message : 'Failed to restart dev stack.')
     } finally {
       setStackActionLoading(null)
     }
@@ -882,6 +908,16 @@ export function ProjectsSection({
                         >
                           <Activity className="h-3.5 w-3.5" />
                           {stackActionLoading === 'start' ? 'Starting...' : 'Start Dev Stack'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-2 text-[11px] font-semibold"
+                          onClick={() => void handleRestartDevStack()}
+                          disabled={!onRestartDevStack || linkedContainerNames.length === 0 || stackActionLoading !== null}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          {stackActionLoading === 'restart' ? 'Restarting...' : 'Restart Dev Stack'}
                         </Button>
                         <Button
                           variant="destructive"
