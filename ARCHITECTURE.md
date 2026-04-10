@@ -185,6 +185,8 @@ devdesk-engine/
 
 ### v1.2 — Context Bundling
 
+Deferred for the first public release.
+
 | Deliverable | Description |
 |-------------|-------------|
 | `buildContextBundle()` | Select top-N relevant files for LLM context |
