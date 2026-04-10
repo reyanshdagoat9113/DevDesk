@@ -22,7 +22,6 @@ npm run rebuild:native
 ## Common commands
 
 ```bash
-npm run test:run
 npm run build
 npm run build:rust
 npm run build:all
@@ -30,5 +29,5 @@ npm run build:all
 
 ## Notes
 
-- `npm run test:run` should pass after the native module is rebuilt for the current Node runtime.
 - The Rust scanner binary is copied by `npm run build:rust`.
+- Engine tests are currently being reworked and will be reintroduced later.
