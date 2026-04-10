@@ -160,7 +160,7 @@ export function ProjectEnginePanel({
     return () => {
       cancelled = true
     }
-  }, [onLoadStats, project.id, selectedIndex?.lastIndexed])
+  }, [onLoadStats, project.id, selectedIndex])
 
   const handleIndex = async () => {
     if (isIndexing) return

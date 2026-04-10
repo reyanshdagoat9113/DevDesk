@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowUpRight,
   GitBranch,
@@ -136,11 +136,11 @@ export function GitWorkspacePanel({
   const [prMode, setPrMode] = useState<'draft' | 'ready'>('draft')
   const [prResult, setPrResult] = useState<GitCreatePullRequestResult | null>(null)
 
-  const changedFiles = gitState?.workingTree?.files ?? []
+  const changedFiles = useMemo(() => gitState?.workingTree?.files ?? [], [gitState?.workingTree?.files])
   const recentCommits = gitInsights?.recentCommits ?? []
   const firstRecentCommit = recentCommits[0]
 
-  const refreshGitData = async () => {
+  const refreshGitData = useCallback(async () => {
     setIsLoadingState(true)
     setError(null)
     try {
@@ -167,11 +167,11 @@ export function GitWorkspacePanel({
     } finally {
       setIsLoadingState(false)
     }
-  }
+  }, [onLoadGitInsights, onLoadGitState, project.id])
 
   useEffect(() => {
     void refreshGitData()
-  }, [project.id])
+  }, [refreshGitData])
 
   useEffect(() => {
     if (!changedFiles.length) {
