@@ -68,7 +68,6 @@ export interface CommandTrigger {
   requireConfirmation: boolean
   createdAt: string
   updatedAt: string
->>>>>>> 88cd570ce21751540d0047cd793a379d661d5b28
 }
 
 export interface Container {

@@ -528,30 +528,6 @@ function App() {
     }
   }
 
-  const handleToggleProjectPin = async (projectId: string) => {
-    setLoadError(null)
-    try {
-      const updated = await window.electronAPI.toggleProjectPin(projectId)
-      setProjects((prev) => prev.map((project) => (project.id === projectId ? updated : project)))
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to toggle project pin.'
-      setLoadError(message)
-      throw new Error(message)
-    }
-  }
-
-  const handleToggleCommandPin = async (commandId: string) => {
-    setLoadError(null)
-    try {
-      const updated = await window.electronAPI.toggleCommandPin(commandId)
-      setCommands((prev) => prev.map((command) => (command.id === commandId ? updated : command)))
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to toggle command pin.'
-      setLoadError(message)
-      throw new Error(message)
-    }
-  }
-
   const handlePickProject = async () => {
     setProjectError(null)
     setIsPickingProject(true)
@@ -1267,7 +1243,6 @@ function App() {
               onStopDevStack={handleStopDevStack}
               onRefreshContainers={handleRefreshContainers}
               onRemoveProject={handleRemoveProject}
-              onToggleProjectPin={handleToggleProjectPin}
               onSelectProject={handleProjectSelected}
               onIndexProject={handleIndexEngineProject}
               onSearchProjectContent={handleEngineSearch}
@@ -1299,7 +1274,6 @@ function App() {
               onUpdateCommand={handleUpdateCommand}
               onToggleCommandPin={handleToggleCommandPin}
               onRemoveCommand={handleRemoveCommand}
-              onToggleCommandPin={handleToggleCommandPin}
               onCreatePresetCommand={handleCreateCommand}
               onCreateChain={handleCreateChain}
               onUpdateChain={handleUpdateChain}

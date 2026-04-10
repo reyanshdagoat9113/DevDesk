@@ -9,6 +9,7 @@ import {
   commitAllChanges,
   createPullRequest,
   getGitDiff,
+  getGitInsights,
   getGitWorkflowState,
   pushCurrentBranch,
 } from './service'
@@ -62,6 +63,25 @@ test('getGitDiff returns a unified diff for tracked changes', async () => {
   assert.equal(diff.ok, true)
   assert.match(diff.diff, /diff --git a\/notes.txt b\/notes.txt/)
   assert.match(diff.diff, /\+world/)
+})
+
+test('getGitInsights returns branch, commits, and working tree details', async () => {
+  const repoPath = await createTempDir('devdesk-git-insights-')
+  await initRepo(repoPath)
+  await writeFile(repoPath, 'notes.txt', 'hello\n')
+  await git(repoPath, ['add', 'notes.txt'])
+  await git(repoPath, ['commit', '-m', 'Initial commit'])
+  await writeFile(repoPath, 'notes.txt', 'hello\nworld\n')
+  await writeFile(repoPath, 'new.txt', 'new file\n')
+
+  const insights = await getGitInsights(repoPath)
+
+  assert.ok(insights)
+  assert.equal(insights?.branch, 'main')
+  assert.equal(insights?.recentCommits[0]?.message, 'Initial commit')
+  assert.equal(insights?.workingTree.isClean, false)
+  assert.equal(insights?.workingTree.untrackedCount, 1)
+  assert.equal(insights?.workingTree.unstagedCount, 1)
 })
 
 test('commitAllChanges creates a commit for pending changes', async () => {

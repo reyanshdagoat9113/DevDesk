@@ -75,6 +75,144 @@ async function tryGit(repoPath: string, args: string[]) {
   return runCommand('git', args, repoPath)
 }
 
+function parseBranchStatus(statusLine: string) {
+  const details = statusLine.replace(/^##\s*/, '').trim()
+  const [branchPart, trackingPart] = details.split(' [', 2)
+  const branchName = branchPart.split('...')[0]?.trim() || null
+  const tracking = trackingPart?.replace(/\]$/, '') ?? ''
+  const aheadMatch = tracking.match(/ahead\s+(\d+)/)
+  const behindMatch = tracking.match(/behind\s+(\d+)/)
+
+  return {
+    branch: branchName && branchName !== 'HEAD (no branch)' ? branchName : null,
+    ahead: aheadMatch ? Number(aheadMatch[1]) : 0,
+    behind: behindMatch ? Number(behindMatch[1]) : 0,
+  }
+}
+
+function isConflictStatus(indexStatus: string, workingTreeStatus: string) {
+  const pair = `${indexStatus}${workingTreeStatus}`
+  return ['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU'].includes(pair)
+}
+
+function summarizeFileStatus(indexStatus: string, workingTreeStatus: string): EngineGitInsights['workingTree']['files'][number]['summary'] {
+  if (isConflictStatus(indexStatus, workingTreeStatus)) {
+    return 'conflicted'
+  }
+  if (indexStatus === '?' && workingTreeStatus === '?') {
+    return 'untracked'
+  }
+  if (indexStatus === 'R' || workingTreeStatus === 'R') {
+    return 'renamed'
+  }
+  if (indexStatus === 'A' || workingTreeStatus === 'A') {
+    return 'added'
+  }
+  if (indexStatus === 'D' || workingTreeStatus === 'D') {
+    return 'deleted'
+  }
+  if (indexStatus === 'C' || workingTreeStatus === 'C') {
+    return 'copied'
+  }
+  if (indexStatus === 'M' || workingTreeStatus === 'M') {
+    return 'modified'
+  }
+  return 'unknown'
+}
+
+async function getFallbackGitInsights(repoPath: string): Promise<EngineGitInsights | null> {
+  if (!(await isGitRepository(repoPath))) {
+    return null
+  }
+
+  const statusOutput = await runGit(repoPath, ['status', '--porcelain=1', '--branch'])
+  const statusEntries = statusOutput.split(/\r?\n/).filter(Boolean)
+  const branchInfo = parseBranchStatus(statusEntries[0] ?? '')
+  const files: EngineGitInsights['workingTree']['files'] = []
+
+  for (let index = 1; index < statusEntries.length; index += 1) {
+    const entry = statusEntries[index]
+    if (entry.length < 3) {
+      continue
+    }
+
+    const indexStatus = entry[0] ?? ' '
+    const workingTreeStatus = entry[1] ?? ' '
+    const rawPath = entry.slice(3)
+    const summary = summarizeFileStatus(indexStatus, workingTreeStatus)
+    const conflicted = isConflictStatus(indexStatus, workingTreeStatus)
+    const renamed = summary === 'renamed'
+    const [previousPath, nextPath] = renamed
+      ? rawPath.split(' -> ', 2)
+      : [undefined, rawPath]
+
+    files.push({
+      path: nextPath,
+      previousPath,
+      indexStatus,
+      workingTreeStatus,
+      staged: indexStatus !== ' ' && indexStatus !== '?',
+      unstaged: workingTreeStatus !== ' ' && workingTreeStatus !== '?',
+      untracked: indexStatus === '?' && workingTreeStatus === '?',
+      conflicted,
+      summary,
+      additions: 0,
+      deletions: 0,
+    })
+  }
+
+  const recentLog = await runGit(repoPath, ['log', '--date=iso-strict', '--pretty=format:%H%x1f%an%x1f%aI%x1f%s%x1e', '-n', '10'])
+  const recentCommits = recentLog
+    .split('\u001e')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [hash = '', author = '', date = '', message = ''] = entry.split('\u001f')
+      return {
+        hash,
+        author,
+        date,
+        message,
+        files: [],
+      }
+    })
+
+  const totalCommitsOutput = await runGit(repoPath, ['rev-list', '--count', 'HEAD']).catch(() => '0')
+  const contributorsOutput = await runGit(repoPath, ['shortlog', '-sn', '--all']).catch(() => '')
+  const contributors = contributorsOutput
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^\d+\s+/, ''))
+    .filter(Boolean)
+
+  const stagedCount = files.filter((file) => file.staged).length
+  const unstagedCount = files.filter((file) => file.unstaged).length
+  const untrackedCount = files.filter((file) => file.untracked).length
+  const conflictedCount = files.filter((file) => file.conflicted).length
+
+  return {
+    branch: branchInfo.branch ?? '',
+    totalCommits: Number.parseInt(totalCommitsOutput, 10) || 0,
+    contributors,
+    hotspots: [],
+    recentCommits,
+    churnFiles: [],
+    workingTree: {
+      isClean: files.length === 0,
+      hasStagedChanges: stagedCount > 0,
+      hasUnstagedChanges: unstagedCount > 0,
+      hasUntrackedChanges: untrackedCount > 0,
+      hasConflicts: conflictedCount > 0,
+      stagedCount,
+      unstagedCount,
+      untrackedCount,
+      conflictedCount,
+      ahead: branchInfo.ahead,
+      behind: branchInfo.behind,
+      files,
+    },
+  }
+}
+
 async function isGitRepository(repoPath: string) {
   const result = await tryGit(repoPath, ['rev-parse', '--is-inside-work-tree'])
   return result.ok && result.stdout === 'true'
@@ -160,6 +298,19 @@ async function getEngineInsights(repoPath: string): Promise<EngineGitInsights | 
   }
 }
 
+export async function getGitInsights(repoPath: string): Promise<EngineGitInsights | null> {
+  const engineInsights = await getEngineInsights(repoPath)
+  if (engineInsights) {
+    return engineInsights
+  }
+
+  try {
+    return await getFallbackGitInsights(repoPath)
+  } catch {
+    return null
+  }
+}
+
 export async function getGitWorkflowState(repoPath: string): Promise<GitWorkflowState> {
   if (!(await isGitRepository(repoPath))) {
     return {
@@ -180,7 +331,7 @@ export async function getGitWorkflowState(repoPath: string): Promise<GitWorkflow
     }
   }
 
-  const insights = await getEngineInsights(repoPath)
+  const insights = await getGitInsights(repoPath)
   const branch = insights?.branch || (await tryGit(repoPath, ['branch', '--show-current'])).stdout || null
   const upstreamResult = await tryGit(repoPath, ['rev-parse', '--abbrev-ref', '@{upstream}'])
   const upstream = upstreamResult.ok ? upstreamResult.stdout : null

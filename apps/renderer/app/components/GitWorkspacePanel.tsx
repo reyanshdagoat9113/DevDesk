@@ -14,6 +14,13 @@ import { Button } from './ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog'
 import { Input } from './ui/Input'
 import { ScrollArea } from './ui/ScrollArea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/Select'
 import { Textarea } from './ui/Textarea'
 import { cn } from '../../lib/utils'
 import type {
@@ -107,9 +114,12 @@ export function GitWorkspacePanel({
   onOpenResult?: (projectId: string, relativePath: string) => Promise<void>
   onRevealResult?: (projectId: string, relativePath: string) => Promise<void>
 }) {
+  type GitInsightView = 'overview' | 'changes' | 'activity'
+
   const [gitInsights, setGitInsights] = useState<EngineGitInsights | null>(null)
   const [gitState, setGitState] = useState<GitWorkflowState | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [insightView, setInsightView] = useState<GitInsightView>('overview')
   const [diff, setDiff] = useState<GitDiffResult | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [status, setStatus] = useState<string | null>(null)
@@ -207,6 +217,15 @@ export function GitWorkspacePanel({
       cancelled = true
     }
   }, [gitState?.available, onLoadGitDiff, project.id, selectedFile])
+
+  useEffect(() => {
+    if (insightView === 'changes' && !changedFiles.length) {
+      setInsightView('overview')
+    }
+    if (insightView === 'activity' && !recentCommits.length) {
+      setInsightView('overview')
+    }
+  }, [changedFiles.length, insightView, recentCommits.length])
 
   useEffect(() => {
     setPrTitle(buildDefaultPrTitle(gitState?.branch ?? null, firstRecentCommit))
@@ -324,32 +343,48 @@ export function GitWorkspacePanel({
 
   return (
     <>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
             <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
               Git Workspace
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="max-w-2xl text-xs text-muted-foreground">
               Daily repo flow for {project.name}: review changes, commit, push, and file a pull request.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-2 text-[11px] font-semibold"
-            onClick={() => void refreshGitData()}
-            disabled={isLoadingState}
-          >
-            {isLoadingState ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
-            Refresh
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Select value={insightView} onValueChange={(value) => setInsightView(value as GitInsightView)}>
+              <SelectTrigger className="h-8 w-[145px] text-[11px]">
+                <SelectValue placeholder="Insights" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="overview">Overview</SelectItem>
+                <SelectItem value="changes" disabled={!changedFiles.length}>
+                  Changes
+                </SelectItem>
+                <SelectItem value="activity" disabled={!recentCommits.length}>
+                  Activity
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 gap-2 px-3 text-[11px] font-semibold"
+              onClick={() => void refreshGitData()}
+              disabled={isLoadingState}
+            >
+              {isLoadingState ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-border/40 bg-background/60 shadow-sm">
-          <div className="border-b border-border/30 px-5 py-4">
+          <div className="border-b border-border/30 px-4 py-3">
             {!gitState?.available ? (
-              <div className="flex items-start gap-3 rounded-xl bg-muted/40 px-4 py-4 text-sm text-muted-foreground">
+              <div className="flex items-start gap-3 rounded-xl bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="space-y-1">
                   <p className="font-semibold text-foreground">Git workspace unavailable</p>
@@ -357,43 +392,44 @@ export function GitWorkspacePanel({
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="gap-1.5 text-[10px] uppercase tracking-wider">
-                    <GitBranch className="h-3 w-3" />
-                    {gitState.branch || 'Detached'}
-                  </Badge>
-                  <Badge
-                    variant={gitState.workingTree?.isClean ? 'success' : 'secondary'}
-                    className="text-[10px] uppercase tracking-wider"
-                  >
-                    {gitState.workingTree?.isClean ? 'Working Tree Clean' : 'Changes Pending'}
-                  </Badge>
-                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-                    Ahead {gitState.ahead}
-                  </Badge>
-                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-                    Behind {gitState.behind}
-                  </Badge>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5 sm:col-span-2 lg:col-span-1">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Branch</p>
+                  <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
+                    <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="truncate">{gitState.branch || 'Detached'}</span>
+                  </div>
                 </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {statusPills.map((pill) => (
-                    <Badge key={pill.label} variant={pill.variant} className="text-[10px] uppercase tracking-wider">
-                      {pill.label}: {pill.value}
-                    </Badge>
-                  ))}
+                <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">State</p>
+                  <p className="mt-1 text-sm font-semibold">{gitState.workingTree?.isClean ? 'Clean' : 'Changes pending'}</p>
                 </div>
-
-                <div className="text-[11px] text-muted-foreground">
-                  {gitState.remoteName ? (
-                    <span>
-                      Remote <span className="font-semibold text-foreground">{gitState.remoteName}</span>
-                      {gitState.upstream ? ` / ${gitState.upstream}` : ''}
-                    </span>
-                  ) : (
-                    'No remote configured yet.'
-                  )}
+                <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Ahead</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums">{gitState.ahead}</p>
+                </div>
+                <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Behind</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums">{gitState.behind}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground sm:col-span-2 lg:col-span-4">
+                  <span>
+                    {gitState.remoteName ? (
+                      <>
+                        Remote <span className="font-semibold text-foreground">{gitState.remoteName}</span>
+                        {gitState.upstream ? ` / ${gitState.upstream}` : ''}
+                      </>
+                    ) : (
+                      'No remote configured yet.'
+                    )}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {statusPills.map((pill) => (
+                      <Badge key={pill.label} variant={pill.variant} className="h-5 px-2 text-[9px] uppercase tracking-wider">
+                        {pill.label} {pill.value}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -401,29 +437,79 @@ export function GitWorkspacePanel({
 
           {gitState?.available ? (
             <>
-              <div className="grid min-h-[360px] gap-0 lg:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.4fr)]">
+              {insightView === 'overview' ? (
+                <div className="grid gap-3 px-4 py-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5 sm:col-span-2 xl:col-span-1">
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Branch</p>
+                    <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
+                      <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="truncate">{gitState.branch || 'Detached'}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">State</p>
+                    <p className="mt-1 text-sm font-semibold">{gitState.workingTree?.isClean ? 'Clean' : 'Changes pending'}</p>
+                  </div>
+                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Ahead</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums">{gitState.ahead}</p>
+                  </div>
+                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Behind</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums">{gitState.behind}</p>
+                  </div>
+                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5 sm:col-span-2 xl:col-span-2">
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Remote</p>
+                    <p className="mt-1 truncate text-sm font-semibold">
+                      {gitState.remoteName ? (
+                        <>
+                          <span>{gitState.remoteName}</span>
+                          {gitState.upstream ? <span className="font-normal text-muted-foreground"> / {gitState.upstream}</span> : null}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">No remote configured yet.</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5 sm:col-span-2 xl:col-span-2">
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Recent commit</p>
+                    <p className="mt-1 truncate text-sm font-semibold">
+                      {firstRecentCommit ? firstRecentCommit.message : 'No recent commits available.'}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className={insightView === 'overview' ? 'hidden' : 'grid min-h-[320px] gap-0 lg:grid-cols-[minmax(240px,0.88fr)_minmax(0,1.12fr)]'}>
                 <div className="border-b border-border/30 lg:border-b-0 lg:border-r lg:border-border/30">
-                  <div className="px-5 py-3">
+                  <div className="px-4 py-2.5">
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
                       Changed Files
                     </p>
                   </div>
-                  <ScrollArea className="h-[280px] lg:h-full">
-                    <div className="space-y-2 px-3 pb-4">
+                  <ScrollArea className="h-[240px] lg:h-full">
+                    <div className="space-y-1.5 px-3 pb-3">
                       {changedFiles.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-8 text-center text-sm text-muted-foreground">
+                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-6 text-center text-sm text-muted-foreground">
                           No pending file changes.
                         </div>
                       ) : (
                         changedFiles.map((file) => {
                           const isActive = file.path === selectedFile
                           return (
-                            <button
+                            <div
                               key={file.path}
-                              type="button"
+                              role="button"
+                              tabIndex={0}
                               onClick={() => setSelectedFile(file.path)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault()
+                                  setSelectedFile(file.path)
+                                }
+                              }}
                               className={cn(
-                                'w-full rounded-xl px-3 py-3 text-left transition-colors',
+                                'w-full rounded-xl px-3 py-2.5 text-left transition-colors',
                                 isActive ? 'bg-primary/8 ring-1 ring-primary/20' : 'hover:bg-muted/50'
                               )}
                             >
@@ -432,31 +518,30 @@ export function GitWorkspacePanel({
                                   <div className="flex flex-wrap items-center gap-2">
                                     <Badge
                                       variant={summaryBadgeVariant(file.summary)}
-                                      className="text-[9px] uppercase tracking-wider"
+                                      className="h-5 px-2 text-[9px] uppercase tracking-wider"
                                     >
                                       {file.summary}
                                     </Badge>
                                     {file.conflicted ? (
-                                      <Badge variant="destructive" className="text-[9px] uppercase tracking-wider">
+                                      <Badge variant="destructive" className="h-5 px-2 text-[9px] uppercase tracking-wider">
                                         Conflict
                                       </Badge>
                                     ) : null}
                                   </div>
-                                  <p className="truncate font-mono text-[11px] font-semibold text-foreground">
+                                  <p className="truncate font-mono text-[10.5px] font-semibold text-foreground">
                                     {file.path}
                                   </p>
                                 </div>
                                 <div className="shrink-0 text-right text-[10px] text-muted-foreground">
-                                  <div>+{file.additions}</div>
-                                  <div>-{file.deletions}</div>
+                                  <div className="tabular-nums">+{file.additions} / -{file.deletions}</div>
                                 </div>
                               </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-2 flex flex-wrap gap-2">
                                 {onOpenResult ? (
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    className="h-7 px-2 text-[10px]"
+                                    className="h-6 px-2 text-[10px]"
                                     onClick={(event) => {
                                       event.stopPropagation()
                                       void onOpenResult(project.id, file.path)
@@ -469,7 +554,7 @@ export function GitWorkspacePanel({
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    className="h-7 px-2 text-[10px]"
+                                    className="h-6 px-2 text-[10px]"
                                     onClick={(event) => {
                                       event.stopPropagation()
                                       void onRevealResult(project.id, file.path)
@@ -479,7 +564,7 @@ export function GitWorkspacePanel({
                                   </Button>
                                 ) : null}
                               </div>
-                            </button>
+                            </div>
                           )
                         })
                       )}
@@ -487,26 +572,26 @@ export function GitWorkspacePanel({
                   </ScrollArea>
                 </div>
 
-                <div className="min-h-[320px] px-5 py-4">
-                  <div className="mb-3 flex items-center justify-between">
+                <div className="min-h-[280px] px-4 py-3">
+                  <div className="mb-2.5 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
                         Unified Diff
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 max-w-2xl truncate text-xs text-muted-foreground">
                         {selectedFile ? selectedFile : 'Select a changed file to inspect the current diff.'}
                       </p>
                     </div>
                     {diff?.generatedForUntracked ? (
-                      <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                      <Badge variant="outline" className="h-5 px-2 text-[9px] uppercase tracking-wider">
                         Untracked Preview
                       </Badge>
                     ) : null}
                   </div>
 
                   <div className="overflow-hidden rounded-2xl border border-border/30 bg-zinc-950 text-zinc-100 shadow-inner">
-                    <ScrollArea className="h-[300px] lg:h-[340px]">
-                      <pre className="whitespace-pre-wrap px-4 py-4 font-mono text-[11px] leading-6">
+                    <ScrollArea className="h-[260px] lg:h-[300px]">
+                      <pre className="whitespace-pre-wrap px-4 py-3 font-mono text-[10.5px] leading-[1.35]">
                         {!selectedFile
                           ? 'Select a changed file to load its diff.'
                           : isLoadingDiff
@@ -520,8 +605,8 @@ export function GitWorkspacePanel({
                 </div>
               </div>
 
-              <div className="border-t border-border/30 px-5 py-5">
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.8fr)]">
+              <div className={insightView === 'overview' ? 'border-t border-border/30 px-4 py-3' : 'border-t border-border/30 px-4 py-4'}>
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <LabelLine label="Commit Message" meta={gitState.branch ? `Branch ${gitState.branch}` : undefined} />
@@ -529,15 +614,15 @@ export function GitWorkspacePanel({
                         value={commitMessage}
                         onChange={(event) => setCommitMessage(event.target.value)}
                         placeholder="Describe the change set clearly..."
-                        rows={3}
-                        className="min-h-[96px] bg-background"
+                        rows={2}
+                        className="min-h-[76px] bg-background"
                       />
                     </div>
 
                     <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        className="h-9 gap-2 px-4 text-[11px] font-semibold"
+                        className="h-8 gap-2 px-3 text-[11px] font-semibold"
                         onClick={() => void handleCommit()}
                         disabled={isCommitting || !commitMessage.trim() || Boolean(gitState.workingTree?.hasConflicts)}
                       >
@@ -547,7 +632,7 @@ export function GitWorkspacePanel({
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-9 gap-2 px-4 text-[11px] font-semibold"
+                        className="h-8 gap-2 px-3 text-[11px] font-semibold"
                         onClick={() => void handlePush()}
                         disabled={isPushing || !gitState.canPush}
                       >
@@ -557,7 +642,7 @@ export function GitWorkspacePanel({
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-9 gap-2 px-4 text-[11px] font-semibold"
+                        className="h-8 gap-2 px-3 text-[11px] font-semibold"
                         onClick={() => setIsPrDialogOpen(true)}
                         disabled={!gitState.canCreatePullRequest}
                       >
@@ -567,17 +652,17 @@ export function GitWorkspacePanel({
                     </div>
 
                     {status ? (
-                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-[11px] text-emerald-700 dark:text-emerald-300">
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-700 dark:text-emerald-300">
                         {status}
                       </div>
                     ) : null}
                     {error ? (
-                      <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-[11px] text-destructive">
+                      <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
                         {error}
                       </div>
                     ) : null}
                     {prResult?.ok && prResult.url ? (
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-[11px]">
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-[11px]">
                         <div className="space-y-1">
                           <p className="font-semibold text-foreground">Pull request link ready</p>
                           <p className="break-all text-muted-foreground">{prResult.url}</p>
@@ -595,24 +680,24 @@ export function GitWorkspacePanel({
                     ) : null}
                   </div>
 
-                  <div className="space-y-3">
+                  <div className={insightView === 'activity' ? 'space-y-2.5 xl:col-span-2' : 'space-y-2.5'}>
                     <LabelLine label="Recent Activity" meta={`${recentCommits.length} commits`} />
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {recentCommits.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-6 text-sm text-muted-foreground">
+                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-5 text-sm text-muted-foreground">
                           Commit history will appear here once git activity is available.
                         </div>
                       ) : (
                         recentCommits.slice(0, 4).map((commit) => (
-                          <div key={commit.hash} className="rounded-xl border border-border/30 bg-muted/20 px-4 py-3">
+                          <div key={commit.hash} className="rounded-xl border border-border/30 bg-muted/20 px-3 py-2.5">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold">{commit.message}</p>
-                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                <p className="truncate text-[13px] font-semibold leading-5">{commit.message}</p>
+                                <p className="mt-0.5 text-[10px] text-muted-foreground">
                                   {commit.author} · {formatDate(commit.date)}
                                 </p>
                               </div>
-                              <Badge variant="outline" className="shrink-0 text-[10px] uppercase tracking-wider">
+                              <Badge variant="outline" className="shrink-0 text-[9px] uppercase tracking-wider">
                                 {commit.hash.slice(0, 7)}
                               </Badge>
                             </div>
