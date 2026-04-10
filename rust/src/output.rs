@@ -1,7 +1,5 @@
 use std::io::{self, Write};
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 #[derive(serde::Serialize)]
 struct ErrorOutput {
     ok: bool,

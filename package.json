@@ -14,8 +14,11 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
+    "ensure:native": "node scripts/ensure-native.cjs",
     "rebuild:native": "npm rebuild better-sqlite3",
     "start": "node dist/cli.js",
+    "test": "vitest",
+    "test:run": "vitest run",
     "lint": "eslint src/",
     "build:rust": "cd rust && cargo build --release && cd .. && node scripts/copy-binary.cjs",
     "build:all": "npm run build:rust && npm run build"
@@ -29,7 +32,8 @@
     "@types/node": "^20.19.39",
     "esbuild": "^0.28.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.1"
   },
   "engines": {
     "node": ">=18.0.0"

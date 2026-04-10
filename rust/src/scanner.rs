@@ -117,7 +117,10 @@ fn should_skip_path(root: &Path, candidate: &Path, include_hidden: bool) -> bool
 }
 
 /// Process a single file
-fn process_file(path: &Path, include_content: bool) -> Result<FileInfo, Box<dyn std::error::Error>> {
+fn process_file(
+    path: &Path,
+    include_content: bool,
+) -> Result<FileInfo, Box<dyn std::error::Error>> {
     let metadata = fs::metadata(path)?;
     let filename = path
         .file_name()
@@ -172,12 +175,9 @@ fn process_file(path: &Path, include_content: bool) -> Result<FileInfo, Box<dyn 
 fn is_binary_file(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     // Fast path: check extension
     let binary_extensions = [
-        "exe", "dll", "so", "dylib", "a", "o",
-        "png", "jpg", "jpeg", "gif", "ico", "webp", "bmp",
-        "mp3", "mp4", "wav", "avi", "mkv", "mov",
-        "zip", "tar", "gz", "rar", "7z",
-        "pdf", "doc", "docx", "xls", "xlsx",
-        "sqlite", "db", "parquet",
+        "exe", "dll", "so", "dylib", "a", "o", "png", "jpg", "jpeg", "gif", "ico", "webp", "bmp",
+        "mp3", "mp4", "wav", "avi", "mkv", "mov", "zip", "tar", "gz", "rar", "7z", "pdf", "doc",
+        "docx", "xls", "xlsx", "sqlite", "db", "parquet",
     ];
 
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
@@ -198,11 +198,6 @@ fn is_binary_file(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
 
     // Check for null bytes
     Ok(buffer[..n].contains(&0))
-}
-
-/// Check if a file is binary based on extension and content
-pub fn check_is_binary(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
-    is_binary_file(path)
 }
 
 /// Hash a single file
@@ -255,9 +250,9 @@ mod tests {
         create_test_file(&dir, "test.png", b"PNG fake");
         create_test_file(&dir, "test.zip", b"PK fake");
 
-        assert!(check_is_binary(&dir.path().join("test.exe")).unwrap());
-        assert!(check_is_binary(&dir.path().join("test.png")).unwrap());
-        assert!(check_is_binary(&dir.path().join("test.zip")).unwrap());
+        assert!(is_binary_file(&dir.path().join("test.exe")).unwrap());
+        assert!(is_binary_file(&dir.path().join("test.png")).unwrap());
+        assert!(is_binary_file(&dir.path().join("test.zip")).unwrap());
     }
 
     #[test]
@@ -270,8 +265,8 @@ mod tests {
         // Create text file
         create_test_file(&dir, "test.txt", b"hello world");
 
-        assert!(check_is_binary(&dir.path().join("test.bin")).unwrap());
-        assert!(!check_is_binary(&dir.path().join("test.txt")).unwrap());
+        assert!(is_binary_file(&dir.path().join("test.bin")).unwrap());
+        assert!(!is_binary_file(&dir.path().join("test.txt")).unwrap());
     }
 
     #[test]
