@@ -33,7 +33,7 @@ describe('git service', () => {
     runGit(['add', '.'])
     runGit(['commit', '-m', 'Initial commit'])
 
-    execSync('git init --bare remote.git', { cwd: tempDir, stdio: 'ignore' })
+    execSync('git init --bare --initial-branch=main remote.git', { cwd: tempDir, stdio: 'ignore' })
     runGit(['remote', 'add', 'origin', remoteDir])
   })
 
@@ -42,7 +42,11 @@ describe('git service', () => {
   })
 
   function runGit(args: string[]) {
-    return execSync(`git ${args.map((arg) => `"${arg}"`).join(' ')}`, { cwd: repoDir, encoding: 'utf8' }).trim()
+    return execSync(`git ${args.map((arg) => `"${arg}"`).join(' ')}`, {
+      cwd: repoDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
   }
 
   it('reports unavailable workflow state for non-repositories', async () => {
