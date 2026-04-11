@@ -53,6 +53,7 @@ describe('git insights', () => {
     return execSync(`git ${args.map((arg) => `"${arg}"`).join(' ')}`, {
       cwd: repoDir,
       encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   }
 
