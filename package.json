@@ -13,6 +13,8 @@
     "prebuild": "npm run build:engine",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "smoke:engine-packaged": "npm run rebuild:native && node scripts/smoke-packaged-engine.mjs",
+    "test": "vitest --config ./vitest.desktop.config.ts",
+    "test:run": "vitest --config ./vitest.desktop.config.ts run",
     "test:engine-ipc": "npm --prefix ../devdesk-addons/devdesk-engine run ensure:native && npm run build:engine && ../devdesk-addons/devdesk-engine/node_modules/.bin/vitest --config ./vitest.engine.config.ts run",
     "package:linux:dir": "npm run rebuild:native && npm run build && electron-builder --linux dir",
     "package:linux": "npm run rebuild:native && npm run build && electron-builder --linux AppImage deb",
@@ -66,6 +68,7 @@
     "tailwindcss": "^3.4.19",
     "typescript": "~5.7.2",
     "vite": "^6.4.2",
+    "vitest": "^1.6.1",
     "wait-on": "^8.0.1"
   },
   "build": {
