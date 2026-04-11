@@ -1,4 +1,4 @@
-import type { Project, Command, Container, RunHistoryEntry, ProjectNotes } from '../types'
+import type { Project, Command, Container, RunHistoryEntry } from '../types'
 
 export const mockProjects: Project[] = [
   {
@@ -139,30 +139,3 @@ export const mockRunHistory: RunHistoryEntry[] = [
     output: 'Error: Service "api" not found in docker-compose.yml',
   },
 ]
-
-export const mockNotes: Record<string, ProjectNotes> = {
-  '1': {
-    projectId: '1',
-    setupSteps: 'Install deps\nnpm install\n\nRun dev\nnpm run dev',
-    todos: 'Finish search UI\nClean up command tags',
-    reminders: 'Remember to rebuild Docker image after dependency changes',
-  },
-  '2': {
-    projectId: '2',
-    setupSteps: 'pnpm install\npnpm db:migrate\npnpm dev',
-    todos: 'Add healthcheck endpoint\nReview auth scopes',
-    reminders: '',
-  },
-  '3': {
-    projectId: '3',
-    setupSteps: 'conda env create -f env.yml\nconda activate ml\njupyter lab',
-    todos: 'Document dataset sources\nRe-run baseline model',
-    reminders: 'GPU requirements: need CUDA 11.8',
-  },
-  '4': {
-    projectId: '4',
-    setupSteps: '',
-    todos: '',
-    reminders: 'Still in early development',
-  },
-}

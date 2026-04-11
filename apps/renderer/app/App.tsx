@@ -24,7 +24,6 @@ import { AppShell } from './layout/AppShell'
 import { AutomationSection } from './sections/AutomationSection'
 import { ContainersSection } from './sections/ContainersSection'
 import { HistorySection } from './sections/HistorySection'
-import { NotesSection } from './sections/NotesSection'
 import { ProjectsSection } from './sections/ProjectsSection'
 import { EngineSection } from './sections/EngineSection'
 import type {
@@ -47,11 +46,9 @@ import type {
   EngineStatus,
   GitCommitResult,
   GitCreatePullRequestResult,
-  GitDiffResult,
   GitPushResult,
   GitWorkflowState,
   Project,
-  ProjectNotes,
   RunHistoryEntry,
   TriggerConfirmationRequest,
 } from './types'
@@ -91,7 +88,6 @@ function App() {
   const [triggerConfirmations, setTriggerConfirmations] = useState<TriggerConfirmationRequest[]>([])
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [history, setHistory] = useState<RunHistoryEntry[]>([])
-  const [notes, setNotes] = useState<Record<string, ProjectNotes>>({})
   const [preferences, setPreferences] = useState<AppPreferences | null>(null)
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null)
   const [engineIndexes, setEngineIndexes] = useState<Record<string, EngineIndexMeta>>({})
@@ -137,7 +133,6 @@ function App() {
       engine: Object.keys(engineIndexes).length,
       containers: containers.length,
       history: history.length,
-      notes: projects.length,
     }
     return navItems.map((item) => ({
       ...item,
@@ -231,24 +226,6 @@ function App() {
       }
 
       setEngineIndexingProjects({})
-
-      if (projectsResult.status === 'fulfilled') {
-        try {
-          const notesEntries = await Promise.all(
-            projectsResult.value.map((project) => window.electronAPI.getNotes(project.id))
-          )
-          const notesMap = notesEntries.reduce<Record<string, ProjectNotes>>((acc, entry) => {
-            acc[entry.projectId] = entry
-            return acc
-          }, {})
-          setNotes(notesMap)
-        } catch (error) {
-          errors.push(error instanceof Error ? error.message : 'Failed to load notes.')
-          setNotes({})
-        }
-      } else {
-        setNotes({})
-      }
 
       setLoadError(errors.length ? errors[0] : null)
     } catch (error) {
@@ -462,8 +439,6 @@ function App() {
         }
         return [project, ...prev]
       })
-      const projectNotes = await window.electronAPI.getNotes(project.id)
-      setNotes((prev) => ({ ...prev, [projectNotes.projectId]: projectNotes }))
       setProjectPath('')
       setProjectDialogOpen(false)
     } catch (error) {
@@ -516,11 +491,6 @@ function App() {
         return next
       })
       setHistory((prev) => prev.filter((entry) => entry.projectId !== projectId))
-      setNotes((prev) => {
-        const next = { ...prev }
-        delete next[projectId]
-        return next
-      })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to remove project.'
       setLoadError(message)
@@ -894,17 +864,6 @@ function App() {
     }
   }, [])
 
-  const handleLoadGitDiff = useCallback(async (projectId: string, relativePath: string): Promise<GitDiffResult> => {
-    setLoadError(null)
-    try {
-      return await window.electronAPI.getProjectGitDiff(projectId, relativePath)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load git diff.'
-      setLoadError(message)
-      throw new Error(message)
-    }
-  }, [])
-
   const handleCommitProjectChanges = useCallback(async (projectId: string, message: string): Promise<GitCommitResult> => {
     setLoadError(null)
     try {
@@ -1079,24 +1038,6 @@ function App() {
     }
   }
 
-  const handleSaveNotes = async (projectId: string, updates: Partial<ProjectNotes>) => {
-    try {
-      await window.electronAPI.updateNotes(projectId, updates)
-      setNotes((prev) => ({
-        ...prev,
-        [projectId]: {
-          projectId,
-          setupSteps: updates.setupSteps ?? prev[projectId]?.setupSteps ?? '',
-          todos: updates.todos ?? prev[projectId]?.todos ?? '',
-          reminders: updates.reminders ?? prev[projectId]?.reminders ?? '',
-        },
-      }))
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Failed to update notes.')
-      throw error
-    }
-  }
-
   const handleSavePreferences = async (next: AppPreferences) => {
     await window.electronAPI.updatePreferences(next)
     setPreferences(next)
@@ -1258,11 +1199,10 @@ function App() {
               onSelectProject={handleProjectSelected}
               onIndexProject={handleIndexEngineProject}
               onSearchProjectContent={handleEngineSearch}
-              onLoadEngineStats={handleLoadEngineStats}
-              onLoadEngineGitInsights={handleLoadEngineGitInsights}
-              onLoadGitState={handleLoadGitState}
-              onLoadGitDiff={handleLoadGitDiff}
-              onCommitProjectChanges={handleCommitProjectChanges}
+               onLoadEngineStats={handleLoadEngineStats}
+               onLoadEngineGitInsights={handleLoadEngineGitInsights}
+               onLoadGitState={handleLoadGitState}
+               onCommitProjectChanges={handleCommitProjectChanges}
               onPushProjectBranch={handlePushProjectBranch}
               onCreateProjectPullRequest={handleCreateProjectPullRequest}
               onOpenEngineResult={handleOpenEngineResult}
@@ -1312,11 +1252,10 @@ function App() {
               onRefreshStatus={handleRefreshEngineState}
               onIndexProject={handleIndexEngineProject}
               onSearch={handleEngineSearch}
-              onLoadStats={handleLoadEngineStats}
-              onLoadGitInsights={handleLoadEngineGitInsights}
-              onLoadGitState={handleLoadGitState}
-              onLoadGitDiff={handleLoadGitDiff}
-              onCommitChanges={handleCommitProjectChanges}
+               onLoadStats={handleLoadEngineStats}
+               onLoadGitInsights={handleLoadEngineGitInsights}
+               onLoadGitState={handleLoadGitState}
+               onCommitChanges={handleCommitProjectChanges}
               onPushBranch={handlePushProjectBranch}
               onCreatePullRequest={handleCreateProjectPullRequest}
               onOpenResult={handleOpenEngineResult}
@@ -1353,15 +1292,6 @@ function App() {
               onLoadOutput={handleLoadOutput}
               onClearHistory={handleClearHistory}
               onRemoveEntry={handleRemoveHistoryEntry}
-            />
-          )}
-          {activeTab === 'notes' && (
-            <NotesSection
-              projects={projects}
-              notes={notes}
-              isLoading={isLoading}
-              error={loadError}
-              onSaveNotes={handleSaveNotes}
             />
           )}
         </div>

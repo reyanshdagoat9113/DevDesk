@@ -47,7 +47,6 @@ import type {
   EngineStatus,
   GitCommitResult,
   GitCreatePullRequestResult,
-  GitDiffResult,
   GitPushResult,
   GitWorkflowState,
   Project,
@@ -81,7 +80,6 @@ export function ProjectsSection({
   onLoadEngineStats,
   onLoadEngineGitInsights,
   onLoadGitState,
-  onLoadGitDiff,
   onCommitProjectChanges,
   onPushProjectBranch,
   onCreateProjectPullRequest,
@@ -119,7 +117,6 @@ export function ProjectsSection({
   onLoadEngineStats?: (projectId: string) => Promise<EngineStats>
   onLoadEngineGitInsights?: (projectId: string) => Promise<EngineGitInsights>
   onLoadGitState?: (projectId: string) => Promise<GitWorkflowState>
-  onLoadGitDiff?: (projectId: string, relativePath: string) => Promise<GitDiffResult>
   onCommitProjectChanges?: (projectId: string, message: string) => Promise<GitCommitResult>
   onPushProjectBranch?: (projectId: string) => Promise<GitPushResult>
   onCreateProjectPullRequest?: (
@@ -810,13 +807,12 @@ export function ProjectsSection({
                   engineSearchSessions &&
                   onIndexProject &&
                   onSearchProjectContent &&
-                  onLoadEngineStats &&
-                  onLoadEngineGitInsights &&
-                  onLoadGitState &&
-                  onLoadGitDiff &&
-                  onCommitProjectChanges &&
-                  onPushProjectBranch &&
-                  onCreateProjectPullRequest &&
+                   onLoadEngineStats &&
+                   onLoadEngineGitInsights &&
+                   onLoadGitState &&
+                   onCommitProjectChanges &&
+                   onPushProjectBranch &&
+                   onCreateProjectPullRequest &&
                   onOpenEngineResult &&
                   onRevealEngineResult &&
                   onClearProjectIndex &&
@@ -841,7 +837,6 @@ export function ProjectsSection({
                         onLoadStats={onLoadEngineStats}
                         onLoadGitInsights={onLoadEngineGitInsights}
                         onLoadGitState={onLoadGitState}
-                        onLoadGitDiff={onLoadGitDiff}
                         onCommitChanges={onCommitProjectChanges}
                         onPushBranch={onPushProjectBranch}
                         onCreatePullRequest={onCreateProjectPullRequest}

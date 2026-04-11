@@ -27,7 +27,6 @@ import type {
   EngineGitInsights,
   GitCommitResult,
   GitCreatePullRequestResult,
-  GitDiffResult,
   GitPushResult,
   GitWorkflowState,
   Project,
@@ -92,7 +91,6 @@ export function GitWorkspacePanel({
   project,
   onLoadGitInsights,
   onLoadGitState,
-  onLoadGitDiff,
   onCommitChanges,
   onPushBranch,
   onCreatePullRequest,
@@ -103,7 +101,6 @@ export function GitWorkspacePanel({
   project: Project
   onLoadGitInsights: (projectId: string) => Promise<EngineGitInsights>
   onLoadGitState: (projectId: string) => Promise<GitWorkflowState>
-  onLoadGitDiff: (projectId: string, relativePath: string) => Promise<GitDiffResult>
   onCommitChanges: (projectId: string, message: string) => Promise<GitCommitResult>
   onPushBranch: (projectId: string) => Promise<GitPushResult>
   onCreatePullRequest: (
@@ -118,14 +115,11 @@ export function GitWorkspacePanel({
 
   const [gitInsights, setGitInsights] = useState<EngineGitInsights | null>(null)
   const [gitState, setGitState] = useState<GitWorkflowState | null>(null)
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [insightView, setInsightView] = useState<GitInsightView>('overview')
-  const [diff, setDiff] = useState<GitDiffResult | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingState, setIsLoadingState] = useState(false)
-  const [isLoadingDiff, setIsLoadingDiff] = useState(false)
   const [isCommitting, setIsCommitting] = useState(false)
   const [isPushing, setIsPushing] = useState(false)
   const [isPrDialogOpen, setIsPrDialogOpen] = useState(false)
@@ -157,12 +151,10 @@ export function GitWorkspacePanel({
         }
       } else {
         setGitInsights(null)
-        setDiff(null)
       }
     } catch (loadError) {
       setGitState(null)
       setGitInsights(null)
-      setDiff(null)
       setError(loadError instanceof Error ? loadError.message : 'Failed to load git workspace.')
     } finally {
       setIsLoadingState(false)
@@ -172,51 +164,6 @@ export function GitWorkspacePanel({
   useEffect(() => {
     void refreshGitData()
   }, [refreshGitData])
-
-  useEffect(() => {
-    if (!changedFiles.length) {
-      setSelectedFile(null)
-      setDiff(null)
-      return
-    }
-
-    if (!selectedFile || !changedFiles.some((file) => file.path === selectedFile)) {
-      setSelectedFile(changedFiles[0]?.path ?? null)
-    }
-  }, [changedFiles, selectedFile])
-
-  useEffect(() => {
-    if (!selectedFile || !gitState?.available) {
-      setDiff(null)
-      return
-    }
-
-    let cancelled = false
-    setIsLoadingDiff(true)
-    setError(null)
-
-    onLoadGitDiff(project.id, selectedFile)
-      .then((result) => {
-        if (!cancelled) {
-          setDiff(result)
-        }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setDiff(null)
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load diff.')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoadingDiff(false)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [gitState?.available, onLoadGitDiff, project.id, selectedFile])
 
   useEffect(() => {
     if (insightView === 'changes' && !changedFiles.length) {
@@ -480,129 +427,74 @@ export function GitWorkspacePanel({
                 </div>
               ) : null}
 
-              <div className={insightView === 'overview' ? 'hidden' : 'grid min-h-[320px] gap-0 lg:grid-cols-[minmax(240px,0.88fr)_minmax(0,1.12fr)]'}>
-                <div className="border-b border-border/30 lg:border-b-0 lg:border-r lg:border-border/30">
-                  <div className="px-4 py-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
-                      Changed Files
-                    </p>
-                  </div>
-                  <ScrollArea className="h-[240px] lg:h-full">
-                    <div className="space-y-1.5 px-3 pb-3">
-                      {changedFiles.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-6 text-center text-sm text-muted-foreground">
-                          No pending file changes.
-                        </div>
-                      ) : (
-                        changedFiles.map((file) => {
-                          const isActive = file.path === selectedFile
-                          return (
-                            <div
-                              key={file.path}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => setSelectedFile(file.path)}
-                              onKeyDown={(event) => {
-                                if (event.key === 'Enter' || event.key === ' ') {
-                                  event.preventDefault()
-                                  setSelectedFile(file.path)
-                                }
-                              }}
-                              className={cn(
-                                'w-full rounded-xl px-3 py-2.5 text-left transition-colors',
-                                isActive ? 'bg-primary/8 ring-1 ring-primary/20' : 'hover:bg-muted/50'
-                              )}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 space-y-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge
-                                      variant={summaryBadgeVariant(file.summary)}
-                                      className="h-5 px-2 text-[9px] uppercase tracking-wider"
-                                    >
-                                      {file.summary}
-                                    </Badge>
-                                    {file.conflicted ? (
-                                      <Badge variant="destructive" className="h-5 px-2 text-[9px] uppercase tracking-wider">
-                                        Conflict
-                                      </Badge>
-                                    ) : null}
-                                  </div>
-                                  <p className="truncate font-mono text-[10.5px] font-semibold text-foreground">
-                                    {file.path}
-                                  </p>
-                                </div>
-                                <div className="shrink-0 text-right text-[10px] text-muted-foreground">
-                                  <div className="tabular-nums">+{file.additions} / -{file.deletions}</div>
-                                </div>
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {onOpenResult ? (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      void onOpenResult(project.id, file.path)
-                                    }}
-                                  >
-                                    Open
-                                  </Button>
-                                ) : null}
-                                {onRevealResult ? (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      void onRevealResult(project.id, file.path)
-                                    }}
-                                  >
-                                    Reveal
-                                  </Button>
+              <div className={insightView === 'overview' ? 'hidden' : 'px-4 py-3'}>
+                <div className="mb-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                    Changed Files
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Review pending file changes, open them in the editor, or reveal them in the folder.
+                  </p>
+                </div>
+                <ScrollArea className="h-[320px]">
+                  <div className="space-y-1.5 pr-1">
+                    {changedFiles.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-border/40 px-4 py-6 text-center text-sm text-muted-foreground">
+                        No pending file changes.
+                      </div>
+                    ) : (
+                      changedFiles.map((file) => (
+                        <div key={file.path} className="rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/50">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge
+                                  variant={summaryBadgeVariant(file.summary)}
+                                  className="h-5 px-2 text-[9px] uppercase tracking-wider"
+                                >
+                                  {file.summary}
+                                </Badge>
+                                {file.conflicted ? (
+                                  <Badge variant="destructive" className="h-5 px-2 text-[9px] uppercase tracking-wider">
+                                    Conflict
+                                  </Badge>
                                 ) : null}
                               </div>
+                              <p className="truncate font-mono text-[10.5px] font-semibold text-foreground">
+                                {file.path}
+                              </p>
                             </div>
-                          )
-                        })
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-
-                <div className="min-h-[280px] px-4 py-3">
-                  <div className="mb-2.5 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
-                        Unified Diff
-                      </p>
-                      <p className="mt-1 max-w-2xl truncate text-xs text-muted-foreground">
-                        {selectedFile ? selectedFile : 'Select a changed file to inspect the current diff.'}
-                      </p>
-                    </div>
-                    {diff?.generatedForUntracked ? (
-                      <Badge variant="outline" className="h-5 px-2 text-[9px] uppercase tracking-wider">
-                        Untracked Preview
-                      </Badge>
-                    ) : null}
+                            <div className="shrink-0 text-right text-[10px] text-muted-foreground">
+                              <div className="tabular-nums">+{file.additions} / -{file.deletions}</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {onOpenResult ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[10px]"
+                                onClick={() => void onOpenResult(project.id, file.path)}
+                              >
+                                Open
+                              </Button>
+                            ) : null}
+                            {onRevealResult ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[10px]"
+                                onClick={() => void onRevealResult(project.id, file.path)}
+                              >
+                                Reveal
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
-
-                  <div className="overflow-hidden rounded-2xl border border-border/30 bg-zinc-950 text-zinc-100 shadow-inner">
-                    <ScrollArea className="h-[260px] lg:h-[300px]">
-                      <pre className="whitespace-pre-wrap px-4 py-3 font-mono text-[10.5px] leading-[1.35]">
-                        {!selectedFile
-                          ? 'Select a changed file to load its diff.'
-                          : isLoadingDiff
-                            ? 'Loading diff...'
-                            : diff?.ok
-                              ? diff.diff || 'No diff available for this file.'
-                              : diff?.message || 'No diff available for this file.'}
-                      </pre>
-                    </ScrollArea>
-                  </div>
-                </div>
+                </ScrollArea>
               </div>
 
               <div className={insightView === 'overview' ? 'border-t border-border/30 px-4 py-3' : 'border-t border-border/30 px-4 py-4'}>

@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Database,
-  Eraser,
-  FolderOpen,
-  GitBranch,
-  RefreshCcw,
-  Search,
-} from 'lucide-react'
+import { Database, Eraser, FolderOpen, GitBranch, RefreshCcw, Search } from 'lucide-react'
 import { GitWorkspacePanel } from './GitWorkspacePanel'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
@@ -22,7 +15,6 @@ import type {
   EngineStatus,
   GitCommitResult,
   GitCreatePullRequestResult,
-  GitDiffResult,
   GitPushResult,
   GitWorkflowState,
   Project,
@@ -57,7 +49,6 @@ export function ProjectEnginePanel({
   onLoadStats,
   onLoadGitInsights,
   onLoadGitState,
-  onLoadGitDiff,
   onCommitChanges,
   onPushBranch,
   onCreatePullRequest,
@@ -81,7 +72,6 @@ export function ProjectEnginePanel({
   onLoadStats: (projectId: string) => Promise<EngineStats>
   onLoadGitInsights: (projectId: string) => Promise<EngineGitInsights>
   onLoadGitState: (projectId: string) => Promise<GitWorkflowState>
-  onLoadGitDiff: (projectId: string, relativePath: string) => Promise<GitDiffResult>
   onCommitChanges: (projectId: string, message: string) => Promise<GitCommitResult>
   onPushBranch: (projectId: string) => Promise<GitPushResult>
   onCreatePullRequest: (
@@ -535,7 +525,6 @@ export function ProjectEnginePanel({
           project={project}
           onLoadGitInsights={onLoadGitInsights}
           onLoadGitState={onLoadGitState}
-          onLoadGitDiff={onLoadGitDiff}
           onCommitChanges={onCommitChanges}
           onPushBranch={onPushBranch}
           onCreatePullRequest={onCreatePullRequest}

@@ -11,7 +11,6 @@ import {
   getChainById,
   getPreferencesFromStore,
   getProjectById,
-  getProjectNotesById,
   getRunHistoryOutputById,
   getTriggerById,
   listChains,
@@ -35,7 +34,6 @@ import {
   replaceCommand,
   updatePreferencesInStore,
   updateProjectLinkedContainers,
-  upsertProjectNotes,
   toggleProjectPin,
   toggleCommandPin,
 } from '../data/store'
@@ -2340,27 +2338,6 @@ export function registerIpcHandlers() {
     return getRunHistoryOutputById(_runId)
   })
 
-  // Notes
-  ipcMain.handle('notes:get', async (_event, _projectId: string) => {
-    return getProjectNotesById(_projectId)
-  })
-
-  ipcMain.handle('notes:update', async (_event, _projectId: string, _notes: unknown) => {
-    if (!_projectId) {
-      return { success: false }
-    }
-
-    const updates =
-      typeof _notes === 'object' && _notes
-        ? (_notes as Partial<{ setupSteps: string; todos: string; reminders: string }>)
-        : {}
-
-    await upsertProjectNotes(_projectId, updates)
-
-    return { success: true }
-  })
-
-
   // File navigation
   ipcMain.handle('files:list', async (_event, projectId: string, dir?: string) => {
     if (!projectId) {
@@ -2457,23 +2434,6 @@ export function registerIpcHandlers() {
 
     const { getGitWorkflowState } = await import('../git/service')
     return getGitWorkflowState(project.path)
-  })
-
-  ipcMain.handle('git:get-diff', async (_event, projectId: string, relativePath: string) => {
-    if (!projectId) {
-      throw new Error('Project id is required.')
-    }
-    if (!relativePath?.trim()) {
-      throw new Error('File path is required.')
-    }
-
-    const project = await getProjectById(projectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    const { getGitDiff } = await import('../git/service')
-    return getGitDiff(project.path, relativePath)
   })
 
   ipcMain.handle('git:commit', async (_event, projectId: string, message: string) => {

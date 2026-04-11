@@ -166,13 +166,6 @@ export interface RunHistoryEntry {
   resolvedCommand?: string
 }
 
-export interface ProjectNotes {
-  projectId: string
-  setupSteps: string
-  todos: string
-  reminders: string
-}
-
 export interface AppPreference {
   id: string
   command?: string
@@ -317,14 +310,6 @@ export interface GitWorkflowState {
   canCreatePullRequest: boolean
   message?: string
   workingTree: EngineGitInsights['workingTree'] | null
-}
-
-export interface GitDiffResult {
-  ok: boolean
-  path: string
-  diff: string
-  generatedForUntracked?: boolean
-  message?: string
 }
 
 export interface GitCommitResult {

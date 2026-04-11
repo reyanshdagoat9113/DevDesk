@@ -1,8 +1,8 @@
-import { Container, FolderKanban, History, Search, StickyNote, Terminal } from 'lucide-react'
+import { Container, FolderKanban, History, Search, Terminal } from 'lucide-react'
 
 import type { RunHistoryEntry } from '../types'
 
-export type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history' | 'notes'
+export type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history'
 
 export const navItems = [
   { value: 'projects', label: 'Projects', icon: FolderKanban },
@@ -10,7 +10,6 @@ export const navItems = [
   { value: 'engine', label: 'Engine', icon: Search },
   { value: 'containers', label: 'Containers', icon: Container },
   { value: 'history', label: 'History', icon: History },
-  { value: 'notes', label: 'Notes', icon: StickyNote },
 ] as const
 
 export const actionLabels: Partial<Record<TabValue, string>> = {

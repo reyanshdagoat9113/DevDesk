@@ -10,11 +10,9 @@ import type {
   CreateCommandTriggerInput,
   CreateCommandInput,
   Project,
-  ProjectNotes,
   EngineGitInsights,
   GitCommitResult,
   GitCreatePullRequestResult,
-  GitDiffResult,
   GitPushResult,
   GitWorkflowState,
   EngineIndexCompletedPayload,
@@ -97,9 +95,6 @@ export interface ElectronAPI {
   clearRunHistory: () => Promise<{ success: boolean }>
   removeRunHistory: (runId: string) => Promise<{ success: boolean }>
 
-  getNotes: (projectId: string) => Promise<ProjectNotes>
-  updateNotes: (projectId: string, notes: Partial<ProjectNotes>) => Promise<{ success: boolean }>
-
   // File Navigation
   listProjectFiles: (projectId: string, dir?: string) => Promise<{ entries: Array<{ name: string; relativePath: string; kind: 'file' | 'dir' }>; truncated: boolean }>
   searchProjectFiles: (projectId: string, query: string, limit?: number) => Promise<Array<{ relativePath: string; kind: 'file' | 'dir' }>>
@@ -118,7 +113,6 @@ export interface ElectronAPI {
   getProjectStats: (projectId: string) => Promise<EngineStats | null>
   getProjectGitInsights: (projectId: string) => Promise<EngineGitInsights | null>
   getProjectGitState: (projectId: string) => Promise<GitWorkflowState>
-  getProjectGitDiff: (projectId: string, relativePath: string) => Promise<GitDiffResult>
   commitProjectChanges: (projectId: string, message: string) => Promise<GitCommitResult>
   pushProjectBranch: (projectId: string) => Promise<GitPushResult>
   createProjectPullRequest: (

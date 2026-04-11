@@ -19,14 +19,6 @@ export interface GitWorkflowState {
   workingTree: EngineGitInsights['workingTree'] | null
 }
 
-export interface GitDiffResult {
-  ok: boolean
-  path: string
-  diff: string
-  generatedForUntracked?: boolean
-  message?: string
-}
-
 export interface GitCommitResult {
   ok: boolean
   message: string

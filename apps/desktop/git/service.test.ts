@@ -70,20 +70,6 @@ describe('git service', () => {
     expect(workflow.canPush).toBe(true)
   })
 
-  it('generates diffs for tracked and untracked files', async () => {
-    const { getGitDiff } = await import('./service')
-    fs.writeFileSync(path.join(repoDir, 'src', 'tracked.ts'), 'export const value = 2\n')
-    fs.writeFileSync(path.join(repoDir, 'notes.md'), '# scratch\n')
-
-    const tracked = await getGitDiff(repoDir, 'src/tracked.ts')
-    const untracked = await getGitDiff(repoDir, 'notes.md')
-
-    expect(tracked.ok).toBe(true)
-    expect(tracked.diff).toContain('diff --git')
-    expect(untracked.ok).toBe(true)
-    expect(untracked.generatedForUntracked).toBe(true)
-  })
-
   it('commits and pushes current branch to a new upstream', async () => {
     const { commitAllChanges, pushCurrentBranch } = await import('./service')
     fs.writeFileSync(path.join(repoDir, 'src', 'tracked.ts'), 'export const committed = true\n')

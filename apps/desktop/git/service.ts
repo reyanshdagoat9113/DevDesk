@@ -1,6 +1,4 @@
 import { spawn } from 'node:child_process'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import { engineGit } from '../engine/binary'
 import type { EngineGitInsights } from '../engine/types'
 import { buildCompareUrl, inferBaseBranch, parseGitRemote } from './runtime'
@@ -8,7 +6,6 @@ import type {
   GitCommitResult,
   GitCreatePullRequestInput,
   GitCreatePullRequestResult,
-  GitDiffResult,
   GitPushResult,
   GitWorkflowState,
 } from './types'
@@ -236,60 +233,6 @@ async function getPreferredRemoteName(repoPath: string) {
   return remoteNames[0] ?? null
 }
 
-function buildUntrackedDiff(relativePath: string, content: string) {
-  const lines = content.split(/\r?\n/)
-  const body = lines.map((line) => `+${line}`).join('\n')
-  return [
-    `diff --git a/${relativePath} b/${relativePath}`,
-    'new file mode 100644',
-    '--- /dev/null',
-    `+++ b/${relativePath}`,
-    `@@ -0,0 +1,${lines.length} @@`,
-    body,
-  ].join('\n')
-}
-
-async function buildUnifiedDiff(repoPath: string, relativePath: string): Promise<GitDiffResult> {
-  const normalizedPath = relativePath.replace(/\\/g, '/')
-  const staged = await tryGit(repoPath, ['diff', '--cached', '--', normalizedPath])
-  const unstaged = await tryGit(repoPath, ['diff', '--', normalizedPath])
-  const sections: string[] = []
-
-  if (staged.ok && staged.stdout) {
-    sections.push(staged.stdout)
-  }
-
-  if (unstaged.ok && unstaged.stdout) {
-    sections.push(unstaged.stdout)
-  }
-
-  if (sections.length) {
-    return {
-      ok: true,
-      path: normalizedPath,
-      diff: sections.join('\n\n'),
-    }
-  }
-
-  const absolutePath = path.join(repoPath, normalizedPath)
-  try {
-    const content = await fs.readFile(absolutePath, 'utf8')
-    return {
-      ok: true,
-      path: normalizedPath,
-      diff: buildUntrackedDiff(normalizedPath, content),
-      generatedForUntracked: true,
-    }
-  } catch {
-    return {
-      ok: false,
-      path: normalizedPath,
-      diff: '',
-      message: 'No diff is available for this file.',
-    }
-  }
-}
-
 async function getEngineInsights(repoPath: string): Promise<EngineGitInsights | null> {
   try {
     return await engineGit(repoPath)
@@ -358,19 +301,6 @@ export async function getGitWorkflowState(repoPath: string): Promise<GitWorkflow
     canCreatePullRequest: Boolean(branch && remote?.provider === 'github' && !hasConflicts),
     workingTree: insights?.workingTree ?? null,
   }
-}
-
-export async function getGitDiff(repoPath: string, relativePath: string): Promise<GitDiffResult> {
-  if (!(await isGitRepository(repoPath))) {
-    return {
-      ok: false,
-      path: relativePath,
-      diff: '',
-      message: 'This project is not a git repository.',
-    }
-  }
-
-  return buildUnifiedDiff(repoPath, relativePath)
 }
 
 export async function commitAllChanges(repoPath: string, message: string): Promise<GitCommitResult> {

@@ -14,7 +14,6 @@ import {
   Terminal,
   Container,
   History,
-  StickyNote,
   Folder,
   Code,
   Play,
@@ -28,7 +27,6 @@ import {
   GitBranch,
   Send,
   Github,
-  Diff,
 } from 'lucide-react'
 import { VariablePromptModal } from './VariablePromptModal'
 import { getContainerActionIcon, getStatusIcon } from './commandPaletteHelpers'
@@ -75,7 +73,6 @@ type PaletteMode =
   | { type: 'gitCommitProjectPick' }
   | { type: 'gitPushProjectPick' }
   | { type: 'gitPullRequestProjectPick' }
-  | { type: 'gitDiffProjectPick' }
   | { type: 'engineClearIndexProjectPick' }
   | { type: 'engineClearSearchProjectPick' }
   | { type: 'engineSearch'; project: Project }
@@ -355,17 +352,6 @@ export function CommandPalette({
     setSearchQuery('')
   }, [onOpenChange, onOpenProjectEngine, projects])
 
-  const openGitDiffFromMain = useCallback(() => {
-    if (projects.length === 1) {
-      onOpenProjectEngine(projects[0].id)
-      onOpenChange(false)
-      return
-    }
-
-    setMode({ type: 'gitDiffProjectPick' })
-    setSearchQuery('')
-  }, [onOpenChange, onOpenProjectEngine, projects])
-
   const openEngineClearIndexFromMain = useCallback(() => {
     if (projects.length === 1) {
       void runWithErrorHandling(() => onClearProjectIndex(projects[0].id))
@@ -395,7 +381,6 @@ export function CommandPalette({
       { tab: 'engine', label: 'Go to Engine', icon: <Search className="h-4 w-4" /> },
       { tab: 'containers', label: 'Go to Containers', icon: <Container className="h-4 w-4" /> },
       { tab: 'history', label: 'Go to History', icon: <History className="h-4 w-4" /> },
-      { tab: 'notes', label: 'Go to Notes', icon: <StickyNote className="h-4 w-4" /> },
     ]
 
     for (const nav of navItems) {
@@ -443,8 +428,8 @@ export function CommandPalette({
       id: 'nav-git-workspace',
       group: 'Navigation',
       title: 'Open Git Workspace',
-      subtitle: 'Review diffs, commit, push, and file pull requests',
-      keywords: ['git', 'workspace', 'engine', 'status', 'diff', 'commit', 'push', 'pull request'],
+      subtitle: 'Review changes, commit, push, and file pull requests',
+      keywords: ['git', 'workspace', 'engine', 'status', 'changes', 'commit', 'push', 'pull request'],
       icon: <GitBranch className="h-4 w-4" />,
       action: openGitWorkspaceFromMain,
     })
@@ -479,16 +464,6 @@ export function CommandPalette({
       keywords: ['git', 'pull request', 'pr', 'github'],
       icon: <Github className="h-4 w-4" />,
       action: openGitPullRequestFromMain,
-    })
-
-    items.push({
-      id: 'nav-git-diff',
-      group: 'Navigation',
-      title: 'Open Changed File Diff',
-      subtitle: 'Open the git workspace diff viewer',
-      keywords: ['git', 'diff', 'changes', 'files'],
-      icon: <Diff className="h-4 w-4" />,
-      action: openGitDiffFromMain,
     })
 
     items.push({
@@ -692,7 +667,6 @@ export function CommandPalette({
     openGitCommitFromMain,
     openGitPushFromMain,
     openGitPullRequestFromMain,
-    openGitDiffFromMain,
     openEngineClearIndexFromMain,
     openEngineClearSearchFromMain,
     engineStatus,
@@ -773,7 +747,7 @@ export function CommandPalette({
       group: 'Projects',
       title,
       subtitle,
-      keywords: [project.name, project.path, 'git', 'workspace', 'commit', 'push', 'pull request', 'diff'],
+      keywords: [project.name, project.path, 'git', 'workspace', 'commit', 'push', 'pull request', 'changes'],
       icon: <span className="text-lg">{project.icon}</span>,
       action,
     })
@@ -809,16 +783,6 @@ export function CommandPalette({
     if (mode.type === 'gitPullRequestProjectPick') {
       return projects.map((project) =>
         buildItem(project, project.name, 'Open workspace PR flow', () =>
-          runWithErrorHandling(() => {
-            onOpenProjectEngine(project.id)
-          })
-        )
-      )
-    }
-
-    if (mode.type === 'gitDiffProjectPick') {
-      return projects.map((project) =>
-        buildItem(project, project.name, 'Open workspace diff viewer', () =>
           runWithErrorHandling(() => {
             onOpenProjectEngine(project.id)
           })
@@ -873,7 +837,6 @@ export function CommandPalette({
       case 'gitCommitProjectPick':
       case 'gitPushProjectPick':
       case 'gitPullRequestProjectPick':
-      case 'gitDiffProjectPick':
         return gitProjectPickItems
       case 'engineClearIndexProjectPick':
         return engineClearIndexProjectPickItems
@@ -1058,7 +1021,7 @@ export function CommandPalette({
           <>
             {mode.type !== 'engineSearch' ? <CommandEmpty>No results found.</CommandEmpty> : null}
 
-            {(mode.type === 'projectPick' || mode.type === 'engineIndexProjectPick' || mode.type === 'engineSearchProjectPick' || mode.type === 'engineOpenProjectPick' || mode.type === 'gitWorkspaceProjectPick' || mode.type === 'gitCommitProjectPick' || mode.type === 'gitPushProjectPick' || mode.type === 'gitPullRequestProjectPick' || mode.type === 'gitDiffProjectPick' || mode.type === 'engineClearIndexProjectPick' || mode.type === 'engineClearSearchProjectPick' || mode.type === 'engineSearch' || mode.type === 'variableInput') && (
+            {(mode.type === 'projectPick' || mode.type === 'engineIndexProjectPick' || mode.type === 'engineSearchProjectPick' || mode.type === 'engineOpenProjectPick' || mode.type === 'gitWorkspaceProjectPick' || mode.type === 'gitCommitProjectPick' || mode.type === 'gitPushProjectPick' || mode.type === 'gitPullRequestProjectPick' || mode.type === 'engineClearIndexProjectPick' || mode.type === 'engineClearSearchProjectPick' || mode.type === 'engineSearch' || mode.type === 'variableInput') && (
               <CommandGroup heading="Actions">
                 <CommandItem onSelect={handleBack}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
