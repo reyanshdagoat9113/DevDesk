@@ -31,6 +31,7 @@ export function toUserContainerError(error: unknown, fallbackMessage: string) {
   const normalized = message.toLowerCase()
 
   if (
+    normalized.includes('docker desktop daemon is not running') ||
     normalized.includes('docker daemon') ||
     normalized.includes('failed to connect to the docker api') ||
     normalized.includes('cannot connect to the docker daemon') ||

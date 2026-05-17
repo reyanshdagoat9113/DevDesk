@@ -246,6 +246,8 @@ function App() {
     } catch (error) {
       const message = toUserContainerError(error, 'Failed to load containers.')
       setContainerError(message)
+      setContainers([])
+      setHasLoadedContainers(true)
     } finally {
       setIsContainersLoading(false)
     }
@@ -294,7 +296,7 @@ function App() {
     if (!needsContainers || hasAttemptedContainersLoad || isContainersLoading) {
       return
     }
-    void loadContainers()
+    void loadContainers().catch(() => undefined)
   }, [activeTab, hasAttemptedContainersLoad, isContainersLoading, loadContainers])
 
   useEffect(() => {
