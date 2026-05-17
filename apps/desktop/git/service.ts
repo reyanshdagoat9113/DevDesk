@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process'
+import fsSync from 'node:fs'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { engineGit } from '../engine/binary'
 import type { EngineGitInsights } from '../engine/types'
 import { buildCompareUrl, inferBaseBranch, parseGitRemote } from './runtime'
@@ -15,6 +18,30 @@ type CommandResult = {
   stdout: string
   stderr: string
   code: number | null
+}
+
+type GitRepositoryCheck = {
+  available: boolean
+  message?: string
+}
+
+function resolveGitCommandCandidates() {
+  const candidates = ['git']
+
+  if (process.platform === 'win32') {
+    const programFiles = [
+      process.env.ProgramFiles,
+      process.env['ProgramFiles(x86)'],
+      process.env.LocalAppData ? path.win32.join(process.env.LocalAppData, 'Programs') : null,
+    ].filter(Boolean) as string[]
+
+    for (const root of programFiles) {
+      candidates.push(path.win32.join(root, 'Git', 'cmd', 'git.exe'))
+      candidates.push(path.win32.join(root, 'Git', 'bin', 'git.exe'))
+    }
+  }
+
+  return [...new Set(candidates)]
 }
 
 function cleanShellText(value: string) {
@@ -60,8 +87,32 @@ async function runCommand(command: string, args: string[], cwd: string): Promise
   })
 }
 
+async function runGitCommand(args: string[], cwd: string): Promise<CommandResult> {
+  let gitNotFound: CommandResult | null = null
+
+  for (const command of resolveGitCommandCandidates()) {
+    if (command !== 'git' && !fsSync.existsSync(command)) {
+      continue
+    }
+
+    const result = await runCommand(command, args, cwd)
+    const isMissingGit = result.code === null && /ENOENT/i.test(result.stderr)
+    if (!isMissingGit) {
+      return result
+    }
+    gitNotFound = result
+  }
+
+  return gitNotFound ?? {
+    ok: false,
+    stdout: '',
+    stderr: 'Git executable was not found.',
+    code: null,
+  }
+}
+
 async function runGit(repoPath: string, args: string[]) {
-  const result = await runCommand('git', args, repoPath)
+  const result = await runGitCommand(args, repoPath)
   if (!result.ok) {
     throw new Error(result.stderr || `git ${args.join(' ')} failed`)
   }
@@ -69,7 +120,41 @@ async function runGit(repoPath: string, args: string[]) {
 }
 
 async function tryGit(repoPath: string, args: string[]) {
-  return runCommand('git', args, repoPath)
+  return runGitCommand(args, repoPath)
+}
+
+async function checkGitRepository(repoPath: string): Promise<GitRepositoryCheck> {
+  try {
+    const stat = await fs.stat(repoPath)
+    if (!stat.isDirectory()) {
+      return {
+        available: false,
+        message: 'The saved project path is not a directory.',
+      }
+    }
+  } catch (error) {
+    return {
+      available: false,
+      message: error instanceof Error ? `The saved project path cannot be opened: ${error.message}` : 'The saved project path cannot be opened.',
+    }
+  }
+
+  const result = await tryGit(repoPath, ['rev-parse', '--is-inside-work-tree'])
+  if (result.ok && result.stdout === 'true') {
+    return { available: true }
+  }
+
+  if (result.code === null) {
+    return {
+      available: false,
+      message: result.stderr || 'Git could not be launched from DevDesk.',
+    }
+  }
+
+  return {
+    available: false,
+    message: result.stderr || 'This project is not a git repository.',
+  }
 }
 
 function parseBranchStatus(statusLine: string) {
@@ -211,8 +296,7 @@ async function getFallbackGitInsights(repoPath: string): Promise<EngineGitInsigh
 }
 
 async function isGitRepository(repoPath: string) {
-  const result = await tryGit(repoPath, ['rev-parse', '--is-inside-work-tree'])
-  return result.ok && result.stdout === 'true'
+  return (await checkGitRepository(repoPath)).available
 }
 
 async function getRemoteHeadRef(repoPath: string, remoteName: string) {
@@ -255,7 +339,8 @@ export async function getGitInsights(repoPath: string): Promise<EngineGitInsight
 }
 
 export async function getGitWorkflowState(repoPath: string): Promise<GitWorkflowState> {
-  if (!(await isGitRepository(repoPath))) {
+  const repositoryCheck = await checkGitRepository(repoPath)
+  if (!repositoryCheck.available) {
     return {
       ok: false,
       available: false,
@@ -269,7 +354,7 @@ export async function getGitWorkflowState(repoPath: string): Promise<GitWorkflow
       behind: 0,
       canPush: false,
       canCreatePullRequest: false,
-      message: 'This project is not a git repository.',
+      message: repositoryCheck.message || 'This project is not a git repository.',
       workingTree: null,
     }
   }
