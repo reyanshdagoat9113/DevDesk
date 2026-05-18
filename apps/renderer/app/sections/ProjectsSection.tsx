@@ -22,6 +22,7 @@ import { Label } from '../components/ui/Label'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
 import { ProjectGitSummary } from '../components/ProjectGitSummary'
+import { ProjectHealthPanel } from '../components/ProjectHealthPanel'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import {
@@ -38,6 +39,8 @@ import {
 import type {
   AppPreferences,
   Container,
+  Command,
+  CreateCommandInput,
   EngineGitInsights,
   EngineIndexResult,
   EngineIndexMeta,
@@ -50,7 +53,54 @@ import type {
   GitPushResult,
   GitWorkflowState,
   Project,
+  ProjectHealthReport,
 } from '../types'
+
+function getProjectHealthBadge(report?: ProjectHealthReport) {
+  if (!report) {
+    return {
+      label: '...',
+      variant: 'outline' as const,
+      className: 'h-4 px-1.5 text-[8px] font-bold opacity-50',
+      title: 'Health inspection pending',
+    }
+  }
+
+  if (report.status === 'critical') {
+    return {
+      label: 'Critical',
+      variant: 'destructive' as const,
+      className: 'h-4 px-1.5 text-[8px] font-bold',
+      title: 'Project health is critical',
+    }
+  }
+
+  if (report.status === 'warning') {
+    return {
+      label: 'Warning',
+      variant: 'warning' as const,
+      className: 'h-4 px-1.5 text-[8px] font-bold',
+      title: 'Project health has warnings',
+    }
+  }
+
+  return {
+    label: 'Healthy',
+    variant: 'success' as const,
+    className: 'h-4 px-1.5 text-[8px] font-bold',
+    title: 'Project health looks good',
+  }
+}
+
+function ProjectHealthBadge({ report }: { report?: ProjectHealthReport }) {
+  const badge = getProjectHealthBadge(report)
+
+  return (
+    <Badge variant={badge.variant} className={badge.className} title={badge.title}>
+      {badge.label}
+    </Badge>
+  )
+}
 
 export function ProjectsSection({
   projects,
@@ -89,6 +139,8 @@ export function ProjectsSection({
   onClearProjectSearchSession,
   onOpenExternalUrl,
   onOpenProjectEngine,
+  onCreateCommand,
+  onRunCommand,
 }: {
   projects: Project[]
   containers: Container[]
@@ -129,6 +181,8 @@ export function ProjectsSection({
   onClearProjectSearchSession?: (projectId: string) => Promise<void>
   onOpenExternalUrl?: (url: string) => Promise<void>
   onOpenProjectEngine?: (projectId: string) => void
+  onCreateCommand?: (command: CreateCommandInput) => Promise<Command>
+  onRunCommand?: (commandId: string, projectId: string) => Promise<unknown>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -155,6 +209,7 @@ export function ProjectsSection({
   const [liveLogsError, setLiveLogsError] = useState<string | null>(null)
   const [liveLogsConnecting, setLiveLogsConnecting] = useState(false)
   const [liveLogsClosed, setLiveLogsClosed] = useState(false)
+  const [projectHealthReports, setProjectHealthReports] = useState<Record<string, ProjectHealthReport>>({})
   const liveLogsSubscriptionIdRef = useRef<string | null>(null)
 
   // Sort projects: pinned first, then by name
@@ -203,6 +258,52 @@ export function ProjectsSection({
     if (!projects.length) return null
     return projects.find((project) => project.id === selectedId) ?? projects[0]
   }, [projects, selectedId])
+
+  useEffect(() => {
+    let cancelled = false
+    const missingProjects = projects.filter((project) => !projectHealthReports[project.id])
+    if (missingProjects.length === 0) {
+      return
+    }
+
+    void Promise.all(
+      missingProjects.map(async (project) => {
+        try {
+          return await window.electronAPI.inspectProject(project.id)
+        } catch {
+          return null
+        }
+      })
+    ).then((reports) => {
+      if (cancelled) {
+        return
+      }
+
+      setProjectHealthReports((current) => {
+        const next = { ...current }
+        for (const report of reports) {
+          if (report) {
+            next[report.projectId] = report
+          }
+        }
+        return next
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectHealthReports, projects])
+
+  useEffect(() => {
+    setProjectHealthReports((current) => {
+      const projectIds = new Set(projects.map((project) => project.id))
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([projectId]) => projectIds.has(projectId))
+      )
+      return Object.keys(next).length === Object.keys(current).length ? current : next
+    })
+  }, [projects])
 
   useEffect(() => {
     if (!selectedProject?.id) {
@@ -624,6 +725,7 @@ export function ProjectsSection({
                       {pinnedProjects.map((project) => {
                         const isActive = selectedProject?.id === project.id
                         const isWslProject = isWslPath(project.path)
+                        const healthReport = projectHealthReports[project.id]
                         return (
                           <button
                             key={project.id}
@@ -648,6 +750,7 @@ export function ProjectsSection({
                               <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
                             </div>
                             <div className="flex items-center gap-1.5">
+                              <ProjectHealthBadge report={healthReport} />
                               <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
                               {isWslProject && (
                                 <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
@@ -671,6 +774,7 @@ export function ProjectsSection({
                       {unpinnedProjects.map((project, index) => {
                         const isActive = selectedProject?.id === project.id
                         const isWslProject = isWslPath(project.path)
+                        const healthReport = projectHealthReports[project.id]
                         return (
                           <button
                             key={project.id}
@@ -696,6 +800,7 @@ export function ProjectsSection({
                               <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
                             </div>
                             <div className="flex items-center gap-1.5">
+                              <ProjectHealthBadge report={healthReport} />
                               {project.isPinned && (
                                 <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                               )}
@@ -801,7 +906,19 @@ export function ProjectsSection({
                     )}
                   </div>
 
-                  {/* Dev Stack */}
+                  <ProjectHealthPanel
+                    project={selectedProject}
+                    onCreateCommand={onCreateCommand}
+                    onRunCommand={onRunCommand}
+                    onReportLoaded={(report) => {
+                      setProjectHealthReports((current) => ({
+                        ...current,
+                        [report.projectId]: report,
+                      }))
+                    }}
+                  />
+
+                  {/* Project Workspace */}
                   {selectedProject &&
                   engineIndexes &&
                   engineSearchSessions &&

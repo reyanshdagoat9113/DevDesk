@@ -1213,6 +1213,8 @@ function App() {
               onClearProjectSearchSession={handleClearEngineSearchSession}
               onOpenExternalUrl={handleOpenExternalUrl}
               onOpenProjectEngine={handleOpenProjectEngine}
+              onCreateCommand={handleCreateCommand}
+              onRunCommand={handleRunCommand}
             />
           )}
           {activeTab === 'commands' && (

@@ -2,8 +2,8 @@
 
 > A comprehensive implementation guide for evolving DevDesk from MVP to a complete developer workspace platform.
 
-**Last Updated:** 2026-03-02  
-**Current Phase:** Phase 2 Complete → Phase 3.1 Next
+**Last Updated:** 2026-05-17
+**Current Phase:** Phase 7.2 & 7.3 Updated → Phase 3.1 Next
 
 ---
 
@@ -636,32 +636,34 @@ Command palette integration.
 
 **Goal:** Git status visibility and basic operations.
 
-### 6.1 Git Service 📋
-**Priority:** High  
-**Effort:** 2-3 hours  
+### 6.1 Git Service ✅
+**Priority:** High
+**Effort:** 2-3 hours
 **Dependencies:** None
 
-**Packages:** `simple-git`
+**Packages:** `simple-git` (uses native git CLI)
 
 Wrapper around git operations.
 
 **Architecture:**
 ```typescript
-// apps/desktop/git/gitService.ts
+// apps/desktop/git/service.ts
 class GitService {
-  async getStatus(projectPath: string): Promise<GitStatus>
-  async getChangedFiles(projectPath: string): Promise<ChangedFile[]>
-  async getDiff(projectPath: string, filePath?: string): Promise<string>
-  async commit(projectPath: string, message: string, files?: string[]): Promise<void>
-  async stage(projectPath: string, files: string[]): Promise<void>
+  async getGitInsights(repoPath): Promise<GitInsights>
+  async getGitWorkflowState(repoPath): Promise<GitWorkflowState>
+  async commitAllChanges(repoPath, message): Promise<void>
+  async pushCurrentBranch(repoPath): Promise<void>
+  async createPullRequest(repoPath, input): Promise<void>
 }
 ```
 
+**Status:** IMPLEMENTED - Uses native git CLI commands
+
 ---
 
-### 6.2 Git Status Panel 📋
-**Priority:** High  
-**Effort:** 2 hours  
+### 6.2 Git Status Panel ✅
+**Priority:** High
+**Effort:** 2 hours
 **Dependencies:** 6.1
 
 UI component showing repository state.
@@ -670,13 +672,15 @@ UI component showing repository state.
 - Branch name
 - Ahead/behind count (if remote)
 - Clean/dirty indicator
-- Number of modified/added/deleted files
+- Number of modified/added/deleted/untracked/conflicted files
+
+**Status:** IMPLEMENTED - `ProjectGitSummary.tsx`
 
 ---
 
-### 6.3 Changed Files List 📋
-**Priority:** Medium  
-**Effort:** 2 hours  
+### 6.3 Changed Files List ⚠️
+**Priority:** Medium
+**Effort:** 2 hours
 **Dependencies:** 6.1
 
 List of working directory changes.
@@ -684,14 +688,16 @@ List of working directory changes.
 **Features:**
 - File tree view
 - Status badges (M, A, D, ??)
-- Checkboxes for selective staging
-- "Stage All" / "Unstage All"
+- Checkboxes for selective staging - **NOT IMPLEMENTED** (commits all files at once)
+- "Stage All" / "Unstage All" - **NOT IMPLEMENTED** (uses `git add -A`)
+
+**Status:** PARTIAL - `GitWorkspacePanel.tsx` shows changed files but staging is automatic
 
 ---
 
 ### 6.4 Diff Viewer 📋
-**Priority:** Medium  
-**Effort:** 3-4 hours  
+**Priority:** Medium
+**Effort:** 3-4 hours
 **Dependencies:** 6.1
 
 Show file diffs.
@@ -705,34 +711,40 @@ Show file diffs.
 - Line numbers
 - Side-by-side or inline view
 
+**Status:** NOT IMPLEMENTED
+
 ---
 
-### 6.5 Quick Commit UI 📋
-**Priority:** Medium  
-**Effort:** 2-3 hours  
+### 6.5 Quick Commit UI ✅
+**Priority:** Medium
+**Effort:** 2-3 hours
 **Dependencies:** 6.3
 
 Commit workflow.
 
 **UI:**
 - Commit message input
-- Staged files list
+- Staged files list (automatic staging via `git add -A`)
 - "Commit" button
 - Error display
 
+**Status:** IMPLEMENTED - `GitWorkspacePanel.tsx`
+
 ---
 
-### 6.6 Palette Git Commands 📋
-**Priority:** Low  
-**Effort:** 1-2 hours  
+### 6.6 Palette Git Commands ✅
+**Priority:** Low
+**Effort:** 1-2 hours
 **Dependencies:** 6.1
 
 Command palette shortcuts.
 
-- "Git: Show Status"
-- "Git: Commit"
-- "Git: View Diff"
-- "Git: Stage All"
+- "Git: Show Status" → "Open Git Workspace"
+- "Git: Commit" → "Commit All Changes"
+- "Git: Push" → "Push Current Branch"
+- "Git: Pull Request" → "Create Pull Request"
+
+**Status:** IMPLEMENTED - 4 git commands in command palette
 
 ---
 
@@ -760,9 +772,9 @@ Extend existing container model.
 
 ---
 
-### 7.2 Dev Stack Controls 🚧
-**Priority:** Medium  
-**Effort:** 2 hours  
+### 7.2 Dev Stack Controls ✅
+**Priority:** Medium
+**Effort:** 2 hours
 **Dependencies:** 7.1
 
 One-click stack operations.
@@ -770,17 +782,15 @@ One-click stack operations.
 **Buttons:**
 - "Start Dev Stack" → Start all linked containers
 - "Stop Dev Stack" → Stop all linked containers
-- "Restart Dev Stack"
+- "Restart Dev Stack" → Restart all linked containers
 
-**Status Notes:**
-- Start/Stop implemented
-- Restart all linked containers still pending
+**Status:** COMPLETE - All three controls implemented with `projects:restart-dev-stack` IPC handler
 
 ---
 
-### 7.3 Container Logs Viewer 🚧
-**Priority:** Medium  
-**Effort:** 3-4 hours  
+### 7.3 Container Logs Viewer ⚠️
+**Priority:** Medium
+**Effort:** 3-4 hours
 **Dependencies:** None
 
 Stream container logs in UI.
@@ -792,13 +802,12 @@ Stream container logs in UI.
 
 **UI:**
 - Tabbed log viewer per container
-- Search/filter within logs
 - Auto-scroll toggle
 - Clear logs button
 
-**Status Notes:**
+**Status:** MOSTLY COMPLETE
 - Live log streaming implemented (`docker:logs:subscribe`/`unsubscribe`)
-- Advanced viewer features (search/filter/toggles) still pending
+- Advanced viewer features (search/filter within logs) still pending
 
 ---
 

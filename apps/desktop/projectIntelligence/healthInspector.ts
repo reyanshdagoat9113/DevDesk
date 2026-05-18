@@ -16,6 +16,10 @@ type PackageJson = {
   }
 }
 
+type CargoTomlBin = {
+  name?: string
+}
+
 const COMPOSE_FILES = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml']
 
 function exists(projectPath: string, entry: string): boolean {
@@ -103,7 +107,92 @@ function detectAvailableScripts(projectPath: string, packageJson: PackageJson | 
     }
   }
 
+  for (const composeFile of COMPOSE_FILES) {
+    const compose = readTextFile(projectPath, composeFile)
+    if (!compose) {
+      continue
+    }
+
+    for (const service of detectComposeServices(compose)) {
+      scripts.add(`docker compose up ${service}`)
+    }
+  }
+
+  const cargoToml = readTextFile(projectPath, 'Cargo.toml')
+  if (cargoToml) {
+    scripts.add('cargo build')
+    scripts.add('cargo test')
+    for (const bin of detectCargoBins(cargoToml)) {
+      scripts.add(`cargo run --bin ${bin}`)
+    }
+  }
+
+  if (exists(projectPath, 'go.mod')) {
+    scripts.add('go run .')
+    scripts.add('go test ./...')
+  }
+
   return Array.from(scripts).sort((a, b) => a.localeCompare(b))
+}
+
+function detectComposeServices(compose: string): string[] {
+  const services = new Set<string>()
+  const lines = compose.split(/\r?\n/)
+  const servicesLineIndex = lines.findIndex((line) => /^services:\s*(?:#.*)?$/.test(line.trim()))
+  if (servicesLineIndex === -1) {
+    return []
+  }
+
+  for (let index = servicesLineIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (!line.trim() || line.trim().startsWith('#')) {
+      continue
+    }
+
+    const topLevel = /^\S/.test(line)
+    if (topLevel) {
+      break
+    }
+
+    const match = /^  ([A-Za-z0-9][A-Za-z0-9_.-]*):\s*(?:#.*)?$/.exec(line)
+    if (match) {
+      services.add(match[1])
+    }
+  }
+
+  return Array.from(services)
+}
+
+function detectCargoBins(cargoToml: string): string[] {
+  const bins: CargoTomlBin[] = []
+  let currentBin: CargoTomlBin | null = null
+
+  for (const rawLine of cargoToml.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (line === '[[bin]]') {
+      currentBin = {}
+      bins.push(currentBin)
+      continue
+    }
+
+    if (line.startsWith('[') && line !== '[[bin]]') {
+      currentBin = null
+      continue
+    }
+
+    if (!currentBin) {
+      continue
+    }
+
+    const nameMatch = /^name\s*=\s*["']([^"']+)["']/.exec(line)
+    if (nameMatch) {
+      currentBin.name = nameMatch[1]
+    }
+  }
+
+  return bins
+    .map((bin) => bin.name)
+    .filter((name): name is string => Boolean(name))
 }
 
 function getInstallCommand(packageManager?: ProjectPackageManager): string | undefined {
@@ -147,10 +236,8 @@ function buildSuggestions(input: {
   }
 
   if (input.availableScripts.length > 0) {
-    const preferredScript = ['dev', 'start', 'test', 'build', 'lint'].find((script) => input.availableScripts.includes(script))
-    const command = preferredScript && input.packageManager
-      ? `${input.packageManager === 'yarn' ? 'yarn' : input.packageManager === 'pnpm' ? 'pnpm' : 'npm run'} ${preferredScript}`
-      : undefined
+    const preferredScript = getPreferredScript(input.availableScripts)
+    const command = preferredScript ? getRunCommandForScript(preferredScript, input.packageManager) : undefined
 
     suggestions.push({
       id: 'available-scripts',
@@ -185,6 +272,28 @@ function buildSuggestions(input: {
   }
 
   return suggestions
+}
+
+function getPreferredScript(availableScripts: string[]): string | undefined {
+  return ['dev', 'start', 'test', 'build', 'lint', 'go test ./...', 'cargo test']
+    .find((script) => availableScripts.includes(script)) ?? availableScripts[0]
+}
+
+function getRunCommandForScript(script: string, packageManager?: ProjectPackageManager): string | undefined {
+  if (script.startsWith('make ') || script.startsWith('docker compose ') || script.startsWith('cargo ') || script.startsWith('go ')) {
+    return script
+  }
+
+  switch (packageManager) {
+    case 'yarn':
+      return `yarn ${script}`
+    case 'pnpm':
+      return `pnpm ${script}`
+    case 'npm':
+      return `npm run ${script}`
+    default:
+      return undefined
+  }
 }
 
 function getStatus(suggestions: HealthSuggestion[]): ProjectHealthStatus {

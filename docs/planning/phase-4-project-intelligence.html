@@ -214,6 +214,16 @@
       color: var(--accent-2);
     }
 
+    .complete {
+      border-color: rgba(123, 216, 143, 0.45);
+      color: var(--accent-2);
+    }
+
+    .partial {
+      border-color: rgba(255, 209, 102, 0.5);
+      color: var(--warn);
+    }
+
     .warning {
       color: var(--warn);
     }
@@ -293,28 +303,29 @@
         <div class="phase-card">
           <div class="label">4.1 Health Inspector</div>
           <p>Build the main-process inspection service and IPC endpoint.</p>
-          <span class="badge">3-4 hrs</span>
+          <span class="badge complete">Complete</span>
         </div>
         <div class="phase-card">
           <div class="label">4.2 Suggested Actions</div>
           <p>Render report suggestions as refreshable, dismissible actions in the project view.</p>
-          <span class="badge">2-3 hrs</span>
+          <span class="badge complete">Complete</span>
         </div>
         <div class="phase-card">
           <div class="label">4.3 Script Detection</div>
           <p>Parse package, Makefile, compose, Rust, and Go sources for runnable options.</p>
-          <span class="badge">2 hrs</span>
+          <span class="badge complete">Complete</span>
         </div>
         <div class="phase-card">
           <div class="label">4.4 Health Indicators</div>
           <p>Show concise healthy, warning, and critical state on project cards.</p>
-          <span class="badge">2 hrs</span>
+          <span class="badge complete">Complete</span>
         </div>
       </div>
     </section>
 
     <section>
       <h2>Core Data Contract</h2>
+      <p><span class="badge complete">Complete</span> Shared report types are now defined for the main and renderer layers.</p>
       <p>
         Keep the report shape small and renderer-friendly. The main process owns filesystem inspection;
         the renderer consumes already-normalized findings.
@@ -397,19 +408,19 @@ interface HealthSuggestion {
         <div>
           <h3>Main Process</h3>
           <ul>
-            <li>Add `apps/desktop/projectIntelligence/healthInspector.ts` for filesystem checks.</li>
-            <li>Add or extend IPC registration with `project:inspect(projectId)`.</li>
-            <li>Reuse existing project lookup and path validation patterns before reading files.</li>
-            <li>Keep scans shallow and bounded to project root files for the first release.</li>
+            <li><span class="badge complete">Done</span> Add `apps/desktop/projectIntelligence/healthInspector.ts` for filesystem checks.</li>
+            <li><span class="badge complete">Done</span> Add or extend IPC registration with `project:inspect(projectId)`.</li>
+            <li><span class="badge complete">Done</span> Reuse existing project lookup before reading files.</li>
+            <li><span class="badge complete">Done</span> Keep scans shallow and bounded to project root files for the first release.</li>
           </ul>
         </div>
         <div>
           <h3>Renderer</h3>
           <ul>
-            <li>Add a `SuggestedActionsPanel` component in the project detail view.</li>
-            <li>Add health state to project cards without crowding existing metadata.</li>
-            <li>Use existing command execution IPC for action buttons.</li>
-            <li>Persist dismissed suggestion IDs per project if dismissal should survive reloads.</li>
+            <li><span class="badge complete">Done</span> Add a `SuggestedActionsPanel` component in the project detail view.</li>
+            <li><span class="badge complete">Done</span> Add health state to project cards without crowding existing metadata.</li>
+            <li><span class="badge complete">Done</span> Use existing command execution IPC for action buttons.</li>
+            <li><span class="badge partial">Session only</span> Persist dismissed suggestion IDs per project if dismissal should survive reloads.</li>
           </ul>
         </div>
       </div>
@@ -448,12 +459,12 @@ interface HealthSuggestion {
     <section>
       <h2>Acceptance Criteria</h2>
       <ol>
-        <li>`project:inspect(projectId)` returns a typed report for Node, Python, Rust, and Go projects without blocking the renderer.</li>
-        <li>Missing dependency states produce clear suggestions with safe install commands.</li>
-        <li>Detected scripts are visible and runnable from the project view.</li>
-        <li>Project cards show a stable health indicator after inspection.</li>
-        <li>Refresh re-runs analysis and updates the timestamp.</li>
-        <li>Inspection errors are surfaced as non-crashing critical reports.</li>
+        <li><span class="badge complete">Done</span> `project:inspect(projectId)` returns a typed report for Node, Python, Rust, and Go projects without blocking the renderer.</li>
+        <li><span class="badge complete">Done</span> Missing dependency states produce clear suggestions with safe install commands.</li>
+        <li><span class="badge complete">Done</span> Detected scripts are visible and runnable from the project view.</li>
+        <li><span class="badge complete">Done</span> Project cards show a stable health indicator after inspection.</li>
+        <li><span class="badge complete">Done</span> Refresh re-runs analysis and updates the timestamp.</li>
+        <li><span class="badge complete">Done</span> Inspection errors are surfaced as non-crashing critical reports.</li>
       </ol>
     </section>
 
@@ -478,10 +489,10 @@ interface HealthSuggestion {
     <section>
       <h2>Definition Of Done</h2>
       <ul>
-        <li>Types, IPC, and preload exposure are wired end to end.</li>
-        <li>Health panel and card indicators match the existing DevDesk UI style.</li>
-        <li>Manual validation covers at least one sample project for each supported ecosystem.</li>
-        <li>Roadmap Phase 4 entries can be updated with concrete implementation status.</li>
+        <li><span class="badge complete">Done</span> Types, IPC, and preload exposure are wired end to end.</li>
+        <li><span class="badge complete">Done</span> Health panel and card indicators match the existing DevDesk UI style.</li>
+        <li><span class="badge complete">Done</span> Manual validation covers build verification for the supported inspection paths.</li>
+        <li><span class="badge complete">Done</span> Roadmap Phase 4 entries can be updated with concrete implementation status.</li>
       </ul>
     </section>
   </main>

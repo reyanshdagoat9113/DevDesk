@@ -77,4 +77,35 @@ describe('project health inspector', () => {
     expect(report.hasNodeModules).toBeUndefined()
     expect(report.missingDeps).toBe(false)
   })
+
+  it('detects compose, cargo, and go runnable actions', () => {
+    fs.writeFileSync(path.join(tempDir, 'docker-compose.yml'), [
+      'services:',
+      '  api:',
+      '    image: example/api',
+      '  worker:',
+      '    image: example/worker',
+    ].join('\n'))
+    fs.writeFileSync(path.join(tempDir, 'Cargo.toml'), [
+      '[package]',
+      'name = "example"',
+      'version = "0.1.0"',
+      '[[bin]]',
+      'name = "cli"',
+    ].join('\n'))
+    fs.writeFileSync(path.join(tempDir, 'go.mod'), 'module example\n')
+
+    const report = inspectProjectHealth(project({ type: 'rust' }))
+
+    expect(report.availableScripts).toEqual(expect.arrayContaining([
+      'docker compose up api',
+      'docker compose up worker',
+      'cargo build',
+      'cargo run --bin cli',
+      'cargo test',
+      'go run .',
+      'go test ./...',
+    ]))
+    expect(report.hasDockerCompose).toBe(true)
+  })
 })
