@@ -17,6 +17,29 @@ interface ElectronAPI {
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInTerminal: (id: string) => Promise<{ success: boolean; error?: string }>
+  inspectProject: (id: string) => Promise<{
+    projectId: string
+    analyzedAt: string
+    packageManager?: 'npm' | 'yarn' | 'pnpm' | 'pip' | 'poetry' | 'cargo' | 'go'
+    hasNodeModules?: boolean
+    hasLockfile?: boolean
+    hasDockerCompose?: boolean
+    hasGit?: boolean
+    nodeVersion?: string
+    availableScripts?: string[]
+    missingDeps?: boolean
+    status: 'healthy' | 'warning' | 'critical'
+    suggestions: Array<{
+      id: string
+      type: 'warning' | 'info' | 'success'
+      message: string
+      action?: {
+        label: string
+        command?: string
+        chainId?: string
+      }
+    }>
+  }>
   getPreferences: () => Promise<{ editor: { id: string; command?: string }; terminal: { id: string; command?: string } }>
   updatePreferences: (preferences: {
     editor?: { id: string; command?: string }
@@ -172,6 +195,7 @@ const electronAPI: ElectronAPI = {
   openProjectFolder: (id: string) => ipcRenderer.invoke('projects:open-folder', id),
   openProjectInEditor: (id: string) => ipcRenderer.invoke('projects:open-editor', id),
   openProjectInTerminal: (id: string) => ipcRenderer.invoke('projects:open-terminal', id),
+  inspectProject: (id: string) => ipcRenderer.invoke('project:inspect', id),
   getPreferences: () => ipcRenderer.invoke('preferences:get'),
   updatePreferences: (preferences: { editor?: { id: string; command?: string }; terminal?: { id: string; command?: string } }) =>
     ipcRenderer.invoke('preferences:update', preferences),

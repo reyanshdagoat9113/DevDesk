@@ -22,6 +22,7 @@ import type {
   EngineSearchSession,
   EngineStats,
   EngineStatus,
+  ProjectHealthReport,
   RunHistoryEntry,
   RunStatus,
   TriggerConfirmationRequest,
@@ -43,6 +44,7 @@ export interface ElectronAPI {
   openProjectFolder: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInEditor: (id: string) => Promise<{ success: boolean; error?: string }>
   openProjectInTerminal: (id: string) => Promise<{ success: boolean; error?: string }>
+  inspectProject: (id: string) => Promise<ProjectHealthReport>
   getPreferences: () => Promise<AppPreferences>
   updatePreferences: (preferences: Partial<AppPreferences>) => Promise<{ success: boolean }>
 

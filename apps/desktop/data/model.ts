@@ -11,6 +11,36 @@ export interface Project {
   pinnedAt?: string
 }
 
+export type ProjectPackageManager = 'npm' | 'yarn' | 'pnpm' | 'pip' | 'poetry' | 'cargo' | 'go'
+
+export type ProjectHealthStatus = 'healthy' | 'warning' | 'critical'
+
+export interface HealthSuggestion {
+  id: string
+  type: 'warning' | 'info' | 'success'
+  message: string
+  action?: {
+    label: string
+    command?: string
+    chainId?: string
+  }
+}
+
+export interface ProjectHealthReport {
+  projectId: string
+  analyzedAt: string
+  packageManager?: ProjectPackageManager
+  hasNodeModules?: boolean
+  hasLockfile?: boolean
+  hasDockerCompose?: boolean
+  hasGit?: boolean
+  nodeVersion?: string
+  availableScripts?: string[]
+  missingDeps?: boolean
+  status: ProjectHealthStatus
+  suggestions: HealthSuggestion[]
+}
+
 export interface CommandVariable {
   /** Variable name (e.g., "version", "message") */
   name: string

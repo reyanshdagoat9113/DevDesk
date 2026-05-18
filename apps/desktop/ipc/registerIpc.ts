@@ -38,6 +38,7 @@ import {
   toggleCommandPin,
 } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
+import { inspectProjectHealth } from '../projectIntelligence/healthInspector'
 import type {
   AppPreference,
   AppPreferences,
@@ -48,6 +49,7 @@ import type {
   CommandTriggerEvent,
   Container,
   Project,
+  ProjectHealthReport,
   RunStatus,
 } from '../data/model'
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
@@ -1817,6 +1819,19 @@ export function registerIpcHandlers() {
     }
 
     return project
+  })
+
+  ipcMain.handle('project:inspect', async (_event, projectId: string): Promise<ProjectHealthReport> => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return inspectProjectHealth(project)
   })
 
   ipcMain.handle('preferences:get', async () => {
