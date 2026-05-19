@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { createMainWindow } from './app/createWindow'
 import { reconcileRunHistory } from './data/store'
 import { emitStartupAutomationTriggers, registerIpcHandlers } from './ipc/registerIpc'
+import { terminalManager } from './terminal/terminalManager'
 
 function isDevMode(): boolean {
   if (process.env.NODE_ENV === 'production') {
@@ -35,4 +36,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  terminalManager.closeAll()
 })

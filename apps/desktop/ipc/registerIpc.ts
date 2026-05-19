@@ -55,6 +55,8 @@ import type {
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
 import { variableResolver } from '../commands/variableResolver'
 import { detectVariables } from '../commands/variableDetector'
+import { terminalManager } from '../terminal/terminalManager'
+import type { TerminalCreateOptions } from '../data/model'
 
 type RunningCommand = {
   process: ChildProcessWithoutNullStreams
@@ -2596,5 +2598,48 @@ export function registerIpcHandlers() {
   ipcMain.handle('engine:is-available', async () => {
     const { isEngineAvailable } = await import('../engine/engineService')
     return isEngineAvailable()
+  })
+
+  // Terminal
+  ipcMain.handle('terminal:create', async (_event, options: TerminalCreateOptions) => {
+    if (!options?.projectId && !options?.cwd) {
+      throw new Error('Either projectId or cwd is required.')
+    }
+
+    const session = await terminalManager.create(options)
+    return { terminalId: session.id }
+  })
+
+  ipcMain.handle('terminal:write', async (_event, terminalId: string, data: string) => {
+    if (!terminalId?.trim()) {
+      throw new Error('Terminal id is required.')
+    }
+    if (typeof data !== 'string') {
+      throw new Error('Data is required.')
+    }
+
+    terminalManager.write(terminalId, data)
+  })
+
+  ipcMain.handle('terminal:resize', async (_event, terminalId: string, cols: number, rows: number) => {
+    if (!terminalId?.trim()) {
+      throw new Error('Terminal id is required.')
+    }
+    if (!Number.isFinite(cols) || cols < 1 || cols > 500) {
+      throw new Error('Cols must be between 1 and 500.')
+    }
+    if (!Number.isFinite(rows) || rows < 1 || rows > 500) {
+      throw new Error('Rows must be between 1 and 500.')
+    }
+
+    terminalManager.resize(terminalId, cols, rows)
+  })
+
+  ipcMain.handle('terminal:close', async (_event, terminalId: string) => {
+    if (!terminalId?.trim()) {
+      throw new Error('Terminal id is required.')
+    }
+
+    terminalManager.close(terminalId)
   })
 }

@@ -126,6 +126,15 @@ export interface ElectronAPI {
   isEngineAvailable: () => Promise<boolean>
   onEngineIndexingStarted: (handler: (payload: EngineIndexLifecyclePayload) => void) => () => void
   onEngineIndexingCompleted: (handler: (payload: EngineIndexCompletedPayload) => void) => () => void
+
+  // Terminal
+  createTerminal: (options: { projectId?: string; cwd?: string; shell?: string; cols?: number; rows?: number }) => Promise<{ terminalId: string }>
+  writeTerminal: (terminalId: string, data: string) => Promise<void>
+  resizeTerminal: (terminalId: string, cols: number, rows: number) => Promise<void>
+  closeTerminal: (terminalId: string) => Promise<void>
+  onTerminalData: (handler: (payload: { terminalId: string; data: string }) => void) => () => void
+  onTerminalExit: (handler: (payload: { terminalId: string; code?: number }) => void) => () => void
+  onTerminalError: (handler: (payload: { terminalId: string; error: string }) => void) => () => void
 }
 
 declare global {

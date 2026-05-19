@@ -142,6 +142,24 @@ export interface AppPreferences {
   terminal: AppPreference
 }
 
+export interface TerminalSession {
+  id: string
+  projectId?: string
+  cwd: string
+  shell: string
+  createdAt: string
+  cols: number
+  rows: number
+}
+
+export interface TerminalCreateOptions {
+  projectId?: string
+  cwd?: string
+  shell?: string
+  cols?: number
+  rows?: number
+}
+
 export interface EngineIndexMeta {
   projectId: string
   dbPath: string
