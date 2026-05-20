@@ -39,5 +39,9 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  terminalManager.closeAll()
+  try {
+    terminalManager.closeAll()
+  } catch (error) {
+    console.error('Failed to close all terminals during quit:', error)
+  }
 })

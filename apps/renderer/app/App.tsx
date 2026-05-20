@@ -26,6 +26,7 @@ import { ContainersSection } from './sections/ContainersSection'
 import { HistorySection } from './sections/HistorySection'
 import { ProjectsSection } from './sections/ProjectsSection'
 import { EngineSection } from './sections/EngineSection'
+import { TerminalSection } from './sections/TerminalSection'
 import type {
   AppPreferences,
   Command,
@@ -50,6 +51,7 @@ import type {
   GitWorkflowState,
   Project,
   RunHistoryEntry,
+  TerminalSessionState,
   TriggerConfirmationRequest,
 } from './types'
 import { CommandPalette } from './components/CommandPalette'
@@ -123,6 +125,8 @@ function App() {
   const [commandError, setCommandError] = useState<string | null>(null)
   const [isSavingCommand, setIsSavingCommand] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [terminalSessions, setTerminalSessions] = useState<TerminalSessionState[]>([])
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
 
   const title = useMemo(() => navItems.find((item) => item.value === activeTab)?.label ?? '', [activeTab])
   const actionLabel = actionLabels[activeTab]
@@ -133,12 +137,66 @@ function App() {
       engine: Object.keys(engineIndexes).length,
       containers: containers.length,
       history: history.length,
+      terminal: terminalSessions.length,
     }
     return navItems.map((item) => ({
       ...item,
       count: counts[item.value],
     }))
-  }, [projects.length, commands.length, chains.length, triggers.length, engineIndexes, containers.length, history.length])
+  }, [projects.length, commands.length, chains.length, triggers.length, engineIndexes, containers.length, history.length, terminalSessions.length])
+
+  const nextTerminalLabel = useCallback((sessions: TerminalSessionState[], projectId?: string): string => {
+    if (projectId) {
+      const project = projects.find((p) => p.id === projectId)
+      if (project) return project.name
+    }
+    const usedIndices = new Set(
+      sessions.map((s) => {
+        const match = s.label.match(/^Terminal (\d+)$/)
+        return match ? parseInt(match[1], 10) : 0
+      })
+    )
+    let n = 1
+    while (usedIndices.has(n)) n++
+    return `Terminal ${n}`
+  }, [projects])
+
+  const handleCreateTerminalSession = useCallback(async (projectId?: string) => {
+    setLoadError(null)
+    try {
+      const { terminalId } = await window.electronAPI.createTerminal({
+        projectId,
+        cols: 80,
+        rows: 24,
+      })
+      const label = nextTerminalLabel(terminalSessions, projectId)
+      const newSession: TerminalSessionState = { id: terminalId, label, projectId }
+      setTerminalSessions((prev) => [...prev, newSession])
+      setActiveTerminalId(terminalId)
+      setActiveTab('terminal')
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Failed to create terminal session.')
+    }
+  }, [terminalSessions, nextTerminalLabel])
+
+  const handleCloseTerminalSession = useCallback(async (terminalId: string) => {
+    try {
+      await window.electronAPI.closeTerminal(terminalId)
+    } catch {
+      // pty may already be dead — ignore
+    }
+    setTerminalSessions((prev) => {
+      const next = prev.filter((s) => s.id !== terminalId)
+      if (activeTerminalId === terminalId) {
+        setActiveTerminalId(next.length > 0 ? next[next.length - 1].id : null)
+      }
+      return next
+    })
+  }, [activeTerminalId])
+
+  const handleSelectTerminalTab = useCallback((terminalId: string) => {
+    setActiveTerminalId(terminalId)
+  }, [])
 
   const loadAll = useCallback(async () => {
     setIsLoading(true)
@@ -419,6 +477,39 @@ function App() {
       setSelectedEngineProjectId(projects[0].id)
     }
   }, [projects, selectedEngineProjectId])
+
+  // Keyboard shortcut: Ctrl+` to toggle/focus terminal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlBacktick = (e.ctrlKey || e.metaKey) && e.key === '`'
+      if (!isCtrlBacktick) return
+
+      const target = e.target as HTMLElement
+      const isEditable =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+
+      // Don't steal backtick from terminal input (xterm textarea)
+      if (isEditable) return
+
+      e.preventDefault()
+
+      if (activeTab === 'terminal') {
+        void handleCreateTerminalSession()
+      } else {
+        if (terminalSessions.length === 0) {
+          void handleCreateTerminalSession()
+        } else {
+          setActiveTab('terminal')
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [activeTab, terminalSessions.length, handleCreateTerminalSession])
 
   const handleWslDistroSelect = (distro: string) => {
     setSelectedWslDistro(distro)
@@ -1164,9 +1255,15 @@ function App() {
             <Button
               size="sm"
               className="gap-2"
-              onClick={() =>
-                activeTab === 'projects' ? setProjectDialogOpen(true) : setCommandDialogOpen(true)
-              }
+              onClick={() => {
+                if (activeTab === 'projects') {
+                  setProjectDialogOpen(true)
+                } else if (activeTab === 'terminal') {
+                  void handleCreateTerminalSession()
+                } else {
+                  setCommandDialogOpen(true)
+                }
+              }}
             >
               <Plus className="h-4 w-4" />
               {actionLabel}
@@ -1296,6 +1393,17 @@ function App() {
               onLoadOutput={handleLoadOutput}
               onClearHistory={handleClearHistory}
               onRemoveEntry={handleRemoveHistoryEntry}
+            />
+          )}
+          {activeTab === 'terminal' && (
+            <TerminalSection
+              sessions={terminalSessions}
+              activeId={activeTerminalId}
+              onSelectTab={handleSelectTerminalTab}
+              onCloseTab={handleCloseTerminalSession}
+              onCreateSession={handleCreateTerminalSession}
+              projects={projects}
+              error={loadError}
             />
           )}
         </div>
@@ -1520,6 +1628,7 @@ function App() {
           if (!result.success) throw new Error(result.error || 'Failed to open file')
         }}
         onError={(message) => setLoadError(message)}
+        onCreateTerminalSession={handleCreateTerminalSession}
       />
 
       <Dialog open={commandDialogOpen} onOpenChange={setCommandDialogOpen}>

@@ -374,3 +374,9 @@ export interface EngineIndexLifecyclePayload {
 export interface EngineIndexCompletedPayload extends EngineIndexLifecyclePayload {
   result: EngineIndexResult
 }
+
+export interface TerminalSessionState {
+  id: string
+  label: string
+  projectId?: string
+}

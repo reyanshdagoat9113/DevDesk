@@ -120,7 +120,11 @@ export function Terminal({ terminalId, onClose, className }: TerminalProps) {
 
     const unsubTerminalData = window.electronAPI.onTerminalData((payload) => {
       if (payload.terminalId === terminalId) {
-        xterm.write(payload.data)
+        try {
+          xterm.write(payload.data)
+        } catch {
+          // xterm may be disposed
+        }
       }
     })
 
@@ -164,7 +168,13 @@ export function Terminal({ terminalId, onClose, className }: TerminalProps) {
     })
 
     cleanupRef.current = [
-      () => resizeObserver.disconnect(),
+      () => {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId)
+          rafId = null
+        }
+        resizeObserver.disconnect()
+      },
       () => mutationObserver.disconnect(),
       () => dataDisposable.dispose(),
       unsubTerminalData,
@@ -175,7 +185,8 @@ export function Terminal({ terminalId, onClose, className }: TerminalProps) {
     return () => {
       cleanupRef.current.forEach((fn) => fn())
       xterm.dispose()
-      window.electronAPI.closeTerminal(terminalId)
+      // Do NOT close the terminal here — it should persist across tab switches.
+      // Cleanup is handled by TerminalTabs onCloseTab or TerminalManager on app quit.
     }
   }, [terminalId])
 

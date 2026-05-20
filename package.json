@@ -6,7 +6,7 @@
   "author": "DevDesk",
   "license": "MIT",
   "scripts": {
-    "rebuild:native": "electron-builder install-app-deps",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "dev": "npm run rebuild:native && npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5180 && electron --enable-logging=false .\"",
     "dev:renderer": "vite",
     "build:engine": "npm --prefix ../devdesk-addons/devdesk-engine run build:all",
@@ -58,6 +58,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",

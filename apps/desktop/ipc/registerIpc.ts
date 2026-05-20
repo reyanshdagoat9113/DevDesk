@@ -2602,10 +2602,6 @@ export function registerIpcHandlers() {
 
   // Terminal
   ipcMain.handle('terminal:create', async (_event, options: TerminalCreateOptions) => {
-    if (!options?.projectId && !options?.cwd) {
-      throw new Error('Either projectId or cwd is required.')
-    }
-
     const session = await terminalManager.create(options)
     return { terminalId: session.id }
   })

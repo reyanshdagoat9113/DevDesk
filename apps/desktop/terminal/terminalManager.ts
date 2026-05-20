@@ -2,11 +2,18 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { BrowserWindow } from 'electron'
 import * as pty from 'node-pty'
 import { getPreferencesFromStore, getProjectById } from '../data/store'
 import type { TerminalCreateOptions, TerminalSession } from '../data/model'
 
 type BroadcastFn = (channel: string, payload: unknown) => void
+
+function getCleanEnv(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+  )
+}
 
 const WSL_UNC_PATH_PATTERN = /^\\\\wsl(?:\.localhost|\$)\\([^\\/]+)(?:[\\/](.*))?$/i
 
@@ -183,7 +190,8 @@ export class TerminalManager {
           cols,
           rows,
           cwd: targetLinuxPath,
-          env: process.env as Record<string, string>,
+          env: getCleanEnv(),
+          useConpty: false,
         })
       } else {
         ptyProcess = pty.spawn(shell, [], {
@@ -191,7 +199,8 @@ export class TerminalManager {
           cols,
           rows,
           cwd,
-          env: process.env as Record<string, string>,
+          env: getCleanEnv(),
+          useConpty: false,
         })
       }
     } catch (error) {
@@ -239,7 +248,12 @@ export class TerminalManager {
     if (!session) {
       return
     }
-    session.resize(cols, rows)
+    try {
+      session.resize(cols, rows)
+    } catch {
+      // PTY may have already exited — ignore
+      return
+    }
 
     const meta = this.sessionMeta.get(terminalId)
     if (meta) {
@@ -255,12 +269,12 @@ export class TerminalManager {
     }
 
     session.kill()
-    this.sessions.delete(terminalId)
-    this.sessionMeta.delete(terminalId)
+    // onExit handler will clean up the maps
   }
 
   closeAll(): void {
-    for (const [terminalId] of this.sessions) {
+    const ids = [...this.sessions.keys()]
+    for (const terminalId of ids) {
       this.close(terminalId)
     }
   }
@@ -275,7 +289,6 @@ export class TerminalManager {
 }
 
 export const terminalManager = new TerminalManager((channel, payload) => {
-  const { BrowserWindow } = require('electron')
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(channel, payload)
   }

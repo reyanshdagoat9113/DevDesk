@@ -27,6 +27,7 @@ import {
   GitBranch,
   Send,
   Github,
+  Monitor,
 } from 'lucide-react'
 import { VariablePromptModal } from './VariablePromptModal'
 import { getContainerActionIcon, getStatusIcon } from './commandPaletteHelpers'
@@ -110,6 +111,7 @@ interface CommandPaletteProps {
   onUnpauseContainer: (containerId: string) => Promise<void>
   onError: (message: string) => void
   onOpenFileInEditor?: (projectId: string, relativePath: string, line?: number, column?: number) => Promise<void>
+  onCreateTerminalSession?: (projectId?: string) => Promise<void>
 }
 
 export function CommandPalette({
@@ -140,6 +142,7 @@ export function CommandPalette({
   onPushProjectBranch,
   onClearProjectIndex,
   onClearProjectSearchSession,
+  onCreateTerminalSession,
 }: CommandPaletteProps) {
   const [mode, setMode] = useState<PaletteMode>({ type: 'main' })
   const [searchQuery, setSearchQuery] = useState('')
@@ -381,6 +384,7 @@ export function CommandPalette({
       { tab: 'engine', label: 'Go to Engine', icon: <Search className="h-4 w-4" /> },
       { tab: 'containers', label: 'Go to Containers', icon: <Container className="h-4 w-4" /> },
       { tab: 'history', label: 'Go to History', icon: <History className="h-4 w-4" /> },
+      { tab: 'terminal', label: 'Go to Terminal', icon: <Monitor className="h-4 w-4" /> },
     ]
 
     for (const nav of navItems) {
@@ -485,6 +489,21 @@ export function CommandPalette({
       icon: <RefreshCcw className="h-4 w-4" />,
       action: openEngineClearSearchFromMain,
     })
+
+    if (onCreateTerminalSession) {
+      items.push({
+        id: 'nav-new-terminal',
+        group: 'Navigation',
+        title: 'New Integrated Terminal',
+        subtitle: 'Open a new terminal session',
+        keywords: ['terminal', 'new', 'shell', 'session', 'integrated'],
+        icon: <Monitor className="h-4 w-4" />,
+        action: () => runWithErrorHandling(async () => {
+          onNavigate('terminal')
+          await onCreateTerminalSession()
+        }),
+      })
+    }
     // Sort projects: pinned first, then by name
     const sortedProjects = [...projects].sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1
@@ -672,6 +691,7 @@ export function CommandPalette({
     engineStatus,
     onPushProjectBranch,
     onError,
+    onCreateTerminalSession,
   ])
 
   const projectPickItems: PaletteItem[] = useMemo(() => {

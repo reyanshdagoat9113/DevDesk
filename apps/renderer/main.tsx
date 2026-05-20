@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './app/App'
+import { isRecoverableDockerErrorMessage, unwrapIpcErrorMessage } from './app/lib/appShell'
 
 function renderBootstrapError(message: string, details?: string) {
   const root = document.getElementById('root')
@@ -34,6 +35,13 @@ window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason
   const message = reason instanceof Error ? reason.message : String(reason)
   const details = reason instanceof Error ? reason.stack : undefined
+  const normalizedMessage = unwrapIpcErrorMessage(reason, message)
+
+  if (isRecoverableDockerErrorMessage(normalizedMessage)) {
+    console.warn('[renderer:recoverable-docker-error]', normalizedMessage)
+    event.preventDefault()
+    return
+  }
 
   console.error('[renderer:unhandled-rejection]', message, details ?? '')
   renderBootstrapError(message, details)
