@@ -1259,37 +1259,40 @@ function App() {
     }
   }
 
+  const terminalFullscreen = activeTab === 'terminal' && isTerminalFullscreen
+
   return (
     <>
-      <AppShell
-        navItems={navItemsWithCounts}
-        activeNav={activeTab}
-        onNavChange={(value) => setActiveTab(value as TabValue)}
-        title={title}
-        themeToggle={<ThemeToggle theme={theme} onToggle={toggleTheme} />}
-        action={
-          actionLabel ? (
-            <Button
-              size="sm"
-              className="gap-2"
-              onClick={() => {
-                if (activeTab === 'projects') {
-                  setProjectDialogOpen(true)
-                } else if (activeTab === 'terminal') {
-                  void handleCreateTerminalSession()
-                } else {
-                  setCommandDialogOpen(true)
-                }
-              }}
-            >
-              <Plus className="h-4 w-4" />
-              {actionLabel}
-            </Button>
-          ) : null
-        }
-      >
-        <div className="h-full">
-          {activeTab === 'projects' && (
+      <div className={terminalFullscreen ? 'hidden' : ''}>
+        <AppShell
+          navItems={navItemsWithCounts}
+          activeNav={activeTab}
+          onNavChange={(value) => setActiveTab(value as TabValue)}
+          title={title}
+          themeToggle={<ThemeToggle theme={theme} onToggle={toggleTheme} />}
+          action={
+            actionLabel ? (
+              <Button
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  if (activeTab === 'projects') {
+                    setProjectDialogOpen(true)
+                  } else if (activeTab === 'terminal') {
+                    void handleCreateTerminalSession()
+                  } else {
+                    setCommandDialogOpen(true)
+                  }
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                {actionLabel}
+              </Button>
+            ) : null
+          }
+        >
+          <div className="h-full">
+            {activeTab === 'projects' && (
             <ProjectsSection
               projects={projects}
               containers={containers}
@@ -1428,6 +1431,7 @@ function App() {
           )}
         </div>
       </AppShell>
+      </div>
 
       {activeTab === 'terminal' && isTerminalFullscreen && (
         <div className="fixed inset-0 z-[100] bg-background">
