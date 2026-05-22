@@ -268,7 +268,7 @@ export function HistorySection({
                           </span>
                           <span className={cn("h-2 w-2 rounded-full shrink-0", statusStyles[entry.status])} />
                         </div>
-                        <div className="flex items-center justify-between text-[10px] font-mono tracking-tighter opacity-60">
+                        <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground">
                           <span className="truncate">{getProjectName(entry.projectId)}</span>
                           <span className="shrink-0">
                             {new Date(entry.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -319,7 +319,7 @@ export function HistorySection({
               {/* Resolved Command Display */}
               {selectedEntry.resolvedCommand && (
                 <div className="px-5 py-2.5 bg-muted/10 border-b border-border/40">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-1.5">Executed Command</div>
+                  <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Executed Command</div>
                   <code className="block font-mono text-[11px] text-foreground/80 whitespace-pre-wrap break-all">
                     {selectedEntry.resolvedCommand}
                   </code>
@@ -334,7 +334,7 @@ export function HistorySection({
                       <div className="h-2.5 w-2.5 rounded-full bg-amber-500/20 border border-amber-500/40" />
                       <div className="h-2.5 w-2.5 rounded-full bg-emerald-500/20 border border-emerald-500/40" />
                     </div>
-                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/30 font-bold ml-2">Standard Output</span>
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-white/30 font-medium ml-2">Standard Output</span>
                   </div>
                   <div className="flex items-center gap-1 opacity-40 group-hover/terminal:opacity-100 transition-opacity">
                      <Button

@@ -293,7 +293,7 @@ export function GitWorkspacePanel({
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+            <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
               Git Workspace
             </h3>
             <p className="max-w-2xl text-xs text-muted-foreground">
@@ -429,7 +429,7 @@ export function GitWorkspacePanel({
 
               <div className={insightView === 'overview' ? 'hidden' : 'px-4 py-3'}>
                 <div className="mb-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                     Changed Files
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -657,7 +657,7 @@ export function GitWorkspacePanel({
 function LabelLine({ label, meta }: { label: string; meta?: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">{label}</p>
+      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
       {meta ? <p className="text-[11px] text-muted-foreground">{meta}</p> : null}
     </div>
   )

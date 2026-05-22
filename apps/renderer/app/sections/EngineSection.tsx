@@ -167,7 +167,7 @@ export function EngineSection({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="mb-1 truncate text-sm font-semibold leading-none">{project.name}</p>
-                        <p className="truncate font-mono text-[10px] tracking-tighter opacity-60">{project.path}</p>
+                        <p className="truncate font-mono text-[11px] text-muted-foreground">{project.path}</p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <Badge

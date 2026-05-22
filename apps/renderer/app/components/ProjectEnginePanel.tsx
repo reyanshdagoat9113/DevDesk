@@ -243,7 +243,7 @@ export function ProjectEnginePanel({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+        <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
           Performance Engine
         </h3>
         <div className="flex flex-wrap items-center gap-2">

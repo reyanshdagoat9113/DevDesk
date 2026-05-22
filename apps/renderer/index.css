@@ -41,20 +41,20 @@
     --background: 0 0% 0%;                    /* Pure black #000000 */
     --foreground: 0 0% 95%;                   /* Almost white */
 
-    --card: 0 0% 4%;                          /* Slightly lighter black #0a0a0a */
+    --card: 0 0% 6%;                          /* Slightly lighter black #0f0f0f */
     --card-foreground: 0 0% 95%;
 
     --popover: 0 0% 3%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 0 0% 90%;                      /* White-ish primary */
+    --primary: 0 0% 94%;                      /* White-ish primary */
     --primary-foreground: 0 0% 5%;
 
     --secondary: 0 0% 10%;
     --secondary-foreground: 0 0% 95%;
 
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 50%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 55%;
 
     --accent: 0 0% 15%;
     --accent-foreground: 0 0% 95%;
@@ -62,9 +62,9 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 14%;
+    --border: 0 0% 16%;
     --input: 0 0% 14%;
-    --ring: 0 0% 80%;
+    --ring: 0 0% 90%;
 
     --radius: 0.75rem;
   }
@@ -99,7 +99,7 @@
     @apply transition-all duration-300;
   }
   .hover-glow:hover {
-    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.2), 0 0 20px -5px hsl(var(--primary) / 0.15);
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.15);
   }
 }
 
@@ -146,7 +146,7 @@
   
   /* Scrollbar only visible on hover for cleaner UI */
   .hover-scrollbar {
-    scrollbar-color: transparent transparent;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.15) transparent;
   }
   .hover-scrollbar:hover {
     scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
@@ -166,7 +166,7 @@
 
   /* Focus ring styling */
   :focus-visible {
-    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+    @apply outline-none ring-2 ring-ring ring-offset-1 ring-offset-background;
   }
 
   /* Smooth scrolling */

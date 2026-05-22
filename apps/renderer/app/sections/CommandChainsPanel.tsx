@@ -509,7 +509,7 @@ export function CommandChainsPanel({
               <CardContent className="flex-1 overflow-auto p-8 pt-6 space-y-8">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Chain Steps</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Chain Steps</Label>
                     <Badge variant="outline" className="text-[9px] font-mono opacity-60">Sequential</Badge>
                   </div>
 
@@ -564,7 +564,7 @@ export function CommandChainsPanel({
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Latest Run Progress</Label>
+                  <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Latest Run Progress</Label>
                   {selectedRun ? (
                     <div className="rounded-2xl border border-border/50 bg-muted/10 p-4">
                       <div className="flex flex-wrap items-center gap-2">

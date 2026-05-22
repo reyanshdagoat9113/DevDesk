@@ -8,9 +8,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-gradient-to-b from-primary to-primary/90 text-primary-foreground shadow-md shadow-primary/20 hover:from-primary/90 hover:to-primary hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]',
-        destructive: 'bg-gradient-to-b from-destructive to-destructive/90 text-destructive-foreground shadow-md shadow-destructive/20 hover:from-destructive/90 hover:to-destructive hover:shadow-lg hover:shadow-destructive/30 active:scale-[0.98]',
-        outline: 'border border-border/60 bg-background/50 shadow-sm hover:bg-accent hover:text-accent-foreground hover:border-border/80 active:scale-[0.98] backdrop-blur-sm',
+        default: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:scale-[0.98]',
+        destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 active:scale-[0.98]',
+        outline: 'border border-border/60 bg-background/50 shadow-sm hover:bg-accent hover:text-accent-foreground hover:border-border/80 active:scale-[0.98] backdrop-blur-sm transition-colors duration-150',
         secondary: 'bg-secondary text-secondary-foreground shadow-sm border border-border/50 hover:bg-secondary/80 hover:shadow active:scale-[0.98]',
         ghost: 'hover:bg-accent/50 hover:text-accent-foreground active:scale-[0.98]',
         link: 'text-primary underline-offset-4 hover:underline',
@@ -20,6 +20,7 @@ const buttonVariants = cva(
         sm: 'h-8 rounded-md px-3 text-xs',
         lg: 'h-10 rounded-md px-8',
         icon: 'h-9 w-9',
+        xs: 'h-7 rounded-md px-2.5 text-xs',
       },
     },
     defaultVariants: {

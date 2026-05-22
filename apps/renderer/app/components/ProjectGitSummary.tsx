@@ -70,7 +70,7 @@ export function ProjectGitSummary({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
               Git Snapshot
             </p>
             <Badge variant={workingTree?.isClean ? 'success' : 'secondary'} className="h-5 px-2 text-[9px] uppercase tracking-wider">

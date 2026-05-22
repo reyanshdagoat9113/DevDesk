@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '../components/ui/Card'
+import { Skeleton } from '../components/ui/Skeleton'
 import {
   Dialog,
   DialogContent,
@@ -696,16 +697,18 @@ export function ProjectsSection({
       <SectionLayout
         list={
           <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
-            <div className="border-b border-border/40 bg-muted/20 px-4 py-3">
+            <div className="border-b border-border/30 px-4 py-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Projects</p>
-                <Badge variant="outline" className="text-[10px] font-medium">{projects.length}</Badge>
+                <p className="text-xs font-semibold text-muted-foreground">Projects</p>
+                <span className="text-xs text-muted-foreground tabular-nums">{projects.length}</span>
               </div>
             </div>
             <div className="flex-1 overflow-auto px-2 py-2">
               {isLoading ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground italic">
-                  Loading projects...
+                <div className="flex h-full flex-col gap-3 p-3">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-4/5" />
                 </div>
               ) : error ? (
                 <div className="flex h-full items-center justify-center p-4 text-center text-sm text-destructive bg-destructive/5 rounded-lg border border-destructive/10">
@@ -721,7 +724,7 @@ export function ProjectsSection({
                   {pinnedProjects.length > 0 && (
                     <>
                       <div className="px-2 py-1">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-600/80">Pinned</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-500/80">Pinned</p>
                       </div>
                       {pinnedProjects.map((project) => {
                         const isActive = selectedProject?.id === project.id
@@ -732,23 +735,23 @@ export function ProjectsSection({
                             key={project.id}
                             onClick={() => setSelectedId(project.id)}
                             className={cn(
-                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all",
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150",
                               isActive
-                                ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
-                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                ? "bg-primary/10 text-foreground border border-primary/15"
+                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground border border-transparent"
                             )}
                           >
                             <div className={cn(
-                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors",
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors",
                               isActive
-                                ? "border-primary/30 bg-background text-primary"
-                                : "border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60"
+                                ? "bg-primary/15 text-primary"
+                                : "bg-muted text-muted-foreground group-hover:text-foreground"
                             )}>
                               {project.name.slice(0, 1).toUpperCase()}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
-                              <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
+                              <p className="truncate text-sm font-medium leading-tight">{project.name}</p>
+                              <p className="truncate text-[11px] text-muted-foreground font-mono mt-0.5">{project.path}</p>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <ProjectHealthBadge report={healthReport} />
@@ -769,7 +772,7 @@ export function ProjectsSection({
                     <>
                       {pinnedProjects.length > 0 && (
                         <div className="px-2 pt-3 pb-1">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">All Projects</p>
+                          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">All Projects</p>
                         </div>
                       )}
                       {unpinnedProjects.map((project, index) => {
@@ -782,23 +785,23 @@ export function ProjectsSection({
                             onClick={() => setSelectedId(project.id)}
                             style={{ animationDelay: `${(index + pinnedProjects.length) * 50}ms` }}
                             className={cn(
-                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all animate-slide-up opacity-0",
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150 animate-slide-up opacity-0",
                               isActive
-                                ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20"
-                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                ? "bg-primary/10 text-foreground border border-primary/15"
+                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground border border-transparent"
                             )}
                           >
                             <div className={cn(
-                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors",
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors",
                               isActive
-                                ? "border-primary/30 bg-background text-primary"
-                                : "border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60"
+                                ? "bg-primary/15 text-primary"
+                                : "bg-muted text-muted-foreground group-hover:text-foreground"
                             )}>
                               {project.name.slice(0, 1).toUpperCase()}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-semibold leading-none mb-1">{project.name}</p>
-                              <p className="truncate text-[10px] opacity-60 font-mono tracking-tighter">{project.path}</p>
+                              <p className="truncate text-sm font-medium leading-tight">{project.name}</p>
+                              <p className="truncate text-[11px] text-muted-foreground font-mono mt-0.5">{project.path}</p>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <ProjectHealthBadge report={healthReport} />
@@ -844,6 +847,7 @@ export function ProjectsSection({
                       className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-500"
                       onClick={() => onToggleProjectPin?.(selectedProject.id)}
                       disabled={!onToggleProjectPin}
+                      aria-label={selectedProject.isPinned ? 'Unpin project' : 'Pin project'}
                       title={selectedProject.isPinned ? 'Unpin project' : 'Pin project'}
                     >
                       <Star className={cn("h-4 w-4", selectedProject.isPinned && "fill-amber-400 text-amber-400")} />
@@ -861,41 +865,35 @@ export function ProjectsSection({
                 <div className="space-y-10">
                   {/* Quick Actions */}
                   <div className="space-y-4">
-                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                    <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                       Execution Launchers
                     </h3>
                     <div className="grid grid-cols-3 gap-4">
                       <Button
                         variant="outline"
-                        className="h-24 flex-col gap-2.5 border-border/40 bg-muted/5 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-200"
+                        className="h-20 flex-col gap-2 border-border/50 bg-card hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors duration-150"
                         onClick={() => handleOpen('editor')}
                         disabled={actionLoading !== null}
                       >
-                        <div className="p-2 rounded-full bg-background border border-border/40 shadow-sm group-hover:border-primary/20">
-                          <Code2 className="h-5 w-5" />
-                        </div>
+                        <Code2 className="h-5 w-5" />
                         <span className="text-xs font-semibold">Open in Editor</span>
                       </Button>
                       <Button
                         variant="outline"
-                        className="h-24 flex-col gap-2.5 border-border/40 bg-muted/5 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-200"
+                        className="h-20 flex-col gap-2 border-border/50 bg-card hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors duration-150"
                         onClick={() => handleOpen('terminal')}
                         disabled={actionLoading !== null}
                       >
-                        <div className="p-2 rounded-full bg-background border border-border/40 shadow-sm">
-                          <Terminal className="h-5 w-5" />
-                        </div>
+                        <Terminal className="h-5 w-5" />
                         <span className="text-xs font-semibold">Launch Terminal</span>
                       </Button>
                       <Button
                         variant="outline"
-                        className="h-24 flex-col gap-2.5 border-border/40 bg-muted/5 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-200"
+                        className="h-20 flex-col gap-2 border-border/50 bg-card hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors duration-150"
                         onClick={() => handleOpen('folder')}
                         disabled={actionLoading !== null}
                       >
-                        <div className="p-2 rounded-full bg-background border border-border/40 shadow-sm">
-                          <FolderGit2 className="h-5 w-5" />
-                        </div>
+                        <FolderGit2 className="h-5 w-5" />
                         <span className="text-xs font-semibold">Open Folder</span>
                       </Button>
                     </div>
@@ -971,7 +969,7 @@ export function ProjectsSection({
                   {/* Dev Stack */}
                   <div className="space-y-5">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                      <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                         Dev Stack
                       </h3>
                       <Button
@@ -986,29 +984,20 @@ export function ProjectsSection({
                       </Button>
                     </div>
 
-                    <div className="rounded-xl border border-border/40 bg-muted/5 p-5 space-y-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-                          Linked: {linkedContainerNames.length}
-                        </Badge>
-                        <Badge
-                          variant="success"
-                          className={cn('text-[10px] uppercase tracking-wider', !linkedContainers.some(({ container }) => container?.state === 'running') && 'opacity-50')}
-                        >
-                          Running: {linkedContainers.filter(({ container }) => container?.state === 'running').length}
-                        </Badge>
-                        <Badge
-                          variant="warning"
-                          className={cn('text-[10px] uppercase tracking-wider', !linkedContainers.some(({ container }) => container?.state === 'paused') && 'opacity-50')}
-                        >
-                          Paused: {linkedContainers.filter(({ container }) => container?.state === 'paused').length}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={cn('text-[10px] uppercase tracking-wider', !linkedContainers.some(({ container }) => !container || container.state === 'stopped') && 'opacity-50')}
-                        >
-                          Stopped/Missing: {linkedContainers.filter(({ container }) => !container || container.state === 'stopped').length}
-                        </Badge>
+                    <div className="rounded-lg border border-border/40 bg-card p-5 space-y-4">
+                      <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                          <span>{linkedContainers.filter(({ container }) => container?.state === 'running').length} running</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-amber-500" />
+                          <span>{linkedContainers.filter(({ container }) => container?.state === 'paused').length} paused</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
+                          <span>{linkedContainers.filter(({ container }) => !container || container.state === 'stopped').length} stopped</span>
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
@@ -1156,7 +1145,7 @@ export function ProjectsSection({
                   {/* Preferences */}
                   <div className="space-y-5">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                      <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                         Launch Configuration
                       </h3>
                       {prefsSaving && (
@@ -1166,8 +1155,8 @@ export function ProjectsSection({
                         </div>
                       )}
                     </div>
-                    
-                    <div className="grid gap-8 md:grid-cols-2 p-5 rounded-xl border border-border/40 bg-muted/5">
+
+                    <div className="grid gap-8 md:grid-cols-2 p-5 rounded-lg border border-border/40 bg-card">
                       <div className="space-y-3">
                         <Label htmlFor="preferred-editor" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Preferred IDE</Label>
                         <select

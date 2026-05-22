@@ -304,7 +304,7 @@ export function CommandTriggersPanel({
 
               <CardContent className="flex-1 space-y-6 overflow-auto p-8 pt-6">
                 <div className="rounded-2xl border border-border/50 bg-muted/10 p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Linked Chain</p>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Linked Chain</p>
                   <div className="mt-3">
                     <p className="text-lg font-semibold">{chainsById[selectedTrigger.chainId]?.name ?? 'Removed chain'}</p>
                     <p className="mt-1 text-sm text-muted-foreground">

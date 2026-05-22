@@ -25,10 +25,8 @@ import { VariablePromptModal } from '../components/VariablePromptModal'
 import { CommandPresetPickerDialog } from '../components/CommandPresetPickerDialog'
 import { getCommandPresetsForProjectType } from '../lib/commandPresets'
 import { cn } from '../../lib/utils'
+import { selectClass } from './projectsSectionConfig'
 import type { Command, CommandVariable, CreateCommandInput, Project } from '../types'
-
-const selectClass =
-  'flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
 
 const UNTAGGED_FILTER_KEY = '__untagged__'
 
@@ -617,7 +615,7 @@ export function CommandsSection({
                               ) : null}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-mono truncate">
                             <span className="truncate flex-1">{command.command}</span>
                           </div>
                         </button>
@@ -630,7 +628,7 @@ export function CommandsSection({
                   <>
                     {pinnedCommands.length > 0 && (
                       <div className="px-2 pt-3 pb-1">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">All Commands</p>
+                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">All Commands</p>
                       </div>
                     )}
                     {unpinnedCommands.map((command) => {
@@ -669,7 +667,7 @@ export function CommandsSection({
                               ) : null}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 text-[10px] opacity-60 font-mono tracking-tighter truncate">
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-mono truncate">
                             <span className="truncate flex-1">{command.command}</span>
                           </div>
                         </button>
@@ -699,10 +697,10 @@ export function CommandsSection({
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-1.5 ml-4">
-                  <Button
+                    <Button
                     size="icon"
                     variant="ghost"
-
+                    aria-label={selectedCommand.isPinned ? 'Unpin command' : 'Pin command'}
                     className={cn(
                       "h-8 w-8 transition-colors",
                       selectedCommand.isPinned
@@ -718,6 +716,7 @@ export function CommandsSection({
                   <Button
                     size="icon"
                     variant="ghost"
+                    aria-label="Edit command"
                     className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     onClick={() => setEditDialogOpen(true)}
                     disabled={!onUpdateCommand}
@@ -727,6 +726,7 @@ export function CommandsSection({
                   <Button
                     size="icon"
                     variant="ghost"
+                    aria-label="Delete command"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                     onClick={() => setDeleteDialogOpen(true)}
                     disabled={!onRemoveCommand}
@@ -741,7 +741,7 @@ export function CommandsSection({
               {/* Context Info */}
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Source Context</Label>
+                  <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Source Context</Label>
                   <div className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-muted/5">
                     <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-background border border-border/40 text-xs font-bold">
                       {commandProject ? commandProject.name.slice(0, 1).toUpperCase() : <Globe className="h-4 w-4" />}
@@ -757,7 +757,7 @@ export function CommandsSection({
 
                 {selectedCommand.workingDirectory && (
                   <div className="space-y-2.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Relative Path</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Relative Path</Label>
                     <div className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-muted/5 overflow-hidden">
                       <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-background border border-border/40">
                         <Folder className="h-4 w-4 opacity-50" />
@@ -774,7 +774,7 @@ export function CommandsSection({
               {/* Command Block */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Instruction String</Label>
+                  <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Instruction String</Label>
                   <Badge variant="outline" className="text-[9px] font-mono opacity-50">SH / BASH</Badge>
                 </div>
                 <div className="relative group rounded-xl border border-border/40 bg-[#0d0d0d] p-5 font-mono text-sm shadow-inner overflow-hidden">
@@ -785,7 +785,7 @@ export function CommandsSection({
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
-                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Classification Tags</Label>
+                  <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Classification Tags</Label>
                   {isUpdatingTags ? (
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -818,7 +818,7 @@ export function CommandsSection({
 
                 {tagOptions.length > 0 ? (
                   <div className="space-y-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                       Quick Tag Assignment
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -855,7 +855,7 @@ export function CommandsSection({
               {/* Variables Section */}
               {(selectedCommand.variables && selectedCommand.variables.length > 0) || detectedVariables.length > 0 ? (
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Dynamic Variables</Label>
+                  <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Dynamic Variables</Label>
                   <div className="flex flex-wrap gap-2">
                     {(selectedCommand.variables ?? detectedVariables).map((variable) => (
                       <Badge 

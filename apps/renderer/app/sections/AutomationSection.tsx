@@ -47,16 +47,24 @@ export function AutomationSection(props: AutomationSectionProps) {
 
   return (
     <Tabs value={activeView} onValueChange={(value) => setActiveView(value as 'commands' | 'chains' | 'triggers')} className="flex h-full flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <TabsList>
-          <TabsTrigger value="commands">Commands ({props.commands.length})</TabsTrigger>
-          <TabsTrigger value="chains">Chains ({props.chains.length})</TabsTrigger>
-          <TabsTrigger value="triggers">Triggers ({props.triggers.length})</TabsTrigger>
+      <div className="flex items-center justify-between gap-3 pb-4 border-b border-border/30">
+        <TabsList className="bg-transparent p-0 gap-1 h-auto">
+          <TabsTrigger value="commands" className="data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm">
+            Commands
+            <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">({props.commands.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="chains" className="data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm">
+            Chains
+            <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">({props.chains.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="triggers" className="data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm">
+            Triggers
+            <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">({props.triggers.length})</span>
+          </TabsTrigger>
         </TabsList>
-
         {activeView === 'commands' ? (
-          <Button size="sm" className="gap-2" onClick={props.onOpenCreateCommand}>
-            <Plus className="h-4 w-4" />
+          <Button size="sm" className="gap-1.5 h-8" onClick={props.onOpenCreateCommand}>
+            <Plus className="h-3.5 w-3.5" />
             New Command
           </Button>
         ) : null}

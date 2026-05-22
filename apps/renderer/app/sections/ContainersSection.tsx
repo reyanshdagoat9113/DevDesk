@@ -474,6 +474,7 @@ export function ContainersSection({
                         className="h-7 w-7 text-primary hover:bg-primary/10 hover:text-primary"
                         onClick={() => runBulkAction('start')}
                         disabled={bulkActionLoading}
+                        aria-label="Start selected containers"
                         title="Start selected"
                       >
                         <Power className="h-3.5 w-3.5" />
@@ -486,6 +487,7 @@ export function ContainersSection({
                         className="h-7 w-7 text-primary hover:bg-primary/10 hover:text-primary"
                         onClick={() => runBulkAction('restart')}
                         disabled={bulkActionLoading}
+                        aria-label="Restart selected containers"
                         title="Restart selected"
                       >
                         <RotateCw className="h-3.5 w-3.5" />
@@ -498,6 +500,7 @@ export function ContainersSection({
                         className="h-7 w-7 text-primary hover:bg-primary/10 hover:text-primary"
                         onClick={() => runBulkAction(canPauseBulk ? 'pause' : 'unpause')}
                         disabled={bulkActionLoading}
+                        aria-label={canPauseBulk ? "Pause selected containers" : "Unpause selected containers"}
                         title={canPauseBulk ? "Pause selected" : "Unpause selected"}
                       >
                         {canPauseBulk ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
@@ -510,6 +513,7 @@ export function ContainersSection({
                         className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => runBulkAction('stop')}
                         disabled={bulkActionLoading}
+                        aria-label="Stop selected containers"
                         title="Stop selected"
                       >
                         <Square className="h-3.5 w-3.5" />
@@ -521,6 +525,7 @@ export function ContainersSection({
                       className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => openRemoveDialog(selectedIds)}
                       disabled={bulkActionLoading}
+                      aria-label="Remove selected containers"
                       title="Remove selected"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -531,6 +536,7 @@ export function ContainersSection({
                       variant="ghost"
                       className="h-7 w-7 text-muted-foreground hover:text-foreground"
                       onClick={() => setSelectedIds([])}
+                      aria-label="Clear selection"
                       title="Clear selection"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -652,6 +658,7 @@ export function ContainersSection({
                               className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-background/50 rounded-md"
                               onClick={(e) => { e.stopPropagation(); handleViewLogsFor(container.id); }}
                               disabled={isBusy}
+                              aria-label={`View logs for ${container.name}`}
                             >
                               <Logs className="h-3.5 w-3.5" />
                             </Button>
@@ -664,6 +671,7 @@ export function ContainersSection({
                                 runContainerAction('restart', onRestartContainer, container.id)
                               }}
                               disabled={isBusy}
+                              aria-label={`Restart ${container.name}`}
                             >
                               <RotateCw className="h-3.5 w-3.5" />
                             </Button>
@@ -713,6 +721,7 @@ export function ContainersSection({
                       className="h-8 w-8 border-border/40 bg-background/50"
                       onClick={() => void runContainerAction('restart', onRestartContainer, selectedContainer.id)}
                       disabled={!onRestartContainer || detailActionBusy}
+                      aria-label="Restart container"
                       title="Restart"
                     >
                       <RotateCw className="h-3.5 w-3.5" />
@@ -725,7 +734,7 @@ export function ContainersSection({
                 {/* Information Grid */}
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                    <h3 className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                       <Activity className="h-3.5 w-3.5" />
                       Status & Timeline
                     </h3>
@@ -749,7 +758,7 @@ export function ContainersSection({
                   </div>
 
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                    <h3 className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                       <Network className="h-3.5 w-3.5" />
                       Environment Context
                     </h3>
@@ -821,7 +830,7 @@ export function ContainersSection({
 
                 {/* Execution Details */}
                 <div className="space-y-3">
-                  <h3 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                  <h3 className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                     <TerminalIcon className="h-3.5 w-3.5" />
                     Runtime Execution Instruction
                   </h3>
@@ -835,7 +844,7 @@ export function ContainersSection({
                 {/* Metadata Labels */}
                 {selectedContainer.labels && selectedContainer.labels.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Metadata Labels</h3>
+                    <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Metadata Labels</h3>
                     <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-auto pr-2 custom-scrollbar">
                       {selectedContainer.labels.map((label) => {
                         const [k, v] = label.split('=')
@@ -911,6 +920,7 @@ export function ContainersSection({
                     className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/10 border border-border/40 transition-colors"
                     onClick={() => openRemoveDialog([selectedContainer.id])}
                     disabled={!onRemoveContainer || detailActionBusy}
+                    aria-label="Remove container"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
