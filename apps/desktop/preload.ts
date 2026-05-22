@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ProjectNotes } from '../data/model'
 
 // Define the API interface
 interface ElectronAPI {
@@ -214,7 +213,7 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('preferences:update', preferences),
 
   getProjectNotes: (projectId: string) => ipcRenderer.invoke('notes:get', projectId),
-  updateProjectNotes: (projectId: string, updates: Partial<Omit<ProjectNotes, 'projectId'>>) =>
+  updateProjectNotes: (projectId: string, updates: Partial<{ setupSteps: string; todos: string; reminders: string }>) =>
     ipcRenderer.invoke('notes:update', projectId, updates),
 
   // Commands
