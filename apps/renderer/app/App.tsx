@@ -1412,7 +1412,7 @@ function App() {
               onRemoveEntry={handleRemoveHistoryEntry}
             />
           )}
-          {activeTab === 'terminal' && (
+          {activeTab === 'terminal' && !isTerminalFullscreen && (
             <TerminalSection
               sessions={terminalSessions}
               activeId={activeTerminalId}
@@ -1428,6 +1428,23 @@ function App() {
           )}
         </div>
       </AppShell>
+
+      {activeTab === 'terminal' && isTerminalFullscreen && (
+        <div className="fixed inset-0 z-[100] bg-background">
+          <TerminalSection
+            sessions={terminalSessions}
+            activeId={activeTerminalId}
+            onSelectTab={handleSelectTerminalTab}
+            onCloseTab={handleCloseTerminalSession}
+            onCreateSession={handleCreateTerminalSession}
+            onRenameTab={handleRenameTerminalSession}
+            onToggleFullscreen={handleToggleTerminalFullscreen}
+            isFullscreen={isTerminalFullscreen}
+            projects={projects}
+            error={loadError}
+          />
+        </div>
+      )}
 
       <Dialog open={triggerConfirmations.length > 0} onOpenChange={() => undefined}>
         <DialogContent>

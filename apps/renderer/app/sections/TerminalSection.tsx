@@ -1,7 +1,6 @@
 import type { Project, TerminalSessionState } from '../types'
 import { TerminalTabs } from '../components/Terminal'
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert'
-import { cn } from '@/lib/utils'
 
 interface TerminalSectionProps {
   sessions: TerminalSessionState[]
@@ -18,7 +17,7 @@ interface TerminalSectionProps {
 
 export function TerminalSection({ sessions, activeId, onSelectTab, onCloseTab, onCreateSession, onRenameTab, onToggleFullscreen, isFullscreen, projects, error }: TerminalSectionProps) {
   return (
-    <div className={cn('flex h-full flex-col', isFullscreen && 'fixed inset-0 z-50 bg-background')}>
+    <div className="flex h-full flex-col">
       {error ? (
         <div className="shrink-0 p-4 pb-0">
           <Alert variant="destructive">
