@@ -150,6 +150,7 @@ export class TerminalManager {
   private sessions = new Map<string, pty.IPty>()
   private sessionMeta = new Map<string, TerminalSession>()
   private broadcast: BroadcastFn
+  private dataBuffers = new Map<string, { buffer: string; timer: ReturnType<typeof setTimeout> | null }>()
 
   constructor(broadcast: BroadcastFn) {
     this.broadcast = broadcast
@@ -223,10 +224,32 @@ export class TerminalManager {
     this.sessionMeta.set(terminalId, session)
 
     ptyProcess.onData((data) => {
-      this.broadcast('terminal:data', { terminalId, data })
+      let entry = this.dataBuffers.get(terminalId)
+      if (!entry) {
+        entry = { buffer: '', timer: null }
+        this.dataBuffers.set(terminalId, entry)
+      }
+      entry.buffer += data
+      if (!entry.timer) {
+        entry.timer = setTimeout(() => {
+          const current = this.dataBuffers.get(terminalId)
+          if (current && current.buffer) {
+            this.broadcast('terminal:data', { terminalId, data: current.buffer })
+            current.buffer = ''
+          }
+          if (current) {
+            current.timer = null
+          }
+        }, 4)
+      }
     })
 
     ptyProcess.onExit(({ exitCode }) => {
+      const buffered = this.dataBuffers.get(terminalId)
+      if (buffered?.timer) {
+        clearTimeout(buffered.timer)
+      }
+      this.dataBuffers.delete(terminalId)
       this.sessions.delete(terminalId)
       this.sessionMeta.delete(terminalId)
       this.broadcast('terminal:exit', { terminalId, code: exitCode })
@@ -266,6 +289,12 @@ export class TerminalManager {
     const session = this.sessions.get(terminalId)
     if (!session) {
       return
+    }
+
+    const buffered = this.dataBuffers.get(terminalId)
+    if (buffered?.timer) {
+      clearTimeout(buffered.timer)
+      this.dataBuffers.delete(terminalId)
     }
 
     session.kill()

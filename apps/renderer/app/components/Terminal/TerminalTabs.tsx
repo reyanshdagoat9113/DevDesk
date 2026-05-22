@@ -1,5 +1,5 @@
-import { useCallback } from 'react'
-import { Plus, X, Monitor } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Plus, X, Monitor, Maximize2, Minimize2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { cn } from '@/lib/utils'
 import { Terminal } from './Terminal'
@@ -11,14 +11,58 @@ interface TerminalTabsProps {
   onSelectTab: (terminalId: string) => void
   onCloseTab: (terminalId: string) => void
   onCreateSession: (projectId?: string) => void
+  onRenameTab?: (terminalId: string, newLabel: string) => void
+  onToggleFullscreen?: () => void
+  isFullscreen?: boolean
   projects: Project[]
 }
 
-export function TerminalTabs({ sessions, activeId, onSelectTab, onCloseTab, onCreateSession }: TerminalTabsProps) {
+export function TerminalTabs({ sessions, activeId, onSelectTab, onCloseTab, onCreateSession, onRenameTab, onToggleFullscreen, isFullscreen }: TerminalTabsProps) {
   const handleClose = useCallback((e: React.MouseEvent, terminalId: string) => {
     e.stopPropagation()
     onCloseTab(terminalId)
   }, [onCloseTab])
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingValue, setEditingValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingId && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editingId])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        e.preventDefault()
+        onToggleFullscreen?.()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onToggleFullscreen])
+
+  const startRename = useCallback((session: TerminalSessionState) => {
+    setEditingId(session.id)
+    setEditingValue(session.label)
+  }, [])
+
+  const commitRename = useCallback((sessionId: string) => {
+    const trimmed = editingValue.trim()
+    if (trimmed) {
+      onRenameTab?.(sessionId, trimmed)
+    }
+    setEditingId(null)
+    setEditingValue('')
+  }, [editingValue, onRenameTab])
+
+  const cancelRename = useCallback(() => {
+    setEditingId(null)
+    setEditingValue('')
+  }, [])
 
   if (sessions.length === 0) {
     return (
@@ -40,6 +84,7 @@ export function TerminalTabs({ sessions, activeId, onSelectTab, onCloseTab, onCr
       <div className="flex h-9 items-center gap-0.5 border-b border-border/40 bg-muted/20 px-2">
         {sessions.map((session) => {
           const isActive = session.id === activeId
+          const isEditing = editingId === session.id
           return (
             <button
               key={session.id}
@@ -51,7 +96,36 @@ export function TerminalTabs({ sessions, activeId, onSelectTab, onCloseTab, onCr
                   : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
               )}
             >
-              <span className="max-w-[160px] truncate">{session.label}</span>
+              {isEditing ? (
+                <input
+                  ref={inputRef}
+                  value={editingValue}
+                  onChange={(e) => setEditingValue(e.target.value)}
+                  onBlur={() => commitRename(session.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      commitRename(session.id)
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault()
+                      cancelRename()
+                    }
+                  }}
+                  className="h-5 w-[120px] rounded bg-background px-1 text-xs text-foreground outline-none ring-1 ring-primary/40"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span
+                  className="max-w-[160px] truncate"
+                  title={session.label}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    startRename(session)
+                  }}
+                >
+                  {session.label}
+                </span>
+              )}
               <span
                 role="button"
                 tabIndex={0}
@@ -76,6 +150,15 @@ export function TerminalTabs({ sessions, activeId, onSelectTab, onCloseTab, onCr
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
+        {onToggleFullscreen && (
+          <button
+            onClick={onToggleFullscreen}
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+        )}
       </div>
 
       {/* Terminal Viewport */}
@@ -91,6 +174,9 @@ export function TerminalTabs({ sessions, activeId, onSelectTab, onCloseTab, onCr
             <Terminal
               terminalId={session.id}
               onClose={() => onCloseTab(session.id)}
+              onNewTab={() => onCreateSession()}
+              onRequestRename={() => startRename(session)}
+              isVisible={session.id === activeId}
             />
           </div>
         ))}

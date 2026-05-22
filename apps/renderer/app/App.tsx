@@ -127,6 +127,7 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionState[]>([])
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
+  const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
 
   const title = useMemo(() => navItems.find((item) => item.value === activeTab)?.label ?? '', [activeTab])
   const actionLabel = actionLabels[activeTab]
@@ -197,6 +198,22 @@ function App() {
   const handleSelectTerminalTab = useCallback((terminalId: string) => {
     setActiveTerminalId(terminalId)
   }, [])
+
+  const handleToggleTerminalFullscreen = useCallback(() => {
+    setIsTerminalFullscreen((prev) => !prev)
+  }, [])
+
+  const handleRenameTerminalSession = useCallback((terminalId: string, newLabel: string) => {
+    setTerminalSessions((prev) =>
+      prev.map((s) => (s.id === terminalId ? { ...s, label: newLabel } : s))
+    )
+  }, [])
+
+  useEffect(() => {
+    if (activeTab !== 'terminal') {
+      setIsTerminalFullscreen(false)
+    }
+  }, [activeTab])
 
   const loadAll = useCallback(async () => {
     setIsLoading(true)
@@ -1402,6 +1419,9 @@ function App() {
               onSelectTab={handleSelectTerminalTab}
               onCloseTab={handleCloseTerminalSession}
               onCreateSession={handleCreateTerminalSession}
+              onRenameTab={handleRenameTerminalSession}
+              onToggleFullscreen={handleToggleTerminalFullscreen}
+              isFullscreen={isTerminalFullscreen}
               projects={projects}
               error={loadError}
             />
