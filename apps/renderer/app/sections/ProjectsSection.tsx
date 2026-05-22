@@ -23,6 +23,7 @@ import { ScrollArea } from '../components/ui/ScrollArea'
 import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
 import { ProjectGitSummary } from '../components/ProjectGitSummary'
 import { ProjectHealthPanel } from '../components/ProjectHealthPanel'
+import { ProjectNotesPanel } from '../components/ProjectNotesPanel'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import {
@@ -1149,6 +1150,8 @@ export function ProjectsSection({
                       </div>
                     </div>
                   </div>
+
+                  <ProjectNotesPanel key={selectedProject.id} projectId={selectedProject.id} />
 
                   {/* Preferences */}
                   <div className="space-y-5">

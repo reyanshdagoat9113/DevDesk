@@ -10,6 +10,7 @@ import type {
   CreateCommandTriggerInput,
   CreateCommandInput,
   Project,
+  ProjectNotes,
   EngineGitInsights,
   GitCommitResult,
   GitCreatePullRequestResult,
@@ -47,6 +48,9 @@ export interface ElectronAPI {
   inspectProject: (id: string) => Promise<ProjectHealthReport>
   getPreferences: () => Promise<AppPreferences>
   updatePreferences: (preferences: Partial<AppPreferences>) => Promise<{ success: boolean }>
+
+  getProjectNotes: (projectId: string) => Promise<ProjectNotes>
+  updateProjectNotes: (projectId: string, updates: Partial<ProjectNotes>) => Promise<void>
 
   getCommands: () => Promise<Command[]>
   addCommand: (command: CreateCommandInput) => Promise<Command>

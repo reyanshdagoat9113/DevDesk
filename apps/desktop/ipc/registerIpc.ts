@@ -11,6 +11,7 @@ import {
   getChainById,
   getPreferencesFromStore,
   getProjectById,
+  getProjectNotesById,
   getRunHistoryOutputById,
   getTriggerById,
   listChains,
@@ -36,6 +37,7 @@ import {
   updateProjectLinkedContainers,
   toggleProjectPin,
   toggleCommandPin,
+  upsertProjectNotes,
 } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
 import { inspectProjectHealth } from '../projectIntelligence/healthInspector'
@@ -50,6 +52,7 @@ import type {
   Container,
   Project,
   ProjectHealthReport,
+  ProjectNotes,
   RunStatus,
 } from '../data/model'
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
@@ -2637,5 +2640,30 @@ export function registerIpcHandlers() {
     }
 
     terminalManager.close(terminalId)
+  })
+
+  // Notes
+  ipcMain.handle('notes:get', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+    return getProjectNotesById(projectId)
+  })
+
+  ipcMain.handle('notes:update', async (_event, projectId: string, updates: Partial<ProjectNotes>) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+    const sanitized: Partial<ProjectNotes> = {}
+    if (typeof updates.setupSteps === 'string') {
+      sanitized.setupSteps = updates.setupSteps
+    }
+    if (typeof updates.todos === 'string') {
+      sanitized.todos = updates.todos
+    }
+    if (typeof updates.reminders === 'string') {
+      sanitized.reminders = updates.reminders
+    }
+    await upsertProjectNotes(projectId, sanitized)
   })
 }

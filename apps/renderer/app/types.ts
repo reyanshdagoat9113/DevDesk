@@ -171,6 +171,13 @@ export interface CommandChainRunState {
   steps: ChainStepRunState[]
 }
 
+export interface ProjectNotes {
+  projectId: string
+  setupSteps: string
+  todos: string
+  reminders: string
+}
+
 export interface Container {
   id: string
   name: string

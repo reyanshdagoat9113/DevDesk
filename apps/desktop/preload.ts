@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ProjectNotes } from '../data/model'
 
 // Define the API interface
 interface ElectronAPI {
@@ -45,6 +46,9 @@ interface ElectronAPI {
     editor?: { id: string; command?: string }
     terminal?: { id: string; command?: string }
   }) => Promise<{ success: boolean }>
+
+  getProjectNotes: (projectId: string) => Promise<{ projectId: string; setupSteps: string; todos: string; reminders: string }>
+  updateProjectNotes: (projectId: string, updates: Partial<{ projectId: string; setupSteps: string; todos: string; reminders: string }>) => Promise<void>
 
   getCommands: () => Promise<unknown[]>
   addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) => Promise<{ id: string }>
@@ -208,6 +212,10 @@ const electronAPI: ElectronAPI = {
   getPreferences: () => ipcRenderer.invoke('preferences:get'),
   updatePreferences: (preferences: { editor?: { id: string; command?: string }; terminal?: { id: string; command?: string } }) =>
     ipcRenderer.invoke('preferences:update', preferences),
+
+  getProjectNotes: (projectId: string) => ipcRenderer.invoke('notes:get', projectId),
+  updateProjectNotes: (projectId: string, updates: Partial<Omit<ProjectNotes, 'projectId'>>) =>
+    ipcRenderer.invoke('notes:update', projectId, updates),
 
   // Commands
   getCommands: () => ipcRenderer.invoke('commands:get'),
