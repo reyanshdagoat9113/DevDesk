@@ -25,6 +25,7 @@ import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
 import { ProjectGitSummary } from '../components/ProjectGitSummary'
 import { ProjectHealthPanel } from '../components/ProjectHealthPanel'
 import { ProjectNotesPanel } from '../components/ProjectNotesPanel'
+import { ProjectDetailTabs } from '../components/ProjectDetailTabs'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import {
@@ -861,8 +862,11 @@ export function ProjectsSection({
                 </div>
               </CardHeader>
               
-              <CardContent className="flex-1 overflow-auto p-8 pt-6">
-                <div className="space-y-10">
+              <CardContent className="flex-1 flex flex-col overflow-hidden p-0">
+                <ProjectDetailTabs
+                  key={selectedProject.id}
+                  overviewPanel={
+                    <div className="space-y-10">
                   {/* Quick Actions */}
                   <div className="space-y-4">
                     <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
@@ -904,67 +908,6 @@ export function ProjectsSection({
                       </div>
                     )}
                   </div>
-
-                  <ProjectHealthPanel
-                    project={selectedProject}
-                    onCreateCommand={onCreateCommand}
-                    onRunCommand={onRunCommand}
-                    onReportLoaded={(report) => {
-                      setProjectHealthReports((current) => ({
-                        ...current,
-                        [report.projectId]: report,
-                      }))
-                    }}
-                  />
-
-                  {/* Project Workspace */}
-                  {selectedProject &&
-                  engineIndexes &&
-                  engineSearchSessions &&
-                  onIndexProject &&
-                  onSearchProjectContent &&
-                   onLoadEngineStats &&
-                   onLoadEngineGitInsights &&
-                   onLoadGitState &&
-                   onCommitProjectChanges &&
-                   onPushProjectBranch &&
-                   onCreateProjectPullRequest &&
-                  onOpenEngineResult &&
-                  onRevealEngineResult &&
-                  onClearProjectIndex &&
-                  onClearProjectSearchSession &&
-                  onOpenExternalUrl &&
-                  onOpenProjectEngine ? (
-                    <div className="space-y-5">
-                      <ProjectGitSummary
-                        project={selectedProject}
-                        onLoadGitInsights={onLoadEngineGitInsights}
-                        onOpenWorkspace={onOpenProjectEngine}
-                      />
-                      <ProjectEnginePanel
-                        project={selectedProject}
-                        engineStatus={engineStatus ?? null}
-                        engineIndexes={engineIndexes}
-                        searchSessions={engineSearchSessions}
-                        indexingProjects={engineIndexingProjects ?? {}}
-                        latestIndexResults={engineLatestIndexResults ?? {}}
-                        onIndexProject={onIndexProject}
-                        onSearch={onSearchProjectContent}
-                        onLoadStats={onLoadEngineStats}
-                        onLoadGitInsights={onLoadEngineGitInsights}
-                        onLoadGitState={onLoadGitState}
-                        onCommitChanges={onCommitProjectChanges}
-                        onPushBranch={onPushProjectBranch}
-                        onCreatePullRequest={onCreateProjectPullRequest}
-                        onOpenResult={onOpenEngineResult}
-                        onRevealResult={onRevealEngineResult}
-                        onClearProjectIndex={onClearProjectIndex}
-                        onClearSearchSession={onClearProjectSearchSession}
-                        onOpenExternalUrl={onOpenExternalUrl}
-                        onOpenEngine={onOpenProjectEngine}
-                      />
-                    </div>
-                  ) : null}
 
                   {/* Dev Stack */}
                   <div className="space-y-5">
@@ -1140,8 +1083,6 @@ export function ProjectsSection({
                     </div>
                   </div>
 
-                  <ProjectNotesPanel key={selectedProject.id} projectId={selectedProject.id} />
-
                   {/* Preferences */}
                   <div className="space-y-5">
                     <div className="flex items-center justify-between">
@@ -1237,7 +1178,80 @@ export function ProjectsSection({
                     </div>
                     {prefsError && <p className="text-[11px] text-destructive bg-destructive/5 p-2 rounded border border-destructive/10">{prefsError}</p>}
                   </div>
-                </div>
+                    </div>
+                  }
+                  healthPanel={
+                    <ProjectHealthPanel
+                      project={selectedProject}
+                      onCreateCommand={onCreateCommand}
+                      onRunCommand={onRunCommand}
+                      onReportLoaded={(report) => {
+                        setProjectHealthReports((current) => ({
+                          ...current,
+                          [report.projectId]: report,
+                        }))
+                      }}
+                    />
+                  }
+                  notesPanel={<ProjectNotesPanel key={selectedProject.id} projectId={selectedProject.id} />}
+                  enginePanel={
+                    selectedProject &&
+                    engineIndexes &&
+                    engineSearchSessions &&
+                    onIndexProject &&
+                    onSearchProjectContent &&
+                    onLoadEngineStats &&
+                    onLoadEngineGitInsights &&
+                    onLoadGitState &&
+                    onCommitProjectChanges &&
+                    onPushProjectBranch &&
+                    onCreateProjectPullRequest &&
+                    onOpenEngineResult &&
+                    onRevealEngineResult &&
+                    onClearProjectIndex &&
+                    onClearProjectSearchSession &&
+                    onOpenExternalUrl &&
+                    onOpenProjectEngine
+                      ? (
+                          <ProjectEnginePanel
+                            project={selectedProject}
+                            engineStatus={engineStatus ?? null}
+                            engineIndexes={engineIndexes}
+                            searchSessions={engineSearchSessions}
+                            indexingProjects={engineIndexingProjects ?? {}}
+                            latestIndexResults={engineLatestIndexResults ?? {}}
+                            onIndexProject={onIndexProject}
+                            onSearch={onSearchProjectContent}
+                            onLoadStats={onLoadEngineStats}
+                            onLoadGitInsights={onLoadEngineGitInsights}
+                            onLoadGitState={onLoadGitState}
+                            onCommitChanges={onCommitProjectChanges}
+                            onPushBranch={onPushProjectBranch}
+                            onCreatePullRequest={onCreateProjectPullRequest}
+                            onOpenResult={onOpenEngineResult}
+                            onRevealResult={onRevealEngineResult}
+                            onClearProjectIndex={onClearProjectIndex}
+                            onClearSearchSession={onClearProjectSearchSession}
+                            onOpenExternalUrl={onOpenExternalUrl}
+                            onOpenEngine={onOpenProjectEngine}
+                          />
+                        )
+                      : null
+                  }
+                  gitPanel={
+                    selectedProject &&
+                    onLoadEngineGitInsights &&
+                    onOpenProjectEngine
+                      ? (
+                          <ProjectGitSummary
+                            project={selectedProject}
+                            onLoadGitInsights={onLoadEngineGitInsights}
+                            onOpenWorkspace={onOpenProjectEngine}
+                          />
+                        )
+                      : null
+                  }
+                />
               </CardContent>
 
               <div className="border-t border-border/40 bg-muted/5 p-5">
