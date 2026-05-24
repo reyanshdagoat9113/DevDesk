@@ -196,6 +196,31 @@ export interface EngineSearchSession {
   }
 }
 
+export type HealthCheckItemStatus = 'pass' | 'warning' | 'fail' | 'skipped'
+export type HealthCheckRunStatus = 'pass' | 'warning' | 'fail'
+
+export interface HealthCheckItem {
+  id: string
+  runId: string
+  category: string
+  key: string
+  label: string
+  status: HealthCheckItemStatus
+  message: string
+  detailsJson: string
+  suggestedFix: string
+}
+
+export interface HealthCheckRun {
+  id: string
+  projectId: string
+  startedAt: string
+  finishedAt?: string
+  overallStatus: HealthCheckRunStatus
+  summaryJson: string
+  items: HealthCheckItem[]
+}
+
 export const DATA_VERSION = 4 as const
 
 export interface DataStore {

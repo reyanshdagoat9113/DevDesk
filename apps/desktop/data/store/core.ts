@@ -122,6 +122,28 @@ function createSchema(database: Database.Database) {
       result_json TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS health_check_runs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      finished_at TEXT,
+      overall_status TEXT NOT NULL,
+      summary_json TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS health_check_items (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      status TEXT NOT NULL,
+      message TEXT,
+      details_json TEXT,
+      suggested_fix TEXT,
+      FOREIGN KEY (run_id) REFERENCES health_check_runs(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_commands_project_id ON commands(project_id);
     CREATE INDEX IF NOT EXISTS idx_chains_project_id ON chains(project_id);
     CREATE INDEX IF NOT EXISTS idx_triggers_project_id ON triggers(project_id);
@@ -132,6 +154,9 @@ function createSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_run_history_project_id ON run_history(project_id);
     CREATE INDEX IF NOT EXISTS idx_engine_indexes_last_indexed ON engine_indexes(last_indexed DESC);
     CREATE INDEX IF NOT EXISTS idx_engine_search_sessions_updated_at ON engine_search_sessions(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_health_check_items_run_id ON health_check_items(run_id);
+    CREATE INDEX IF NOT EXISTS idx_health_check_runs_project_id ON health_check_runs(project_id);
+    CREATE INDEX IF NOT EXISTS idx_health_check_runs_started_at ON health_check_runs(started_at DESC);
   `)
 }
 

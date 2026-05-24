@@ -41,3 +41,9 @@ export {
   replaceChain,
   replaceTrigger,
 } from './store/automation'
+export {
+  cleanupOldHealthChecks,
+  createHealthCheckRun,
+  getLatestHealthCheckForProject,
+  listHealthCheckRuns,
+} from './store/health'
