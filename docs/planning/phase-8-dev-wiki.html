@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevDesk Phase 8: Dev Wiki Plan</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111318;
+      --panel: #181b22;
+      --panel-2: #20242d;
+      --text: #eef1f5;
+      --muted: #aab2c0;
+      --line: #303642;
+      --accent: #4fb3ff;
+      --accent-2: #7bd88f;
+      --warn: #ffd166;
+      --danger: #ff6b6b;
+      --code: #0c0f14;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 40px 0 64px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 28px;
+      margin-bottom: 28px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.15;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3.8rem);
+      letter-spacing: 0;
+      max-width: 900px;
+    }
+
+    h2 {
+      font-size: 1.45rem;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: #dce6f3;
+      margin: 12px 0 0;
+      overflow-x: auto;
+      padding: 16px;
+      font-size: 0.9rem;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .summary {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+
+    .stat,
+    section,
+    .phase-card,
+    .deliverable,
+    .risk {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .stat {
+      padding: 16px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.35rem;
+      margin-bottom: 4px;
+    }
+
+    section {
+      margin-top: 20px;
+      padding: 22px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .phase-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .phase-card {
+      background: var(--panel-2);
+      padding: 16px;
+    }
+
+    .phase-card .label {
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .deliverables,
+    .risks {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .deliverable,
+    .risk {
+      padding: 15px;
+    }
+
+    ul,
+    ol {
+      color: var(--muted);
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li {
+      margin-bottom: 7px;
+    }
+
+    table {
+      border-collapse: collapse;
+      color: var(--muted);
+      margin-top: 12px;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--panel-2);
+      color: var(--text);
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text);
+      display: inline-flex;
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 6px 9px;
+      white-space: nowrap;
+    }
+
+    .success {
+      color: var(--accent-2);
+    }
+
+    .complete {
+      border-color: rgba(123, 216, 143, 0.45);
+      color: var(--accent-2);
+    }
+
+    .partial {
+      border-color: rgba(255, 209, 102, 0.5);
+      color: var(--warn);
+    }
+
+    .warning {
+      color: var(--warn);
+    }
+
+    .critical {
+      color: var(--danger);
+    }
+
+    .note {
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+      padding-left: 14px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        width: min(100% - 24px, 1180px);
+        padding-top: 24px;
+      }
+
+      .summary,
+      .phase-grid,
+      .deliverables,
+      .risks,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">DevDesk roadmap planning</div>
+      <h1>Phase 8: Dev Wiki (Enhanced Notes)</h1>
+      <p>
+        Transform the existing plain-text project notes into a rich, actionable project wiki with
+        Markdown rendering, edit/preview toggle, runnable code blocks, and interactive task
+        checkboxes. Covers sub-phases 8.1 through 8.4.
+      </p>
+      <div class="summary" aria-label="Dev Wiki summary">
+        <div class="stat">
+          <strong>4 sub-phases</strong>
+          <span>Renderer, blocks, checkboxes, toggle</span>
+        </div>
+        <div class="stat">
+          <strong>8-11 hrs</strong>
+          <span>Estimated total effort</span>
+        </div>
+        <div class="stat">
+          <strong>v1.8</strong>
+          <span>Release milestone with rich notes</span>
+        </div>
+        <div class="stat">
+          <strong>Medium</strong>
+          <span>Primary roadmap priority</span>
+        </div>
+      </div>
+    </header>
+
+    <section>
+      <h2>Objective</h2>
+      <p>
+        Give developers a first-class project wiki directly inside DevDesk. The existing plain-text
+        notes editor works, but lacks structure, readability, and interactivity. This phase upgrades
+        notes to full GitHub-flavored Markdown with a live preview, executable code blocks that run
+        in the project context, and interactive task checkboxes with progress tracking&mdash;all
+        while preserving the lightweight, local-first nature of DevDesk.
+      </p>
+      <p class="note">
+        Source: Phase 8 in <a href="../../ROADMAP.md">ROADMAP.md</a>. This plan keeps the roadmap
+        scope intact and expands it into implementation order, contracts, UI behavior, and
+        acceptance criteria.
+      </p>
+    </section>
+
+    <section>
+      <h2>Implementation Sequence</h2>
+      <div class="phase-grid">
+        <div class="phase-card">
+          <div class="label">8.1 Markdown Renderer</div>
+          <p>Render notes as GitHub-flavored Markdown with syntax highlighting using react-markdown and remark-gfm.</p>
+          <span class="badge complete">✓ Complete</span>
+        </div>
+        <div class="phase-card">
+          <div class="label">8.2 Edit &harr; Preview Toggle</div>
+          <p>Tab interface with Edit, Preview, and optional Split views; auto-save on edit.</p>
+          <span class="badge complete">✓ Complete</span>
+        </div>
+        <div class="phase-card">
+          <div class="label">8.3 Runnable Code Blocks</div>
+          <p>Execute code blocks tagged with <code>:run</code> directly from notes with a Run button.</p>
+          <span class="badge complete">âœ“ Complete</span>
+        </div>
+        <div class="phase-card">
+          <div class="label">8.4 Task Checkboxes</div>
+          <p>Interactive checkboxes in preview mode with auto-save and progress indicator.</p>
+          <span class="badge complete">✓ Complete</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Core Data Contract</h2>
+      <p><span class="badge partial">Planned</span> The existing notes model may need a lightweight extension to distinguish markdown content from plain text.</p>
+      <p>
+        The notes store already handles CRUD operations. For Phase 8 the content field remains a
+        single string; rendering logic determines whether to treat it as markdown. If we later add
+        a content-type field, it defaults to <code>"markdown"</code> for new projects and
+        <code>"plain"</code> for migrated ones.
+      </p>
+      <pre><code>interface ProjectNotes {
+  id: string
+  projectId: string
+  content: string        // raw markdown source
+  updatedAt: string
+  contentType?: 'markdown' | 'plain'  // optional migration field
+}
+
+// Existing IPC: notes:get, notes:update, notes:create
+// New IPC (if needed): notes:update-partial
+//   Payload: { projectId: string; patch: Partial&lt;ProjectNotes&gt; }
+//   Used for checkbox toggle without full content round-trip</code></pre>
+    </section>
+
+    <section>
+      <h2>IPC Surface</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>Direction</th>
+            <th>Payload</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>notes:get</code></td>
+            <td>invoke &rarr; main</td>
+            <td><code>{ projectId: string }</code></td>
+            <td>Returns <code>ProjectNotes</code> for a project. Already exists.</td>
+          </tr>
+          <tr>
+            <td><code>notes:update</code></td>
+            <td>invoke &rarr; main</td>
+            <td><code>{ projectId: string; content: string }</code></td>
+            <td>Full content replacement. Already exists; used for auto-save.</td>
+          </tr>
+          <tr>
+            <td><code>notes:update-partial</code></td>
+            <td>invoke &rarr; main</td>
+            <td><code>{ projectId: string; patch: Partial&lt;ProjectNotes&gt; }</code></td>
+            <td><span class="badge complete">✓ Complete</span> Reuses the existing <code>notes:update</code> save path after rewriting the changed markdown task line.</td>
+          </tr>
+          <tr>
+            <td><code>commands:run-adhoc</code></td>
+            <td>invoke &rarr; main</td>
+            <td><code>{ projectId: string; command: string; options?: { workingDirectory?: string } }</code></td>
+            <td><span class="badge complete">âœ“ Complete</span> Runs wiki code blocks through the existing command execution pipeline. Output goes to run history.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Files And Ownership</h2>
+      <div class="grid">
+        <div>
+          <h3>Files to Create</h3>
+          <ul>
+            <li><span class="badge complete">✓ Complete</span> <code>apps/renderer/app/components/ProjectNotesPanel.tsx</code> &mdash; main editor/preview component with Edit/Preview toggle (replaces planned MarkdownNotes.tsx).</li>
+            <li><span class="badge complete">✓ Complete</span> <code>apps/renderer/app/components/MarkdownPreview.tsx</code> &mdash; markdown renderer using react-markdown + remark-gfm with syntax highlighting.</li>
+            <li><span class="badge complete">âœ“ Complete</span> <code>apps/renderer/app/components/RunnableBlock.tsx</code> &mdash; code block wrapper with Run button and output display.</li>
+            <li><span class="badge complete">✓ Complete</span> <code>apps/renderer/app/components/MarkdownPreview.tsx</code> &mdash; renders interactive preview checkboxes.</li>
+            <li><span class="badge complete">✓ Complete</span> <code>apps/renderer/app/lib/markdownUtils.ts</code> &mdash; counts and toggles markdown task items while preserving source formatting.</li>
+            <li><span class="badge complete">âœ“ Complete</span> <code>apps/renderer/app/lib/markdownUtils.ts</code> &mdash; parsing utilities for <code>:run</code> tags.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Files to Modify</h3>
+          <ul>
+            <li><span class="badge complete">✓ Complete</span> <code>apps/renderer/app/sections/ProjectsSection.tsx</code> &mdash; imports and uses <code>ProjectNotesPanel</code> component.</li>
+            <li><span class="badge partial">Planned</span> <code>apps/renderer/app/types.ts</code> &mdash; extend <code>ProjectNotes</code> type if <code>contentType</code> field is added.</li>
+            <li><span class="badge partial">Planned</span> <code>apps/desktop/data/model.ts</code> &mdash; extend notes model if <code>contentType</code> or <code>notes:update-partial</code> is added.</li>
+            <li><span class="badge complete">âœ“ Complete</span> <code>apps/desktop/ipc/registerIpc.ts</code> &mdash; registers <code>commands:run-adhoc</code> for runnable wiki code blocks.</li>
+            <li><span class="badge complete">âœ“ Complete</span> <code>apps/desktop/preload.ts</code> &mdash; exposes <code>runAdhocCommand</code> to the renderer.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>UI Behavior</h2>
+      <div class="deliverables">
+        <div class="deliverable">
+          <h3>Edit / Preview / Split Toggle</h3>
+          <ul>
+            <li>Default: Split view on wide screens (side-by-side), Edit-only on narrow.</li>
+            <li>Tab bar with three options: <strong>Edit</strong>, <strong>Preview</strong>, <strong>Split</strong>.</li>
+            <li>Edit tab renders the existing raw textarea with monospace font.</li>
+            <li>Preview tab renders the parsed markdown using <code>react-markdown</code> + <code>remark-gfm</code>.</li>
+            <li>Split view shows the editor on the left, preview on the right with a resizable divider.</li>
+            <li>Auto-save debounces content changes (300 ms) and calls <code>notes:update</code>.</li>
+          </ul>
+        </div>
+        <div class="deliverable">
+          <h3>Runnable Code Blocks</h3>
+          <ul>
+            <li>Code fences tagged with <code>:run</code> (e.g. <code>```bash:run</code>) get a Run button in the top-right corner.</li>
+            <li>Clicking Run invokes <code>commands:run-adhoc</code> with the block content and the selected project context.</li>
+            <li>Output streams to the existing run history panel; a toast or inline indicator confirms execution started.</li>
+            <li>Blocks without <code>:run</code> render as standard syntax-highlighted code with a copy button only.</li>
+            <li>Language tag before <code>:run</code> (e.g. <code>bash</code>, <code>sh</code>, <code>powershell</code>) is passed through but does not affect execution&mdash;the default shell from preferences is always used.</li>
+          </ul>
+        </div>
+        <div class="deliverable">
+          <h3>Task Checkboxes &amp; Progress</h3>
+          <ul>
+            <li>Markdown task list items (<code>- [ ]</code> / <code>- [x]</code>) render as clickable checkboxes in preview mode.</li>
+            <li>Clicking a checkbox toggles the underlying source text between <code>[ ]</code> and <code>[x]</code>.</li>
+            <li>On toggle, the component calls <code>notes:update-partial</code> (or <code>notes:update</code>) to persist the change.</li>
+            <li>A progress bar at the top of the notes panel shows e.g. <strong>3 of 7 tasks complete</strong>.</li>
+            <li>Progress indicator hides when zero task items exist in the content.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Acceptance Criteria</h2>
+      <ol>
+        <li><span class="badge complete">✓ Complete</span> Notes render correctly as GitHub-flavored Markdown in preview mode: headings, lists, tables, code blocks, links, and images.</li>
+        <li><span class="badge complete">✓ Complete</span> Edit mode preserves the existing plain-text editing experience with auto-save.</li>
+        <li><span class="badge complete">✓ Complete</span> Preview and Edit tabs toggle cleanly without losing cursor position or scroll state.</li>
+        <li><span class="badge complete">âœ“ Complete</span> Code blocks tagged with <code>:run</code> display a Run button; clicking it executes the command in the project context and logs output to run history.</li>
+        <li><span class="badge complete">âœ“ Complete</span> Code blocks without <code>:run</code> show only a copy button and do not expose execution.</li>
+        <li><span class="badge complete">✓ Complete</span> Task checkboxes are interactive in preview mode; toggling updates the source markdown and auto-saves the change.</li>
+        <li><span class="badge complete">✓ Complete</span> Progress indicator accurately reflects completed / total task items and updates immediately on toggle.</li>
+        <li><span class="badge complete">✓ Complete</span> <code>npm run lint</code> and <code>npm run typecheck</code> pass with zero errors.</li>
+        <li><span class="badge partial">Planned</span> Manual testing on Windows passes for all four sub-phases.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Risks</h2>
+      <div class="risks">
+        <div class="risk">
+          <h3>XSS in Markdown Rendering</h3>
+          <p>Raw HTML embedded in markdown could be rendered dangerously. Ensure
+          <code>react-markdown</code> is configured with <code>allowedElements</code> or a sanitizer
+          plugin. Never allow arbitrary HTML passthrough from user-authored notes.</p>
+        </div>
+        <div class="risk">
+          <h3>Render Performance with Large Notes</h3>
+          <p>Very large markdown documents can cause re-render lag in preview mode. Mitigate by
+          debouncing renders, virtualizing long content, or chunking the markdown AST. For Phase 8,
+          set a practical upper bound (e.g. 50 KB) and show a warning if exceeded.</p>
+        </div>
+        <div class="risk">
+          <h3>Code Block Execution Safety</h3>
+          <p>Runnable code blocks execute arbitrary shell commands. The <code>:run</code> tag
+          convention is an opt-in signal, but the user must understand that the block content runs
+          verbatim. Always show the full command before execution (inline preview or confirmation
+          dialog) and never auto-run code blocks on page load.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Definition Of Done</h2>
+      <ul>
+        <li><span class="badge complete">✓ Complete</span> All four sub-phases (8.1&ndash;8.4) are implemented.</li>
+        <li><span class="badge complete">✓ Complete</span> <code>react-markdown</code> and <code>remark-gfm</code> are added to <code>package.json</code> and installed.</li>
+        <li><span class="badge complete">✓ Complete</span> <code>npm run lint</code> and <code>npm run typecheck</code> pass with zero errors.</li>
+        <li><span class="badge partial">Planned</span> Manual testing on Windows covers all acceptance criteria.</li>
+        <li><span class="badge complete">✓ Complete</span> Existing plain-text notes remain readable and editable after the upgrade.</li>
+        <li><span class="badge complete">✓ Complete</span> Roadmap Phase 8 entries are updated with concrete implementation status.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

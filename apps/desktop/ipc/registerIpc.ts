@@ -2004,6 +2004,39 @@ export function registerIpcHandlers() {
     return { runId: run.runId, status: run.status, startTime: run.startTime }
   })
 
+  ipcMain.handle('commands:run-adhoc', async (_event, projectId: string, commandString: string, options?: { workingDirectory?: string }) => {
+    const commandText = typeof commandString === 'string' ? commandString.trim() : ''
+    const effectiveProjectId = typeof projectId === 'string' ? projectId.trim() : ''
+    const workingDirectory =
+      typeof options?.workingDirectory === 'string' && options.workingDirectory.trim()
+        ? options.workingDirectory.trim()
+        : undefined
+
+    if (!effectiveProjectId) {
+      throw new Error('Project is required to run a wiki command.')
+    }
+
+    if (!commandText) {
+      throw new Error('Command is required.')
+    }
+
+    const command: Command = {
+      id: `wiki:${randomUUID()}`,
+      name: 'Wiki command',
+      command: commandText,
+      description: 'Ad hoc command started from project notes.',
+      tags: ['wiki'],
+      projectId: effectiveProjectId,
+      workingDirectory,
+    }
+
+    const run = await startCommandExecution(command, effectiveProjectId)
+    if ('status' in run && run.status === 'needs-input') {
+      return run
+    }
+    return { runId: run.runId, status: run.status, startTime: run.startTime }
+  })
+
   ipcMain.handle('commands:detect-variables', async (_event, commandString: string) => {
     return detectVariables(commandString)
   })

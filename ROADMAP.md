@@ -891,6 +891,7 @@ Interactive checkboxes in preview mode.
 - Click to toggle `- [ ]` ↔ `- [x]`
 - Auto-save to notes
 - Progress indicator (X of Y tasks complete)
+- Implemented in `MarkdownPreview`, `ProjectNotesPanel`, and `markdownUtils`.
 
 ---
 

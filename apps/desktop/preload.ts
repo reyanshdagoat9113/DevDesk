@@ -56,6 +56,7 @@ interface ElectronAPI {
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
   runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string; startTime: string } | { status: 'needs-input'; inputs: Array<{ name: string; default?: string; required: boolean; description?: string }>; preview: string }>
+  runAdhocCommand: (projectId: string, command: string, options?: { workingDirectory?: string }) => Promise<{ runId: string; status: string; startTime: string } | { status: 'needs-input'; inputs: Array<{ name: string; default?: string; required: boolean; description?: string }>; preview: string }>
   detectCommandVariables: (command: string) => Promise<Array<{ name: string; default?: string; required: boolean; description?: string }>>
   stopCommand: (runId: string) => Promise<{ success: boolean }>
   onRunStarted: (handler: (payload: { id: string; commandId: string; projectId?: string; status: string; startTime: string; output?: string; resolvedCommand?: string }) => void) => () => void
@@ -228,6 +229,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('commands:get-directories', projectId, relativePath),
   runCommand: (id: string, projectId?: string, variables?: Record<string, string>) =>
     ipcRenderer.invoke('commands:run', id, projectId, variables),
+  runAdhocCommand: (projectId: string, command: string, options?: { workingDirectory?: string }) =>
+    ipcRenderer.invoke('commands:run-adhoc', projectId, command, options),
   detectCommandVariables: (command: string) => ipcRenderer.invoke('commands:detect-variables', command),
   stopCommand: (runId: string) => ipcRenderer.invoke('commands:stop', runId),
   onRunStarted: (

@@ -59,6 +59,7 @@ export interface ElectronAPI {
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
   runCommand: (id: string, projectId?: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string; startTime: string } | { status: 'needs-input'; inputs: CommandVariable[]; preview: string }>
+  runAdhocCommand: (projectId: string, command: string, options?: { workingDirectory?: string }) => Promise<{ runId: string; status: string; startTime: string } | { status: 'needs-input'; inputs: CommandVariable[]; preview: string }>
   detectCommandVariables: (command: string) => Promise<CommandVariable[]>
   stopCommand: (runId: string) => Promise<{ success: boolean }>
   onRunStarted: (handler: (payload: { id: string; commandId: string; projectId?: string; status: string; startTime: string; output?: string; resolvedCommand?: string }) => void) => () => void

@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs'
 import { Textarea } from './ui/Textarea'
 import { MarkdownPreview } from './MarkdownPreview'
 import type { ProjectNotes } from '../types'
+import { getTaskProgress, toggleTaskAtIndex } from '../lib/markdownUtils'
 
 interface ProjectNotesPanelProps {
   projectId: string
@@ -110,6 +111,19 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
     setPreviewTabs((prev) => ({ ...prev, [tab]: !prev[tab] }))
   }, [])
 
+  const handleTaskToggle = useCallback(
+    (tab: NoteTab, taskIndex: number) => {
+      const field = tabConfig.find((entry) => entry.id === tab)?.value
+      if (!field) {
+        return
+      }
+
+      const nextContent = toggleTaskAtIndex(notes[field], taskIndex)
+      handleChange(tab, nextContent)
+    },
+    [handleChange, notes]
+  )
+
   if (loading) {
     return (
       <div className="rounded-xl border border-border/40 bg-muted/5 p-5">
@@ -153,11 +167,19 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
             {tabConfig.map((tab) => {
               const isPreview = previewTabs[tab.id]
               const content = notes[tab.value]
+              const taskProgress = getTaskProgress(content)
 
               return (
                 <TabsContent key={tab.id} value={tab.id} className="mt-0">
                   <div className="space-y-3">
-                    <div className="flex items-center justify-end">
+                    <div className="flex min-h-7 items-center justify-between gap-3">
+                      {taskProgress.total > 0 ? (
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          {taskProgress.completed} / {taskProgress.total} done
+                        </div>
+                      ) : (
+                        <div />
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -182,7 +204,11 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
                     {isPreview ? (
                       <div className="min-h-[180px] rounded-md border border-border/40 bg-background/50 p-4">
                         {content.trim() ? (
-                          <MarkdownPreview source={content} />
+                          <MarkdownPreview
+                            source={content}
+                            projectId={projectId}
+                            onTaskToggle={(taskIndex) => handleTaskToggle(tab.id, taskIndex)}
+                          />
                         ) : (
                           <p className="text-sm text-muted-foreground italic">
                             Nothing to preview. Switch to Edit mode and add some markdown.
