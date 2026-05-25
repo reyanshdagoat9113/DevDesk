@@ -198,11 +198,12 @@ export interface EngineSearchSession {
 
 export type HealthCheckItemStatus = 'pass' | 'warning' | 'fail' | 'skipped'
 export type HealthCheckRunStatus = 'pass' | 'warning' | 'fail'
+export type HealthCheckCategory = 'system' | 'project' | 'runtime'
 
 export interface HealthCheckItem {
   id: string
   runId: string
-  category: string
+  category: HealthCheckCategory
   key: string
   label: string
   status: HealthCheckItemStatus

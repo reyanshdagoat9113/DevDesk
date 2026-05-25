@@ -16,6 +16,8 @@ import type {
   GitCreatePullRequestResult,
   GitPushResult,
   GitWorkflowState,
+  HealthCheckRun,
+  HealthCheckRunSummary,
   EngineIndexCompletedPayload,
   EngineIndexLifecyclePayload,
   EngineIndexResult,
@@ -140,6 +142,12 @@ export interface ElectronAPI {
   onTerminalData: (handler: (payload: { terminalId: string; data: string }) => void) => () => void
   onTerminalExit: (handler: (payload: { terminalId: string; code?: number }) => void) => () => void
   onTerminalError: (handler: (payload: { terminalId: string; error: string }) => void) => () => void
+
+  // Health Check
+  runHealthCheck: (projectId: string) => Promise<HealthCheckRun>
+  getLatestHealthCheck: (projectId: string) => Promise<HealthCheckRun | null>
+  listHealthCheckRuns: (projectId: string, limit?: number) => Promise<HealthCheckRunSummary[]>
+  getHealthCheckRun: (runId: string) => Promise<HealthCheckRun | null>
 }
 
 declare global {

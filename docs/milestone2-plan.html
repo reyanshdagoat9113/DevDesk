@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DevDesk — Milestone 1 Implementation Plan</title>
+  <title>DevDesk — Milestone 2 Implementation Plan</title>
   <style>
     :root {
       --bg-primary: #0b0f14;
@@ -279,6 +279,30 @@
     }
 
     .task-type.feature {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .task-type.schema {
+      background: var(--info-bg);
+      color: var(--info);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .task-type.service {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .task-type.ipc {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .task-type.ui {
       background: var(--success-bg);
       color: var(--success);
       border: 1px solid rgba(16, 185, 129, 0.2);
@@ -628,6 +652,67 @@
       border-top: 5px solid var(--border);
     }
 
+    /* Branching timeline extras */
+    .timeline-branch {
+      display: flex;
+      justify-content: center;
+      gap: 80px;
+      margin-top: 8px;
+      min-width: 800px;
+      position: relative;
+    }
+
+    .branch-connector {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      width: 2px;
+      height: 12px;
+      background: var(--border);
+    }
+
+    .branch-connector::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -40px;
+      width: 80px;
+      height: 2px;
+      background: var(--border);
+    }
+
+    .branch-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      min-width: 120px;
+    }
+
+    .branch-dot {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+    }
+
+    .branch-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text-muted);
+      max-width: 100px;
+      line-height: 1.4;
+    }
+
     /* Dependency note */
     .dep-note {
       background: var(--info-bg);
@@ -770,11 +855,11 @@
       .task-card:hover, .risk-card:hover {
         box-shadow: none;
       }
-      .timeline-dot {
+      .timeline-dot, .branch-dot {
         background: #fff;
         border: 2px solid #ccc;
       }
-      .timeline-line {
+      .timeline-line, .branch-connector, .branch-connector::before {
         background: #ccc;
       }
       .meta-badge {
@@ -826,10 +911,10 @@
     <div class="header-grid">
       <div class="logo">D</div>
       <div class="header-content">
-        <h1>Milestone 1 — Tabbed Layout &amp; Health Checker</h1>
-        <p class="subtitle">Establish the tabbed project detail layout and ship the full Environment Health Checker for the DevDesk desktop app.</p>
+        <h1>Milestone 2 — Bug Recorder</h1>
+        <p class="subtitle">Ship the complete Bug Recorder with quick capture, attachments, context snapshots, and per-project bug tracking for the DevDesk desktop app.</p>
         <div class="header-meta">
-          <span class="meta-badge"><span class="dot"></span> 6 Tasks</span>
+          <span class="meta-badge"><span class="dot"></span> 5 Tasks</span>
           <span class="meta-badge">Electron + Vite + TS</span>
           <span class="meta-badge">SQLite / better-sqlite3</span>
           <span class="meta-badge">React + shadcn/ui</span>
@@ -843,7 +928,7 @@
     <!-- Goal -->
     <div class="goal-box">
       <h2>Milestone Goal</h2>
-      <p>Convert the project detail view from an infinite-scrolling vertical stack into a clean, tabbed layout. Simultaneously, build and wire a complete Environment Health Checker that inspects system tooling, project configuration, and runtime state — with full persistence, IPC bridging, and a polished "doctor" UI panel.</p>
+      <p>Build and integrate a complete Bug Recorder system that lets developers quickly capture bug reports from anywhere in the app, auto-gather project context (command history, run history, container state, environment), attach files and screenshots, and track bugs per-project with full CRUD, search, and a polished detail view inside the existing Bugs tab.</p>
     </div>
 
     <!-- Tasks -->
@@ -856,142 +941,13 @@
         <div class="task-header">
           <div class="task-number">1</div>
           <div class="task-title-group">
-            <div class="flex items-center gap-2">
-              <h3 class="task-title">Refactor — Project Detail Tabs</h3>
-              <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:rgba(16,185,129,0.12);color:var(--success);border:1px solid rgba(16,185,129,0.25);">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Done
-              </span>
-            </div>
-            <span class="task-type refactor">Refactor</span>
+            <h3 class="task-title">Bug Recorder — Schema &amp; Store</h3>
+            <span class="task-type schema">Schema</span>
           </div>
         </div>
         <div class="task-body">
           <p class="task-description">
-            Convert <code>ProjectsSection</code> from a vertically stacked layout into a tabbed interface so new panels don't create infinite scroll. Introduce a local tab bar inside the project detail pane using the existing shadcn <code>Tabs</code> primitive.
-          </p>
-
-          <div class="file-section">
-            <div class="file-section-title modify">
-              <span>Files to Modify</span>
-            </div>
-            <div class="file-list">
-              <div class="file-item">
-                <span class="file-badge modify">Modify</span>
-                <span class="file-path">apps/renderer/app/sections/ProjectsSection.tsx</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="file-section">
-            <div class="file-section-title create">
-              <span>Files to Create</span>
-            </div>
-            <div class="file-list">
-              <div class="file-item">
-                <span class="file-badge create">Create</span>
-                <span class="file-path">apps/renderer/app/components/ProjectDetailTabs.tsx</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="details-block">
-            <h4>Implementation Details</h4>
-            <ul>
-              <li>Use the existing shadcn <code>Tabs</code>, <code>TabsList</code>, <code>TabsTrigger</code>, and <code>TabsContent</code> primitives.</li>
-              <li>Tabs: <code>Overview | Health | Bugs | Notes | Engine | Git</code></li>
-              <li>Keep existing panel components untouched; they render inside respective <code>TabsContent</code> wrappers instead of sequentially.</li>
-              <li>Maintain all existing props and callbacks passed to child panels.</li>
-              <li>Preserve scroll behavior within each tab content area independently.</li>
-            </ul>
-          </div>
-
-          <div class="ac-block">
-            <h4>Acceptance Criteria</h4>
-            <ul>
-              <li><code>ProjectsSection</code> detail pane uses shadcn <code>Tabs</code> with all 6 tabs visible.</li>
-              <li>Existing panels (<code>ProjectHealthPanel</code>, <code>ProjectEnginePanel</code>, <code>ProjectGitSummary</code>, <code>ProjectNotesPanel</code>) render inside respective tabs.</li>
-              <li>No visual regressions in layout, spacing, or responsiveness.</li>
-              <li>Tab state is local to the detail pane and resets appropriately on project switch.</li>
-            </ul>
-          </div>
-        </div>
-      </article>
-
-      <!-- Task 2 -->
-      <article class="task-card">
-        <div class="task-header">
-          <div class="task-number">2</div>
-          <div class="task-title-group">
-            <div class="flex items-center gap-2">
-              <h3 class="task-title">Refactor — System Check Runner Utility</h3>
-              <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:rgba(16,185,129,0.12);color:var(--success);border:1px solid rgba(16,185,129,0.25);">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Done
-              </span>
-            </div>
-            <span class="task-type refactor">Refactor</span>
-          </div>
-        </div>
-        <div class="task-body">
-          <p class="task-description">
-            Extract a reusable shell command runner that captures non-zero exits as "fail" instead of throwing. This keeps health check logic pure, testable, and platform-agnostic across Windows, macOS, and Linux.
-          </p>
-
-          <div class="file-section">
-            <div class="file-section-title create">
-              <span>Files to Create</span>
-            </div>
-            <div class="file-list">
-              <div class="file-item">
-                <span class="file-badge create">Create</span>
-                <span class="file-path">apps/desktop/system/runner.ts</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="details-block">
-            <h4>Implementation Details</h4>
-            <ul>
-              <li>Export <code>runSystemCheck(command, args?)</code> as the primary API.</li>
-              <li>Return type: <code>{ ok: boolean; stdout: string; stderr: string; code: number | null }</code></li>
-              <li>Never throw on non-zero exit codes — surface them via <code>ok: false</code> and <code>code</code>.</li>
-              <li>Use Node.js <code>child_process</code> spawn with appropriate shell options per platform.</li>
-              <li>Cap stdout/stderr to a reasonable buffer limit to avoid memory issues.</li>
-              <li>Include a default timeout to prevent hanging checks.</li>
-            </ul>
-          </div>
-
-          <div class="ac-block">
-            <h4>Acceptance Criteria</h4>
-            <ul>
-              <li>New file exports <code>runSystemCheck</code> with the specified signature.</li>
-              <li>Returns structured result without throwing on non-zero exits.</li>
-              <li>Unit tests pass for success, failure, and timeout scenarios.</li>
-              <li>Works correctly on Windows, macOS, and Linux without platform-specific caller logic.</li>
-            </ul>
-          </div>
-        </div>
-      </article>
-
-      <!-- Task 3 -->
-      <article class="task-card">
-        <div class="task-header">
-          <div class="task-number">3</div>
-          <div class="task-title-group">
-            <div class="flex items-center gap-2">
-              <h3 class="task-title">Health Checker — Schema &amp; Store</h3>
-              <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:rgba(16,185,129,0.12);color:var(--success);border:1px solid rgba(16,185,129,0.25);">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Done
-              </span>
-            </div>
-            <span class="task-type feature">Feature</span>
-          </div>
-        </div>
-        <div class="task-body">
-          <p class="task-description">
-            Add persistence tables for health check runs and individual check items. Build store helpers for creating runs, fetching latest results, listing history, and cleaning up old records.
+            Add bug report persistence tables and full CRUD store helpers. This is the data foundation for the entire milestone.
           </p>
 
           <div class="file-section">
@@ -1013,7 +969,7 @@
             <div class="file-list">
               <div class="file-item">
                 <span class="file-badge create">Create</span>
-                <span class="file-path">apps/desktop/data/store/health.ts</span>
+                <span class="file-path">apps/desktop/data/store/bugs.ts</span>
               </div>
             </div>
           </div>
@@ -1029,21 +985,31 @@
                 </tr>
               </thead>
               <tbody>
-                <tr><td rowspan="6">health_check_runs</td><td>id</td><td>TEXT PRIMARY KEY</td></tr>
+                <tr><td rowspan="12">bug_reports</td><td>id</td><td>TEXT PRIMARY KEY</td></tr>
                 <tr><td>project_id</td><td>TEXT NOT NULL</td></tr>
-                <tr><td>started_at</td><td>TEXT NOT NULL</td></tr>
-                <tr><td>finished_at</td><td>TEXT</td></tr>
-                <tr><td>overall_status</td><td>TEXT (pass/warning/fail)</td></tr>
-                <tr><td>summary_json</td><td>TEXT</td></tr>
-                <tr><td rowspan="8">health_check_items</td><td>id</td><td>TEXT PRIMARY KEY</td></tr>
-                <tr><td>run_id</td><td>TEXT NOT NULL (FK)</td></tr>
-                <tr><td>category</td><td>TEXT NOT NULL</td></tr>
-                <tr><td>key</td><td>TEXT NOT NULL</td></tr>
-                <tr><td>label</td><td>TEXT NOT NULL</td></tr>
-                <tr><td>status</td><td>TEXT (pass/warning/fail/skipped)</td></tr>
-                <tr><td>message</td><td>TEXT</td></tr>
-                <tr><td>details_json</td><td>TEXT</td></tr>
-                <tr><td></td><td>suggested_fix</td><td>TEXT</td></tr>
+                <tr><td>title</td><td>TEXT NOT NULL</td></tr>
+                <tr><td>severity</td><td>TEXT (low/medium/high/critical)</td></tr>
+                <tr><td>status</td><td>TEXT (open/in_progress/resolved/closed)</td></tr>
+                <tr><td>expected_result</td><td>TEXT</td></tr>
+                <tr><td>actual_result</td><td>TEXT</td></tr>
+                <tr><td>reproduction_steps</td><td>TEXT</td></tr>
+                <tr><td>notes</td><td>TEXT</td></tr>
+                <tr><td>resolution_notes</td><td>TEXT</td></tr>
+                <tr><td>created_at</td><td>TEXT NOT NULL</td></tr>
+                <tr><td>updated_at</td><td>TEXT NOT NULL</td></tr>
+                <tr><td>resolved_at</td><td>TEXT</td></tr>
+                <tr><td rowspan="5">bug_attachments</td><td>id</td><td>TEXT PRIMARY KEY</td></tr>
+                <tr><td>bug_report_id</td><td>TEXT NOT NULL (FK)</td></tr>
+                <tr><td>kind</td><td>TEXT (screenshot/log/file/env_snapshot)</td></tr>
+                <tr><td>path_or_blob_ref</td><td>TEXT</td></tr>
+                <tr><td>metadata_json</td><td>TEXT</td></tr>
+                <tr><td rowspan="6">bug_context_snapshots</td><td>id</td><td>TEXT PRIMARY KEY</td></tr>
+                <tr><td>bug_report_id</td><td>TEXT NOT NULL (FK)</td></tr>
+                <tr><td>command_history_json</td><td>TEXT</td></tr>
+                <tr><td>run_history_json</td><td>TEXT</td></tr>
+                <tr><td>logs_json</td><td>TEXT</td></tr>
+                <tr><td>environment_snapshot_json</td><td>TEXT</td></tr>
+                <tr><td></td><td>active_container_state_json</td><td>TEXT</td></tr>
               </tbody>
             </table>
           </div>
@@ -1051,10 +1017,14 @@
           <div class="details-block">
             <h4>Store Helpers</h4>
             <ul>
-              <li><code>createHealthCheckRun(projectId, items)</code> — inserts a run and its items in a transaction.</li>
-              <li><code>getLatestHealthCheckForProject(projectId)</code> — returns the most recent run with all items.</li>
-              <li><code>listHealthCheckRuns(projectId, limit?)</code> — paginated history for a project.</li>
-              <li><code>cleanupOldHealthChecks(projectId, keep = 50)</code> — deletes all but the latest N runs and their items.</li>
+              <li><code>createBugReport(data)</code> — insert a new bug report.</li>
+              <li><code>getBugReportById(id)</code> — fetch a single report with attachments and snapshot.</li>
+              <li><code>updateBugReport(id, data)</code> — update fields and bump <code>updated_at</code>.</li>
+              <li><code>deleteBugReport(id)</code> — cascade delete attachments and snapshot.</li>
+              <li><code>listBugReports(filters)</code> — filter by project, status, severity, date range.</li>
+              <li><code>searchBugReports(keyword)</code> — full-text search across title, results, steps, and notes.</li>
+              <li><code>addBugAttachment(...)</code>, <code>removeBugAttachment(id)</code>, <code>getBugAttachments(reportId)</code></li>
+              <li><code>createBugContextSnapshot(...)</code>, <code>getBugContextSnapshot(reportId)</code></li>
             </ul>
           </div>
 
@@ -1062,32 +1032,27 @@
             <h4>Acceptance Criteria</h4>
             <ul>
               <li>Tables are created automatically on DB initialization.</li>
-              <li>Store supports create, get latest, list, and cleanup operations.</li>
-              <li>Cleanup retains the last 50 runs per project and removes orphaned items.</li>
-              <li>All operations are wrapped in transactions where appropriate.</li>
+              <li>Store supports full CRUD and search by project, status, severity, and keyword.</li>
+              <li>Attachments can be added and removed independently.</li>
+              <li>Context snapshot is linked 1:1 to a bug report and retrievable.</li>
+              <li>Delete cascades to attachments and snapshot without orphaned rows.</li>
             </ul>
           </div>
         </div>
       </article>
 
-      <!-- Task 4 -->
+      <!-- Task 2 -->
       <article class="task-card">
         <div class="task-header">
-          <div class="task-number">4</div>
+          <div class="task-number">2</div>
           <div class="task-title-group">
-            <div class="flex items-center gap-2">
-              <h3 class="task-title">Health Checker — System &amp; Runtime Checks</h3>
-              <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:rgba(16,185,129,0.12);color:var(--success);border:1px solid rgba(16,185,129,0.25);">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Done
-              </span>
-            </div>
-            <span class="task-type feature">Feature</span>
+            <h3 class="task-title">Bug Recorder — Context Snapshot Service</h3>
+            <span class="task-type service">Service</span>
           </div>
         </div>
         <div class="task-body">
           <p class="task-description">
-            Implement the actual check logic for system tooling and project runtime state. Each check returns a standardized <code>HealthCheckItem</code> with status, message, details, and suggested fixes.
+            Service to auto-gather project context when a bug is recorded. Given a <code>projectId</code>, assemble a complete snapshot of the developer environment ready for DB insertion.
           </p>
 
           <div class="file-section">
@@ -1097,78 +1062,56 @@
             <div class="file-list">
               <div class="file-item">
                 <span class="file-badge create">Create</span>
-                <span class="file-path">apps/desktop/health/systemChecks.ts</span>
-              </div>
-              <div class="file-item">
-                <span class="file-badge create">Create</span>
-                <span class="file-path">apps/desktop/health/runtimeChecks.ts</span>
+                <span class="file-path">apps/desktop/bugs/contextSnapshot.ts</span>
               </div>
             </div>
           </div>
 
           <div class="details-block">
-            <h4>System Checks</h4>
+            <h4>Context Sources</h4>
             <ul>
-              <li>Node.js installed (version detection)</li>
-              <li>Python installed (version detection)</li>
-              <li>Git installed (version detection)</li>
-              <li>Docker installed (CLI presence)</li>
-              <li>Docker daemon running (daemon ping)</li>
-              <li>Package manager availability: npm, yarn, pnpm, pip, poetry, cargo, go</li>
-            </ul>
-          </div>
-
-          <div class="details-block">
-            <h4>Project / Runtime Checks</h4>
-            <ul>
-              <li><code>.env</code> or required env files present</li>
-              <li>Dependencies installed (lockfile sync verification)</li>
-              <li>Required config files present (e.g., <code>package.json</code>, <code>pyproject.toml</code>, <code>Cargo.toml</code>)</li>
-              <li>Ports available / occupied for configured services</li>
-              <li>Database reachable if configured</li>
-              <li>Docker Compose file present</li>
+              <li>Last 20 run history entries for the project (from existing <code>listRecentRunHistory</code>).</li>
+              <li>Last 20 terminal / command interactions (from renderer if needed, or derived from latest run history).</li>
+              <li>Active container states (reuse existing <code>listDockerContainers</code> logic).</li>
+              <li>Environment snapshot: Node version, OS, DevDesk version, latest health check run if available.</li>
+              <li>Optional: active project notes snippet (most recent note content).</li>
             </ul>
           </div>
 
           <div class="details-block">
             <h4>Result Format</h4>
             <ul>
-              <li>Each check returns <code>HealthCheckItem</code> with: <code>category</code>, <code>key</code>, <code>label</code>, <code>status</code> (<code>pass</code> / <code>warning</code> / <code>fail</code> / <code>skipped</code>), <code>message</code>, <code>details_json</code>, <code>suggested_fix</code>.</li>
-              <li>Use <code>runSystemCheck</code> from Task 2 for all shell-based checks.</li>
-              <li>Platform-aware command selection (Windows vs. Unix).</li>
+              <li>Returns a <code>BugContextSnapshot</code> object matching the DB schema.</li>
+              <li>All JSON fields are serialized arrays/objects, not raw strings.</li>
+              <li>Gracefully handles missing data (e.g., no containers running) with empty arrays instead of failures.</li>
+              <li>Service is pure: given a <code>projectId</code>, it returns data; it does not touch the DB directly.</li>
             </ul>
           </div>
 
           <div class="ac-block">
             <h4>Acceptance Criteria</h4>
             <ul>
-              <li>System checks accurately detect installed tools on Windows, macOS, and Linux.</li>
-              <li>Runtime checks inspect project files, lockfiles, and ports correctly.</li>
-              <li>Returns an array of <code>HealthCheckItem[]</code> with consistent shape.</li>
-              <li>Skipped status is used when a check is not applicable to the project type.</li>
+              <li>Given a project ID, service assembles all context into a <code>BugContextSnapshot</code> object.</li>
+              <li>Snapshot includes run history, container state, and environment data.</li>
+              <li>Handles missing or empty sources gracefully without throwing.</li>
+              <li>Object shape matches the DB schema for direct insertion.</li>
             </ul>
           </div>
         </div>
       </article>
 
-      <!-- Task 5 -->
+      <!-- Task 3 -->
       <article class="task-card">
         <div class="task-header">
-          <div class="task-number">5</div>
+          <div class="task-number">3</div>
           <div class="task-title-group">
-            <div class="flex items-center gap-2">
-              <h3 class="task-title">Health Checker — IPC, Preload &amp; Types</h3>
-              <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:rgba(16,185,129,0.12);color:var(--success);border:1px solid rgba(16,185,129,0.25);">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Done
-              </span>
-            </div>
-            <span class="task-type feature">Feature</span>
+            <h3 class="task-title">Bug Recorder — IPC, Preload &amp; Types</h3>
+            <span class="task-type ipc">IPC</span>
           </div>
         </div>
         <div class="task-body">
           <p class="task-description">
-            Wire health check APIs through the entire Electron stack — main process IPC handlers, preload bridge exposure, and shared TypeScript types for both renderer and main.
+            Wire bug APIs through the entire Electron stack — main process IPC handlers, preload bridge exposure, and shared TypeScript types for both renderer and main.
           </p>
 
           <div class="file-section">
@@ -1198,27 +1141,34 @@
           <div class="details-block">
             <h4>IPC Channels to Add</h4>
             <ul>
-              <li><code>health:run</code> — trigger a full health check for a project; returns run ID.</li>
-              <li><code>health:get-latest</code> — fetch the latest run for a project.</li>
-              <li><code>health:list-runs</code> — list historical runs for a project.</li>
-              <li><code>health:get-run</code> — fetch a specific run by ID with all items.</li>
+              <li><code>bugs:create</code> — create a bug report with optional context snapshot.</li>
+              <li><code>bugs:update</code> — update an existing bug report.</li>
+              <li><code>bugs:delete</code> — delete a bug report and its related data.</li>
+              <li><code>bugs:get</code> — fetch a single bug report by ID.</li>
+              <li><code>bugs:list</code> — list bug reports with filters.</li>
+              <li><code>bugs:search</code> — keyword search across bug reports.</li>
+              <li><code>bugs:attach</code> — add an attachment to a bug report.</li>
+              <li><code>bugs:remove-attachment</code> — remove an attachment by ID.</li>
+              <li><code>bugs:capture-context</code> — trigger context snapshot assembly for a project.</li>
             </ul>
           </div>
 
           <div class="details-block">
             <h4>Type Additions</h4>
             <ul>
-              <li><code>HealthCheckRun</code> — represents a single check run.</li>
-              <li><code>HealthCheckItem</code> — individual check result.</li>
-              <li><code>HealthCheckCategory</code> — union type: <code>'system' | 'project' | 'runtime'</code>.</li>
-              <li>Update <code>window.electronAPI</code> declarations to expose new methods.</li>
+              <li><code>BugReport</code> — full bug report entity.</li>
+              <li><code>BugAttachment</code> — attachment entity with kind and metadata.</li>
+              <li><code>BugContextSnapshot</code> — context snapshot entity.</li>
+              <li><code>BugSeverity</code> — union: <code>'low' | 'medium' | 'high' | 'critical'</code>.</li>
+              <li><code>BugStatus</code> — union: <code>'open' | 'in_progress' | 'resolved' | 'closed'</code>.</li>
+              <li>Update <code>window.electronAPI</code> declarations to expose all new methods.</li>
             </ul>
           </div>
 
           <div class="ac-block">
             <h4>Acceptance Criteria</h4>
             <ul>
-              <li>Renderer can call all health APIs through the preload bridge without direct Node access.</li>
+              <li>Renderer can call all bug APIs through the preload bridge without direct Node access.</li>
               <li>All types are correctly shared between main and renderer processes.</li>
               <li>IPC handlers validate inputs and return structured error responses.</li>
               <li>No type errors across the entire stack after integration.</li>
@@ -1227,19 +1177,31 @@
         </div>
       </article>
 
-      <!-- Task 6 -->
+      <!-- Task 4 -->
       <article class="task-card">
         <div class="task-header">
-          <div class="task-number">6</div>
+          <div class="task-number">4</div>
           <div class="task-title-group">
-            <h3 class="task-title">Health Checker — UI Panel</h3>
-            <span class="task-type feature">Feature</span>
+            <h3 class="task-title">Bug Recorder — Quick Capture Modal</h3>
+            <span class="task-type ui">UI</span>
           </div>
         </div>
         <div class="task-body">
           <p class="task-description">
-            Upgrade <code>ProjectHealthPanel</code> to a full "doctor" view with grouped checks, persistence, history, and actionable fix buttons. Wire handlers into <code>ProjectsSection</code> and <code>App</code>.
+            Global modal for fast bug capture accessible from anywhere in the app. Triggered via keyboard shortcut or Command Palette, it lets developers file a bug without losing flow.
           </p>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/renderer/app/components/BugReportModal.tsx</span>
+              </div>
+            </div>
+          </div>
 
           <div class="file-section">
             <div class="file-section-title modify">
@@ -1248,49 +1210,132 @@
             <div class="file-list">
               <div class="file-item">
                 <span class="file-badge modify">Modify</span>
-                <span class="file-path">apps/renderer/app/components/ProjectHealthPanel.tsx</span>
-              </div>
-              <div class="file-item">
-                <span class="file-badge modify">Modify</span>
-                <span class="file-path">apps/renderer/app/sections/ProjectsSection.tsx</span>
-              </div>
-              <div class="file-item">
-                <span class="file-badge modify">Modify</span>
                 <span class="file-path">apps/renderer/app/App.tsx</span>
               </div>
             </div>
           </div>
 
           <div class="details-block">
-            <h4>UI Requirements</h4>
+            <h4>Modal Fields</h4>
             <ul>
-              <li>Grouped checklist: <strong>System</strong> | <strong>Project</strong> | <strong>Runtime</strong></li>
-              <li>Status icons for pass, warning, fail, and skipped states.</li>
-              <li>Expandable details per check showing message, raw output, and suggested fix.</li>
-              <li><strong>"Run Checkup"</strong> CTA button with loading state.</li>
-              <li>Results persist to DB and reload on panel mount.</li>
-              <li>Project list badge reflects the latest run status (healthy / warning / critical).</li>
-              <li>History dropdown or sidebar to view past runs.</li>
+              <li><strong>Title</strong> — short, required bug summary.</li>
+              <li><strong>Severity</strong> — low / medium / high / critical selector.</li>
+              <li><strong>Expected Result</strong> — what should have happened.</li>
+              <li><strong>Actual Result</strong> — what actually happened.</li>
+              <li><strong>Reproduction Steps</strong> — numbered steps to reproduce.</li>
+              <li><strong>Notes</strong> — free-form additional notes.</li>
             </ul>
           </div>
 
           <div class="details-block">
-            <h4>Handler Wiring</h4>
+            <h4>Context Toggles</h4>
             <ul>
-              <li>Add <code>handleRunHealthCheck(projectId)</code> in <code>App.tsx</code>.</li>
-              <li>Add <code>handleGetHealthHistory(projectId)</code> in <code>App.tsx</code>.</li>
-              <li>Pass handlers down through <code>ProjectsSection</code> to <code>ProjectHealthPanel</code>.</li>
-              <li>Update project list health badge to read from persisted DB state instead of in-memory only.</li>
+              <li>Include last <em>N</em> commands from terminal history.</li>
+              <li>Include last <em>N</em> run history entries.</li>
+              <li>Include latest logs.</li>
+              <li>Include environment snapshot.</li>
+              <li>Include active container state.</li>
+            </ul>
+          </div>
+
+          <div class="details-block">
+            <h4>Triggers &amp; Wiring</h4>
+            <ul>
+              <li>Keyboard shortcut: <code>Ctrl+Shift+B</code> (global within the app).</li>
+              <li>Command Palette integration: "Record Bug" action.</li>
+              <li>Project is pre-selected if modal is triggered from a project view.</li>
+              <li>Modal state (<code>bugDialogOpen</code>) managed in <code>App.tsx</code>.</li>
             </ul>
           </div>
 
           <div class="ac-block">
             <h4>Acceptance Criteria</h4>
             <ul>
-              <li>Panel renders grouped checks with clear status icons and fix buttons.</li>
-              <li>"Run Checkup" triggers a full check, shows progress, and persists results.</li>
-              <li>Results reload from DB on panel mount or project switch.</li>
-              <li>Project list badge reflects the latest run status accurately.</li>
+              <li>Modal opens from Command Palette and <code>Ctrl+Shift+B</code>.</li>
+              <li>Saves bug report with optional context snapshot based on toggles.</li>
+              <li>Project is pre-selected when triggered from project context.</li>
+              <li>Form validates required fields and shows clear error states.</li>
+              <li>Modal closes and resets form after successful save.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- Task 5 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">5</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Bug Recorder — Panel &amp; Detail View</h3>
+            <span class="task-type ui">UI</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Per-project bug tracking UI inside the existing Bugs tab. Provides a searchable list, grouped by status, and a rich detail view with attachments and read-only context snapshot.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/renderer/app/components/BugRecorderPanel.tsx</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/renderer/app/components/BugReportDetail.tsx</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/sections/ProjectsSection.tsx</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <h4>BugRecorderPanel</h4>
+            <ul>
+              <li>Searchable / filterable list by project, status, severity, keyword, and date.</li>
+              <li>Group by status: <strong>Open</strong>, <strong>In Progress</strong>, <strong>Resolved</strong>, <strong>Closed</strong>.</li>
+              <li>Actions per row: view, edit status, mark resolved, archive.</li>
+              <li>Quick filters as toggle chips (severity badges, status pills).</li>
+              <li>Empty state with CTA to open the Quick Capture Modal.</li>
+            </ul>
+          </div>
+
+          <div class="details-block">
+            <h4>BugReportDetail</h4>
+            <ul>
+              <li>Full report view: title, severity badge, status, all text fields.</li>
+              <li>Attachments section: image preview for screenshots, download button for logs/files.</li>
+              <li>Read-only context snapshot viewer with collapsible sections:</li>
+              <li style="margin-left: 18px;">Command history (last N commands)</li>
+              <li style="margin-left: 18px;">Run history (last N runs)</li>
+              <li style="margin-left: 18px;">Container state (active containers at time of capture)</li>
+              <li style="margin-left: 18px;">Environment (Node, OS, DevDesk version, health check)</li>
+              <li>Inline status change dropdown (e.g., Open → In Progress → Resolved).</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Bugs tab shows searchable list with clear grouping by status.</li>
+              <li>Detail view shows full report, attachments, and context snapshot.</li>
+              <li>Status changes persist to the database and reflect immediately in the list.</li>
+              <li>Screenshots render as image previews; logs/files offer download.</li>
+              <li>Context snapshot sections are collapsible and read-only.</li>
               <li>No visual regressions in the overall project detail layout.</li>
             </ul>
           </div>
@@ -1306,34 +1351,29 @@
         <div class="timeline-track">
           <div class="timeline-line"></div>
 
-          <div class="timeline-node completed">
+          <div class="timeline-node active">
             <div class="timeline-dot">1</div>
-            <div class="timeline-label">Tabbed Layout</div>
-          </div>
-
-          <div class="timeline-node completed">
-            <div class="timeline-dot">2</div>
-            <div class="timeline-label">Runner Utility</div>
-          </div>
-
-          <div class="timeline-node completed">
-            <div class="timeline-dot">3</div>
             <div class="timeline-label">Schema &amp; Store</div>
           </div>
 
-          <div class="timeline-node completed">
-            <div class="timeline-dot">4</div>
-            <div class="timeline-label">Check Logic</div>
+          <div class="timeline-node active">
+            <div class="timeline-dot">2</div>
+            <div class="timeline-label">Context Service</div>
           </div>
 
-          <div class="timeline-node completed">
-            <div class="timeline-dot">5</div>
+          <div class="timeline-node active">
+            <div class="timeline-dot">3</div>
             <div class="timeline-label">IPC &amp; Types</div>
           </div>
 
           <div class="timeline-node">
-            <div class="timeline-dot">6</div>
-            <div class="timeline-label">UI Panel</div>
+            <div class="timeline-dot">4</div>
+            <div class="timeline-label">Quick Capture</div>
+          </div>
+
+          <div class="timeline-node">
+            <div class="timeline-dot">5</div>
+            <div class="timeline-label">Panel &amp; Detail</div>
           </div>
         </div>
 
@@ -1341,19 +1381,15 @@
           <div class="arrow-pair" style="visibility:hidden;"><div class="arrow-line"></div></div>
           <div class="arrow-pair">
             <div class="arrow-line"></div>
-            <span>runner.ts used by</span>
-          </div>
-          <div class="arrow-pair">
-            <div class="arrow-line"></div>
             <span>schema required by</span>
           </div>
           <div class="arrow-pair">
             <div class="arrow-line"></div>
-            <span>checks use runner</span>
+            <span>service consumed by</span>
           </div>
           <div class="arrow-pair">
             <div class="arrow-line"></div>
-            <span>IPC calls checks + store</span>
+            <span>IPC bridges all</span>
           </div>
           <div class="arrow-pair">
             <div class="arrow-line"></div>
@@ -1362,7 +1398,7 @@
         </div>
 
         <div class="dep-note">
-          <strong>Dependency Note:</strong> Tasks 1 and 2 are independent and can be worked in parallel. Tasks 3–6 form a linear dependency chain: schema must exist before checks, checks before IPC, and IPC before the UI panel can function. Task 1 (Tabs) should be completed before Task 6 (UI Panel) to avoid layout conflicts.
+          <strong>Dependency Note:</strong> Tasks 1 and 2 can be worked in parallel once the DB schema is sketched. Task 3 depends on both 1 and 2. Tasks 4 and 5 depend on Task 3 (IPC must be wired) and can be developed in parallel. Task 5 (Panel) should be integrated into the existing Bugs tab established in Milestone 1.
         </div>
       </div>
     </div>
@@ -1374,40 +1410,66 @@
 
         <div class="risk-card">
           <div class="risk-header">
-            <span class="risk-severity medium">Medium</span>
-            <span class="risk-title">Platform-Specific Shell Behavior</span>
+            <span class="risk-severity high">High</span>
+            <span class="risk-title">Attachment Storage Strategy</span>
           </div>
           <p class="risk-desc">
-            System checks rely on shell commands that differ across Windows (PowerShell/CMD), macOS, and Linux. Command availability and output formats vary.
+            Screenshots and logs may accumulate quickly. Storing large blobs in SQLite can bloat the DB and slow backups. Storing on disk requires path management and cleanup logic.
           </p>
           <div class="risk-mitigation">
-            <strong>Mitigation:</strong> Centralize platform detection in <code>runner.ts</code>. Use simple, universal commands where possible (e.g., <code>node --version</code>). Test on all target platforms before marking complete.
+            <strong>Mitigation:</strong> Store attachments on disk under <code>userData/attachments/</code> with UUID filenames; keep only metadata and relative paths in SQLite. Implement a cleanup routine for orphaned files.
           </div>
         </div>
 
         <div class="risk-card">
           <div class="risk-header">
             <span class="risk-severity medium">Medium</span>
-            <span class="risk-title">Tab Layout Regression</span>
+            <span class="risk-title">Context Snapshot Size</span>
           </div>
           <p class="risk-desc">
-            Wrapping existing panels in <code>TabsContent</code> may alter scroll behavior, padding, or nested layout contexts in subtle ways.
+            Auto-gathering run history, logs, and container state can produce large JSON payloads. Serializing and storing this for every bug report may impact DB performance.
           </p>
           <div class="risk-mitigation">
-            <strong>Mitigation:</strong> Keep panel components untouched. Use CSS containment and test scroll areas inside each tab. Verify on smaller viewports.
+            <strong>Mitigation:</strong> Cap history entries (last 20). Compress or truncate verbose logs. Store snapshot in a dedicated table with lazy loading in the UI.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">Global Modal State &amp; Shortcuts</span>
+          </div>
+          <p class="risk-desc">
+            A global modal triggered by <code>Ctrl+Shift+B</code> and the Command Palette must coexist cleanly with other modals and shortcuts without focus traps or double triggers.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Manage modal open state centrally in <code>App.tsx</code>. Use a single keyboard listener and Command Palette action that both toggle the same state. Ensure only one modal is open at a time.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">Renderer-to-Main Context Gaps</span>
+          </div>
+          <p class="risk-desc">
+            Some context data (e.g., latest terminal commands) lives in the renderer. The snapshot service runs in the main process and may not have direct access to renderer state.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Pass renderer state explicitly via IPC when capturing context, or persist recent terminal history to SQLite so the main process can read it. Prefer the SQLite approach for consistency.
           </div>
         </div>
 
         <div class="risk-card">
           <div class="risk-header">
             <span class="risk-severity low">Low</span>
-            <span class="risk-title">SQLite WAL Lock Contention</span>
+            <span class="risk-title">Bugs Tab Layout Regression</span>
           </div>
           <p class="risk-desc">
-            Health checks may write frequently during rapid re-runs. With WAL mode, reads are non-blocking, but writes are serialized from the main process.
+            Replacing the placeholder Bugs tab with full panels may affect scroll behavior, padding, or nested layout contexts inside the tabbed project detail pane.
           </p>
           <div class="risk-mitigation">
-            <strong>Mitigation:</strong> Batch item inserts in a single transaction per run. Implement the <code>cleanupOldHealthChecks</code> routine to prevent unbounded growth.
+            <strong>Mitigation:</strong> Keep panel components self-contained. Use CSS containment and test scroll areas inside the tab. Verify on smaller viewports.
           </div>
         </div>
 
@@ -1420,33 +1482,7 @@
             Adding new types to both renderer and main without a shared package can lead to desync between <code>types.ts</code> and <code>electron.d.ts</code>.
           </p>
           <div class="risk-mitigation">
-            <strong>Mitigation:</strong> Define health types in <code>apps/renderer/app/types.ts</code> first, then mirror exactly in <code>electron.d.ts</code>. Run <code>npm run typecheck</code> after every IPC change.
-          </div>
-        </div>
-
-        <div class="risk-card">
-          <div class="risk-header">
-            <span class="risk-severity high">High</span>
-            <span class="risk-title">Scope Creep on Check Coverage</span>
-          </div>
-          <p class="risk-desc">
-            The list of system and runtime checks is extensive. It's tempting to keep adding more checks (e.g., cloud CLI tools, language-specific linters).
-          </p>
-          <div class="risk-mitigation">
-            <strong>Mitigation:</strong> Stick to the defined checklist in Task 4. Mark additional checks as post-Milestone backlog. Use the <code>skipped</code> status liberally for edge cases.
-          </div>
-        </div>
-
-        <div class="risk-card">
-          <div class="risk-header">
-            <span class="risk-severity low">Low</span>
-            <span class="risk-title">Project List Badge Staleness</span>
-          </div>
-          <p class="risk-desc">
-            The project list shows a health badge that may become stale if checks are run in the background or by another workflow.
-          </p>
-          <div class="risk-mitigation">
-            <strong>Mitigation:</strong> Derive the badge from the persisted latest run in the DB, not just in-memory state. Invalidate and re-fetch on project selection.
+            <strong>Mitigation:</strong> Define bug types in <code>apps/renderer/app/types.ts</code> first, then mirror exactly in <code>electron.d.ts</code>. Run <code>npm run typecheck</code> after every IPC change.
           </div>
         </div>
 
@@ -1457,7 +1493,7 @@
 
   <footer class="footer">
     <div class="footer-brand">DevDesk</div>
-    <div>Local-first developer workspace &mdash; Milestone 1 Implementation Plan</div>
+    <div>Local-first developer workspace &mdash; Milestone 2 Implementation Plan</div>
     <div style="margin-top:4px; opacity:0.7;">Electron + Vite + TypeScript + React + SQLite</div>
   </footer>
 

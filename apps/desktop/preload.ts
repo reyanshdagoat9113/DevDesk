@@ -186,6 +186,73 @@ interface ElectronAPI {
   onTerminalData: (handler: (payload: { terminalId: string; data: string }) => void) => () => void
   onTerminalExit: (handler: (payload: { terminalId: string; code?: number }) => void) => () => void
   onTerminalError: (handler: (payload: { terminalId: string; error: string }) => void) => () => void
+
+  // Health Check
+  runHealthCheck: (projectId: string) => Promise<{
+    id: string
+    projectId: string
+    startedAt: string
+    finishedAt?: string
+    overallStatus: 'pass' | 'warning' | 'fail'
+    summaryJson: string
+    items: {
+      id: string
+      runId: string
+      category: 'system' | 'project' | 'runtime'
+      key: string
+      label: string
+      status: 'pass' | 'warning' | 'fail' | 'skipped'
+      message: string
+      detailsJson: string
+      suggestedFix: string
+    }[]
+  }>
+  getLatestHealthCheck: (projectId: string) => Promise<{
+    id: string
+    projectId: string
+    startedAt: string
+    finishedAt?: string
+    overallStatus: 'pass' | 'warning' | 'fail'
+    summaryJson: string
+    items: {
+      id: string
+      runId: string
+      category: 'system' | 'project' | 'runtime'
+      key: string
+      label: string
+      status: 'pass' | 'warning' | 'fail' | 'skipped'
+      message: string
+      detailsJson: string
+      suggestedFix: string
+    }[]
+  } | null>
+  listHealthCheckRuns: (projectId: string, limit?: number) => Promise<{
+    id: string
+    projectId: string
+    startedAt: string
+    finishedAt?: string
+    overallStatus: 'pass' | 'warning' | 'fail'
+    summaryJson: string
+  }[]>
+  getHealthCheckRun: (runId: string) => Promise<{
+    id: string
+    projectId: string
+    startedAt: string
+    finishedAt?: string
+    overallStatus: 'pass' | 'warning' | 'fail'
+    summaryJson: string
+    items: {
+      id: string
+      runId: string
+      category: 'system' | 'project' | 'runtime'
+      key: string
+      label: string
+      status: 'pass' | 'warning' | 'fail' | 'skipped'
+      message: string
+      detailsJson: string
+      suggestedFix: string
+    }[]
+  } | null>
 }
 
 // Expose a safe API to the renderer process
@@ -452,6 +519,12 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on('terminal:error', listener)
     return () => ipcRenderer.removeListener('terminal:error', listener)
   },
+
+  // Health Check
+  runHealthCheck: (projectId: string) => ipcRenderer.invoke('health:run', projectId),
+  getLatestHealthCheck: (projectId: string) => ipcRenderer.invoke('health:get-latest', projectId),
+  listHealthCheckRuns: (projectId: string, limit?: number) => ipcRenderer.invoke('health:list-runs', projectId, limit),
+  getHealthCheckRun: (runId: string) => ipcRenderer.invoke('health:get-run', runId),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

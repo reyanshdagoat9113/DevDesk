@@ -387,3 +387,33 @@ export interface TerminalSessionState {
   label: string
   projectId?: string
 }
+
+// ── Health Check Types ──────────────────────────────────────────────
+
+export type HealthCheckItemStatus = 'pass' | 'warning' | 'fail' | 'skipped'
+export type HealthCheckRunStatus = 'pass' | 'warning' | 'fail'
+export type HealthCheckCategory = 'system' | 'project' | 'runtime'
+
+export interface HealthCheckItem {
+  id: string
+  runId: string
+  category: HealthCheckCategory
+  key: string
+  label: string
+  status: HealthCheckItemStatus
+  message: string
+  detailsJson: string
+  suggestedFix: string
+}
+
+export interface HealthCheckRun {
+  id: string
+  projectId: string
+  startedAt: string
+  finishedAt?: string
+  overallStatus: HealthCheckRunStatus
+  summaryJson: string
+  items: HealthCheckItem[]
+}
+
+export type HealthCheckRunSummary = Omit<HealthCheckRun, 'items'>

@@ -4,11 +4,19 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
+  cleanupOldHealthChecks,
   clearRunHistoryInStore,
   createChain,
+  createCommand,
+  createHealthCheckRun,
+  createProject,
+  createRunHistoryEntry,
   createTrigger,
-  getCommandById,
+  finalizeRunHistoryEntry,
   getChainById,
+  getCommandById,
+  getHealthCheckRunById,
+  getLatestHealthCheckForProject,
   getPreferencesFromStore,
   getProjectById,
   getProjectNotesById,
@@ -16,14 +24,11 @@ import {
   getTriggerById,
   listChains,
   listCommands,
+  listHealthCheckRuns,
   listProjects,
   listRecentRunHistory,
   listRunHistory,
   listTriggers,
-  createCommand,
-  createProject,
-  createRunHistoryEntry,
-  finalizeRunHistoryEntry,
   removeCommand,
   removeChain,
   removeProject,
@@ -31,12 +36,12 @@ import {
   removeTrigger,
   renameProject,
   replaceChain,
-  replaceTrigger,
   replaceCommand,
+  replaceTrigger,
+  toggleCommandPin,
+  toggleProjectPin,
   updatePreferencesInStore,
   updateProjectLinkedContainers,
-  toggleProjectPin,
-  toggleCommandPin,
   upsertProjectNotes,
 } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
@@ -60,6 +65,8 @@ import { variableResolver } from '../commands/variableResolver'
 import { detectVariables } from '../commands/variableDetector'
 import { terminalManager } from '../terminal/terminalManager'
 import type { TerminalCreateOptions } from '../data/model'
+import { runSystemChecks } from '../health/systemChecks'
+import { runRuntimeChecks } from '../health/runtimeChecks'
 
 type RunningCommand = {
   process: ChildProcessWithoutNullStreams
@@ -2698,5 +2705,65 @@ export function registerIpcHandlers() {
       sanitized.reminders = updates.reminders
     }
     await upsertProjectNotes(projectId, sanitized)
+  })
+
+  // ── Health Check ──────────────────────────────────────────────────
+
+  ipcMain.handle('health:run', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const projectPath = normalizeProjectPath(project.path)
+    if (!fs.existsSync(projectPath)) {
+      throw new Error('Project path does not exist.')
+    }
+
+    try {
+      const [systemItems, runtimeItems] = await Promise.all([
+        runSystemChecks(),
+        runRuntimeChecks(projectPath),
+      ])
+
+      const combinedItems = [...systemItems, ...runtimeItems]
+
+      const run = await createHealthCheckRun(projectId, combinedItems)
+      await cleanupOldHealthChecks(projectId)
+      return run
+    } catch (error) {
+      throw new Error(
+        `Health check failed: ${error instanceof Error ? error.message : 'Unexpected error.'}`
+      )
+    }
+  })
+
+  ipcMain.handle('health:get-latest', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    return getLatestHealthCheckForProject(projectId)
+  })
+
+  ipcMain.handle('health:list-runs', async (_event, projectId: string, limit?: number) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const cap = Number.isFinite(limit) ? Math.max(1, Math.min(100, limit as number)) : 20
+    return listHealthCheckRuns(projectId, cap)
+  })
+
+  ipcMain.handle('health:get-run', async (_event, runId: string) => {
+    if (!runId?.trim()) {
+      throw new Error('Run id is required.')
+    }
+
+    return getHealthCheckRunById(runId)
   })
 }

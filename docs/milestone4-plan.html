@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevDesk — Milestone 4 Implementation Plan</title>
+  <style>
+    :root {
+      --bg-primary: #0b0f14;
+      --bg-secondary: #111820;
+      --bg-card: #161e28;
+      --bg-card-hover: #1c2632;
+      --border: #1e2a38;
+      --border-subtle: #16202c;
+      --text-primary: #e8eef4;
+      --text-secondary: #8b9db0;
+      --text-muted: #5a6e82;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.15);
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.08);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.08);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.08);
+      --info: #06b6d4;
+      --info-bg: rgba(6, 182, 212, 0.08);
+      --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2a3a4c; }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 32px 40px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--success), var(--info));
+    }
+
+    .header-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 24px;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .logo {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 8px 32px rgba(59, 130, 246, 0.25);
+      flex-shrink: 0;
+    }
+
+    .header-content h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header-content .subtitle {
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-weight: 400;
+      max-width: 640px;
+    }
+
+    .header-meta {
+      display: flex;
+      gap: 24px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .meta-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+    }
+
+    .meta-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px;
+    }
+
+    /* Section titles */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      margin-left: 8px;
+    }
+
+    /* Goal box */
+    .goal-box {
+      background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .goal-box::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 16px;
+      bottom: 16px;
+      width: 3px;
+      background: linear-gradient(180deg, var(--accent), var(--info));
+      border-radius: 0 3px 3px 0;
+    }
+
+    .goal-box h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text-primary);
+    }
+
+    .goal-box p {
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    /* Task cards */
+    .task-grid {
+      display: grid;
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    .task-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .task-card:hover {
+      border-color: #2a3a4c;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .task-header {
+      padding: 24px 28px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .task-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      flex-shrink: 0;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .task-title-group {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .task-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--text-primary);
+    }
+
+    .task-type {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+
+    .task-type.feature {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .task-body {
+      padding: 24px 28px;
+    }
+
+    .task-description {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+
+    /* File lists */
+    .file-section {
+      margin-bottom: 20px;
+    }
+
+    .file-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .file-section-title.create { color: var(--success); }
+    .file-section-title.modify { color: var(--warning); }
+
+    .file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-secondary);
+      transition: background 0.15s;
+    }
+
+    .file-item:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .file-badge {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .file-badge.create {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .file-badge.modify {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .file-path {
+      color: var(--text-secondary);
+      word-break: break-all;
+    }
+
+    /* Details block */
+    .details-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .details-block h4 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .details-block ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .details-block li {
+      position: relative;
+      padding-left: 18px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .details-block li::before {
+      content: '›';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .details-block code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-card);
+      color: var(--info);
+      border: 1px solid var(--border);
+    }
+
+    .sub-task-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 10px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: var(--accent-glow);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    /* Acceptance criteria */
+    .ac-block {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 20px;
+    }
+
+    .ac-block h4 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--success);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ac-block ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ac-block li {
+      position: relative;
+      padding-left: 24px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .ac-block li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      background: var(--success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .ac-block li::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 9px;
+      width: 5px;
+      height: 3px;
+      border-left: 2px solid var(--success);
+      border-bottom: 2px solid var(--success);
+      transform: rotate(-45deg);
+    }
+
+    /* Timeline */
+    .timeline-section {
+      margin-bottom: 40px;
+    }
+
+    .timeline {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      overflow-x: auto;
+    }
+
+    .timeline-track {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      min-width: 800px;
+      position: relative;
+    }
+
+    .timeline-line {
+      position: absolute;
+      top: 20px;
+      left: 40px;
+      right: 40px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--success), var(--success), var(--success), var(--accent));
+      z-index: 0;
+    }
+
+    .timeline-node {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+      z-index: 1;
+      min-width: 120px;
+    }
+
+    .timeline-dot {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 700;
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+
+    .timeline-node.active .timeline-dot {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      color: var(--accent);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .timeline-node.completed .timeline-dot {
+      border-color: var(--success);
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .timeline-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text-muted);
+      max-width: 100px;
+      line-height: 1.4;
+    }
+
+    .timeline-node.active .timeline-label {
+      color: var(--accent);
+    }
+
+    .timeline-node.completed .timeline-label {
+      color: var(--success);
+    }
+
+    .timeline-arrows {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 16px;
+      min-width: 800px;
+    }
+
+    .arrow-pair {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .arrow-line {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      position: relative;
+    }
+
+    .arrow-line::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: -3px;
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--border);
+    }
+
+    /* Dependency note */
+    .dep-note {
+      background: var(--info-bg);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--info);
+    }
+
+    .dep-note strong {
+      font-weight: 700;
+    }
+
+    /* Risk section */
+    .risk-section {
+      margin-bottom: 40px;
+    }
+
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .risk-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .risk-card:hover {
+      border-color: #2a3a4c;
+    }
+
+    .risk-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .risk-severity {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+
+    .risk-severity.low {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .risk-severity.medium {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .risk-severity.high {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .risk-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .risk-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .risk-mitigation {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .risk-mitigation strong {
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 32px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .footer-brand {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    /* Print styles */
+    @media print {
+      body {
+        background: white;
+        color: #111;
+      }
+      .header {
+        background: #f8f9fa;
+        border-bottom: 1px solid #ddd;
+      }
+      .header::before { display: none; }
+      .header-content h1 {
+        background: none;
+        -webkit-text-fill-color: #111;
+        color: #111;
+      }
+      .task-card, .goal-box, .timeline, .risk-card, .details-block {
+        background: #fff;
+        border: 1px solid #ddd;
+        break-inside: avoid;
+      }
+      .details-block, .file-item {
+        background: #f8f9fa;
+      }
+      .task-card:hover, .risk-card:hover {
+        box-shadow: none;
+      }
+      .timeline-dot {
+        background: #fff;
+        border: 2px solid #ccc;
+      }
+      .timeline-line {
+        background: #ccc;
+      }
+      .meta-badge {
+        background: #f0f0f0;
+        border: 1px solid #ddd;
+      }
+      .section-title::after {
+        background: #ddd;
+      }
+      .ac-block li::before {
+        background: #e8f5e9;
+        border-color: #a5d6a7;
+      }
+      .ac-block li::after {
+        border-color: #2e7d32;
+      }
+      ::-webkit-scrollbar { display: none; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header-grid {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+      .logo {
+        margin: 0 auto;
+      }
+      .header-meta {
+        justify-content: center;
+      }
+      .container {
+        padding: 20px;
+      }
+      .task-header {
+        flex-direction: column;
+        gap: 12px;
+      }
+      .timeline {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-grid">
+      <div class="logo">D</div>
+      <div class="header-content">
+        <h1>Milestone 4 — LLM Context Bundler</h1>
+        <p class="subtitle">Enable users to export rich project context for LLM workflows by gathering files, history, health, and bugs into a structured Markdown context export.</p>
+        <div class="header-meta">
+          <span class="meta-badge"><span class="dot"></span> 1 Task (3 Sub-Tasks)</span>
+          <span class="meta-badge">Electron + Vite + TS</span>
+          <span class="meta-badge">SQLite / better-sqlite3</span>
+          <span class="meta-badge">React + shadcn/ui</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Goal -->
+    <div class="goal-box">
+      <h2>Milestone Goal</h2>
+      <p>Build an LLM Context Bundler that gathers project files, run history, health checks, bug reports, and notes into a single structured Markdown document. Provide a polished exporter UI with section selection, live token estimation, and privacy guardrails so developers can safely paste rich context into any LLM chat or agent workflow.</p>
+    </div>
+
+    <!-- Tasks -->
+    <div class="section-title">Implementation Tasks</div>
+
+    <div class="task-grid">
+
+      <!-- Task 1 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">1</div>
+          <div class="task-title-group">
+            <h3 class="task-title">LLM Context Bundler</h3>
+            <span class="task-type feature">Feature</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Gather project files, history, health, and bugs into a structured Markdown context export. Provide backend bundling logic and a renderer UI for section selection, preview, copy, and save — with token estimation and privacy guardrails.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/desktop/llm/bundler.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/renderer/app/components/LlmContextExporter.tsx</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/ipc/registerIpc.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/preload.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/types.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/types/electron.d.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/App.tsx</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <div class="sub-task-label">Sub-Task A — Backend Bundler</div>
+            <h4>Implementation Details</h4>
+            <ul>
+              <li>Export <code>bundleLlmContext(projectId, options?)</code> from <code>bundler.ts</code>.</li>
+              <li>Accept <code>projectId</code> and optional <code>bugReportId</code> to focus context around a specific bug.</li>
+              <li>Gather project metadata: name, path, type, and detected tools.</li>
+              <li>Gather selected project files:
+                <ul style="margin-top:8px;gap:6px;">
+                  <li style="padding-left:14px;">Respect <code>.gitignore</code> and exclude <code>node_modules</code>, <code>.env</code>, and secret patterns (e.g., <code>*secret*</code>, <code>*key*</code>).</li>
+                  <li style="padding-left:14px;">Reuse existing engine ignore logic where possible.</li>
+                  <li style="padding-left:14px;">Cap total included file size or token count; default max token limit is <strong>100k</strong> (configurable via options).</li>
+                </ul>
+              </li>
+              <li>Gather recent run history entries (last 20) with command, status, and timestamps.</li>
+              <li>Gather health check summary: latest run aggregated status + key items.</li>
+              <li>Gather bug reports for the project: open bugs, last 10.</li>
+              <li>Gather project notes: setup steps, todos, and reminders.</li>
+              <li>Include engine stats if available: file count, top languages.</li>
+              <li>Output format: Markdown with fenced code blocks for files and structured sections for history, health, bugs, and notes.</li>
+              <li>Include a rough token estimate using <strong>4 chars ≈ 1 token</strong>.</li>
+              <li>Return type: <code>LlmBundleResult</code> containing <code>markdown</code>, <code>tokenEstimate</code>, <code>includedFiles</code>, <code>excludedFiles</code>, and <code>warnings</code>.</li>
+            </ul>
+          </div>
+
+          <div class="details-block">
+            <div class="sub-task-label">Sub-Task B — Renderer UI</div>
+            <h4>Implementation Details</h4>
+            <ul>
+              <li>Create <code>LlmContextExporter</code> as a panel or dialog accessible from the project detail view (e.g., inside the Engine tab or via a project menu action in <code>App.tsx</code>).</li>
+              <li>Show only when a project is selected.</li>
+              <li>Allow users to toggle which sections to include:
+                <code>Files</code>, <code>Run History</code>, <code>Health</code>, <code>Bugs</code>, <code>Notes</code>, <code>Engine Stats</code>.</li>
+              <li>Display a live preview of the generated bundle in a scrollable, syntax-highlighted-like preview pane.</li>
+              <li>Show a live token estimate that updates as sections are toggled.</li>
+              <li>Provide <strong>Copy to Clipboard</strong> and <strong>Save as .md file</strong> actions.</li>
+              <li>Surface privacy warnings when <code>.env</code> or secret-pattern paths are detected and excluded.</li>
+              <li>Respect the max token cap: if the bundle exceeds the limit, show a clear warning and indicate which files were truncated or omitted.</li>
+            </ul>
+          </div>
+
+          <div class="details-block">
+            <div class="sub-task-label">Sub-Task C — Types &amp; IPC Wiring</div>
+            <h4>Implementation Details</h4>
+            <ul>
+              <li>Add <code>LlmBundleOptions</code> to renderer types:
+                <code>sections</code>, <code>maxTokens</code>, <code>bugReportId?</code>, <code>includePatterns?</code>, <code>excludePatterns?</code>.</li>
+              <li>Add <code>LlmBundleResult</code> to renderer types:
+                <code>markdown</code>, <code>tokenEstimate</code>, <code>includedFiles</code>, <code>excludedFiles</code>, <code>warnings</code>.</li>
+              <li>Update <code>apps/renderer/app/types/electron.d.ts</code> to expose the new types on the window API.</li>
+              <li>Register <code>llm:bundle-context</code> IPC handler in <code>registerIpc.ts</code> that calls the bundler and returns a <code>LlmBundleResult</code>.</li>
+              <li>Expose the method in <code>preload.ts</code> under <code>electronAPI.llm.bundleContext(projectId, options)</code>.</li>
+              <li>Wire the exporter trigger into <code>App.tsx</code> so it is reachable from the active project context.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li><code>llm:bundle-context</code> IPC gathers project context into a single Markdown string.</li>
+              <li>File gathering respects <code>.gitignore</code> and excludes secrets, <code>node_modules</code>, and <code>.env</code> files.</li>
+              <li>Renderer UI allows section selection, live preview, copy to clipboard, and save as <code>.md</code>.</li>
+              <li>Token estimate is shown live and respects a configurable max cap (default 100k).</li>
+              <li>Privacy warnings are displayed when excluded sensitive paths are detected.</li>
+              <li>Only visible when a project is selected; works on Windows, macOS, and Linux.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- Timeline / Dependencies -->
+    <div class="section-title">Dependency Flow</div>
+    <div class="timeline-section">
+      <div class="timeline">
+        <div class="timeline-track">
+          <div class="timeline-line"></div>
+          <div class="timeline-node completed">
+            <div class="timeline-dot">M1</div>
+            <div class="timeline-label">Health Checker<br>Tabbed Layout</div>
+          </div>
+          <div class="timeline-node completed">
+            <div class="timeline-dot">M2</div>
+            <div class="timeline-label">Bug Recorder<br>SQLite Store</div>
+          </div>
+          <div class="timeline-node completed">
+            <div class="timeline-dot">M3</div>
+            <div class="timeline-label">Export / Import<br>Tray Integration</div>
+          </div>
+          <div class="timeline-node active">
+            <div class="timeline-dot">M4</div>
+            <div class="timeline-label">LLM Context<br>Bundler</div>
+          </div>
+        </div>
+        <div class="timeline-arrows">
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>Depends on</span>
+          </div>
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>Depends on</span>
+          </div>
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>Depends on</span>
+          </div>
+        </div>
+        <div class="dep-note">
+          <strong>Dependency Note:</strong> Milestone 4 requires Health Checker data (M1), Bug Recorder entries (M2), and the Export/Import + Tray infrastructure (M3) to be in place before the bundler can collect and export a complete project context.
+        </div>
+      </div>
+    </div>
+
+    <!-- Risks -->
+    <div class="section-title">Risk Summary</div>
+    <div class="risk-section">
+      <div class="risk-grid">
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity high">High</span>
+            <span class="risk-title">Privacy Leak from .env / Secrets</span>
+          </div>
+          <div class="risk-desc">
+            Accidentally bundling <code>.env</code>, secret keys, or credential files could expose sensitive data to external LLM services.
+          </div>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Hard-exclude <code>.env</code> and common secret patterns; show clear privacy warnings in the UI; never bundle files matched by <code>*secret*</code> or <code>*key*</code> unless explicitly overridden.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity high">High</span>
+            <span class="risk-title">Token Count Explosion</span>
+          </div>
+          <div class="risk-desc">
+            Large projects with thousands of files or long run histories can generate massive Markdown bundles, exceeding LLM context windows and causing clipboard or renderer performance issues.
+          </div>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Enforce a configurable max token cap (default 100k); prioritize smaller, relevant files; truncate history to the last 20 entries; surface real-time token counts and truncation warnings in the UI.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">File Gathering Performance</span>
+          </div>
+          <div class="risk-desc">
+            Recursive file traversal on large repositories can block the main process or cause long IPC delays, degrading UX during bundle generation.
+          </div>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Reuse existing engine ignore/filter logic; cap file reads by size and count; consider yielding control during traversal or offloading to a short-lived worker if latency becomes noticeable.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">Cross-Platform Path Handling</span>
+          </div>
+          <div class="risk-desc">
+            Path separators and <code>.gitignore</code> pattern matching may behave differently on Windows vs. macOS/Linux, causing inconsistent file inclusions or exclusions.
+          </div>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Normalize paths with <code>path.posix</code> or <code>path.normalize</code> before matching; test ignore logic on Windows and Unix-like systems; reuse battle-tested ignore utilities if available.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity low">Low</span>
+            <span class="risk-title">Renderer Preview Performance</span>
+          </div>
+          <div class="risk-desc">
+            Rendering a large Markdown preview with thousands of lines in a React panel may cause layout thrashing or sluggish scrolling.
+          </div>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Use a virtualized scroll container or a simple monospace textarea for preview; debounce preview updates while toggling sections; cap preview length independently from the final export.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-brand">DevDesk</div>
+    <div>Local-first developer desktop — Milestone 4 Implementation Plan</div>
+  </footer>
+
+</body>
+</html>

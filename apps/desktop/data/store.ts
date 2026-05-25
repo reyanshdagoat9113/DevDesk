@@ -44,6 +44,7 @@ export {
 export {
   cleanupOldHealthChecks,
   createHealthCheckRun,
+  getHealthCheckRunById,
   getLatestHealthCheckForProject,
   listHealthCheckRuns,
 } from './store/health'

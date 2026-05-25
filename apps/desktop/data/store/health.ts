@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { HealthCheckItem, HealthCheckItemStatus, HealthCheckRun, HealthCheckRunStatus } from '../model'
+import type { HealthCheckCategory, HealthCheckItem, HealthCheckItemStatus, HealthCheckRun, HealthCheckRunStatus } from '../model'
 import { ensureDbInitialized, getDbOrThrow, queueWrite } from './core'
 
 type HealthCheckRunRow = {
@@ -28,7 +28,7 @@ function toItem(row: HealthCheckItemRow): HealthCheckItem {
   return {
     id: row.id,
     runId: row.run_id,
-    category: row.category,
+    category: row.category as HealthCheckCategory,
     key: row.key,
     label: row.label,
     status: row.status as HealthCheckItemStatus,
@@ -92,6 +92,7 @@ export async function createHealthCheckRun(
 
     const runId = randomUUID()
     const startedAt = new Date().toISOString()
+    const finishedAt = startedAt
     const overallStatus = computeOverallStatus(items)
     const summaryJson = buildSummaryJson(items)
 
@@ -112,7 +113,7 @@ export async function createHealthCheckRun(
     }))
 
     const transaction = db.transaction(() => {
-      insertRun.run(runId, projectId, startedAt, null, overallStatus, summaryJson)
+      insertRun.run(runId, projectId, startedAt, finishedAt, overallStatus, summaryJson)
 
       for (const item of populatedItems) {
         insertItem.run(
@@ -135,7 +136,7 @@ export async function createHealthCheckRun(
       id: runId,
       projectId,
       startedAt,
-      finishedAt: undefined,
+      finishedAt,
       overallStatus,
       summaryJson,
       items: populatedItems,
@@ -162,6 +163,40 @@ export async function getLatestHealthCheckForProject(projectId: string): Promise
       `,
     )
     .get(projectId) as HealthCheckRunRow | undefined
+
+  if (!runRow) return null
+
+  const itemRows = db
+    .prepare(
+      `
+        SELECT id, run_id, category, key, label, status, message, details_json, suggested_fix
+        FROM health_check_items
+        WHERE run_id = ?
+        ORDER BY category, key
+      `,
+    )
+    .all(runRow.id) as HealthCheckItemRow[]
+
+  const items = itemRows.map(toItem)
+  return toRun(runRow, items)
+}
+
+/**
+ * Returns a health check run by ID with all its items, or null if not found.
+ */
+export async function getHealthCheckRunById(runId: string): Promise<HealthCheckRun | null> {
+  await ensureDbInitialized()
+  const db = getDbOrThrow()
+
+  const runRow = db
+    .prepare(
+      `
+        SELECT id, project_id, started_at, finished_at, overall_status, summary_json
+        FROM health_check_runs
+        WHERE id = ?
+      `,
+    )
+    .get(runId) as HealthCheckRunRow | undefined
 
   if (!runRow) return null
 

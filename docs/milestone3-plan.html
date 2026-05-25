@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevDesk — Milestone 3 Implementation Plan</title>
+  <style>
+    :root {
+      --bg-primary: #0b0f14;
+      --bg-secondary: #111820;
+      --bg-card: #161e28;
+      --bg-card-hover: #1c2632;
+      --border: #1e2a38;
+      --border-subtle: #16202c;
+      --text-primary: #e8eef4;
+      --text-secondary: #8b9db0;
+      --text-muted: #5a6e82;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.15);
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.08);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.08);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.08);
+      --info: #06b6d4;
+      --info-bg: rgba(6, 182, 212, 0.08);
+      --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2a3a4c; }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 32px 40px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--success), var(--info));
+    }
+
+    .header-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 24px;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .logo {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 8px 32px rgba(59, 130, 246, 0.25);
+      flex-shrink: 0;
+    }
+
+    .header-content h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header-content .subtitle {
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-weight: 400;
+      max-width: 640px;
+    }
+
+    .header-meta {
+      display: flex;
+      gap: 24px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .meta-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+    }
+
+    .meta-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px;
+    }
+
+    /* Section titles */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      margin-left: 8px;
+    }
+
+    /* Goal box */
+    .goal-box {
+      background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .goal-box::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 16px;
+      bottom: 16px;
+      width: 3px;
+      background: linear-gradient(180deg, var(--accent), var(--info));
+      border-radius: 0 3px 3px 0;
+    }
+
+    .goal-box h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text-primary);
+    }
+
+    .goal-box p {
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    /* Task cards */
+    .task-grid {
+      display: grid;
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    .task-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .task-card:hover {
+      border-color: #2a3a4c;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .task-header {
+      padding: 24px 28px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .task-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      flex-shrink: 0;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .task-title-group {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .task-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--text-primary);
+    }
+
+    .task-type {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+
+    .task-type.backend {
+      background: var(--info-bg);
+      color: var(--info);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .task-type.ui {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .task-type.system {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .task-body {
+      padding: 24px 28px;
+    }
+
+    .task-description {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+
+    /* File lists */
+    .file-section {
+      margin-bottom: 20px;
+    }
+
+    .file-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .file-section-title.create { color: var(--success); }
+    .file-section-title.modify { color: var(--warning); }
+
+    .file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-secondary);
+      transition: background 0.15s;
+    }
+
+    .file-item:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .file-badge {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .file-badge.create {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .file-badge.modify {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .file-path {
+      color: var(--text-secondary);
+      word-break: break-all;
+    }
+
+    /* Details block */
+    .details-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .details-block h4 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .details-block ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .details-block li {
+      position: relative;
+      padding-left: 18px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .details-block li::before {
+      content: '›';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .details-block code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-card);
+      color: var(--info);
+      border: 1px solid var(--border);
+    }
+
+    /* Acceptance criteria */
+    .ac-block {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 20px;
+    }
+
+    .ac-block h4 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--success);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ac-block ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ac-block li {
+      position: relative;
+      padding-left: 24px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .ac-block li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      background: var(--success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .ac-block li::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 9px;
+      width: 5px;
+      height: 3px;
+      border-left: 2px solid var(--success);
+      border-bottom: 2px solid var(--success);
+      transform: rotate(-45deg);
+    }
+
+    /* Timeline */
+    .timeline-section {
+      margin-bottom: 40px;
+    }
+
+    .timeline {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      overflow-x: auto;
+    }
+
+    .timeline-track {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      min-width: 600px;
+      position: relative;
+    }
+
+    .timeline-line {
+      position: absolute;
+      top: 20px;
+      left: 40px;
+      right: 40px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--border), var(--accent), var(--success), var(--info));
+      z-index: 0;
+    }
+
+    .timeline-node {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+      z-index: 1;
+      min-width: 120px;
+    }
+
+    .timeline-dot {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 700;
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+
+    .timeline-node.active .timeline-dot {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      color: var(--accent);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .timeline-node.completed .timeline-dot {
+      border-color: var(--success);
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .timeline-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text-muted);
+      max-width: 100px;
+      line-height: 1.4;
+    }
+
+    .timeline-node.active .timeline-label {
+      color: var(--accent);
+    }
+
+    .timeline-node.completed .timeline-label {
+      color: var(--success);
+    }
+
+    .timeline-arrows {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 16px;
+      min-width: 600px;
+    }
+
+    .arrow-pair {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .arrow-line {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      position: relative;
+    }
+
+    .arrow-line::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: -3px;
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--border);
+    }
+
+    /* Dependency note */
+    .dep-note {
+      background: var(--info-bg);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--info);
+    }
+
+    .dep-note strong {
+      font-weight: 700;
+    }
+
+    /* Risk section */
+    .risk-section {
+      margin-bottom: 40px;
+    }
+
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .risk-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .risk-card:hover {
+      border-color: #2a3a4c;
+    }
+
+    .risk-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .risk-severity {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+
+    .risk-severity.low {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .risk-severity.medium {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .risk-severity.high {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .risk-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .risk-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .risk-mitigation {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .risk-mitigation strong {
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 32px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .footer-brand {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    /* Print styles */
+    @media print {
+      body {
+        background: white;
+        color: #111;
+      }
+      .header {
+        background: #f8f9fa;
+        border-bottom: 1px solid #ddd;
+      }
+      .header::before { display: none; }
+      .header-content h1 {
+        background: none;
+        -webkit-text-fill-color: #111;
+        color: #111;
+      }
+      .task-card, .goal-box, .timeline, .risk-card, .details-block {
+        background: #fff;
+        border: 1px solid #ddd;
+        break-inside: avoid;
+      }
+      .details-block, .file-item {
+        background: #f8f9fa;
+      }
+      .task-card:hover, .risk-card:hover {
+        box-shadow: none;
+      }
+      .timeline-dot {
+        background: #fff;
+        border: 2px solid #ccc;
+      }
+      .timeline-line {
+        background: #ccc;
+      }
+      .meta-badge {
+        background: #f0f0f0;
+        border: 1px solid #ddd;
+      }
+      .section-title::after {
+        background: #ddd;
+      }
+      .ac-block li::before {
+        background: #e8f5e9;
+        border-color: #a5d6a7;
+      }
+      .ac-block li::after {
+        border-color: #2e7d32;
+      }
+      ::-webkit-scrollbar { display: none; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header-grid {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+      .logo {
+        margin: 0 auto;
+      }
+      .header-meta {
+        justify-content: center;
+      }
+      .container {
+        padding: 20px;
+      }
+      .task-header {
+        flex-direction: column;
+        gap: 12px;
+      }
+      .timeline {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-grid">
+      <div class="logo">D</div>
+      <div class="header-content">
+        <h1>Milestone 3 — Backup, Restore &amp; Tray Quick Actions</h1>
+        <p class="subtitle">Allow users to back up and restore all DevDesk data, and provide system tray quick actions for common workflows.</p>
+        <div class="header-meta">
+          <span class="meta-badge"><span class="dot"></span> 3 Tasks</span>
+          <span class="meta-badge">Electron + Vite + TS</span>
+          <span class="meta-badge">SQLite / better-sqlite3</span>
+          <span class="meta-badge">React + shadcn/ui</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Goal -->
+    <div class="goal-box">
+      <h2>Milestone Goal</h2>
+      <p>Ship a robust export/import system that serializes the entire SQLite database to a versioned JSON backup, validates and restores it safely with replace or merge modes, and backs up the current database first. Additionally, add a native system tray icon with quick actions — Show DevDesk, New Terminal, Run Last Command, and Quit — with platform-aware icons and a user preference to enable or disable the tray.</p>
+    </div>
+
+    <!-- Tasks -->
+    <div class="section-title">Implementation Tasks</div>
+
+    <div class="task-grid">
+
+      <!-- Task 1 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">1</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Export/Import — Backend</h3>
+            <span class="task-type backend">Backend</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Serialize all DB tables to a single JSON file and safely restore from it. Validate schema versions, back up the current database before restoring, and support both replace and merge modes.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/desktop/data/store/export.ts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/ipc/registerIpc.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/preload.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/types.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/types/electron.d.ts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <h4>Implementation Details</h4>
+            <ul>
+              <li><code>exportAllData()</code>: Read all tables (<code>projects</code>, <code>commands</code>, <code>chains</code>, <code>triggers</code>, <code>run_history</code>, <code>notes</code>, <code>preferences</code>, <code>engine_indexes</code>, <code>search_sessions</code>, <code>health_check_runs</code>, <code>health_check_items</code>, <code>bug_reports</code>, <code>bug_attachments</code>, <code>context_snapshots</code>) into a single JSON object.</li>
+              <li>Export format header: <code>{ version: number, exportedAt: string, platform: string }</code></li>
+              <li><code>importAllData()</code>: Validate schema version. Reject imports from newer app versions. Backup current <code>devdesk.db</code> to <code>devdesk.db.backup-&lt;iso&gt;</code> before restoring.</li>
+              <li>Support <strong>replace</strong> mode (wipe then insert) and <strong>merge</strong> mode (upsert existing records).</li>
+              <li>External attachments: For v1, exclude external attachment files and warn the user; include only DB-resident data.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Export writes all tables to a single JSON file with the correct header.</li>
+              <li>Import validates schema version and rejects backups from newer app versions.</li>
+              <li>Current <code>devdesk.db</code> is backed up to a timestamped file before any restore operation.</li>
+              <li>Replace mode wipes existing data and inserts imported records cleanly.</li>
+              <li>Merge mode upserts records without losing unrelated existing data.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- Task 2 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">2</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Export/Import — UI</h3>
+            <span class="task-type ui">UI</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Build an export/import dialog inside Preferences. Let users choose a file path, preview record counts, select replace or merge, and confirm the operation with clear success and error states.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/renderer/app/components/ExportImportDialog.tsx</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/App.tsx</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">Existing preferences UI or add a new Settings tab</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <h4>Implementation Details</h4>
+            <ul>
+              <li><strong>Export:</strong> Choose file path via Electron dialog, show confirmation, and display exported record counts per table.</li>
+              <li><strong>Import:</strong> Choose JSON file, validate and preview (show record counts by table), choose <strong>Replace</strong> vs <strong>Merge</strong>, confirm, then show success or error.</li>
+              <li>Wire dialog state into <code>App.tsx</code> and trigger it from Preferences or a dedicated Settings area.</li>
+              <li>Display a warning if external attachments are detected in the backup but cannot be restored in v1.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Dialog allows export to JSON with a file picker and shows exported record counts.</li>
+              <li>Dialog allows import from JSON with validation, preview, and a Replace / Merge toggle.</li>
+              <li>Success and error states are clearly communicated to the user.</li>
+              <li>Warnings are shown for external attachments that are not included in the backup.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- Task 3 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">3</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Tray Quick Actions</h3>
+            <span class="task-type system">System</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Create a system tray icon with a context menu for quick actions. Support left-click toggle, platform-aware icons, and a user preference to enable or disable the tray entirely.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/desktop/tray/trayManager.ts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/index.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/ipc/registerIpc.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/preload.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/App.tsx</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">Preferences UI (tray enabled/disabled setting)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <h4>Implementation Details</h4>
+            <ul>
+              <li>Create <code>Tray</code> on <code>app.whenReady()</code> with a 16x16 or 32x32 PNG icon from build assets.</li>
+              <li>Context menu: <strong>Show DevDesk</strong>, <strong>New Terminal</strong>, <strong>Run Last Command</strong>, <strong>Quit</strong>.</li>
+              <li>Left-click toggles window show/hide.</li>
+              <li>macOS: use template image. Windows: use appropriate DPI icons.</li>
+              <li><strong>New Terminal:</strong> invoke <code>terminalManager.create()</code>.</li>
+              <li><strong>Run Last Command:</strong> look up the latest <code>run_history</code> entry and re-run it.</li>
+              <li>Preference to enable/disable tray (store in app preferences).</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Tray icon appears on app launch when enabled.</li>
+              <li>Context menu contains Show DevDesk, New Terminal, Run Last Command, and Quit.</li>
+              <li>Left-click toggles window visibility (show / hide).</li>
+              <li>New Terminal creates a terminal via <code>terminalManager.create()</code>.</li>
+              <li>Run Last Command re-runs the most recent entry from <code>run_history</code>.</li>
+              <li>Tray can be disabled via a preference in the renderer UI.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- Timeline -->
+    <div class="section-title">Task Flow &amp; Dependencies</div>
+    <div class="timeline-section">
+      <div class="timeline">
+        <div class="timeline-track">
+          <div class="timeline-line"></div>
+
+          <div class="timeline-node active">
+            <div class="timeline-dot">1</div>
+            <div class="timeline-label">Export/Import Backend</div>
+          </div>
+
+          <div class="timeline-node">
+            <div class="timeline-dot">2</div>
+            <div class="timeline-label">Export/Import UI</div>
+          </div>
+
+          <div class="timeline-node">
+            <div class="timeline-dot">3</div>
+            <div class="timeline-label">Tray Quick Actions</div>
+          </div>
+        </div>
+
+        <div class="timeline-arrows">
+          <div class="arrow-pair" style="visibility:hidden;"><div class="arrow-line"></div></div>
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>IPC &amp; types required by</span>
+          </div>
+          <div class="arrow-pair" style="visibility:hidden;"><div class="arrow-line"></div></div>
+        </div>
+
+        <div class="dep-note">
+          <strong>Dependency Note:</strong> Task 1 (Backend) must be completed before Task 2 (UI) so the IPC channels, types, and store utilities are available. Task 3 (Tray) is largely independent and can be worked in parallel with Tasks 1 and 2, though it also touches <code>registerIpc.ts</code> and <code>preload.ts</code> — coordinate to avoid merge conflicts.
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk Summary -->
+    <div class="section-title">Risk Summary</div>
+    <div class="risk-section">
+      <div class="risk-grid">
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity high">High</span>
+            <span class="risk-title">Data Loss During Import</span>
+          </div>
+          <p class="risk-desc">
+            A failed or interrupted import in replace mode could leave the database in an inconsistent state if transactions are not handled correctly.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Always run imports inside a SQLite transaction. Perform the timestamped DB backup before starting. Roll back on validation or write failures.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">Version Mismatch in Backups</span>
+          </div>
+          <p class="risk-desc">
+            Future schema changes may make older or newer backups incompatible. Restoring a newer backup into an older app could corrupt tables.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Strictly validate the <code>version</code> header. Reject imports from newer versions. Maintain a version compatibility map and document migration rules.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">External Attachment Path Issues</span>
+          </div>
+          <p class="risk-desc">
+            Bug report attachments stored outside the DB will not be included in v1 exports, leading to broken references after restore.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Warn the user clearly during export and import. Document the limitation. Consider embedding small attachments in the DB for a future v2 format.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity low">Low</span>
+            <span class="risk-title">Tray Icon Platform Differences</span>
+          </div>
+          <p class="risk-desc">
+            macOS requires template images, Windows needs DPI-aware icons, and Linux tray behavior varies across distributions.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Use platform detection (<code>process.platform</code>) to set <code>templateImage</code> on macOS and provide multi-resolution PNGs for Windows. Test on each target OS.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity low">Low</span>
+            <span class="risk-title">IPC Channel Conflicts</span>
+          </div>
+          <p class="risk-desc">
+            Adding <code>config:export</code>, <code>config:import</code>, and tray-related channels may collide with existing or future channel names.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Follow the existing kebab-case namespace pattern (<code>config:</code>, <code>tray:</code>). Audit <code>registerIpc.ts</code> before merging to avoid duplicates.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">Large Export File Size</span>
+          </div>
+          <p class="risk-desc">
+            As the database grows (run history, health checks, bug reports), the JSON export could become very large and slow to write or parse.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Stream writes where possible, or use <code>JSON.stringify</code> with a buffered approach. Warn users if the export exceeds a threshold. Offer table filtering in a future release.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-brand">DevDesk</div>
+    <div>Local-first developer workspace &mdash; Milestone 3 Implementation Plan</div>
+    <div style="margin-top:4px; opacity:0.7;">Electron + Vite + TypeScript + React + SQLite</div>
+  </footer>
+
+</body>
+</html>
