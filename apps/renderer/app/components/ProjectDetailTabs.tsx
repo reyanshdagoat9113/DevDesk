@@ -32,14 +32,16 @@ export function ProjectDetailTabs({
 
   return (
     <Tabs defaultValue={safeDefault} className="flex flex-col h-full">
-      <TabsList className="shrink-0 px-8 pt-6 pb-2">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="health">Health</TabsTrigger>
-        <TabsTrigger value="bugs">Bugs</TabsTrigger>
-        <TabsTrigger value="notes">Notes</TabsTrigger>
-        {enginePanel !== null && <TabsTrigger value="engine">Engine</TabsTrigger>}
-        {gitPanel !== null && <TabsTrigger value="git">Git</TabsTrigger>}
-      </TabsList>
+      <div className="shrink-0 px-8 pt-6 pb-2">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="health">Health</TabsTrigger>
+          <TabsTrigger value="bugs">Bugs</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
+          {enginePanel !== null && <TabsTrigger value="engine">Engine</TabsTrigger>}
+          {gitPanel !== null && <TabsTrigger value="git">Git</TabsTrigger>}
+        </TabsList>
+      </div>
       <TabsContent value="overview" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
         {overviewPanel}
       </TabsContent>
