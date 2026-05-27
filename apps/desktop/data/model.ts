@@ -222,7 +222,51 @@ export interface HealthCheckRun {
   items: HealthCheckItem[]
 }
 
-export const DATA_VERSION = 4 as const
+export type BugSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type BugStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+
+export interface BugReport {
+  id: string
+  projectId: string
+  title: string
+  severity: BugSeverity
+  status: BugStatus
+  expectedResult?: string
+  actualResult?: string
+  reproductionSteps?: string
+  notes?: string
+  resolutionNotes?: string
+  createdAt: string
+  updatedAt: string
+  resolvedAt?: string
+}
+
+export interface CreateBugReportInput {
+  projectId: string
+  title: string
+  severity?: BugSeverity
+  status?: BugStatus
+  expectedResult?: string
+  actualResult?: string
+  reproductionSteps?: string
+  notes?: string
+  resolutionNotes?: string
+}
+
+export type UpdateBugReportInput = Partial<
+  Pick<
+    BugReport,
+    'title' | 'severity' | 'status' | 'expectedResult' | 'actualResult' | 'reproductionSteps' | 'notes' | 'resolutionNotes'
+  >
+>
+
+export interface BugReportFilters {
+  projectId?: string
+  status?: BugStatus
+  severity?: BugSeverity
+}
+
+export const DATA_VERSION = 5 as const
 
 export interface DataStore {
   version: typeof DATA_VERSION
@@ -235,4 +279,5 @@ export interface DataStore {
   preferences: AppPreferences
   engineIndexes?: Record<string, EngineIndexMeta>
   engineSearchSessions?: Record<string, EngineSearchSession>
+  bugReports: BugReport[]
 }

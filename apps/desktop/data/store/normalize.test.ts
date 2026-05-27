@@ -179,20 +179,21 @@ describe('normalize store helpers', () => {
     const { normalizeStore } = await import('./normalize')
 
     const store = normalizeStore(null)
-    expect(store.version).toBe(4)
+    expect(store.version).toBe(5)
     expect(store.projects).toEqual([])
     expect(store.commands).toEqual([])
     expect(store.chains).toEqual([])
     expect(store.triggers).toEqual([])
     expect(store.runHistory).toEqual([])
     expect(store.notes).toEqual({})
+    expect(store.bugReports).toEqual([])
   })
 
   it('preserves valid engine index and search session data', async () => {
     const { normalizeStore } = await import('./normalize')
 
     const store = normalizeStore({
-      version: 4,
+      version: 5,
       projects: [],
       commands: [],
       chains: [],

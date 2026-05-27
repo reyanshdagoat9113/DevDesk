@@ -1,5 +1,8 @@
 import type {
   AppPreferences,
+  BugReport,
+  BugSeverity,
+  BugStatus,
   ChainStep,
   CommandChain,
   CommandTrigger,
@@ -15,6 +18,10 @@ import {
   VALID_PROJECT_TYPES,
   VALID_TRIGGER_EVENTS,
 } from './shared'
+import { DATA_VERSION } from '../model'
+
+const VALID_BUG_SEVERITIES = new Set<BugSeverity>(['low', 'medium', 'high', 'critical'])
+const VALID_BUG_STATUSES = new Set<BugStatus>(['open', 'in_progress', 'resolved', 'closed'])
 
 export function parseJsonArray(value: string | null | undefined): string[] {
   if (!value) {
@@ -257,6 +264,47 @@ export function normalizeProjects(value: unknown): Project[] {
     .filter((project): project is Project => Boolean(project))
 }
 
+export function normalizeBugReports(value: unknown): BugReport[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.reduce<BugReport[]>((acc, entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return acc
+    }
+
+    const raw = entry as Partial<BugReport>
+    if (
+      typeof raw.id !== 'string' ||
+      typeof raw.projectId !== 'string' ||
+      typeof raw.title !== 'string' ||
+      typeof raw.createdAt !== 'string' ||
+      typeof raw.updatedAt !== 'string'
+    ) {
+      return acc
+    }
+
+    acc.push({
+      id: raw.id,
+      projectId: raw.projectId,
+      title: raw.title,
+      severity: raw.severity && VALID_BUG_SEVERITIES.has(raw.severity) ? raw.severity : 'medium',
+      status: raw.status && VALID_BUG_STATUSES.has(raw.status) ? raw.status : 'open',
+      expectedResult: typeof raw.expectedResult === 'string' ? raw.expectedResult : undefined,
+      actualResult: typeof raw.actualResult === 'string' ? raw.actualResult : undefined,
+      reproductionSteps: typeof raw.reproductionSteps === 'string' ? raw.reproductionSteps : undefined,
+      notes: typeof raw.notes === 'string' ? raw.notes : undefined,
+      resolutionNotes: typeof raw.resolutionNotes === 'string' ? raw.resolutionNotes : undefined,
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt,
+      resolvedAt: typeof raw.resolvedAt === 'string' ? raw.resolvedAt : undefined,
+    })
+
+    return acc
+  }, [])
+}
+
 export function normalizeStore(value: unknown): DataStore {
   if (!value || typeof value !== 'object') {
     return createDefaultStore()
@@ -365,7 +413,7 @@ export function normalizeStore(value: unknown): DataStore {
   const defaults = createDefaultPreferences()
 
   return {
-    version: 4,
+    version: DATA_VERSION,
     projects: normalizeProjects(store.projects),
     commands: Array.isArray(store.commands) ? store.commands : [],
     chains: normalizeChains(store.chains),
@@ -384,5 +432,6 @@ export function normalizeStore(value: unknown): DataStore {
     },
     engineIndexes,
     engineSearchSessions,
+    bugReports: normalizeBugReports(store.bugReports),
   }
 }

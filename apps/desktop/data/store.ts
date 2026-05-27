@@ -42,6 +42,13 @@ export {
   replaceTrigger,
 } from './store/automation'
 export {
+  createBugReport,
+  deleteBugReport,
+  getBugReportById,
+  listBugReports,
+  updateBugReport,
+} from './store/bugs'
+export {
   cleanupOldHealthChecks,
   createHealthCheckRun,
   getHealthCheckRunById,

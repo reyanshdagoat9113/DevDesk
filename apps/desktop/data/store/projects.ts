@@ -39,6 +39,7 @@ export async function removeProject(projectId: string): Promise<void> {
       database.prepare('DELETE FROM notes WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM engine_indexes WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM engine_search_sessions WHERE project_id = ?').run(id)
+      database.prepare('DELETE FROM bug_reports WHERE project_id = ?').run(id)
     })
     transaction(projectId)
   }))

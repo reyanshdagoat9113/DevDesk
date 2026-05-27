@@ -54,6 +54,7 @@ export const createDefaultStore = (): DataStore => ({
   runHistory: [],
   notes: {},
   preferences: createDefaultPreferences(),
+  bugReports: [],
 })
 
 export function getUserDataDir(): string {

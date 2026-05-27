@@ -144,6 +144,23 @@ function createSchema(database: Database.Database) {
       FOREIGN KEY (run_id) REFERENCES health_check_runs(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS bug_reports (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      severity TEXT NOT NULL DEFAULT 'medium',
+      status TEXT NOT NULL DEFAULT 'open',
+      expected_result TEXT,
+      actual_result TEXT,
+      reproduction_steps TEXT,
+      notes TEXT,
+      resolution_notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      resolved_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_commands_project_id ON commands(project_id);
     CREATE INDEX IF NOT EXISTS idx_chains_project_id ON chains(project_id);
     CREATE INDEX IF NOT EXISTS idx_triggers_project_id ON triggers(project_id);
@@ -157,6 +174,10 @@ function createSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_health_check_items_run_id ON health_check_items(run_id);
     CREATE INDEX IF NOT EXISTS idx_health_check_runs_project_id ON health_check_runs(project_id);
     CREATE INDEX IF NOT EXISTS idx_health_check_runs_started_at ON health_check_runs(started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_bug_reports_project_id ON bug_reports(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bug_reports_status ON bug_reports(status);
+    CREATE INDEX IF NOT EXISTS idx_bug_reports_severity ON bug_reports(severity);
+    CREATE INDEX IF NOT EXISTS idx_bug_reports_updated_at ON bug_reports(updated_at DESC);
   `)
 }
 
@@ -251,8 +272,41 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
     INSERT INTO engine_search_sessions (project_id, query, regex, updated_at, result_json)
     VALUES (@projectId, @query, @regex, @updatedAt, @resultJson)
   `)
+  const insertBugReport = database.prepare(`
+    INSERT INTO bug_reports (
+      id,
+      project_id,
+      title,
+      severity,
+      status,
+      expected_result,
+      actual_result,
+      reproduction_steps,
+      notes,
+      resolution_notes,
+      created_at,
+      updated_at,
+      resolved_at
+    )
+    VALUES (
+      @id,
+      @projectId,
+      @title,
+      @severity,
+      @status,
+      @expectedResult,
+      @actualResult,
+      @reproductionSteps,
+      @notes,
+      @resolutionNotes,
+      @createdAt,
+      @updatedAt,
+      @resolvedAt
+    )
+  `)
 
   const writeTransaction = database.transaction((payload: DataStore) => {
+    database.prepare('DELETE FROM bug_reports').run()
     database.prepare('DELETE FROM projects').run()
     database.prepare('DELETE FROM commands').run()
     database.prepare('DELETE FROM chains').run()
@@ -370,6 +424,24 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
         regex: session.regex ? 1 : 0,
         updatedAt: session.updatedAt,
         resultJson: JSON.stringify(session.result),
+      })
+    }
+
+    for (const report of payload.bugReports ?? []) {
+      insertBugReport.run({
+        id: report.id,
+        projectId: report.projectId,
+        title: report.title,
+        severity: report.severity,
+        status: report.status,
+        expectedResult: report.expectedResult ?? null,
+        actualResult: report.actualResult ?? null,
+        reproductionSteps: report.reproductionSteps ?? null,
+        notes: report.notes ?? null,
+        resolutionNotes: report.resolutionNotes ?? null,
+        createdAt: report.createdAt,
+        updatedAt: report.updatedAt,
+        resolvedAt: report.resolvedAt ?? null,
       })
     }
   })
