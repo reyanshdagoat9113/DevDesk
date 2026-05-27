@@ -22,11 +22,11 @@ interface AppShellProps {
 
 export function AppShell({ navItems, activeNav, onNavChange, title, action, themeToggle, children }: AppShellProps) {
   return (
-    <div className="flex h-screen overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-card/30 via-background to-background text-foreground selection:bg-primary/20 selection:text-primary">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground selection:bg-primary/15 selection:text-foreground">
       {/* Sidebar */}
-      <aside className="flex w-[240px] flex-col border-r border-border/40 bg-card/40 backdrop-blur-xl z-10 shadow-2xl">
+      <aside className="flex w-[240px] flex-col border-r border-border bg-card z-10 shadow-sm">
         {/* Logo */}
-        <div className="flex h-14 items-center px-4 border-b border-border/30">
+        <div className="flex h-14 items-center px-4 border-b border-border">
           <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary border border-primary/20">
               <Search className="h-3.5 w-3.5" />
@@ -117,14 +117,14 @@ export function AppShell({ navItems, activeNav, onNavChange, title, action, them
       {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden relative">
         {/* Header */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/40 bg-card/30 px-6 z-10 shadow-sm">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-6 z-10 shadow-sm">
           <div className="flex items-center gap-4">
             <h2 className="text-base font-semibold tracking-tight text-foreground">{title}</h2>
           </div>
           <div className="flex items-center gap-4">
             {themeToggle}
             {action && (
-              <div className="flex items-center gap-4 pl-4 border-l border-border/40">
+              <div className="flex items-center gap-4 pl-4 border-l border-border">
                 {action}
               </div>
             )}

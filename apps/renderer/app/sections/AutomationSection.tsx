@@ -47,19 +47,19 @@ export function AutomationSection(props: AutomationSectionProps) {
 
   return (
     <Tabs value={activeView} onValueChange={(value) => setActiveView(value as 'commands' | 'chains' | 'triggers')} className="flex h-full flex-col gap-4">
-      <div className="flex items-center justify-between gap-3 pb-4 border-b border-border/30">
-        <TabsList className="bg-transparent p-0 gap-1 h-auto">
-          <TabsTrigger value="commands" className="data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm">
+      <div className="flex items-center justify-between gap-4 pt-2 pb-4">
+        <TabsList className="bg-muted/30 p-1 gap-1 ml-4">
+          <TabsTrigger value="commands" className="rounded-md px-4 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold">
             Commands
-            <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">({props.commands.length})</span>
+            <span className="ml-2 text-xs text-muted-foreground tabular-nums">({props.commands.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="chains" className="data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm">
+          <TabsTrigger value="chains" className="rounded-md px-4 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold">
             Chains
-            <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">({props.chains.length})</span>
+            <span className="ml-2 text-xs text-muted-foreground tabular-nums">({props.chains.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="triggers" className="data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm">
+          <TabsTrigger value="triggers" className="rounded-md px-4 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold">
             Triggers
-            <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">({props.triggers.length})</span>
+            <span className="ml-2 text-xs text-muted-foreground tabular-nums">({props.triggers.length})</span>
           </TabsTrigger>
         </TabsList>
         {activeView === 'commands' ? (

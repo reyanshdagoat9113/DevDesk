@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    /* Light theme - kept minimal as we default to dark */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 5%;
+    /* Classic Light Theme - Warm off-white with subtle warmth */
+    --background: 40 20% 97%;                   /* Warm off-white #f8f7f5 */
+    --foreground: 220 20% 11%;                  /* Deep slate #1c1d21 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 5%;
+    --card: 40 15% 99%;                         /* Pure warm white #fdfcfb */
+    --card-foreground: 220 20% 11%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 5%;
+    --popover: 40 15% 99%;
+    --popover-foreground: 220 20% 11%;
 
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 220 15% 18%;                     /* Deep charcoal */
+    --primary-foreground: 40 20% 97%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 9%;
+    --secondary: 40 10% 94%;                    /* Light warm gray #f1f0ee */
+    --secondary-foreground: 220 15% 18%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 40 10% 94%;
+    --muted-foreground: 220 8% 45%;             /* Medium gray - good contrast */
 
-    --accent: 0 0% 96%;
-    --accent-foreground: 0 0% 9%;
+    --accent: 40 10% 90%;                       /* Slightly darker gray #e8e7e5 */
+    --accent-foreground: 220 15% 18%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 0 0% 9%;
+    --border: 40 10% 87%;                       /* Warm gray border */
+    --input: 40 10% 91%;
+    --ring: 220 15% 18%;
 
     --radius: 0.75rem;
   }
@@ -71,27 +71,27 @@
 }
 
 @layer utilities {
-  /* Premium glass effect */
+  /* Glass effects - theme aware */
   .glass {
-    @apply bg-card/40 backdrop-blur-xl border-border/40;
+    @apply bg-card/80 backdrop-blur-xl border-border/50;
   }
   
   .glass-card {
-    @apply bg-card/30 backdrop-blur-xl border-border/40;
+    @apply bg-card/90 backdrop-blur-xl border-border/50;
   }
 
   /* Subtle gradient text */
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-foreground via-foreground to-foreground/70;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-foreground/90 via-foreground to-foreground/50;
   }
 
-  /* Glow effects */
+  /* Glow effects - subtle for light mode */
   .glow {
-    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+    box-shadow: 0 1px 3px -1px hsl(var(--primary) / 0.1), 0 1px 2px -1px hsl(var(--primary) / 0.06);
   }
 
   .glow-sm {
-    box-shadow: 0 0 10px -3px hsl(var(--primary) / 0.2);
+    box-shadow: 0 1px 2px -1px hsl(var(--primary) / 0.08);
   }
 
   /* Subtle border glow on hover */
@@ -115,12 +115,11 @@
   
   body {
     @apply bg-background text-foreground;
-    background-color: #000000;
   }
 
   /* Selection styling */
   ::selection {
-    @apply bg-primary/20 text-foreground;
+    @apply bg-primary/15 text-foreground;
   }
 
   /* Premium scrollbar - minimal dark */
@@ -134,14 +133,14 @@
   }
   
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/10 rounded-full;
+    @apply bg-muted-foreground/15 rounded-full;
     border: 2px solid transparent;
     background-clip: padding-box;
     transition: background-color 0.2s ease-in-out;
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/30;
+    @apply bg-muted-foreground/35;
   }
   
   /* Scrollbar only visible on hover for cleaner UI */
