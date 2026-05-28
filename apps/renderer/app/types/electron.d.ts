@@ -1,10 +1,14 @@
 import type {
   AppPreferences,
+  BugApiResult,
+  BugReport,
+  BugReportFilters,
   Command,
   CommandChain,
   CommandChainRunState,
   CommandTrigger,
   CommandVariable,
+  CreateBugReportInput,
   Container,
   CreateCommandChainInput,
   CreateCommandTriggerInput,
@@ -29,6 +33,7 @@ import type {
   RunHistoryEntry,
   RunStatus,
   TriggerConfirmationRequest,
+  UpdateBugReportInput,
 } from '../types'
 
 export interface ElectronAPI {
@@ -53,6 +58,12 @@ export interface ElectronAPI {
 
   getProjectNotes: (projectId: string) => Promise<ProjectNotes>
   updateProjectNotes: (projectId: string, updates: Partial<ProjectNotes>) => Promise<void>
+
+  createBug: (input: CreateBugReportInput) => Promise<BugApiResult<BugReport>>
+  updateBug: (id: string, updates: UpdateBugReportInput) => Promise<BugApiResult<BugReport>>
+  deleteBug: (id: string) => Promise<BugApiResult<{ success: boolean }>>
+  getBug: (id: string) => Promise<BugApiResult<BugReport | null>>
+  listBugs: (filters?: BugReportFilters) => Promise<BugApiResult<BugReport[]>>
 
   getCommands: () => Promise<Command[]>
   addCommand: (command: CreateCommandInput) => Promise<Command>

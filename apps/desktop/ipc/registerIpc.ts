@@ -7,12 +7,15 @@ import {
   cleanupOldHealthChecks,
   clearRunHistoryInStore,
   createChain,
+  createBugReport,
   createCommand,
   createHealthCheckRun,
   createProject,
   createRunHistoryEntry,
   createTrigger,
+  deleteBugReport,
   finalizeRunHistoryEntry,
+  getBugReportById,
   getChainById,
   getCommandById,
   getHealthCheckRunById,
@@ -23,6 +26,7 @@ import {
   getRunHistoryOutputById,
   getTriggerById,
   listChains,
+  listBugReports,
   listCommands,
   listHealthCheckRuns,
   listProjects,
@@ -40,6 +44,7 @@ import {
   replaceTrigger,
   toggleCommandPin,
   toggleProjectPin,
+  updateBugReport,
   updatePreferencesInStore,
   updateProjectLinkedContainers,
   upsertProjectNotes,
@@ -49,16 +54,22 @@ import { inspectProjectHealth } from '../projectIntelligence/healthInspector'
 import type {
   AppPreference,
   AppPreferences,
+  BugReport,
+  BugReportFilters,
+  BugSeverity,
+  BugStatus,
   ChainStep,
   Command,
   CommandChain,
   CommandTrigger,
   CommandTriggerEvent,
+  CreateBugReportInput,
   Container,
   Project,
   ProjectHealthReport,
   ProjectNotes,
   RunStatus,
+  UpdateBugReportInput,
 } from '../data/model'
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
 import { variableResolver } from '../commands/variableResolver'
@@ -110,6 +121,12 @@ type TriggerMutationInput = {
   enabled?: boolean
   requireConfirmation?: boolean
 }
+
+type BugApiErrorCode = 'validation' | 'not_found' | 'internal'
+
+type BugApiResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: { code: BugApiErrorCode; message: string } }
 
 type TriggerEventContext = {
   projectId?: string
@@ -186,6 +203,194 @@ function resolveWslExecutablePath() {
 const WSL_EXECUTABLE_PATH = resolveWslExecutablePath()
 
 const WSL_DISTRO_NAME_BLACKLIST = new Set(['docker-desktop', 'docker-desktop-data'])
+const VALID_BUG_SEVERITIES = new Set<BugSeverity>(['low', 'medium', 'high', 'critical'])
+const VALID_BUG_STATUSES = new Set<BugStatus>(['open', 'in_progress', 'resolved', 'closed'])
+const BUG_CREATE_INPUT_KEYS = new Set<keyof CreateBugReportInput>([
+  'projectId',
+  'title',
+  'severity',
+  'status',
+  'expectedResult',
+  'actualResult',
+  'reproductionSteps',
+  'notes',
+  'resolutionNotes',
+])
+const BUG_UPDATE_INPUT_KEYS = new Set<keyof UpdateBugReportInput>([
+  'title',
+  'severity',
+  'status',
+  'expectedResult',
+  'actualResult',
+  'reproductionSteps',
+  'notes',
+  'resolutionNotes',
+])
+const BUG_FILTER_KEYS = new Set<keyof BugReportFilters>(['projectId', 'status', 'severity'])
+
+function bugSuccess<T>(data: T): BugApiResult<T> {
+  return { ok: true, data }
+}
+
+function bugFailure<T>(code: BugApiErrorCode, message: string): BugApiResult<T> {
+  return { ok: false, error: { code, message } }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function validateAllowedKeys(value: Record<string, unknown>, allowedKeys: Set<string>, label: string) {
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key)) {
+      throw new Error(`${label} contains an unsupported field: ${key}.`)
+    }
+  }
+}
+
+function sanitizeRequiredBugString(value: unknown, field: string): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${field} is required.`)
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed) {
+    throw new Error(`${field} is required.`)
+  }
+
+  return trimmed
+}
+
+function sanitizeOptionalBugString(value: unknown, field: string): string | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (typeof value !== 'string') {
+    throw new Error(`${field} must be a string.`)
+  }
+
+  return value
+}
+
+function sanitizeBugSeverity(value: unknown, field: string): BugSeverity | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (typeof value !== 'string' || !VALID_BUG_SEVERITIES.has(value as BugSeverity)) {
+    throw new Error(`${field} must be one of: low, medium, high, critical.`)
+  }
+
+  return value as BugSeverity
+}
+
+function sanitizeBugStatus(value: unknown, field: string): BugStatus | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (typeof value !== 'string' || !VALID_BUG_STATUSES.has(value as BugStatus)) {
+    throw new Error(`${field} must be one of: open, in_progress, resolved, closed.`)
+  }
+
+  return value as BugStatus
+}
+
+function sanitizeBugId(value: unknown, field = 'Bug id'): string {
+  return sanitizeRequiredBugString(value, field)
+}
+
+function sanitizeCreateBugInput(input: unknown): CreateBugReportInput {
+  if (!isRecord(input)) {
+    throw new Error('Bug create input is required.')
+  }
+
+  validateAllowedKeys(input, BUG_CREATE_INPUT_KEYS as Set<string>, 'Bug create input')
+
+  return {
+    projectId: sanitizeRequiredBugString(input.projectId, 'Bug projectId'),
+    title: sanitizeRequiredBugString(input.title, 'Bug title'),
+    severity: sanitizeBugSeverity(input.severity, 'Bug severity'),
+    status: sanitizeBugStatus(input.status, 'Bug status'),
+    expectedResult: sanitizeOptionalBugString(input.expectedResult, 'Bug expectedResult'),
+    actualResult: sanitizeOptionalBugString(input.actualResult, 'Bug actualResult'),
+    reproductionSteps: sanitizeOptionalBugString(input.reproductionSteps, 'Bug reproductionSteps'),
+    notes: sanitizeOptionalBugString(input.notes, 'Bug notes'),
+    resolutionNotes: sanitizeOptionalBugString(input.resolutionNotes, 'Bug resolutionNotes'),
+  }
+}
+
+function sanitizeUpdateBugInput(input: unknown): UpdateBugReportInput {
+  if (!isRecord(input)) {
+    throw new Error('Bug update input is required.')
+  }
+
+  validateAllowedKeys(input, BUG_UPDATE_INPUT_KEYS as Set<string>, 'Bug update input')
+
+  const sanitized: UpdateBugReportInput = {}
+
+  if ('title' in input) {
+    sanitized.title = sanitizeRequiredBugString(input.title, 'Bug title')
+  }
+  if ('severity' in input) {
+    sanitized.severity = sanitizeBugSeverity(input.severity, 'Bug severity')
+  }
+  if ('status' in input) {
+    sanitized.status = sanitizeBugStatus(input.status, 'Bug status')
+  }
+  if ('expectedResult' in input) {
+    sanitized.expectedResult = sanitizeOptionalBugString(input.expectedResult, 'Bug expectedResult')
+  }
+  if ('actualResult' in input) {
+    sanitized.actualResult = sanitizeOptionalBugString(input.actualResult, 'Bug actualResult')
+  }
+  if ('reproductionSteps' in input) {
+    sanitized.reproductionSteps = sanitizeOptionalBugString(input.reproductionSteps, 'Bug reproductionSteps')
+  }
+  if ('notes' in input) {
+    sanitized.notes = sanitizeOptionalBugString(input.notes, 'Bug notes')
+  }
+  if ('resolutionNotes' in input) {
+    sanitized.resolutionNotes = sanitizeOptionalBugString(input.resolutionNotes, 'Bug resolutionNotes')
+  }
+
+  return sanitized
+}
+
+function sanitizeBugFilters(filters: unknown): BugReportFilters {
+  if (filters === undefined) {
+    return {}
+  }
+
+  if (!isRecord(filters)) {
+    throw new Error('Bug filters must be an object.')
+  }
+
+  validateAllowedKeys(filters, BUG_FILTER_KEYS as Set<string>, 'Bug filters')
+
+  const sanitized: BugReportFilters = {}
+
+  if ('projectId' in filters) {
+    sanitized.projectId = sanitizeRequiredBugString(filters.projectId, 'Bug filters projectId')
+  }
+  if ('status' in filters) {
+    sanitized.status = sanitizeBugStatus(filters.status, 'Bug filters status')
+  }
+  if ('severity' in filters) {
+    sanitized.severity = sanitizeBugSeverity(filters.severity, 'Bug filters severity')
+  }
+
+  return sanitized
+}
+
+function toBugApiError(error: unknown): { code: BugApiErrorCode; message: string } {
+  if (error instanceof Error) {
+    return { code: 'validation', message: error.message }
+  }
+
+  return { code: 'internal', message: 'Unexpected bug IPC error.' }
+}
 
 function cleanWslDistroName(rawValue: string) {
   return rawValue.replace(/\u0000/g, '').replace(/\uFEFF/g, '').replace(/\s+\(default\)$/i, '').trim()
@@ -2680,6 +2885,64 @@ export function registerIpcHandlers() {
     }
 
     terminalManager.close(terminalId)
+  })
+
+  // Bugs
+  ipcMain.handle('bugs:create', async (_event, input: unknown): Promise<BugApiResult<BugReport>> => {
+    try {
+      const report = await createBugReport(sanitizeCreateBugInput(input))
+      return bugSuccess(report)
+    } catch (error) {
+      return bugFailure<BugReport>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:update', async (_event, bugId: unknown, input: unknown): Promise<BugApiResult<BugReport>> => {
+    try {
+      const updated = await updateBugReport(
+        sanitizeBugId(bugId),
+        sanitizeUpdateBugInput(input)
+      )
+
+      if (!updated) {
+        return bugFailure('not_found', 'Bug report not found.')
+      }
+
+      return bugSuccess(updated)
+    } catch (error) {
+      return bugFailure<BugReport>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:delete', async (_event, bugId: unknown): Promise<BugApiResult<{ success: boolean }>> => {
+    try {
+      const deleted = await deleteBugReport(sanitizeBugId(bugId))
+      if (!deleted) {
+        return bugFailure('not_found', 'Bug report not found.')
+      }
+
+      return bugSuccess({ success: true })
+    } catch (error) {
+      return bugFailure<{ success: boolean }>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:get', async (_event, bugId: unknown): Promise<BugApiResult<BugReport | null>> => {
+    try {
+      const report = await getBugReportById(sanitizeBugId(bugId))
+      return bugSuccess(report)
+    } catch (error) {
+      return bugFailure<BugReport | null>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:list', async (_event, filters?: unknown): Promise<BugApiResult<BugReport[]>> => {
+    try {
+      const reports = await listBugReports(sanitizeBugFilters(filters))
+      return bugSuccess(reports)
+    } catch (error) {
+      return bugFailure<BugReport[]>(toBugApiError(error).code, toBugApiError(error).message)
+    }
   })
 
   // Notes

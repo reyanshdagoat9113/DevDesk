@@ -1,4 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type {
+  BugReport,
+  BugReportFilters,
+  CreateBugReportInput,
+  UpdateBugReportInput,
+} from './data/model'
+
+type BugApiErrorCode = 'validation' | 'not_found' | 'internal'
+
+type BugApiResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: { code: BugApiErrorCode; message: string } }
 
 // Define the API interface
 interface ElectronAPI {
@@ -48,6 +60,12 @@ interface ElectronAPI {
 
   getProjectNotes: (projectId: string) => Promise<{ projectId: string; setupSteps: string; todos: string; reminders: string }>
   updateProjectNotes: (projectId: string, updates: Partial<{ projectId: string; setupSteps: string; todos: string; reminders: string }>) => Promise<void>
+
+  createBug: (input: CreateBugReportInput) => Promise<BugApiResult<BugReport>>
+  updateBug: (id: string, updates: UpdateBugReportInput) => Promise<BugApiResult<BugReport>>
+  deleteBug: (id: string) => Promise<BugApiResult<{ success: boolean }>>
+  getBug: (id: string) => Promise<BugApiResult<BugReport | null>>
+  listBugs: (filters?: BugReportFilters) => Promise<BugApiResult<BugReport[]>>
 
   getCommands: () => Promise<unknown[]>
   addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) => Promise<{ id: string }>
@@ -283,6 +301,12 @@ const electronAPI: ElectronAPI = {
   getProjectNotes: (projectId: string) => ipcRenderer.invoke('notes:get', projectId),
   updateProjectNotes: (projectId: string, updates: Partial<{ setupSteps: string; todos: string; reminders: string }>) =>
     ipcRenderer.invoke('notes:update', projectId, updates),
+
+  createBug: (input: CreateBugReportInput) => ipcRenderer.invoke('bugs:create', input),
+  updateBug: (id: string, updates: UpdateBugReportInput) => ipcRenderer.invoke('bugs:update', id, updates),
+  deleteBug: (id: string) => ipcRenderer.invoke('bugs:delete', id),
+  getBug: (id: string) => ipcRenderer.invoke('bugs:get', id),
+  listBugs: (filters?: BugReportFilters) => ipcRenderer.invoke('bugs:list', filters),
 
   // Commands
   getCommands: () => ipcRenderer.invoke('commands:get'),

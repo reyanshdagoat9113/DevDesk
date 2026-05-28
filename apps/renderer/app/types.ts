@@ -178,6 +178,60 @@ export interface ProjectNotes {
   reminders: string
 }
 
+export type BugSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type BugStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+export type BugApiErrorCode = 'validation' | 'not_found' | 'internal'
+
+export interface BugReport {
+  id: string
+  projectId: string
+  title: string
+  severity: BugSeverity
+  status: BugStatus
+  expectedResult?: string
+  actualResult?: string
+  reproductionSteps?: string
+  notes?: string
+  resolutionNotes?: string
+  createdAt: string
+  updatedAt: string
+  resolvedAt?: string
+}
+
+export interface CreateBugReportInput {
+  projectId: string
+  title: string
+  severity?: BugSeverity
+  status?: BugStatus
+  expectedResult?: string
+  actualResult?: string
+  reproductionSteps?: string
+  notes?: string
+  resolutionNotes?: string
+}
+
+export type UpdateBugReportInput = Partial<
+  Pick<
+    BugReport,
+    'title' | 'severity' | 'status' | 'expectedResult' | 'actualResult' | 'reproductionSteps' | 'notes' | 'resolutionNotes'
+  >
+>
+
+export interface BugReportFilters {
+  projectId?: string
+  status?: BugStatus
+  severity?: BugSeverity
+}
+
+export interface BugApiError {
+  code: BugApiErrorCode
+  message: string
+}
+
+export type BugApiResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: BugApiError }
+
 export interface Container {
   id: string
   name: string
