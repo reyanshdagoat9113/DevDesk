@@ -104,6 +104,42 @@ export async function listRecentRunHistory(limit: number): Promise<Array<Omit<Ru
   }))
 }
 
+export async function listRecentRunHistoryForProject(
+  projectId: string,
+  limit: number,
+): Promise<Array<Omit<RunHistoryEntry, 'output'>>> {
+  await ensureDbInitialized()
+  const rows = getDbOrThrow()
+    .prepare(
+      `
+        SELECT id, command_id, project_id, status, start_time, end_time, resolved_command
+        FROM run_history
+        WHERE project_id = ?
+        ORDER BY start_time DESC, rowid DESC
+        LIMIT ?
+      `,
+    )
+    .all(projectId, limit) as Array<{
+    id: string
+    command_id: string
+    project_id: string | null
+    status: RunStatus
+    start_time: string
+    end_time: string | null
+    resolved_command: string | null
+  }>
+
+  return rows.map((row) => ({
+    id: row.id,
+    commandId: row.command_id,
+    projectId: row.project_id ?? undefined,
+    status: row.status,
+    startTime: row.start_time,
+    endTime: row.end_time ?? undefined,
+    resolvedCommand: row.resolved_command ?? undefined,
+  }))
+}
+
 export async function listRunHistory(): Promise<RunHistoryEntry[]> {
   return withSqlTiming('listRunHistory', async () => {
     await ensureDbInitialized()

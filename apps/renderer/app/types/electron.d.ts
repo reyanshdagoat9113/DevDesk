@@ -1,6 +1,8 @@
 import type {
   AppPreferences,
   BugApiResult,
+  BugContextSnapshot,
+  BugContextSnapshotData,
   BugReport,
   BugReportFilters,
   Command,
@@ -64,6 +66,8 @@ export interface ElectronAPI {
   deleteBug: (id: string) => Promise<BugApiResult<{ success: boolean }>>
   getBug: (id: string) => Promise<BugApiResult<BugReport | null>>
   listBugs: (filters?: BugReportFilters) => Promise<BugApiResult<BugReport[]>>
+  captureContext: (projectId: string) => Promise<BugApiResult<BugContextSnapshotData>>
+  getBugContextSnapshot: (bugReportId: string) => Promise<BugApiResult<BugContextSnapshot | null>>
 
   getCommands: () => Promise<Command[]>
   addCommand: (command: CreateCommandInput) => Promise<Command>

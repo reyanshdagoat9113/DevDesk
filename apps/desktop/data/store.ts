@@ -14,6 +14,7 @@ export {
   finalizeRunHistoryEntry,
   getRunHistoryOutputById,
   listRecentRunHistory,
+  listRecentRunHistoryForProject,
   listRunHistory,
   reconcileRunHistory,
   removeRunHistoryEntry,
@@ -43,9 +44,12 @@ export {
 } from './store/automation'
 export {
   createBugReport,
+  deleteBugContextSnapshotsByBugId,
   deleteBugReport,
+  getBugContextSnapshotByBugId,
   getBugReportById,
   listBugReports,
+  saveBugContextSnapshot,
   updateBugReport,
 } from './store/bugs'
 export {

@@ -161,6 +161,19 @@ function createSchema(database: Database.Database) {
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS bug_context_snapshots (
+      id TEXT PRIMARY KEY,
+      bug_report_id TEXT NOT NULL,
+      command_history_json TEXT,
+      run_history_json TEXT,
+      logs_json TEXT,
+      environment_snapshot_json TEXT,
+      active_container_state_json TEXT,
+      health_snapshot_json TEXT,
+      notes_snippet_json TEXT,
+      FOREIGN KEY (bug_report_id) REFERENCES bug_reports(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_commands_project_id ON commands(project_id);
     CREATE INDEX IF NOT EXISTS idx_chains_project_id ON chains(project_id);
     CREATE INDEX IF NOT EXISTS idx_triggers_project_id ON triggers(project_id);
@@ -178,6 +191,7 @@ function createSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_bug_reports_status ON bug_reports(status);
     CREATE INDEX IF NOT EXISTS idx_bug_reports_severity ON bug_reports(severity);
     CREATE INDEX IF NOT EXISTS idx_bug_reports_updated_at ON bug_reports(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_bug_context_snapshots_bug_report_id ON bug_context_snapshots(bug_report_id);
   `)
 }
 

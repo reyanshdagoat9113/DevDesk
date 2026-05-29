@@ -266,6 +266,28 @@ export interface BugReportFilters {
   severity?: BugSeverity
 }
 
+export interface BugContextSnapshot {
+  id: string
+  bugReportId: string
+  commandHistoryJson: string
+  runHistoryJson: string
+  logsJson: string
+  environmentSnapshotJson: string
+  activeContainerStateJson: string
+  healthSnapshotJson: string
+  notesSnippetJson: string
+}
+
+export interface BugContextSnapshotData {
+  commandHistoryJson: string
+  runHistoryJson: string
+  logsJson: string
+  environmentSnapshotJson: string
+  activeContainerStateJson: string
+  healthSnapshotJson: string
+  notesSnippetJson: string
+}
+
 export const DATA_VERSION = 5 as const
 
 export interface DataStore {

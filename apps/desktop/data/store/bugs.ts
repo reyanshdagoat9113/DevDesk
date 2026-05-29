@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { BugReport, BugReportFilters, BugSeverity, BugStatus, CreateBugReportInput, UpdateBugReportInput } from '../model'
+import type { BugContextSnapshot, BugContextSnapshotData, BugReport, BugReportFilters, BugSeverity, BugStatus, CreateBugReportInput, UpdateBugReportInput } from '../model'
 import { ensureDbInitialized, getDbOrThrow, queueWrite, withSqlTiming } from './core'
 
 const VALID_BUG_SEVERITIES = new Set<BugSeverity>(['low', 'medium', 'high', 'critical'])
@@ -273,5 +273,119 @@ export async function listBugReports(filters: BugReportFilters = {}): Promise<Bu
 
     const rows = getDbOrThrow().prepare(sql).all(...params) as BugReportRow[]
     return rows.map(toBugReport)
+  })
+}
+
+type BugContextSnapshotRow = {
+  id: string
+  bug_report_id: string
+  command_history_json: string | null
+  run_history_json: string | null
+  logs_json: string | null
+  environment_snapshot_json: string | null
+  active_container_state_json: string | null
+  health_snapshot_json: string | null
+  notes_snippet_json: string | null
+}
+
+function toBugContextSnapshot(row: BugContextSnapshotRow): BugContextSnapshot {
+  return {
+    id: row.id,
+    bugReportId: row.bug_report_id,
+    commandHistoryJson: row.command_history_json ?? '[]',
+    runHistoryJson: row.run_history_json ?? '[]',
+    logsJson: row.logs_json ?? '[]',
+    environmentSnapshotJson: row.environment_snapshot_json ?? '{}',
+    activeContainerStateJson: row.active_container_state_json ?? '[]',
+    healthSnapshotJson: row.health_snapshot_json ?? '{}',
+    notesSnippetJson: row.notes_snippet_json ?? '{}',
+  }
+}
+
+export async function saveBugContextSnapshot(
+  bugReportId: string,
+  data: BugContextSnapshotData,
+): Promise<BugContextSnapshot> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+
+    const id = randomUUID()
+
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO bug_context_snapshots (
+            id,
+            bug_report_id,
+            command_history_json,
+            run_history_json,
+            logs_json,
+            environment_snapshot_json,
+            active_container_state_json,
+            health_snapshot_json,
+            notes_snippet_json
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        id,
+        bugReportId,
+        data.commandHistoryJson,
+        data.runHistoryJson,
+        data.logsJson,
+        data.environmentSnapshotJson,
+        data.activeContainerStateJson,
+        data.healthSnapshotJson,
+        data.notesSnippetJson,
+      )
+
+    return {
+      id,
+      bugReportId,
+      commandHistoryJson: data.commandHistoryJson,
+      runHistoryJson: data.runHistoryJson,
+      logsJson: data.logsJson,
+      environmentSnapshotJson: data.environmentSnapshotJson,
+      activeContainerStateJson: data.activeContainerStateJson,
+      healthSnapshotJson: data.healthSnapshotJson,
+      notesSnippetJson: data.notesSnippetJson,
+    }
+  })
+}
+
+export async function getBugContextSnapshotByBugId(
+  bugReportId: string,
+): Promise<BugContextSnapshot | null> {
+  await ensureDbInitialized()
+
+  const row = getDbOrThrow()
+    .prepare(
+      `
+        SELECT
+          id,
+          bug_report_id,
+          command_history_json,
+          run_history_json,
+          logs_json,
+          environment_snapshot_json,
+          active_container_state_json,
+          health_snapshot_json,
+          notes_snippet_json
+        FROM bug_context_snapshots
+        WHERE bug_report_id = ?
+      `,
+    )
+    .get(bugReportId) as BugContextSnapshotRow | undefined
+
+  return row ? toBugContextSnapshot(row) : null
+}
+
+export async function deleteBugContextSnapshotsByBugId(bugReportId: string): Promise<void> {
+  await queueWrite(async () => {
+    await ensureDbInitialized()
+    getDbOrThrow()
+      .prepare('DELETE FROM bug_context_snapshots WHERE bug_report_id = ?')
+      .run(bugReportId)
   })
 }

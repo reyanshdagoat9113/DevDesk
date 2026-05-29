@@ -16,6 +16,7 @@ import {
   deleteBugReport,
   finalizeRunHistoryEntry,
   getBugReportById,
+  getBugContextSnapshotByBugId,
   getChainById,
   getCommandById,
   getHealthCheckRunById,
@@ -42,6 +43,7 @@ import {
   replaceChain,
   replaceCommand,
   replaceTrigger,
+  saveBugContextSnapshot,
   toggleCommandPin,
   toggleProjectPin,
   updateBugReport,
@@ -54,6 +56,8 @@ import { inspectProjectHealth } from '../projectIntelligence/healthInspector'
 import type {
   AppPreference,
   AppPreferences,
+  BugContextSnapshot,
+  BugContextSnapshotData,
   BugReport,
   BugReportFilters,
   BugSeverity,
@@ -78,6 +82,7 @@ import { terminalManager } from '../terminal/terminalManager'
 import type { TerminalCreateOptions } from '../data/model'
 import { runSystemChecks } from '../health/systemChecks'
 import { runRuntimeChecks } from '../health/runtimeChecks'
+import { captureContextSnapshot } from '../bugs/contextSnapshot'
 
 type RunningCommand = {
   process: ChildProcessWithoutNullStreams
@@ -205,7 +210,7 @@ const WSL_EXECUTABLE_PATH = resolveWslExecutablePath()
 const WSL_DISTRO_NAME_BLACKLIST = new Set(['docker-desktop', 'docker-desktop-data'])
 const VALID_BUG_SEVERITIES = new Set<BugSeverity>(['low', 'medium', 'high', 'critical'])
 const VALID_BUG_STATUSES = new Set<BugStatus>(['open', 'in_progress', 'resolved', 'closed'])
-const BUG_CREATE_INPUT_KEYS = new Set<keyof CreateBugReportInput>([
+const BUG_CREATE_INPUT_KEYS = new Set<keyof CreateBugReportInput | 'contextSnapshot'>([
   'projectId',
   'title',
   'severity',
@@ -215,6 +220,7 @@ const BUG_CREATE_INPUT_KEYS = new Set<keyof CreateBugReportInput>([
   'reproductionSteps',
   'notes',
   'resolutionNotes',
+  'contextSnapshot',
 ])
 const BUG_UPDATE_INPUT_KEYS = new Set<keyof UpdateBugReportInput>([
   'title',
@@ -390,6 +396,18 @@ function toBugApiError(error: unknown): { code: BugApiErrorCode; message: string
   }
 
   return { code: 'internal', message: 'Unexpected bug IPC error.' }
+}
+
+function isValidContextSnapshotData(value: unknown): value is BugContextSnapshotData {
+  if (!isRecord(value)) return false
+
+  return typeof value.commandHistoryJson === 'string' &&
+    typeof value.runHistoryJson === 'string' &&
+    typeof value.logsJson === 'string' &&
+    typeof value.environmentSnapshotJson === 'string' &&
+    typeof value.activeContainerStateJson === 'string' &&
+    typeof value.healthSnapshotJson === 'string' &&
+    typeof value.notesSnippetJson === 'string'
 }
 
 function cleanWslDistroName(rawValue: string) {
@@ -2890,7 +2908,16 @@ export function registerIpcHandlers() {
   // Bugs
   ipcMain.handle('bugs:create', async (_event, input: unknown): Promise<BugApiResult<BugReport>> => {
     try {
+      const contextSnapshot = isRecord(input) && isValidContextSnapshotData(input.contextSnapshot)
+        ? input.contextSnapshot
+        : undefined
+
       const report = await createBugReport(sanitizeCreateBugInput(input))
+
+      if (contextSnapshot) {
+        await saveBugContextSnapshot(report.id, contextSnapshot)
+      }
+
       return bugSuccess(report)
     } catch (error) {
       return bugFailure<BugReport>(toBugApiError(error).code, toBugApiError(error).message)
@@ -2942,6 +2969,27 @@ export function registerIpcHandlers() {
       return bugSuccess(reports)
     } catch (error) {
       return bugFailure<BugReport[]>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:capture-context', async (_event, projectId: unknown): Promise<BugApiResult<BugContextSnapshotData>> => {
+    try {
+      const sanitizedProjectId = sanitizeRequiredBugString(projectId, 'Bug projectId')
+      const containers = await listDockerContainers()
+      const snapshot = await captureContextSnapshot(sanitizedProjectId, containers)
+      return bugSuccess(snapshot)
+    } catch (error) {
+      return bugFailure<BugContextSnapshotData>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:get-context-snapshot', async (_event, bugReportId: unknown): Promise<BugApiResult<BugContextSnapshot | null>> => {
+    try {
+      const sanitizedId = sanitizeBugId(bugReportId, 'Bug report id')
+      const snapshot = await getBugContextSnapshotByBugId(sanitizedId)
+      return bugSuccess(snapshot)
+    } catch (error) {
+      return bugFailure<BugContextSnapshot | null>(toBugApiError(error).code, toBugApiError(error).message)
     }
   })
 
