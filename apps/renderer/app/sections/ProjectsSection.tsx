@@ -25,6 +25,7 @@ import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
 import { ProjectGitSummary } from '../components/ProjectGitSummary'
 import { ProjectHealthPanel } from '../components/ProjectHealthPanel'
 import { ProjectNotesPanel } from '../components/ProjectNotesPanel'
+import { BugRecorderPanel } from '../components/BugRecorderPanel'
 import { ProjectDetailTabs } from '../components/ProjectDetailTabs'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
@@ -865,6 +866,7 @@ export function ProjectsSection({
               <CardContent className="flex-1 flex flex-col overflow-hidden p-0">
                 <ProjectDetailTabs
                   key={selectedProject.id}
+                  bugsPanel={<BugRecorderPanel projectId={selectedProject.id} />}
                   overviewPanel={
                     <div className="space-y-10">
                   {/* Quick Actions */}
