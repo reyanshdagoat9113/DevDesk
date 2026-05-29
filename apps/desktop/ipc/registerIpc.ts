@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
+  addBugAttachmentRecord,
   cleanupOldHealthChecks,
   clearRunHistoryInStore,
   createChain,
@@ -13,8 +14,10 @@ import {
   createProject,
   createRunHistoryEntry,
   createTrigger,
+  deleteBugAttachmentRecord,
   deleteBugReport,
   finalizeRunHistoryEntry,
+  getBugAttachmentById,
   getBugReportById,
   getBugContextSnapshotByBugId,
   getChainById,
@@ -26,6 +29,8 @@ import {
   getProjectNotesById,
   getRunHistoryOutputById,
   getTriggerById,
+  listBugAttachmentPathsByBugId,
+  listBugAttachments,
   listChains,
   listBugReports,
   listCommands,
@@ -54,8 +59,11 @@ import {
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
 import { inspectProjectHealth } from '../projectIntelligence/healthInspector'
 import type {
+  AddBugAttachmentInput,
   AppPreference,
   AppPreferences,
+  BugAttachment,
+  BugAttachmentKind,
   BugContextSnapshot,
   BugContextSnapshotData,
   BugReport,
@@ -75,6 +83,7 @@ import type {
   RunStatus,
   UpdateBugReportInput,
 } from '../data/model'
+import { copyFileToAttachments, deleteAttachmentFile } from '../bugs/attachmentService'
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
 import { variableResolver } from '../commands/variableResolver'
 import { detectVariables } from '../commands/variableDetector'
@@ -396,6 +405,35 @@ function toBugApiError(error: unknown): { code: BugApiErrorCode; message: string
   }
 
   return { code: 'internal', message: 'Unexpected bug IPC error.' }
+}
+
+const VALID_ATTACHMENT_KINDS = new Set<BugAttachmentKind>(['screenshot', 'log', 'file', 'env_snapshot'])
+
+function sanitizeAddAttachmentInput(input: unknown): AddBugAttachmentInput {
+  if (!isRecord(input)) {
+    throw new Error('Attachment input is required.')
+  }
+
+  const bugReportId = sanitizeRequiredBugString(input.bugReportId, 'Bug report id')
+  const sourceFilePath = sanitizeRequiredBugString(input.sourceFilePath, 'Source file path')
+
+  let kind: BugAttachmentKind | undefined
+  if (input.kind !== undefined) {
+    if (typeof input.kind !== 'string' || !VALID_ATTACHMENT_KINDS.has(input.kind as BugAttachmentKind)) {
+      throw new Error('Attachment kind must be one of: screenshot, log, file, env_snapshot.')
+    }
+    kind = input.kind as BugAttachmentKind
+  }
+
+  let mimeType: string | undefined
+  if (input.mimeType !== undefined) {
+    if (typeof input.mimeType !== 'string') {
+      throw new Error('Attachment mimeType must be a string.')
+    }
+    mimeType = input.mimeType
+  }
+
+  return { bugReportId, sourceFilePath, kind, mimeType }
 }
 
 function isValidContextSnapshotData(value: unknown): value is BugContextSnapshotData {
@@ -2943,9 +2981,19 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('bugs:delete', async (_event, bugId: unknown): Promise<BugApiResult<{ success: boolean }>> => {
     try {
-      const deleted = await deleteBugReport(sanitizeBugId(bugId))
+      const sanitizedId = sanitizeBugId(bugId)
+      const attachmentPaths = await listBugAttachmentPathsByBugId(sanitizedId)
+      const deleted = await deleteBugReport(sanitizedId)
       if (!deleted) {
         return bugFailure('not_found', 'Bug report not found.')
+      }
+
+      for (const relPath of attachmentPaths) {
+        try {
+          deleteAttachmentFile(relPath)
+        } catch {
+          // best-effort cleanup
+        }
       }
 
       return bugSuccess({ success: true })
@@ -2990,6 +3038,81 @@ export function registerIpcHandlers() {
       return bugSuccess(snapshot)
     } catch (error) {
       return bugFailure<BugContextSnapshot | null>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:list-attachments', async (_event, bugReportId: unknown): Promise<BugApiResult<BugAttachment[]>> => {
+    try {
+      const sanitizedId = sanitizeBugId(bugReportId, 'Bug report id')
+      const attachments = await listBugAttachments(sanitizedId)
+      return bugSuccess(attachments)
+    } catch (error) {
+      return bugFailure<BugAttachment[]>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:add-attachment', async (_event, input: unknown): Promise<BugApiResult<BugAttachment>> => {
+    try {
+      const sanitized = sanitizeAddAttachmentInput(input)
+      const { relativePath, fileSize } = copyFileToAttachments(sanitized.sourceFilePath)
+      const attachment = await addBugAttachmentRecord({
+        ...sanitized,
+        storedRelativePath: relativePath,
+        fileSize,
+      })
+      return bugSuccess(attachment)
+    } catch (error) {
+      return bugFailure<BugAttachment>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:remove-attachment', async (_event, attachmentId: unknown): Promise<BugApiResult<{ success: boolean }>> => {
+    try {
+      const sanitizedId = sanitizeBugId(attachmentId, 'Attachment id')
+      const attachment = await getBugAttachmentById(sanitizedId)
+      if (!attachment) {
+        return bugFailure('not_found', 'Attachment not found.')
+      }
+
+      const deleted = await deleteBugAttachmentRecord(sanitizedId)
+      if (!deleted) {
+        return bugFailure('not_found', 'Attachment not found.')
+      }
+
+      try {
+        deleteAttachmentFile(attachment.filePath)
+      } catch {
+        // best-effort cleanup
+      }
+
+      return bugSuccess({ success: true })
+    } catch (error) {
+      return bugFailure<{ success: boolean }>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:pick-attachment-file', async (_event, options?: unknown): Promise<BugApiResult<{ canceled: boolean; filePaths: string[] }>> => {
+    try {
+      const dialogOptions: OpenDialogOptions = {
+        properties: ['openFile', 'multiSelections'],
+      }
+
+      if (isRecord(options)) {
+        if (typeof options.title === 'string') {
+          dialogOptions.title = options.title
+        }
+        if (Array.isArray(options.filters)) {
+          dialogOptions.filters = options.filters.filter(
+            (f): f is { name: string; extensions: string[] } =>
+              isRecord(f) && typeof f.name === 'string' && Array.isArray(f.extensions)
+          )
+        }
+      }
+
+      const result = await dialog.showOpenDialog(dialogOptions)
+      return bugSuccess({ canceled: result.canceled, filePaths: result.filePaths })
+    } catch (error) {
+      return bugFailure<{ canceled: boolean; filePaths: string[] }>(toBugApiError(error).code, toBugApiError(error).message)
     }
   })
 

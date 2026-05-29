@@ -43,11 +43,16 @@ export {
   replaceTrigger,
 } from './store/automation'
 export {
+  addBugAttachmentRecord,
   createBugReport,
+  deleteBugAttachmentRecord,
   deleteBugContextSnapshotsByBugId,
   deleteBugReport,
+  getBugAttachmentById,
   getBugContextSnapshotByBugId,
   getBugReportById,
+  listBugAttachmentPathsByBugId,
+  listBugAttachments,
   listBugReports,
   saveBugContextSnapshot,
   updateBugReport,

@@ -288,6 +288,26 @@ export interface BugContextSnapshotData {
   notesSnippetJson: string
 }
 
+export type BugAttachmentKind = 'screenshot' | 'log' | 'file' | 'env_snapshot'
+
+export interface BugAttachment {
+  id: string
+  bugReportId: string
+  kind: BugAttachmentKind
+  fileName: string
+  filePath: string
+  fileSize: number
+  mimeType?: string
+  createdAt: string
+}
+
+export interface AddBugAttachmentInput {
+  bugReportId: string
+  kind?: BugAttachmentKind
+  sourceFilePath: string
+  mimeType?: string
+}
+
 export const DATA_VERSION = 5 as const
 
 export interface DataStore {

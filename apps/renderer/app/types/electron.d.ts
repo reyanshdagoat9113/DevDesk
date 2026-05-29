@@ -1,6 +1,8 @@
 import type {
+  AddBugAttachmentInput,
   AppPreferences,
   BugApiResult,
+  BugAttachment,
   BugContextSnapshot,
   BugContextSnapshotData,
   BugReport,
@@ -68,6 +70,10 @@ export interface ElectronAPI {
   listBugs: (filters?: BugReportFilters) => Promise<BugApiResult<BugReport[]>>
   captureContext: (projectId: string) => Promise<BugApiResult<BugContextSnapshotData>>
   getBugContextSnapshot: (bugReportId: string) => Promise<BugApiResult<BugContextSnapshot | null>>
+  listBugAttachments: (bugReportId: string) => Promise<BugApiResult<BugAttachment[]>>
+  addBugAttachment: (input: AddBugAttachmentInput) => Promise<BugApiResult<BugAttachment>>
+  removeBugAttachment: (attachmentId: string) => Promise<BugApiResult<{ success: boolean }>>
+  pickAttachmentFile: (options?: { title?: string; filters?: Array<{ name: string; extensions: string[] }> }) => Promise<BugApiResult<{ canceled: boolean; filePaths: string[] }>>
 
   getCommands: () => Promise<Command[]>
   addCommand: (command: CreateCommandInput) => Promise<Command>

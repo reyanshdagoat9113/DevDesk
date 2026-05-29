@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Bug, Loader2, Plus, Trash2, AlertCircle } from 'lucide-react'
+import { Bug, Loader2, Plus, Trash2, AlertCircle, Paperclip, X, FileText, Image, File } from 'lucide-react'
 import { Button } from './ui/Button'
 import { Badge } from './ui/Badge'
 import {
@@ -23,10 +23,27 @@ import {
 } from './ui/Select'
 import { cn } from '../../lib/utils'
 import { severityBadgeVariant, severityLabels } from '../lib/bugConstants'
-import type { BugReport, BugSeverity, BugStatus, CreateBugReportInput } from '../types'
+import type { BugAttachment, BugReport, BugSeverity, BugStatus, CreateBugReportInput } from '../types'
 
 interface BugRecorderPanelProps {
   projectId: string
+}
+
+function attachmentKindIcon(kind: string) {
+  switch (kind) {
+    case 'screenshot':
+      return <Image className="h-3 w-3" />
+    case 'log':
+      return <FileText className="h-3 w-3" />
+    default:
+      return <File className="h-3 w-3" />
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
@@ -36,6 +53,8 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [attachmentsByBug, setAttachmentsByBug] = useState<Record<string, BugAttachment[]>>({})
+  const [addingAttachmentForBug, setAddingAttachmentForBug] = useState<string | null>(null)
 
   const [title, setTitle] = useState('')
   const [severity, setSeverity] = useState<BugSeverity>('medium')
@@ -51,6 +70,16 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
       const result = await window.electronAPI.listBugs({ projectId })
       if (result.ok) {
         setBugs(result.data)
+        const attachmentMap: Record<string, BugAttachment[]> = {}
+        await Promise.all(
+          result.data.map(async (bug) => {
+            const attResult = await window.electronAPI.listBugAttachments(bug.id)
+            if (attResult.ok) {
+              attachmentMap[bug.id] = attResult.data
+            }
+          })
+        )
+        setAttachmentsByBug(attachmentMap)
       } else {
         setError(result.error.message)
       }
@@ -146,6 +175,54 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete bug report.')
+    }
+  }
+
+  const handleAddAttachment = async (bugId: string) => {
+    setAddingAttachmentForBug(bugId)
+    try {
+      const pickResult = await window.electronAPI.pickAttachmentFile({
+        title: 'Attach files to bug report',
+      })
+      if (!pickResult.ok || pickResult.data.canceled || pickResult.data.filePaths.length === 0) {
+        return
+      }
+
+      for (const filePath of pickResult.data.filePaths) {
+        const addResult = await window.electronAPI.addBugAttachment({
+          bugReportId: bugId,
+          sourceFilePath: filePath,
+        })
+        if (!addResult.ok) {
+          setError(addResult.error.message)
+          return
+        }
+      }
+
+      const listResult = await window.electronAPI.listBugAttachments(bugId)
+      if (listResult.ok) {
+        setAttachmentsByBug((prev) => ({ ...prev, [bugId]: listResult.data }))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add attachment.')
+    } finally {
+      setAddingAttachmentForBug(null)
+    }
+  }
+
+  const handleRemoveAttachment = async (bugId: string, attachmentId: string) => {
+    try {
+      const result = await window.electronAPI.removeBugAttachment(attachmentId)
+      if (result.ok) {
+        setAttachmentsByBug((prev) => ({
+          ...prev,
+          [bugId]: (prev[bugId] ?? []).filter((a) => a.id !== attachmentId),
+        }))
+      } else {
+        setError(result.error.message)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove attachment.')
     }
   }
 
@@ -286,6 +363,57 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
                   )}
                 </div>
               )}
+
+              <div className="pt-2 border-t border-border/30">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center gap-1">
+                    <Paperclip className="h-3 w-3" />
+                    Attachments
+                    {attachmentsByBug[bug.id]?.length > 0 && (
+                      <span className="text-muted-foreground/60">({attachmentsByBug[bug.id].length})</span>
+                    )}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-[10px] gap-1"
+                    onClick={() => void handleAddAttachment(bug.id)}
+                    disabled={addingAttachmentForBug === bug.id}
+                  >
+                    {addingAttachmentForBug === bug.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Plus className="h-3 w-3" />
+                    )}
+                    Add
+                  </Button>
+                </div>
+                {attachmentsByBug[bug.id]?.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {attachmentsByBug[bug.id].map((att) => (
+                      <div
+                        key={att.id}
+                        className="group flex items-center gap-1.5 rounded-md border border-border/40 bg-muted/30 px-2 py-1 text-[10px]"
+                      >
+                        {attachmentKindIcon(att.kind)}
+                        <span className="truncate max-w-[120px]" title={att.fileName}>
+                          {att.fileName}
+                        </span>
+                        <span className="text-muted-foreground/60">{formatFileSize(att.fileSize)}</span>
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-0.5"
+                          onClick={() => void handleRemoveAttachment(bug.id, att.id)}
+                          aria-label={`Remove ${att.fileName}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground/60">No attachments</p>
+                )}
+              </div>
             </div>
           ))}
         </div>

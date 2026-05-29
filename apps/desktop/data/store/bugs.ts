@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import path from 'node:path'
 
-import type { BugContextSnapshot, BugContextSnapshotData, BugReport, BugReportFilters, BugSeverity, BugStatus, CreateBugReportInput, UpdateBugReportInput } from '../model'
+import type { AddBugAttachmentInput, BugAttachment, BugAttachmentKind, BugContextSnapshot, BugContextSnapshotData, BugReport, BugReportFilters, BugSeverity, BugStatus, CreateBugReportInput, UpdateBugReportInput } from '../model'
 import { ensureDbInitialized, getDbOrThrow, queueWrite, withSqlTiming } from './core'
 
 const VALID_BUG_SEVERITIES = new Set<BugSeverity>(['low', 'medium', 'high', 'critical'])
@@ -388,4 +389,129 @@ export async function deleteBugContextSnapshotsByBugId(bugReportId: string): Pro
       .prepare('DELETE FROM bug_context_snapshots WHERE bug_report_id = ?')
       .run(bugReportId)
   })
+}
+
+type BugAttachmentRow = {
+  id: string
+  bug_report_id: string
+  kind: string
+  file_name: string
+  file_path: string
+  file_size: number
+  mime_type: string | null
+  created_at: string
+}
+
+function toBugAttachment(row: BugAttachmentRow): BugAttachment {
+  return {
+    id: row.id,
+    bugReportId: row.bug_report_id,
+    kind: row.kind as BugAttachmentKind,
+    fileName: row.file_name,
+    filePath: row.file_path,
+    fileSize: row.file_size,
+    mimeType: row.mime_type ?? undefined,
+    createdAt: row.created_at,
+  }
+}
+
+export async function addBugAttachmentRecord(
+  input: AddBugAttachmentInput & { storedRelativePath: string; fileSize: number },
+): Promise<BugAttachment> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+
+    const id = randomUUID()
+    const now = new Date().toISOString()
+    const kind = input.kind ?? 'file'
+
+    getDbOrThrow()
+      .prepare(
+        `
+          INSERT INTO bug_attachments (
+            id,
+            bug_report_id,
+            kind,
+            file_name,
+            file_path,
+            file_size,
+            mime_type,
+            created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        id,
+        input.bugReportId,
+        kind,
+        input.sourceFilePath.split(/[\\/]/).pop() ?? 'unknown',
+        input.storedRelativePath,
+        input.fileSize,
+        input.mimeType ?? null,
+        now,
+      )
+
+    return {
+      id,
+      bugReportId: input.bugReportId,
+      kind,
+      fileName: input.sourceFilePath.split(/[\\/]/).pop() ?? 'unknown',
+      filePath: input.storedRelativePath,
+      fileSize: input.fileSize,
+      mimeType: input.mimeType ?? undefined,
+      createdAt: now,
+    }
+  })
+}
+
+export async function getBugAttachmentById(id: string): Promise<BugAttachment | null> {
+  await ensureDbInitialized()
+
+  const row = getDbOrThrow()
+    .prepare(
+      `
+        SELECT id, bug_report_id, kind, file_name, file_path, file_size, mime_type, created_at
+        FROM bug_attachments
+        WHERE id = ?
+      `,
+    )
+    .get(id) as BugAttachmentRow | undefined
+
+  return row ? toBugAttachment(row) : null
+}
+
+export async function listBugAttachments(bugReportId: string): Promise<BugAttachment[]> {
+  await ensureDbInitialized()
+
+  const rows = getDbOrThrow()
+    .prepare(
+      `
+        SELECT id, bug_report_id, kind, file_name, file_path, file_size, mime_type, created_at
+        FROM bug_attachments
+        WHERE bug_report_id = ?
+        ORDER BY created_at ASC
+      `,
+    )
+    .all(bugReportId) as BugAttachmentRow[]
+
+  return rows.map(toBugAttachment)
+}
+
+export async function deleteBugAttachmentRecord(id: string): Promise<boolean> {
+  return queueWrite(async () => {
+    await ensureDbInitialized()
+    const result = getDbOrThrow().prepare('DELETE FROM bug_attachments WHERE id = ?').run(id)
+    return result.changes > 0
+  })
+}
+
+export async function listBugAttachmentPathsByBugId(bugReportId: string): Promise<string[]> {
+  await ensureDbInitialized()
+
+  const rows = getDbOrThrow()
+    .prepare('SELECT file_path FROM bug_attachments WHERE bug_report_id = ?')
+    .all(bugReportId) as Array<{ file_path: string }>
+
+  return rows.map((row) => row.file_path)
 }

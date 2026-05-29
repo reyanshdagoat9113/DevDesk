@@ -187,11 +187,24 @@ function createSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_health_check_items_run_id ON health_check_items(run_id);
     CREATE INDEX IF NOT EXISTS idx_health_check_runs_project_id ON health_check_runs(project_id);
     CREATE INDEX IF NOT EXISTS idx_health_check_runs_started_at ON health_check_runs(started_at DESC);
+    CREATE TABLE IF NOT EXISTS bug_attachments (
+      id TEXT PRIMARY KEY,
+      bug_report_id TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'file',
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size INTEGER NOT NULL DEFAULT 0,
+      mime_type TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (bug_report_id) REFERENCES bug_reports(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_bug_reports_project_id ON bug_reports(project_id);
     CREATE INDEX IF NOT EXISTS idx_bug_reports_status ON bug_reports(status);
     CREATE INDEX IF NOT EXISTS idx_bug_reports_severity ON bug_reports(severity);
     CREATE INDEX IF NOT EXISTS idx_bug_reports_updated_at ON bug_reports(updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_bug_context_snapshots_bug_report_id ON bug_context_snapshots(bug_report_id);
+    CREATE INDEX IF NOT EXISTS idx_bug_attachments_bug_report_id ON bug_attachments(bug_report_id);
   `)
 }
 

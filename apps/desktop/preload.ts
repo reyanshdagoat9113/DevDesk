@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  AddBugAttachmentInput,
+  BugAttachment,
   BugContextSnapshot,
   BugContextSnapshotData,
   BugReport,
@@ -70,6 +72,10 @@ interface ElectronAPI {
   listBugs: (filters?: BugReportFilters) => Promise<BugApiResult<BugReport[]>>
   captureContext: (projectId: string) => Promise<BugApiResult<BugContextSnapshotData>>
   getBugContextSnapshot: (bugReportId: string) => Promise<BugApiResult<BugContextSnapshot | null>>
+  listBugAttachments: (bugReportId: string) => Promise<BugApiResult<BugAttachment[]>>
+  addBugAttachment: (input: AddBugAttachmentInput) => Promise<BugApiResult<BugAttachment>>
+  removeBugAttachment: (attachmentId: string) => Promise<BugApiResult<{ success: boolean }>>
+  pickAttachmentFile: (options?: { title?: string; filters?: Array<{ name: string; extensions: string[] }> }) => Promise<BugApiResult<{ canceled: boolean; filePaths: string[] }>>
 
   getCommands: () => Promise<unknown[]>
   addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) => Promise<{ id: string }>
@@ -313,6 +319,10 @@ const electronAPI: ElectronAPI = {
   listBugs: (filters?: BugReportFilters) => ipcRenderer.invoke('bugs:list', filters),
   captureContext: (projectId: string) => ipcRenderer.invoke('bugs:capture-context', projectId),
   getBugContextSnapshot: (bugReportId: string) => ipcRenderer.invoke('bugs:get-context-snapshot', bugReportId),
+  listBugAttachments: (bugReportId: string) => ipcRenderer.invoke('bugs:list-attachments', bugReportId),
+  addBugAttachment: (input: AddBugAttachmentInput) => ipcRenderer.invoke('bugs:add-attachment', input),
+  removeBugAttachment: (attachmentId: string) => ipcRenderer.invoke('bugs:remove-attachment', attachmentId),
+  pickAttachmentFile: (options?: { title?: string; filters?: Array<{ name: string; extensions: string[] }> }) => ipcRenderer.invoke('bugs:pick-attachment-file', options),
 
   // Commands
   getCommands: () => ipcRenderer.invoke('commands:get'),
