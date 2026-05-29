@@ -22,24 +22,11 @@ import {
   SelectValue,
 } from './ui/Select'
 import { cn } from '../../lib/utils'
+import { severityBadgeVariant, severityLabels } from '../lib/bugConstants'
 import type { BugReport, BugSeverity, BugStatus, CreateBugReportInput } from '../types'
 
 interface BugRecorderPanelProps {
   projectId: string
-}
-
-const severityBadgeVariant: Record<BugSeverity, 'secondary' | 'warning' | 'destructive'> = {
-  low: 'secondary',
-  medium: 'warning',
-  high: 'destructive',
-  critical: 'destructive',
-}
-
-const severityLabels: Record<BugSeverity, string> = {
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-  critical: 'Critical',
 }
 
 export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {

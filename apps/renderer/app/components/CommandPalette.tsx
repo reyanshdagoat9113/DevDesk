@@ -28,6 +28,7 @@ import {
   Send,
   Github,
   Monitor,
+  Bug,
 } from 'lucide-react'
 import { VariablePromptModal } from './VariablePromptModal'
 import { getContainerActionIcon, getStatusIcon } from './commandPaletteHelpers'
@@ -112,6 +113,7 @@ interface CommandPaletteProps {
   onError: (message: string) => void
   onOpenFileInEditor?: (projectId: string, relativePath: string, line?: number, column?: number) => Promise<void>
   onCreateTerminalSession?: (projectId?: string) => Promise<void>
+  onRecordBug?: () => void
 }
 
 export function CommandPalette({
@@ -143,6 +145,7 @@ export function CommandPalette({
   onClearProjectIndex,
   onClearProjectSearchSession,
   onCreateTerminalSession,
+  onRecordBug,
 }: CommandPaletteProps) {
   const [mode, setMode] = useState<PaletteMode>({ type: 'main' })
   const [searchQuery, setSearchQuery] = useState('')
@@ -504,6 +507,21 @@ export function CommandPalette({
         }),
       })
     }
+
+    if (onRecordBug) {
+      items.push({
+        id: 'nav-record-bug',
+        group: 'Navigation',
+        title: 'Record Bug',
+        subtitle: 'Quickly capture a bug report',
+        keywords: ['bug', 'record', 'capture', 'issue', 'report', 'defect'],
+        icon: <Bug className="h-4 w-4" />,
+        action: () => {
+          onRecordBug()
+          onOpenChange(false)
+        },
+      })
+    }
     // Sort projects: pinned first, then by name
     const sortedProjects = [...projects].sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1
@@ -692,6 +710,7 @@ export function CommandPalette({
     onPushProjectBranch,
     onError,
     onCreateTerminalSession,
+    onRecordBug,
   ])
 
   const projectPickItems: PaletteItem[] = useMemo(() => {

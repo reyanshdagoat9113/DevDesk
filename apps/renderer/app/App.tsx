@@ -57,6 +57,7 @@ import type {
 import { CommandPalette } from './components/CommandPalette'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ProjectDirectorySelector } from './components/ProjectDirectorySelector'
+import { BugReportModal } from './components/BugReportModal'
 import {
   GLOBAL_COMMAND_VALUE,
   actionLabels,
@@ -116,6 +117,8 @@ function App() {
   const [showWslOptions, setShowWslOptions] = useState(false)
 
   const [commandDialogOpen, setCommandDialogOpen] = useState(false)
+  const [bugReportModalOpen, setBugReportModalOpen] = useState(false)
+  const [bugReportPreselectedProjectId, setBugReportPreselectedProjectId] = useState<string | null>(null)
   const [commandName, setCommandName] = useState('')
   const [commandValue, setCommandValue] = useState('')
   const [commandDescription, setCommandDescription] = useState('')
@@ -128,6 +131,17 @@ function App() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionState[]>([])
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
   const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
+
+  const currentContextProjectId = useMemo(() => {
+    if (activeTab === 'engine' && selectedEngineProjectId) {
+      return selectedEngineProjectId
+    }
+    if (activeTab === 'terminal') {
+      const session = terminalSessions.find((s) => s.id === activeTerminalId)
+      if (session?.projectId) return session.projectId
+    }
+    return null
+  }, [activeTab, selectedEngineProjectId, terminalSessions, activeTerminalId])
 
   const title = useMemo(() => navItems.find((item) => item.value === activeTab)?.label ?? '', [activeTab])
   const actionLabel = actionLabels[activeTab]
@@ -499,34 +513,57 @@ function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCtrlBacktick = (e.ctrlKey || e.metaKey) && e.key === '`'
-      if (!isCtrlBacktick) return
+      if (isCtrlBacktick) {
+        const target = e.target as HTMLElement
+        const isEditable =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable
 
-      const target = e.target as HTMLElement
-      const isEditable =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'SELECT' ||
-        target.isContentEditable
+        // Don't steal backtick from terminal input (xterm textarea)
+        if (isEditable) return
 
-      // Don't steal backtick from terminal input (xterm textarea)
-      if (isEditable) return
+        e.preventDefault()
 
-      e.preventDefault()
-
-      if (activeTab === 'terminal') {
-        void handleCreateTerminalSession()
-      } else {
-        if (terminalSessions.length === 0) {
+        if (activeTab === 'terminal') {
           void handleCreateTerminalSession()
         } else {
-          setActiveTab('terminal')
+          if (terminalSessions.length === 0) {
+            void handleCreateTerminalSession()
+          } else {
+            setActiveTab('terminal')
+          }
         }
+        return
+      }
+
+      const isCtrlShiftB = (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'b'
+      if (isCtrlShiftB) {
+        const target = e.target as HTMLElement
+        const isEditable =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable
+
+        if (isEditable) return
+
+        e.preventDefault()
+        setBugReportPreselectedProjectId(
+          currentContextProjectId && projects.some((p) => p.id === currentContextProjectId)
+            ? currentContextProjectId
+            : projects.length === 1
+              ? projects[0].id
+              : null
+        )
+        setBugReportModalOpen(true)
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [activeTab, terminalSessions.length, handleCreateTerminalSession])
+  }, [activeTab, terminalSessions.length, handleCreateTerminalSession, projects, currentContextProjectId])
 
   const handleWslDistroSelect = (distro: string) => {
     setSelectedWslDistro(distro)
@@ -1670,6 +1707,23 @@ function App() {
         }}
         onError={(message) => setLoadError(message)}
         onCreateTerminalSession={handleCreateTerminalSession}
+        onRecordBug={() => {
+          setBugReportPreselectedProjectId(
+            currentContextProjectId && projects.some((p) => p.id === currentContextProjectId)
+              ? currentContextProjectId
+              : projects.length === 1
+                ? projects[0].id
+                : null
+          )
+          setBugReportModalOpen(true)
+        }}
+      />
+
+      <BugReportModal
+        open={bugReportModalOpen}
+        onOpenChange={setBugReportModalOpen}
+        projects={projects}
+        preselectedProjectId={bugReportPreselectedProjectId}
       />
 
       <Dialog open={commandDialogOpen} onOpenChange={setCommandDialogOpen}>

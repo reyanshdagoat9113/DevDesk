@@ -208,6 +208,7 @@ export interface CreateBugReportInput {
   reproductionSteps?: string
   notes?: string
   resolutionNotes?: string
+  contextSnapshot?: BugContextSnapshotData
 }
 
 export type UpdateBugReportInput = Partial<
