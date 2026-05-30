@@ -308,6 +308,7 @@ export interface AppPreference {
 export interface AppPreferences {
   editor: AppPreference
   terminal: AppPreference
+  trayEnabled: boolean
 }
 
 export interface EngineIndexMeta {

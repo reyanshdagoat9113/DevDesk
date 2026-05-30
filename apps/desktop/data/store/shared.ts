@@ -29,6 +29,7 @@ export const createDefaultPreferences = (): AppPreferences => {
     return {
       editor: { id: 'vscode' },
       terminal: { id: 'windows-terminal' },
+      trayEnabled: true,
     }
   }
 
@@ -36,12 +37,14 @@ export const createDefaultPreferences = (): AppPreferences => {
     return {
       editor: { id: 'vscode' },
       terminal: { id: 'terminal' },
+      trayEnabled: true,
     }
   }
 
   return {
     editor: { id: 'vscode' },
     terminal: { id: 'terminal' },
+    trayEnabled: true,
   }
 }
 

@@ -435,6 +435,12 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
       command: payload.preferences.terminal.command ?? null,
     })
 
+    insertPreference.run({
+      key: 'tray',
+      id: payload.preferences.trayEnabled !== false ? '1' : '0',
+      command: null,
+    })
+
     for (const entry of Object.values(payload.engineIndexes ?? {})) {
       insertEngineIndex.run({
         projectId: entry.projectId,

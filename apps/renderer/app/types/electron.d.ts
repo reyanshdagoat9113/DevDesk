@@ -179,6 +179,8 @@ export interface ElectronAPI {
   exportDataToFile: () => Promise<ExportToFileResult>
   previewImportFile: () => Promise<ImportPreviewResult>
   importData: (data: unknown, mode: ImportMode) => Promise<ImportResult>
+
+  onTrayTerminalCreated: (handler: (payload: { terminalId: string; projectId?: string }) => void) => () => void
 }
 
 declare global {

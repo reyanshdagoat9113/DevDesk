@@ -640,13 +640,15 @@ export function ProjectsSection({
   const updatePreference = (partial: Partial<AppPreferences>, commit = true) => {
     if (!prefsDraft) return
     const next: AppPreferences = {
+      ...prefsDraft,
+      ...partial,
       editor: {
-        id: partial.editor?.id ?? prefsDraft.editor.id,
-        command: partial.editor?.command ?? prefsDraft.editor.command,
+        ...prefsDraft.editor,
+        ...partial.editor,
       },
       terminal: {
-        id: partial.terminal?.id ?? prefsDraft.terminal.id,
-        command: partial.terminal?.command ?? prefsDraft.terminal.command,
+        ...prefsDraft.terminal,
+        ...partial.terminal,
       },
     }
     setPrefsDraft(next)
@@ -1176,6 +1178,22 @@ export function ProjectsSection({
                             />
                           </div>
                         )}
+                      </div>
+
+                      <div className="flex items-center gap-3 md:col-span-2 pt-2 border-t border-border/30">
+                        <input
+                          id="tray-enabled"
+                          type="checkbox"
+                          checked={prefsDraft?.trayEnabled ?? false}
+                          onChange={(event) =>
+                            updatePreference({ trayEnabled: event.target.checked })
+                          }
+                          disabled={!prefsDraft}
+                          className="h-4 w-4 rounded border-border bg-background text-primary accent-primary focus:ring-primary/20"
+                        />
+                        <Label htmlFor="tray-enabled" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 cursor-pointer">
+                          Show system tray icon
+                        </Label>
                       </div>
                     </div>
                     {prefsError && <p className="text-[11px] text-destructive bg-destructive/5 p-2 rounded border border-destructive/10">{prefsError}</p>}

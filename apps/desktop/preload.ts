@@ -288,6 +288,9 @@ interface ElectronAPI {
   exportDataToFile: () => Promise<ExportToFileResult>
   previewImportFile: () => Promise<ImportPreviewResult>
   importData: (data: unknown, mode: ImportMode) => Promise<ImportResult>
+
+  // Tray
+  onTrayTerminalCreated: (handler: (payload: { terminalId: string; projectId?: string }) => void) => () => void
 }
 
 // Expose a safe API to the renderer process
@@ -578,6 +581,15 @@ const electronAPI: ElectronAPI = {
   exportDataToFile: () => ipcRenderer.invoke('config:export-to-file'),
   previewImportFile: () => ipcRenderer.invoke('config:import-preview'),
   importData: (data: unknown, mode: ImportMode) => ipcRenderer.invoke('config:import', data, mode),
+
+  // Tray
+  onTrayTerminalCreated: (handler: (payload: { terminalId: string; projectId?: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: { terminalId: string; projectId?: string }) => {
+      handler(payload)
+    }
+    ipcRenderer.on('tray:terminal-created', listener)
+    return () => ipcRenderer.removeListener('tray:terminal-created', listener)
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

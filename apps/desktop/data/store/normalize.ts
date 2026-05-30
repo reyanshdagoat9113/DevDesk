@@ -429,6 +429,7 @@ export function normalizeStore(value: unknown): DataStore {
         id: preferences?.terminal?.id ?? defaults.terminal.id,
         command: preferences?.terminal?.command,
       },
+      trayEnabled: typeof preferences?.trayEnabled === 'boolean' ? preferences.trayEnabled : defaults.trayEnabled,
     },
     engineIndexes,
     engineSearchSessions,

@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
@@ -2117,6 +2117,7 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('preferences:update', async (_event, updates: Partial<AppPreferences>) => {
     await updatePreferencesInStore(updates)
+    app.emit('preferences:updated')
     return { success: true }
   })
 
@@ -3315,4 +3316,25 @@ export function registerIpcHandlers() {
     }
     return importAllData(data, mode)
   })
+}
+
+export async function runLastCommand(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const history = await listRecentRunHistory(1)
+    if (!history.length) {
+      return { success: false, error: 'No command history found.' }
+    }
+    const entry = history[0]
+    const command = await getCommandById(entry.commandId)
+    if (!command) {
+      return { success: false, error: 'The last run command no longer exists.' }
+    }
+    const run = await startCommandExecution(command, entry.projectId)
+    if ('status' in run && run.status === 'needs-input') {
+      return { success: false, error: 'Last command requires input variables.' }
+    }
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to run last command.' }
+  }
 }

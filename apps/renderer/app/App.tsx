@@ -226,6 +226,24 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const unsubscribeTrayTerminal = window.electronAPI.onTrayTerminalCreated(({ terminalId, projectId }) => {
+      setTerminalSessions((prev) => {
+        if (prev.some((s) => s.id === terminalId)) {
+          return prev
+        }
+        const label = nextTerminalLabel(prev, projectId)
+        return [...prev, { id: terminalId, label, projectId }]
+      })
+      setActiveTerminalId(terminalId)
+      setActiveTab('terminal')
+    })
+
+    return () => {
+      unsubscribeTrayTerminal()
+    }
+  }, [nextTerminalLabel])
+
+  useEffect(() => {
     if (activeTab !== 'terminal') {
       setIsTerminalFullscreen(false)
     }
