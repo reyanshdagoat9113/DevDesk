@@ -17,10 +17,11 @@ interface AppShellProps {
   title: string
   action?: ReactNode
   themeToggle?: ReactNode
+  settingsButton?: ReactNode
   children: ReactNode
 }
 
-export function AppShell({ navItems, activeNav, onNavChange, title, action, themeToggle, children }: AppShellProps) {
+export function AppShell({ navItems, activeNav, onNavChange, title, action, themeToggle, settingsButton, children }: AppShellProps) {
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground selection:bg-primary/15 selection:text-foreground">
       {/* Sidebar */}
@@ -123,6 +124,11 @@ export function AppShell({ navItems, activeNav, onNavChange, title, action, them
           </div>
           <div className="flex items-center gap-4">
             {themeToggle}
+            {settingsButton && (
+              <div className="flex items-center gap-4 pl-4 border-l border-border">
+                {settingsButton}
+              </div>
+            )}
             {action && (
               <div className="flex items-center gap-4 pl-4 border-l border-border">
                 {action}

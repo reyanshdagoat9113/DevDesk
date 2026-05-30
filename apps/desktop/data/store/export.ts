@@ -37,7 +37,24 @@ export interface ImportResult {
   error?: string
 }
 
-const TABLE_NAMES = [
+export interface ExportToFileResult {
+  success: boolean
+  canceled?: boolean
+  filePath?: string
+  recordCounts?: Record<string, number>
+  error?: string
+}
+
+export interface ImportPreviewResult {
+  success: boolean
+  canceled?: boolean
+  data?: ExportData
+  recordCounts?: Record<string, number>
+  warnings?: string[]
+  error?: string
+}
+
+export const TABLE_NAMES = [
   'projects',
   'commands',
   'chains',
@@ -278,7 +295,7 @@ interface ValidationResult {
   error?: string
 }
 
-function validateExportData(raw: unknown): ValidationResult {
+export function validateExportData(raw: unknown): ValidationResult {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { valid: false, error: 'Invalid export data: must be a non-null object.' }
   }

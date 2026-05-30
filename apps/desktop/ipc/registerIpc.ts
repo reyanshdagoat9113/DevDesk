@@ -18,6 +18,7 @@ import {
   deleteBugReport,
   exportAllData,
   finalizeRunHistoryEntry,
+  validateExportData,
   getBugAttachmentById,
   getBugReportById,
   getBugContextSnapshotByBugId,
@@ -3212,6 +3213,94 @@ export function registerIpcHandlers() {
         success: false,
         data: { version: 0, exportedAt: '', platform: '', tables: {} },
         recordCounts: {},
+      }
+    }
+  })
+
+  ipcMain.handle('config:export-to-file', async () => {
+    try {
+      const result = await exportAllData()
+      if (!result.success) {
+        return { success: false, error: 'Export failed.' }
+      }
+
+      const focusedWindow = BrowserWindow.getFocusedWindow()
+      const options = {
+        title: 'Export DevDesk Data',
+        defaultPath: 'devdesk-backup.json',
+        filters: [{ name: 'JSON Files', extensions: ['json'] }] as Electron.FileFilter[],
+      }
+
+      const dialogResult = focusedWindow
+        ? await dialog.showSaveDialog(focusedWindow, options)
+        : await dialog.showSaveDialog(options)
+
+      if (dialogResult.canceled || !dialogResult.filePath) {
+        return { success: false, canceled: true }
+      }
+
+      await fs.promises.writeFile(dialogResult.filePath, JSON.stringify(result.data, null, 2), 'utf-8')
+      return { success: true, filePath: dialogResult.filePath, recordCounts: result.recordCounts }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      }
+    }
+  })
+
+  ipcMain.handle('config:import-preview', async () => {
+    try {
+      const focusedWindow = BrowserWindow.getFocusedWindow()
+      const options: OpenDialogOptions = {
+        title: 'Import DevDesk Data',
+        filters: [{ name: 'JSON Files', extensions: ['json'] }],
+        properties: ['openFile'],
+      }
+
+      const dialogResult = focusedWindow
+        ? await dialog.showOpenDialog(focusedWindow, options)
+        : await dialog.showOpenDialog(options)
+
+      if (dialogResult.canceled || dialogResult.filePaths.length === 0) {
+        return { success: false, canceled: true }
+      }
+
+      const filePath = dialogResult.filePaths[0]
+      const MAX_IMPORT_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
+      const stats = await fs.promises.stat(filePath)
+      if (stats.size > MAX_IMPORT_FILE_SIZE) {
+        return { success: false, error: 'Selected file is too large (max 100 MB).' }
+      }
+
+      const raw = await fs.promises.readFile(filePath, 'utf-8')
+      const parsed = JSON.parse(raw) as unknown
+
+      const validation = validateExportData(parsed)
+      if (!validation.valid) {
+        return { success: false, error: validation.error }
+      }
+
+      const data = validation.data!
+      const recordCounts: Record<string, number> = {}
+      for (const tableName of Object.keys(data.tables)) {
+        const rows = data.tables[tableName]
+        recordCounts[tableName] = Array.isArray(rows) ? rows.length : 0
+      }
+
+      const warnings: string[] = []
+      const attachmentCount = data.tables['bug_attachments']?.length ?? 0
+      if (attachmentCount > 0) {
+        warnings.push(
+          `This backup contains ${attachmentCount} external attachment record(s). External files are not included in v1 exports and will not be available after restore.`
+        )
+      }
+
+      return { success: true, data, recordCounts, warnings }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
       }
     }
   })

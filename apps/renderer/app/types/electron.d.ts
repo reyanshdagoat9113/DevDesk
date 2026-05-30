@@ -18,7 +18,9 @@ import type {
   CreateCommandTriggerInput,
   CreateCommandInput,
   ExportResult,
+  ExportToFileResult,
   ImportMode,
+  ImportPreviewResult,
   ImportResult,
   Project,
   ProjectNotes,
@@ -174,6 +176,8 @@ export interface ElectronAPI {
   getHealthCheckRun: (runId: string) => Promise<HealthCheckRun | null>
 
   exportData: () => Promise<ExportResult>
+  exportDataToFile: () => Promise<ExportToFileResult>
+  previewImportFile: () => Promise<ImportPreviewResult>
   importData: (data: unknown, mode: ImportMode) => Promise<ImportResult>
 }
 

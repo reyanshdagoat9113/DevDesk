@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 import { Button } from './components/ui/Button'
 import { Input } from './components/ui/Input'
 import { Label } from './components/ui/Label'
@@ -58,6 +58,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ProjectDirectorySelector } from './components/ProjectDirectorySelector'
 import { BugReportModal } from './components/BugReportModal'
+import { ExportImportDialog } from './components/ExportImportDialog'
 import {
   GLOBAL_COMMAND_VALUE,
   actionLabels,
@@ -131,6 +132,7 @@ function App() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionState[]>([])
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
   const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
+  const [exportImportDialogOpen, setExportImportDialogOpen] = useState(false)
 
   const currentContextProjectId = useMemo(() => {
     if (activeTab === 'engine' && selectedEngineProjectId) {
@@ -1307,6 +1309,18 @@ function App() {
           onNavChange={(value) => setActiveTab(value as TabValue)}
           title={title}
           themeToggle={<ThemeToggle theme={theme} onToggle={toggleTheme} />}
+          settingsButton={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setExportImportDialogOpen(true)}
+              title="Data Backup & Restore"
+            >
+              <Settings className="h-[18px] w-[18px]" />
+              <span className="sr-only">Data Backup & Restore</span>
+            </Button>
+          }
           action={
             actionLabel ? (
               <Button
@@ -1805,6 +1819,12 @@ function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExportImportDialog
+        open={exportImportDialogOpen}
+        onOpenChange={setExportImportDialogOpen}
+        onImportSuccess={loadAll}
+      />
     </>
   )
 }

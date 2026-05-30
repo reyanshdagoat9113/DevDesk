@@ -543,3 +543,20 @@ export interface ImportResult {
   warnings?: string[]
   error?: string
 }
+
+export interface ExportToFileResult {
+  success: boolean
+  canceled?: boolean
+  filePath?: string
+  recordCounts?: Record<string, number>
+  error?: string
+}
+
+export interface ImportPreviewResult {
+  success: boolean
+  canceled?: boolean
+  data?: ExportData
+  recordCounts?: Record<string, number>
+  warnings?: string[]
+  error?: string
+}

@@ -9,7 +9,7 @@ import type {
   CreateBugReportInput,
   UpdateBugReportInput,
 } from './data/model'
-import type { ExportResult, ImportMode, ImportResult } from './data/store'
+import type { ExportResult, ExportToFileResult, ImportMode, ImportPreviewResult, ImportResult } from './data/store'
 
 type BugApiErrorCode = 'validation' | 'not_found' | 'internal'
 
@@ -285,6 +285,8 @@ interface ElectronAPI {
 
   // Export/Import
   exportData: () => Promise<ExportResult>
+  exportDataToFile: () => Promise<ExportToFileResult>
+  previewImportFile: () => Promise<ImportPreviewResult>
   importData: (data: unknown, mode: ImportMode) => Promise<ImportResult>
 }
 
@@ -573,6 +575,8 @@ const electronAPI: ElectronAPI = {
 
   // Export/Import
   exportData: () => ipcRenderer.invoke('config:export'),
+  exportDataToFile: () => ipcRenderer.invoke('config:export-to-file'),
+  previewImportFile: () => ipcRenderer.invoke('config:import-preview'),
   importData: (data: unknown, mode: ImportMode) => ipcRenderer.invoke('config:import', data, mode),
 }
 

@@ -64,5 +64,5 @@ export {
   getLatestHealthCheckForProject,
   listHealthCheckRuns,
 } from './store/health'
-export { exportAllData, importAllData, EXPORT_VERSION } from './store/export'
-export type { ExportData, ExportHeader, ExportResult, ImportResult, ImportMode } from './store/export'
+export { exportAllData, importAllData, EXPORT_VERSION, TABLE_NAMES, validateExportData } from './store/export'
+export type { ExportData, ExportHeader, ExportResult, ImportResult, ImportMode, ExportToFileResult, ImportPreviewResult } from './store/export'
