@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import path from 'node:path'
 
 import type { AddBugAttachmentInput, BugAttachment, BugAttachmentKind, BugContextSnapshot, BugContextSnapshotData, BugReport, BugReportFilters, BugSeverity, BugStatus, CreateBugReportInput, UpdateBugReportInput } from '../model'
 import { ensureDbInitialized, getDbOrThrow, queueWrite, withSqlTiming } from './core'
