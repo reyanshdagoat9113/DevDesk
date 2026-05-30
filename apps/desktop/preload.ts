@@ -9,6 +9,7 @@ import type {
   CreateBugReportInput,
   UpdateBugReportInput,
 } from './data/model'
+import type { ExportResult, ImportMode, ImportResult } from './data/store'
 
 type BugApiErrorCode = 'validation' | 'not_found' | 'internal'
 
@@ -281,6 +282,10 @@ interface ElectronAPI {
       suggestedFix: string
     }[]
   } | null>
+
+  // Export/Import
+  exportData: () => Promise<ExportResult>
+  importData: (data: unknown, mode: ImportMode) => Promise<ImportResult>
 }
 
 // Expose a safe API to the renderer process
@@ -565,6 +570,10 @@ const electronAPI: ElectronAPI = {
   getLatestHealthCheck: (projectId: string) => ipcRenderer.invoke('health:get-latest', projectId),
   listHealthCheckRuns: (projectId: string, limit?: number) => ipcRenderer.invoke('health:list-runs', projectId, limit),
   getHealthCheckRun: (runId: string) => ipcRenderer.invoke('health:get-run', runId),
+
+  // Export/Import
+  exportData: () => ipcRenderer.invoke('config:export'),
+  importData: (data: unknown, mode: ImportMode) => ipcRenderer.invoke('config:import', data, mode),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

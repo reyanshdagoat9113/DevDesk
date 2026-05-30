@@ -16,6 +16,7 @@ import {
   createTrigger,
   deleteBugAttachmentRecord,
   deleteBugReport,
+  exportAllData,
   finalizeRunHistoryEntry,
   getBugAttachmentById,
   getBugReportById,
@@ -29,6 +30,7 @@ import {
   getProjectNotesById,
   getRunHistoryOutputById,
   getTriggerById,
+  importAllData,
   listBugAttachmentPathsByBugId,
   listBugAttachments,
   listChains,
@@ -56,6 +58,7 @@ import {
   updateProjectLinkedContainers,
   upsertProjectNotes,
 } from '../data/store'
+import type { ImportMode } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
 import { inspectProjectHealth } from '../projectIntelligence/healthInspector'
 import type {
@@ -3199,5 +3202,28 @@ export function registerIpcHandlers() {
     }
 
     return getHealthCheckRunById(runId)
+  })
+
+  ipcMain.handle('config:export', async () => {
+    try {
+      return await exportAllData()
+    } catch (err) {
+      return {
+        success: false,
+        data: { version: 0, exportedAt: '', platform: '', tables: {} },
+        recordCounts: {},
+      }
+    }
+  })
+
+  ipcMain.handle('config:import', async (_event, data: unknown, mode: ImportMode) => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return {
+        success: false,
+        recordCounts: {},
+        error: 'Import data must be a non-null object.',
+      }
+    }
+    return importAllData(data, mode)
   })
 }

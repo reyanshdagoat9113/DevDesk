@@ -514,3 +514,32 @@ export interface HealthCheckRun {
 }
 
 export type HealthCheckRunSummary = Omit<HealthCheckRun, 'items'>
+
+export interface ExportHeader {
+  version: number
+  exportedAt: string
+  platform: string
+}
+
+export interface ExportData {
+  version: number
+  exportedAt: string
+  platform: string
+  tables: Record<string, unknown[][]>
+}
+
+export interface ExportResult {
+  success: boolean
+  data: ExportData
+  recordCounts: Record<string, number>
+}
+
+export type ImportMode = 'replace' | 'merge'
+
+export interface ImportResult {
+  success: boolean
+  recordCounts: Record<string, number>
+  backupPath?: string
+  warnings?: string[]
+  error?: string
+}

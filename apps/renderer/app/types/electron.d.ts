@@ -17,6 +17,9 @@ import type {
   CreateCommandChainInput,
   CreateCommandTriggerInput,
   CreateCommandInput,
+  ExportResult,
+  ImportMode,
+  ImportResult,
   Project,
   ProjectNotes,
   EngineGitInsights,
@@ -169,6 +172,9 @@ export interface ElectronAPI {
   getLatestHealthCheck: (projectId: string) => Promise<HealthCheckRun | null>
   listHealthCheckRuns: (projectId: string, limit?: number) => Promise<HealthCheckRunSummary[]>
   getHealthCheckRun: (runId: string) => Promise<HealthCheckRun | null>
+
+  exportData: () => Promise<ExportResult>
+  importData: (data: unknown, mode: ImportMode) => Promise<ImportResult>
 }
 
 declare global {

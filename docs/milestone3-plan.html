@@ -224,6 +224,16 @@
       box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
     }
 
+    .task-card.done {
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .task-number.done {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
     .task-header {
       padding: 24px 28px 20px;
       border-bottom: 1px solid var(--border-subtle);
@@ -825,12 +835,14 @@
     <div class="task-grid">
 
       <!-- Task 1 -->
-      <article class="task-card">
+      <article class="task-card done">
         <div class="task-header">
-          <div class="task-number">1</div>
+          <div class="task-number done">1</div>
           <div class="task-title-group">
             <h3 class="task-title">Export/Import — Backend</h3>
             <span class="task-type backend">Backend</span>
+            <span class="task-type" style="background:var(--success-bg);color:var(--success);border-color:rgba(16,185,129,0.2);margin-left:8px;">Done</span>
+          </div>
           </div>
         </div>
         <div class="task-body">
@@ -1052,7 +1064,7 @@
         <div class="timeline-track">
           <div class="timeline-line"></div>
 
-          <div class="timeline-node active">
+          <div class="timeline-node completed">
             <div class="timeline-dot">1</div>
             <div class="timeline-label">Export/Import Backend</div>
           </div>
