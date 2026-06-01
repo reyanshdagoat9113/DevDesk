@@ -424,6 +424,21 @@
       border: 1px solid rgba(59, 130, 246, 0.2);
     }
 
+    .task-status-badge {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
     /* Acceptance criteria */
     .ac-block {
       border-top: 1px solid var(--border-subtle);
@@ -887,7 +902,7 @@
           </div>
 
           <div class="details-block">
-            <div class="sub-task-label">Sub-Task A — Backend Bundler</div>
+            <div class="sub-task-label">Sub-Task A — Backend Bundler <span class="task-status-badge">Completed</span></div>
             <h4>Implementation Details</h4>
             <ul>
               <li>Export <code>bundleLlmContext(projectId, options?)</code> from <code>bundler.ts</code>.</li>
@@ -912,7 +927,7 @@
           </div>
 
           <div class="details-block">
-            <div class="sub-task-label">Sub-Task B — Renderer UI</div>
+            <div class="sub-task-label">Sub-Task B — Renderer UI <span class="task-status-badge">Completed</span></div>
             <h4>Implementation Details</h4>
             <ul>
               <li>Create <code>LlmContextExporter</code> as a panel or dialog accessible from the project detail view (e.g., inside the Engine tab or via a project menu action in <code>App.tsx</code>).</li>
@@ -928,7 +943,7 @@
           </div>
 
           <div class="details-block">
-            <div class="sub-task-label">Sub-Task C — Types &amp; IPC Wiring</div>
+            <div class="sub-task-label">Sub-Task C — Types &amp; IPC Wiring <span class="task-status-badge">Completed</span></div>
             <h4>Implementation Details</h4>
             <ul>
               <li>Add <code>LlmBundleOptions</code> to renderer types:

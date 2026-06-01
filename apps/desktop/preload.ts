@@ -17,6 +17,24 @@ type BugApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: BugApiErrorCode; message: string } }
 
+type LlmBundleSection = 'files' | 'runHistory' | 'health' | 'bugs' | 'notes' | 'engineStats'
+
+interface LlmBundleOptions {
+  sections?: LlmBundleSection[]
+  maxTokens?: number
+  bugReportId?: string
+  includePatterns?: string[]
+  excludePatterns?: string[]
+}
+
+interface LlmBundleResult {
+  markdown: string
+  tokenEstimate: number
+  includedFiles: string[]
+  excludedFiles: string[]
+  warnings: string[]
+}
+
 // Define the API interface
 interface ElectronAPI {
   platform: string
@@ -288,6 +306,10 @@ interface ElectronAPI {
   exportDataToFile: () => Promise<ExportToFileResult>
   previewImportFile: () => Promise<ImportPreviewResult>
   importData: (data: unknown, mode: ImportMode) => Promise<ImportResult>
+
+  llm: {
+    bundleContext: (projectId: string, options?: LlmBundleOptions) => Promise<LlmBundleResult>
+  }
 
   // Tray
   onTrayTerminalCreated: (handler: (payload: { terminalId: string; projectId?: string }) => void) => () => void
@@ -581,6 +603,10 @@ const electronAPI: ElectronAPI = {
   exportDataToFile: () => ipcRenderer.invoke('config:export-to-file'),
   previewImportFile: () => ipcRenderer.invoke('config:import-preview'),
   importData: (data: unknown, mode: ImportMode) => ipcRenderer.invoke('config:import', data, mode),
+
+  llm: {
+    bundleContext: (projectId: string, options?: LlmBundleOptions) => ipcRenderer.invoke('llm:bundle-context', projectId, options),
+  },
 
   // Tray
   onTrayTerminalCreated: (handler: (payload: { terminalId: string; projectId?: string }) => void) => {

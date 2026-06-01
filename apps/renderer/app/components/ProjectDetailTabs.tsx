@@ -2,12 +2,13 @@ import type { ReactNode } from 'react'
 import { Bug } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/Tabs'
 
-type TabValue = 'overview' | 'health' | 'bugs' | 'notes' | 'engine' | 'git'
+type TabValue = 'overview' | 'health' | 'bugs' | 'notes' | 'llm' | 'engine' | 'git'
 
 interface ProjectDetailTabsProps {
   overviewPanel: ReactNode
   healthPanel: ReactNode
   notesPanel: ReactNode
+  llmPanel?: ReactNode | null
   enginePanel: ReactNode | null
   gitPanel: ReactNode | null
   bugsPanel?: ReactNode
@@ -18,6 +19,7 @@ export function ProjectDetailTabs({
   overviewPanel,
   healthPanel,
   notesPanel,
+  llmPanel,
   enginePanel,
   gitPanel,
   bugsPanel,
@@ -25,6 +27,7 @@ export function ProjectDetailTabs({
 }: ProjectDetailTabsProps) {
   const safeDefault: TabValue =
     defaultTab &&
+    (defaultTab !== 'llm' || llmPanel != null) &&
     (defaultTab !== 'engine' || enginePanel !== null) &&
     (defaultTab !== 'git' || gitPanel !== null)
       ? defaultTab
@@ -38,6 +41,7 @@ export function ProjectDetailTabs({
           <TabsTrigger value="health">Health</TabsTrigger>
           <TabsTrigger value="bugs">Bugs</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
+          {llmPanel != null && <TabsTrigger value="llm">LLM</TabsTrigger>}
           {enginePanel !== null && <TabsTrigger value="engine">Engine</TabsTrigger>}
           {gitPanel !== null && <TabsTrigger value="git">Git</TabsTrigger>}
         </TabsList>
@@ -54,6 +58,11 @@ export function ProjectDetailTabs({
       <TabsContent value="notes" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
         {notesPanel}
       </TabsContent>
+      {llmPanel != null && (
+        <TabsContent value="llm" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
+          {llmPanel}
+        </TabsContent>
+      )}
       {enginePanel !== null && (
         <TabsContent value="engine" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
           {enginePanel}

@@ -26,6 +26,7 @@ import { ProjectGitSummary } from '../components/ProjectGitSummary'
 import { ProjectHealthPanel } from '../components/ProjectHealthPanel'
 import { ProjectNotesPanel } from '../components/ProjectNotesPanel'
 import { BugRecorderPanel } from '../components/BugRecorderPanel'
+import { LlmContextExporter } from '../components/LlmContextExporter'
 import { ProjectDetailTabs } from '../components/ProjectDetailTabs'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
@@ -1214,6 +1215,7 @@ export function ProjectsSection({
                     />
                   }
                   notesPanel={<ProjectNotesPanel key={selectedProject.id} projectId={selectedProject.id} />}
+                  llmPanel={<LlmContextExporter project={selectedProject} />}
                   enginePanel={
                     selectedProject &&
                     engineIndexes &&

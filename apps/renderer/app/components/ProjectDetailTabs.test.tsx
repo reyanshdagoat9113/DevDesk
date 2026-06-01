@@ -23,23 +23,26 @@ describe('ProjectDetailTabs', () => {
     expect(screen.getByRole('tab', { name: 'Health' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Bugs' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Notes' })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'LLM' })).toBeNull()
     expect(screen.queryByRole('tab', { name: 'Engine' })).toBeNull()
     expect(screen.queryByRole('tab', { name: 'Git' })).toBeNull()
 
     expect(screen.getByTestId('panel-overview')).toBeTruthy()
   })
 
-  it('shows engine and git tabs when panels are provided', () => {
+  it('shows llm, engine and git tabs when panels are provided', () => {
     render(
       <ProjectDetailTabs
         overviewPanel={panel('overview')}
         healthPanel={panel('health')}
         notesPanel={panel('notes')}
+        llmPanel={panel('llm')}
         enginePanel={panel('engine')}
         gitPanel={panel('git')}
       />
     )
 
+    expect(screen.getByRole('tab', { name: 'LLM' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Engine' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Git' })).toBeTruthy()
   })
@@ -124,6 +127,23 @@ describe('ProjectDetailTabs', () => {
     expect(screen.getByTestId('panel-notes')).toBeTruthy()
   })
 
+  it('switches to llm tab and renders llm panel', async () => {
+    render(
+      <ProjectDetailTabs
+        overviewPanel={panel('overview')}
+        healthPanel={panel('health')}
+        notesPanel={panel('notes')}
+        llmPanel={panel('llm')}
+        enginePanel={null}
+        gitPanel={null}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('tab', { name: 'LLM' }))
+
+    expect(screen.getByTestId('panel-llm')).toBeTruthy()
+  })
+
   it('switches to engine tab and renders engine panel', async () => {
     render(
       <ProjectDetailTabs
@@ -154,6 +174,21 @@ describe('ProjectDetailTabs', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Git' }))
 
     expect(screen.getByTestId('panel-git')).toBeTruthy()
+  })
+
+  it('falls back to overview when defaultTab is llm but no llm panel', () => {
+    render(
+      <ProjectDetailTabs
+        overviewPanel={panel('overview')}
+        healthPanel={panel('health')}
+        notesPanel={panel('notes')}
+        enginePanel={null}
+        gitPanel={null}
+        defaultTab="llm"
+      />
+    )
+
+    expect(screen.getByTestId('panel-overview')).toBeTruthy()
   })
 
   it('falls back to overview when defaultTab is engine but no engine panel', () => {

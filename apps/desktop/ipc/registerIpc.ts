@@ -96,6 +96,7 @@ import type { TerminalCreateOptions } from '../data/model'
 import { runSystemChecks } from '../health/systemChecks'
 import { runRuntimeChecks } from '../health/runtimeChecks'
 import { captureContextSnapshot } from '../bugs/contextSnapshot'
+import { bundleLlmContext, type LlmBundleOptions } from '../llm/bundler'
 
 type RunningCommand = {
   process: ChildProcessWithoutNullStreams
@@ -2119,6 +2120,10 @@ export function registerIpcHandlers() {
     await updatePreferencesInStore(updates)
     app.emit('preferences:updated')
     return { success: true }
+  })
+
+  ipcMain.handle('llm:bundle-context', async (_event, projectId: string, options?: LlmBundleOptions) => {
+    return bundleLlmContext(projectId, options)
   })
 
   ipcMain.handle('projects:open-folder', async (_event, _id: string) => {

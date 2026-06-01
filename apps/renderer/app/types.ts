@@ -376,6 +376,24 @@ export interface EngineStats {
   }
 }
 
+export type LlmBundleSection = 'files' | 'runHistory' | 'health' | 'bugs' | 'notes' | 'engineStats'
+
+export interface LlmBundleOptions {
+  sections?: LlmBundleSection[]
+  maxTokens?: number
+  bugReportId?: string
+  includePatterns?: string[]
+  excludePatterns?: string[]
+}
+
+export interface LlmBundleResult {
+  markdown: string
+  tokenEstimate: number
+  includedFiles: string[]
+  excludedFiles: string[]
+  warnings: string[]
+}
+
 export interface EngineGitInsights {
   branch: string
   totalCommits: number

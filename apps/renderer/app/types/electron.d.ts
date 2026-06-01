@@ -38,6 +38,8 @@ import type {
   EngineSearchSession,
   EngineStats,
   EngineStatus,
+  LlmBundleOptions,
+  LlmBundleResult,
   ProjectHealthReport,
   RunHistoryEntry,
   RunStatus,
@@ -179,6 +181,10 @@ export interface ElectronAPI {
   exportDataToFile: () => Promise<ExportToFileResult>
   previewImportFile: () => Promise<ImportPreviewResult>
   importData: (data: unknown, mode: ImportMode) => Promise<ImportResult>
+
+  llm: {
+    bundleContext: (projectId: string, options?: LlmBundleOptions) => Promise<LlmBundleResult>
+  }
 
   onTrayTerminalCreated: (handler: (payload: { terminalId: string; projectId?: string }) => void) => () => void
 }
