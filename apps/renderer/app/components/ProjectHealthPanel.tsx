@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Info, Loader2, Play, RefreshCw, X } from 'lucide-react'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
@@ -61,14 +61,19 @@ export function ProjectHealthPanel({
 
   const statusBadge = getStatusBadge(report)
 
-  const loadHealth = async () => {
+  const onReportLoadedRef = useRef(onReportLoaded)
+  useEffect(() => {
+    onReportLoadedRef.current = onReportLoaded
+  }, [onReportLoaded])
+
+  const loadHealth = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     setMessage(null)
     try {
       const nextReport = await window.electronAPI.inspectProject(project.id)
       setReport(nextReport)
-      onReportLoaded?.(nextReport)
+      onReportLoadedRef.current?.(nextReport)
       setDismissedIds(new Set())
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to inspect project.')
@@ -76,11 +81,11 @@ export function ProjectHealthPanel({
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [project.id])
 
   useEffect(() => {
     void loadHealth()
-  }, [project.id])
+  }, [loadHealth])
 
   const handleDismiss = (suggestionId: string) => {
     setDismissedIds((current) => {
