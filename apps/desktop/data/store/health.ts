@@ -92,7 +92,7 @@ export async function createHealthCheckRun(
 
     const runId = randomUUID()
     const startedAt = new Date().toISOString()
-    const finishedAt = startedAt
+    const finishedAt: string | null = null
     const overallStatus = computeOverallStatus(items)
     const summaryJson = buildSummaryJson(items)
 
@@ -136,7 +136,7 @@ export async function createHealthCheckRun(
       id: runId,
       projectId,
       startedAt,
-      finishedAt,
+      finishedAt: undefined,
       overallStatus,
       summaryJson,
       items: populatedItems,
