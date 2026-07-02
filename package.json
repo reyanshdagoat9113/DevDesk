@@ -7,6 +7,8 @@
   "license": "MIT",
   "scripts": {
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
+    "rebuild:native:node": "npm rebuild better-sqlite3",
+    "pretest:run": "npm run rebuild:native:node",
     "dev": "npm run rebuild:native && npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5180 && electron --enable-logging=false .\"",
     "dev:renderer": "vite",
     "build:engine": "npm --prefix ../devdesk-addons/devdesk-engine run build:all",
