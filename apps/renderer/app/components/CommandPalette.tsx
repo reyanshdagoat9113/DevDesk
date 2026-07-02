@@ -711,6 +711,7 @@ export function CommandPalette({
     onError,
     onCreateTerminalSession,
     onRecordBug,
+    onOpenChange,
   ])
 
   const projectPickItems: PaletteItem[] = useMemo(() => {
