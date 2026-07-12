@@ -26,23 +26,26 @@ Implemented:
 - Linux release packaging configuration (`AppImage` + `deb`) and packaged engine smoke tests.
 
 Remaining launch work:
-- Resolve the Windows engine IPC path-format contract test.
-- Repair the stale `test:engine-ipc` native setup command.
-- Make native-module rebuild and packaged smoke checks reliable on Windows.
 - Validate and publish signed release artifacts for the supported platforms.
+- Add release-level CI/smoke coverage and migration regression tests.
 - Run manual end-to-end QA on clean environments and update release documentation.
+
+Native rebuild notes: [docs/native-modules.md](docs/native-modules.md).
 
 ## Quick Start
 
 - `npm run dev` - build main/preload, start Vite, launch Electron.
 - `npm run build` - build main/preload and renderer bundle.
+- `npm run rebuild:native:node` - ensure `better-sqlite3` for Node (app + engine).
+- `npm run rebuild:native` / `rebuild:native:electron` - Electron sqlite / sqlite+pty rebuilds.
+- `npm run test:engine-ipc` - engine IPC integration test (Node natives).
 - `npm run smoke:engine-packaged` - verify packaged engine resolution and a real index/search/stats flow.
 - `npm run verify:linux-package` - build and smoke-test the Linux release package.
 - `npm run typecheck` - validate TypeScript without emitting files.
 - `npm run lint` - run ESLint across main and renderer code.
 - `npm run test:run` / `npm run test:renderer:run` - run desktop and renderer tests.
 
-See [LAUNCH-BLOCKERS-PLAN.md](LAUNCH-BLOCKERS-PLAN.md) for the current release plan.
+See the launch plan at the repo root (`LAUNCH-BLOCKERS-PLAN.md` if present) and [docs/native-modules.md](docs/native-modules.md).
 
 ## Purpose
 

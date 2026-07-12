@@ -15,9 +15,9 @@
 
 ## Launch Blockers
 
-- [ ] Fix the Windows engine IPC path-format contract test.
-- [ ] Replace the stale `test:engine-ipc` `ensure:native` step with a valid native setup command.
-- [ ] Make `node-pty` and `better-sqlite3` rebuilds reliable on Windows and CI.
+- [x] Fix the Windows engine IPC path-format contract test.
+- [x] Replace the stale `test:engine-ipc` `ensure:native` step with a valid native setup command.
+- [x] Make `node-pty` and `better-sqlite3` rebuilds reliable on Windows and CI.
 - [ ] Define supported release platforms and produce/test their artifacts.
 - [ ] Add release smoke tests and manual QA evidence for clean installations.
 - [ ] Update release notes, installation instructions, and known limitations.
