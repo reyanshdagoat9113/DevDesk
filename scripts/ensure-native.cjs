@@ -2,6 +2,8 @@ const { execFileSync } = require('node:child_process')
 const path = require('node:path')
 
 const packageRoot = path.resolve(__dirname, '..')
+const npmCli =
+  process.env.npm_execpath ?? path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
 
 function canLoadBetterSqlite3() {
   try {
@@ -25,10 +27,9 @@ if (canLoadBetterSqlite3()) {
 process.stdout.write('Rebuilding better-sqlite3 for the current Node runtime...\n')
 
 try {
-  execFileSync('npm', ['rebuild', 'better-sqlite3'], {
+  execFileSync(process.execPath, [npmCli, 'rebuild', 'better-sqlite3'], {
     cwd: packageRoot,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
   })
 } catch {
   process.stderr.write(
