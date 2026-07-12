@@ -2,6 +2,13 @@
 
 This file captures implementation plans for the feature roadmap in `New-features.md`.
 
+## Plan Status (2026-07-12)
+
+These are historical implementation plans. The major feature work described
+here is implemented in the repository. Do not treat the steps below as the
+current task queue. Current work is launch hardening; see
+`LAUNCH-BLOCKERS-PLAN.md`.
+
 ---
 
 # Task 1: Global Command Palette

@@ -2,7 +2,11 @@
 
 A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, and Docker/Compose Manager into one clean, fast workspace.
 
-## Status (2026-04-10)
+## Status (2026-07-12)
+
+DevDesk is in late MVP / pre-release beta. The core product is implemented and
+the main validation suite is green, but public launch is still gated by release
+engineering, cross-platform packaging, and one Windows engine IPC contract test.
 
 Implemented:
 - Electron shell + Vite renderer, shadcn/ui + Radix components.
@@ -14,13 +18,19 @@ Implemented:
 - Project notes (setup steps/todos/reminders).
 - Docker containers: list/start/stop/logs with Windows + WSL fallback and compose-aware labeling.
 - Git summaries per project, including lightweight working-tree status.
-- Public-release packaging on Linux (`AppImage` + `deb`) and packaged engine smoke tests.
+- Embedded terminals with tabs, fullscreen, resize, search, and web links.
+- Project health inspection and persisted environment health checks.
+- Bug Recorder with context snapshots, attachments, search, and resolution flow.
+- Engine-backed project indexing, full-text search, stats, and Git insights.
+- Export/import UI, tray quick actions, and LLM context bundling.
+- Linux release packaging configuration (`AppImage` + `deb`) and packaged engine smoke tests.
 
-In progress / backlog:
-- Export/import config.
-- Tray quick actions.
-- Context bundling for LLM workflows.
-- Additional release polish after public baseline stabilizes.
+Remaining launch work:
+- Resolve the Windows engine IPC path-format contract test.
+- Repair the stale `test:engine-ipc` native setup command.
+- Make native-module rebuild and packaged smoke checks reliable on Windows.
+- Validate and publish signed release artifacts for the supported platforms.
+- Run manual end-to-end QA on clean environments and update release documentation.
 
 ## Quick Start
 
@@ -28,6 +38,11 @@ In progress / backlog:
 - `npm run build` - build main/preload and renderer bundle.
 - `npm run smoke:engine-packaged` - verify packaged engine resolution and a real index/search/stats flow.
 - `npm run verify:linux-package` - build and smoke-test the Linux release package.
+- `npm run typecheck` - validate TypeScript without emitting files.
+- `npm run lint` - run ESLint across main and renderer code.
+- `npm run test:run` / `npm run test:renderer:run` - run desktop and renderer tests.
+
+See [LAUNCH-BLOCKERS-PLAN.md](LAUNCH-BLOCKERS-PLAN.md) for the current release plan.
 
 ## Purpose
 

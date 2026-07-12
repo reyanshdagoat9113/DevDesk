@@ -2,8 +2,13 @@
 
 > A comprehensive implementation guide for evolving DevDesk from MVP to a complete developer workspace platform.
 
-**Last Updated:** 2026-05-17
-**Current Phase:** Phase 7.2 & 7.3 Updated → Phase 3.1 Next
+**Last Updated:** 2026-07-12
+**Active Phase:** Launch hardening and release validation (see `LAUNCH-BLOCKERS-PLAN.md`)
+
+The original feature roadmap is largely implemented. The active task queue is
+now `LAUNCH-BLOCKERS-PLAN.md`; the feature phases below are retained as
+historical scope and future-enhancement reference.
+**Current Phase:** Feature-complete late MVP → launch hardening
 
 ---
 
@@ -1007,6 +1012,19 @@ Data portability for backup/restore.
 
 ---
 
+## Implementation Status Reconciliation (2026-07-12)
+
+The following roadmap areas are implemented in the current repository, even
+where older phase headings still show them as planned: embedded terminals and
+tabs (Phase 3), project intelligence and persisted health checks (Phase 4),
+engine-backed file search and Git insights (Phases 5-6), tray actions (Phase
+9), and export/import plus LLM context bundling (Phase 10). Bug Recorder work
+and environment health-check work are also complete as product features.
+
+Remaining launch work is release hardening: fix the Windows engine IPC path
+contract, repair the stale native test command, make native rebuilds reliable,
+produce supported-platform artifacts, and complete clean-install/manual QA.
+
 ## Technical Debt & Maintenance
 
 ### Continuous
@@ -1016,10 +1034,10 @@ Data portability for backup/restore.
 - [ ] Error tracking/logging improvements
 
 ### Code Quality
-- [ ] Add automated tests (none currently)
-- [ ] E2E tests for critical paths
+- [x] Add unit and renderer test coverage for core services and UI flows
+- [ ] E2E tests for critical packaged-app paths
 - [ ] TypeScript strict mode compliance
-- [ ] Documentation updates
+- [ ] Documentation and release notes updates
 
 ---
 
@@ -1123,7 +1141,10 @@ Phase 10: Polish
 
 ---
 
-## Quick Reference: Next 3 Tasks
+## Quick Reference: Historical Next 3 Tasks
+
+The former next tasks have been implemented. See `LAUNCH-BLOCKERS-PLAN.md` for
+the current sequence of work.
 
 1. **Terminal Manager Service** (3-4 hrs)
    - Add PTY session lifecycle in the main process

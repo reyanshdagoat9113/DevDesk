@@ -4,41 +4,28 @@
 
 - [x] Verify production build output loads in a packaged app.
 - [x] Add command search/filter by tag.
-- [x] Show command + project names in run history (not just ids).
-- [x] Replace JSON store with SQLite using `better-sqlite3` (main process only).
-- [x] One-time migration from `devdesk-store.json` to `devdesk.db`.
-- [x] Add WAL mode + basic indexes for common queries.
-- [x] Variables in commands (e.g. `{{container}}`).
-- [x] Command presets per project.
-- [x] Favorites/pinning for projects and commands.
-- [x] Lightweight git status per project.
-- [x] Compose stack awareness per project.
-- [x] Docker container integration (list/start/stop/logs via CLI, Windows + WSL).
-- [x] Notes, preferences, and run history persistence.
+- [x] Show command and project names in run history.
+- [x] Replace JSON persistence with SQLite and migrate existing installs.
+- [x] Add WAL mode and indexes for common queries.
+- [x] Add command variables, presets, favorites, and pinning.
+- [x] Add Git status and Compose-aware Docker integration.
+- [x] Add notes, preferences, and run history persistence.
+- [x] Add embedded terminals, project health checks, and engine search.
+- [x] Add Bug Recorder, export/import, tray actions, and LLM context bundling.
 
-## Backlog / Post-Release
+## Launch Blockers
 
-- [ ] Export/import config UI and file format.
-- [ ] Tray quick actions.
-- [ ] Context bundling for LLM workflows.
+- [ ] Fix the Windows engine IPC path-format contract test.
+- [ ] Replace the stale `test:engine-ipc` `ensure:native` step with a valid native setup command.
+- [ ] Make `node-pty` and `better-sqlite3` rebuilds reliable on Windows and CI.
+- [ ] Define supported release platforms and produce/test their artifacts.
+- [ ] Add release smoke tests and manual QA evidence for clean installations.
+- [ ] Update release notes, installation instructions, and known limitations.
 
-## Done
+## Maintenance Backlog
 
-- [x] Base Electron + Vite setup.
-- [x] shadcn/ui + Radix UI component wrappers.
-- [x] Tailwind theme tokens and utilities.
-- [x] Data model for projects, commands, containers, run history, notes, preferences.
-- [x] JSON persistence in userData (`devdesk-store.json`).
-- [x] SQLite persistence in userData (`devdesk.db`).
-- [x] IPC handlers for projects/commands/history/notes/preferences.
-- [x] Renderer wired to preload API (no mock data).
-- [x] Command execution with run history + output streaming.
-- [x] Notes editor (setup steps, todos, reminders).
-- [x] Project launch preferences (editor/terminal + custom command).
-- [x] Docker container integration (list/start/stop/logs via CLI, Windows + WSL).
-- [x] Project removal UI + confirmation.
-- [x] Command edit/delete.
-- [x] Command presets picker and creation flow.
-- [x] Project/command pinning.
-- [x] Packaged engine resolution and smoke checks.
-- [x] IPC integration smoke test for Electron ↔ engine.
+- [ ] Add end-to-end tests for critical packaged-app paths.
+- [ ] Keep dependencies updated and run security audits.
+- [ ] Profile indexing, search, and large-project performance.
+- [ ] Improve error tracking and logging.
+- [ ] Continue modularizing oversized main and renderer files.

@@ -8,7 +8,7 @@ DevDesk principles: **local-first, safe-by-default, fast UI, deterministic actio
 
 ---
 
-## Baseline Context
+## Baseline Context (updated 2026-07-12)
 
 **Current DevDesk MVP (already exists):**
 - Projects: add/edit/remove, type detection
@@ -19,11 +19,19 @@ DevDesk principles: **local-first, safe-by-default, fast UI, deterministic actio
 - Preferences: editor/terminal selection
 - Architecture: Renderer (React) → Preload API → Main process services (no direct Node in renderer)
 
-**Planned (in progress):**
+**Implemented since the original specification:**
 - Command search/filter by tag
 - Run history shows names
 - Production build verification
-- JSON store → SQLite migration (not part of this spec unless referenced)
+- Command variables, presets, chains, and triggers
+- Embedded terminals and terminal tabs
+- Project health checks, file search, Git workspace features, and engine indexing
+- Markdown notes, tray actions, export/import, bug recording, and LLM context bundling
+
+The feature specifications below are historical implementation reference. The
+remaining work is release hardening and is tracked in
+`LAUNCH-BLOCKERS-PLAN.md`.
+- JSON store to SQLite migration
 
 ---
 
