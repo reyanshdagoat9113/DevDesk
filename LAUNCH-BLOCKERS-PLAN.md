@@ -43,9 +43,9 @@ Documented in `devdesk-engine/ARCHITECTURE.md` and `apps/desktop/engine/types.ts
 
 **Acceptance:**
 
-- `vitest.engine.config.ts` passes on Windows.
-- Search results continue to use stable project-relative paths.
-- The packaged engine smoke test remains green.
+- [x] `vitest.engine.config.ts` passes on Windows.
+- [x] Search results continue to use stable project-relative paths.
+- [x] The packaged engine smoke test remains green.
 
 ### 2. Repair the native test and smoke-test workflow
 
@@ -172,7 +172,7 @@ Test the release artifact, not only the development app.
 
 ## Suggested Execution Order
 
-1. Fix the engine path contract and make the direct IPC test green.
+1. ~~Fix the engine path contract and make the direct IPC test green.~~ **Done**
 2. Repair the native setup scripts and `node-pty` rebuild path.
 3. Add the release gate and CI coverage.
 4. Define supported platforms and produce clean artifacts.
@@ -184,7 +184,7 @@ Test the release artifact, not only the development app.
 Do not call the project publicly launch-ready until all of the following are
 true:
 
-- The Windows engine IPC integration test passes.
+- [x] The Windows engine IPC integration test passes.
 - Native setup works from a clean checkout.
 - Supported-platform artifacts build and launch.
 - Packaged smoke tests and the documented release gate pass.
