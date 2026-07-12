@@ -1,0 +1,93 @@
+# DevDesk release packaging
+
+## Supported platforms (private beta)
+
+| Platform | Artifacts | Status |
+|----------|-----------|--------|
+| **Windows x64** | NSIS installer (`.exe`), unpacked dir for smoke | Primary |
+| **Linux x64** | AppImage, deb, unpacked dir for smoke | Supported |
+| **macOS** | — | Deferred (no target/signing/notarization yet) |
+
+Version and artifact names come from `package.json`:
+
+```text
+DevDesk-${version}-${os}-${arch}.${ext}
+```
+
+Example: `DevDesk-0.1.0-win-x64.exe`, `DevDesk-0.1.0-linux-x64.AppImage`.
+
+## Clean-checkout packaging
+
+```bash
+npm install
+npm run rebuild:native:electron
+npm run icons:generate   # optional if build/icon.* already committed
+```
+
+### Windows host
+
+```bash
+npm run package:win          # NSIS installer under release/
+npm run package:win:dir      # unpacked app for verification
+npm run verify:win-package   # engine + native unpack checks
+```
+
+### Linux host
+
+```bash
+npm run package:linux
+npm run package:linux:dir
+npm run verify:linux-package
+```
+
+Native rebuild prerequisites: [native-modules.md](./native-modules.md).
+
+## What is bundled
+
+- App main/preload/renderer under `dist/`
+- Electron-native `better-sqlite3` and `node-pty` (asar-unpacked)
+- Packaged performance engine under `resources/engine/` with Electron-built `better-sqlite3`
+
+## Icons and metadata
+
+| Item | Value |
+|------|--------|
+| `appId` | `com.devdesk.app` |
+| `productName` | `DevDesk` |
+| Version | `package.json` → `version` |
+| Icon source | `build/icon.png` / `build/icon.ico` (from logo via `npm run icons:generate`) |
+
+## Code signing (deferred for beta)
+
+Private beta builds are **unsigned**:
+
+- **Windows:** SmartScreen may warn on first launch. Authenticode signing is deferred until a release certificate is available (`CSC_LINK` / `CSC_KEY_PASSWORD` with electron-builder).
+- **macOS:** Not a first-release target; Developer ID + notarization deferred.
+- **Linux:** No code signing required for AppImage/deb distribution in beta.
+
+Do not claim “signed installers” until signing secrets and CI are configured.
+
+## Manual packaged-app checks
+
+After installing or running the unpacked binary:
+
+1. App launches without DevTools and loads the renderer.
+2. Projects persist after restart (SQLite in userData).
+3. Terminal tab opens (`node-pty`).
+4. Engine index/search works for a sample project.
+5. Docker missing/present states still degrade gracefully.
+
+## Release notes template
+
+```markdown
+## DevDesk vX.Y.Z (private beta)
+
+### Platforms
+- Windows x64 installer
+- Linux x64 AppImage and deb
+
+### Known limitations
+- Installers are unsigned (Windows SmartScreen may warn)
+- macOS builds not provided
+- Auto-update not enabled
+```

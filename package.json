@@ -21,14 +21,18 @@
     "test:renderer": "vitest --config ./vitest.renderer.config.ts",
     "test:renderer:run": "vitest --config ./vitest.renderer.config.ts run",
     "test:engine-ipc": "npm run rebuild:native:node && npm run build:engine && npx vitest --config ./vitest.engine.config.ts run",
-    "package:linux:dir": "npm run rebuild:native:electron && npm run build && NODE_NO_WARNINGS=1 electron-builder --linux dir",
-    "package:linux": "npm run rebuild:native:electron && npm run build && NODE_NO_WARNINGS=1 electron-builder --linux AppImage deb",
-    "verify:linux-package": "npm run package:linux:dir && node scripts/verify-linux-package.mjs",
+    "icons:generate": "node scripts/generate-app-icons.mjs",
+    "package:win:dir": "npm run rebuild:native:electron && npm run build && electron-builder --win dir",
+    "package:win": "npm run rebuild:native:electron && npm run build && electron-builder --win nsis",
+    "package:linux:dir": "npm run rebuild:native:electron && npm run build && electron-builder --linux dir",
+    "package:linux": "npm run rebuild:native:electron && npm run build && electron-builder --linux AppImage deb",
+    "verify:win-package": "npm run package:win:dir && node scripts/verify-package.mjs --platform win",
+    "verify:linux-package": "npm run package:linux:dir && node scripts/verify-package.mjs --platform linux",
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build:preload": "tsc -p tsconfig.preload.json",
     "lint:architecture": "node scripts/check-architecture.mjs",
-    "test:production": "NODE_ENV=production electron .",
+    "test:production": "electron .",
     "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
     "typecheck": "tsc --noEmit"
   },
@@ -94,23 +98,73 @@
   "build": {
     "appId": "com.devdesk.app",
     "productName": "DevDesk",
+    "copyright": "Copyright © DevDesk",
     "asar": true,
+    "asarUnpack": [
+      "**/*.node",
+      "**/better-sqlite3/**/*",
+      "**/node-pty/**/*",
+      "**/bindings/**/*",
+      "**/file-uri-to-path/**/*"
+    ],
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "icon": "build/icon.png",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "files": [
       "dist/**/*",
       "node_modules/**/*",
-      "package.json"
+      "package.json",
+      "build/icon.png"
     ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DevDesk",
+      "uninstallDisplayName": "DevDesk"
+    },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "category": "Development",
-      "icon": "apps/renderer/assets/devdesk-logo-top-left-transparent.png"
+      "icon": "build/icon.png",
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+      "synopsis": "Local-first developer workspace",
+      "description": "Project manager, command vault, terminals, and Docker controls for local development."
+    },
+    "mac": {
+      "target": [],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png"
     },
     "extraResources": [
       {

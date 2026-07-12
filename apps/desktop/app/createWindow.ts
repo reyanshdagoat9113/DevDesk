@@ -1,7 +1,19 @@
 import { BrowserWindow, Menu } from 'electron'
+import fs from 'node:fs'
 import path from 'node:path'
 
+function resolveWindowIcon(): string | undefined {
+  const candidates = [
+    path.join(__dirname, '../../../build/icon.png'),
+    path.join(process.resourcesPath ?? '', 'build', 'icon.png'),
+  ]
+
+  return candidates.find((candidate) => candidate && fs.existsSync(candidate))
+}
+
 export function createMainWindow(isDev: boolean): BrowserWindow {
+  const iconPath = resolveWindowIcon()
+
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -9,6 +21,7 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
     minHeight: 600,
     backgroundColor: '#09090b',
     show: false,
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload.js'),
       nodeIntegration: false,

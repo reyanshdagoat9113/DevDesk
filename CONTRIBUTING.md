@@ -26,7 +26,12 @@ npm run test:engine-ipc
 npm run smoke:engine-packaged
 ```
 
-On Linux, also run `npm run verify:linux-package` when packaging changes.
+When packaging changes:
+
+- Windows: `npm run verify:win-package` (and optionally `npm run package:win`)
+- Linux: `npm run verify:linux-package` (and optionally `npm run package:linux`)
+
+See [docs/release.md](docs/release.md).
 
 ## Guidelines
 
