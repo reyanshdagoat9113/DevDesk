@@ -6,10 +6,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
-import { execFileSync } from 'node:child_process'
 
 const require = createRequire(import.meta.url)
 const { Jimp } = require('jimp')
+const pngToIco = require('png-to-ico')
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const buildDir = path.join(repoRoot, 'build')
@@ -32,13 +32,7 @@ async function main() {
   src.resize({ w: 512, h: 512 })
   await src.write(pngOut)
 
-  // png-to-ico is not a project dependency; use npx for one-shot generation.
-  execFileSync('npx', ['--yes', 'png-to-ico', pngOut], {
-    cwd: repoRoot,
-    stdio: ['ignore', fs.openSync(icoOut, 'w'), 'inherit'],
-    shell: process.platform === 'win32',
-    env: process.env,
-  })
+  fs.writeFileSync(icoOut, await pngToIco(pngOut))
 
   if (!fs.existsSync(icoOut) || fs.statSync(icoOut).size < 100) {
     throw new Error(`Failed to write Windows icon: ${icoOut}`)

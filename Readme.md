@@ -30,7 +30,7 @@ Remaining launch work:
 - Run manual end-to-end QA on clean environments.
 - Optional later: code signing (Windows), macOS packaging/notarization.
 
-Native rebuild notes: [docs/native-modules.md](docs/native-modules.md).  
+Native rebuild notes: [docs/native-modules.md](docs/native-modules.md).
 Packaging notes: [docs/release.md](docs/release.md).
 
 ## Quick Start
