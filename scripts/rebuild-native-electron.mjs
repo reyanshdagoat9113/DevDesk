@@ -16,6 +16,17 @@ const repoRoot = path.resolve(scriptDir, '..')
 const withPty = process.argv.includes('--with-pty')
 const modules = withPty ? 'better-sqlite3,node-pty' : 'better-sqlite3'
 const electronRebuildCli = path.join(repoRoot, 'node_modules', '@electron', 'rebuild', 'lib', 'cli.js')
+const rebuildEnv = { ...process.env }
+
+if (withPty && process.platform === 'win32') {
+  // node-pty's winpty gyp file invokes GetCommitHash.bat without a relative path.
+  // Windows no longer searches the current directory for commands, so make its
+  // bundled helper discoverable while electron-rebuild runs.
+  const winptyTools = path.join(repoRoot, 'node_modules', 'node-pty', 'deps', 'winpty', 'src', 'shared')
+  const pathValue = [winptyTools, process.env.Path ?? process.env.PATH].filter(Boolean).join(path.delimiter)
+  rebuildEnv.Path = pathValue
+  rebuildEnv.PATH = pathValue
+}
 
 process.stdout.write(`Rebuilding Electron natives: ${modules}\n`)
 
@@ -23,7 +34,7 @@ try {
   execFileSync(process.execPath, [electronRebuildCli, '-f', '-o', modules], {
     cwd: repoRoot,
     stdio: 'inherit',
-    env: process.env,
+    env: rebuildEnv,
   })
 } catch (error) {
   process.stderr.write(
