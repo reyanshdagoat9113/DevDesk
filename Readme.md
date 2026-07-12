@@ -26,8 +26,8 @@ Implemented:
 - Linux release packaging configuration (`AppImage` + `deb`) and packaged engine smoke tests.
 
 Remaining launch work:
-- Add release-level CI/smoke coverage and migration regression tests.
-- Run manual end-to-end QA on clean environments.
+- Run manual end-to-end QA on clean environments (task 5).
+- Synchronize public install/release docs (task 6).
 - Optional later: code signing (Windows), macOS packaging/notarization.
 
 Native rebuild notes: [docs/native-modules.md](docs/native-modules.md).
@@ -41,6 +41,7 @@ Packaging notes: [docs/release.md](docs/release.md).
 - `npm run rebuild:native` / `rebuild:native:electron` - Electron sqlite / sqlite+pty rebuilds.
 - `npm run test:engine-ipc` - engine IPC integration test (Node natives).
 - `npm run smoke:engine-packaged` - verify packaged engine resolution and a real index/search/stats flow.
+- `npm run release:gate` - full automated release baseline (lint, tests, engine smoke).
 - `npm run package:win` / `package:linux` - produce installable release artifacts.
 - `npm run verify:win-package` / `verify:linux-package` - build unpacked dir and smoke-test engine + natives.
 - `npm run typecheck` - validate TypeScript without emitting files.

@@ -213,7 +213,8 @@ function hasColumn(database: Database.Database, tableName: string, columnName: s
   return rows.some((row) => row.name === columnName)
 }
 
-function ensureSchemaCompatibility(database: Database.Database) {
+/** Apply additive schema upgrades for DBs created before the current schema. */
+export function ensureSchemaCompatibility(database: Database.Database) {
   if (!hasColumn(database, 'commands', 'variables')) {
     database.exec('ALTER TABLE commands ADD COLUMN variables TEXT')
   }
@@ -482,7 +483,8 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
   writeTransaction(store)
 }
 
-async function migrateJsonStoreIfNeeded(database: Database.Database, jsonPath: string) {
+/** Import legacy JSON store when the SQLite DB has no preferences yet. */
+export async function migrateJsonStoreIfNeeded(database: Database.Database, jsonPath: string) {
   const dbHasData = database
     .prepare('SELECT EXISTS(SELECT 1 FROM preferences LIMIT 1) AS has_data')
     .get() as { has_data: number }
@@ -504,6 +506,26 @@ async function migrateJsonStoreIfNeeded(database: Database.Database, jsonPath: s
   }
 }
 
+/**
+ * Open a database at explicit paths (used by production init and migration tests).
+ * Does not replace the process-global `db` handle.
+ */
+export async function initializeDatabaseAt(
+  dbPath: string,
+  jsonPath: string,
+): Promise<Database.Database> {
+  await ensureStoreDir(dbPath)
+
+  const database = new Database(dbPath)
+  database.pragma('journal_mode = WAL')
+  database.pragma('foreign_keys = ON')
+  database.pragma('synchronous = NORMAL')
+  createSchema(database)
+  ensureSchemaCompatibility(database)
+  await migrateJsonStoreIfNeeded(database, jsonPath)
+  return database
+}
+
 export async function ensureDbInitialized(): Promise<void> {
   if (db) {
     return
@@ -511,19 +533,7 @@ export async function ensureDbInitialized(): Promise<void> {
 
   if (!initPromise) {
     initPromise = (async () => {
-      const dbPath = getDbPath()
-      const jsonPath = getStorePath()
-      await ensureStoreDir(dbPath)
-
-      const database = new Database(dbPath)
-      database.pragma('journal_mode = WAL')
-      database.pragma('foreign_keys = ON')
-      database.pragma('synchronous = NORMAL')
-      createSchema(database)
-      ensureSchemaCompatibility(database)
-
-      await migrateJsonStoreIfNeeded(database, jsonPath)
-      db = database
+      db = await initializeDatabaseAt(getDbPath(), getStorePath())
     })().catch((error) => {
       initPromise = null
       throw error

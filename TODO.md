@@ -19,7 +19,8 @@
 - [x] Replace the stale `test:engine-ipc` `ensure:native` step with a valid native setup command.
 - [x] Make `node-pty` and `better-sqlite3` rebuilds reliable on Windows and CI.
 - [x] Define supported release platforms and produce/test their artifacts.
-- [ ] Add release smoke tests and manual QA evidence for clean installations.
+- [x] Add release smoke tests and CI release gate (migration/native/terminal coverage).
+- [ ] Complete manual QA evidence for clean installations.
 - [ ] Update release notes, installation instructions, and known limitations.
 
 ## Maintenance Backlog
