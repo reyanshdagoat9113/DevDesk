@@ -15,16 +15,15 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(scriptDir, '..')
 const withPty = process.argv.includes('--with-pty')
 const modules = withPty ? 'better-sqlite3,node-pty' : 'better-sqlite3'
+const electronRebuildCli = path.join(repoRoot, 'node_modules', '@electron', 'rebuild', 'lib', 'cli.js')
 
 process.stdout.write(`Rebuilding Electron natives: ${modules}\n`)
 
 try {
-  // Use npx so Windows does not need shell:true for .cmd shims.
-  execFileSync('npx', ['electron-rebuild', '-f', '-o', modules], {
+  execFileSync(process.execPath, [electronRebuildCli, '-f', '-o', modules], {
     cwd: repoRoot,
     stdio: 'inherit',
     env: process.env,
-    shell: process.platform === 'win32',
   })
 } catch (error) {
   process.stderr.write(

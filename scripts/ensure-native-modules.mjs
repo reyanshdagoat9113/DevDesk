@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url'
 const require = createRequire(import.meta.url)
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(scriptDir, '..')
+const npmCli =
+  process.env.npm_execpath ?? path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
 
 function uniqueExistingPackageRoots(candidates) {
   const seen = new Set()
@@ -63,10 +65,9 @@ function canLoadBetterSqlite3(moduleRoot) {
 function rebuildBetterSqlite3(moduleRoot, label) {
   process.stdout.write(`Rebuilding better-sqlite3 for Node in ${label}...\n`)
   try {
-    execFileSync('npm', ['rebuild', 'better-sqlite3'], {
+    execFileSync(process.execPath, [npmCli, 'rebuild', 'better-sqlite3'], {
       cwd: moduleRoot,
       stdio: 'inherit',
-      shell: process.platform === 'win32',
       env: process.env,
     })
   } catch (error) {
