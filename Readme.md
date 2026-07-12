@@ -26,12 +26,14 @@ Implemented:
 - Linux release packaging configuration (`AppImage` + `deb`) and packaged engine smoke tests.
 
 Remaining launch work:
-- Run manual end-to-end QA on clean environments (task 5).
 - Synchronize public install/release docs (task 6).
+- Complete the remaining Windows interactive Pass* checks in [docs/manual-qa.md](docs/manual-qa.md).
+- Complete Linux interactive QA rows in [docs/manual-qa.md](docs/manual-qa.md).
 - Optional later: code signing (Windows), macOS packaging/notarization.
 
 Native rebuild notes: [docs/native-modules.md](docs/native-modules.md).
 Packaging notes: [docs/release.md](docs/release.md).
+Manual QA: [docs/manual-qa.md](docs/manual-qa.md).
 
 ## Quick Start
 
