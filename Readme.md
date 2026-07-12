@@ -80,29 +80,29 @@ See [docs/install.md](docs/install.md). Short version:
 
 ## Features
 
-- **Projects** — add, pin, open folder/IDE/terminal, type detection  
-- **Command Vault** — tags, variables, presets, pinning, live run history  
-- **Containers** — Docker list/start/stop/logs; graceful missing-Docker UX; WSL-aware  
-- **Terminals** — embedded tabs, resize, search, fullscreen  
-- **Health** — project + environment checks with history  
-- **Engine** — local index, search, stats, Git insights  
-- **Bugs** — context snapshots and attachments  
-- **Export/import** — merge or replace with DB backup  
-- **Tray** — optional tray quick actions  
-- **LLM context** — local context export helpers  
+- **Projects** — add, pin, open folder/IDE/terminal, type detection
+- **Command Vault** — tags, variables, presets, pinning, live run history
+- **Containers** — Docker list/start/stop/logs; graceful missing-Docker UX; WSL-aware
+- **Terminals** — embedded tabs, resize, search, fullscreen
+- **Health** — project + environment checks with history
+- **Engine** — local index, search, stats, Git insights
+- **Bugs** — context snapshots and attachments
+- **Export/import** — merge or replace with DB backup
+- **Tray** — optional tray quick actions
+- **LLM context** — local context export helpers
 
 ## Data storage
 
-- Primary: SQLite `devdesk.db` in Electron userData (WAL).  
-- Legacy: one-time import from `devdesk-store.json` when the DB is empty.  
-- Engine indexes: `userData/engine/*.sqlite`.  
+- Primary: SQLite `devdesk.db` in Electron userData (WAL).
+- Legacy: one-time import from `devdesk-store.json` when the DB is empty.
+- Engine indexes: `userData/engine/*.sqlite`.
 - Details: [docs/data-locations.md](docs/data-locations.md).
 
 ## Architecture (high level)
 
-- **Main** — Node + TypeScript: IPC, store, Docker, terminals, engine spawn  
-- **Preload** — small explicit bridge (`contextIsolation`, no `nodeIntegration`)  
-- **Renderer** — React + Vite + shadcn/ui + Radix  
+- **Main** — Node + TypeScript: IPC, store, Docker, terminals, engine spawn
+- **Preload** — small explicit bridge (`contextIsolation`, no `nodeIntegration`)
+- **Renderer** — React + Vite + shadcn/ui + Radix
 
 ## Non-goals
 
