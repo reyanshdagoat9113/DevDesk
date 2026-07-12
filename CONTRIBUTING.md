@@ -18,12 +18,8 @@ See [docs/native-modules.md](docs/native-modules.md).
 Before opening a pull request, run:
 
 ```bash
-npm run typecheck
-npm run lint
-npm run test:run
-npm run test:renderer:run
-npm run test:engine-ipc
-npm run smoke:engine-packaged
+npm run rebuild:native:node
+npm run release:gate
 ```
 
 When packaging changes:

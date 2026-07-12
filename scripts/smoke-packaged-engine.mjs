@@ -6,8 +6,10 @@ import * as os from 'node:os'
 import { execFile } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
+import { createRequire } from 'node:module'
 
 const execFileAsync = promisify(execFile)
+const require = createRequire(import.meta.url)
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(scriptDir, '..')
 const engineRootDir = path.join(repoRoot, '..', 'devdesk-addons', 'devdesk-engine')
@@ -15,7 +17,7 @@ const engineDistDir = path.join(engineRootDir, 'dist')
 const engineNodeModulesDir = path.join(engineRootDir, 'node_modules')
 const enginePackageJsonPath = path.join(engineRootDir, 'package.json')
 const appNodeModulesDir = path.join(repoRoot, 'node_modules')
-const electronBinaryPath = path.join(repoRoot, 'node_modules', '.bin', 'electron')
+const electronBinaryPath = require('electron')
 const builtRuntimePath = path.join(repoRoot, 'dist', 'main', 'engine', 'runtime.js')
 
 async function main() {

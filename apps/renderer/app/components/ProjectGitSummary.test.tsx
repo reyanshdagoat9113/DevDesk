@@ -80,6 +80,6 @@ describe('ProjectGitSummary', () => {
     })
 
     expect(screen.getByText('No repo')).toBeTruthy()
-    expect(screen.getByText(/Git details will appear here/)).toBeTruthy()
+    expect(await screen.findByText(/Git details will appear here/)).toBeTruthy()
   })
 })

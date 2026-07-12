@@ -16,6 +16,38 @@ DevDesk-${version}-${os}-${arch}.${ext}
 
 Example: `DevDesk-0.1.0-win-x64.exe`, `DevDesk-0.1.0-linux-x64.AppImage`.
 
+## Release gate (automated)
+
+From a clean checkout of DevDesk (with sibling `../devdesk-addons/devdesk-engine`):
+
+```bash
+npm install
+npm --prefix ../devdesk-addons/devdesk-engine install
+npm run rebuild:native:node
+npm run release:gate
+```
+
+`release:gate` runs:
+
+```text
+typecheck
+lint
+lint:architecture
+test:run              # includes migration, native load, terminal unit tests
+test:renderer:run
+test:engine-ipc
+smoke:engine-packaged
+```
+
+Platform package smokes (CI per OS):
+
+```bash
+npm run verify:win-package    # Windows
+npm run verify:linux-package  # Linux
+```
+
+CI workflow: `.github/workflows/release-gate.yml` on `windows-latest` and `ubuntu-latest`.
+
 ## Clean-checkout packaging
 
 ```bash
