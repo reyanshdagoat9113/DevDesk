@@ -10,8 +10,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const isWin = process.platform === 'win32'
-const npm = isWin ? 'npm.cmd' : 'npm'
+const npmCli =
+  process.env.npm_execpath ?? path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
 
 const steps = [
   { name: 'typecheck', args: ['run', 'typecheck'] },
@@ -25,11 +25,10 @@ const steps = [
 
 function runStep(step) {
   console.log(`\n==> release-gate: ${step.name}\n`)
-  const result = spawnSync(npm, step.args, {
+  const result = spawnSync(process.execPath, [npmCli, ...step.args], {
     cwd: repoRoot,
     stdio: 'inherit',
     env: process.env,
-    shell: isWin,
   })
   if (result.status !== 0) {
     console.error(`\nrelease-gate failed at step: ${step.name} (exit ${result.status ?? 1})`)

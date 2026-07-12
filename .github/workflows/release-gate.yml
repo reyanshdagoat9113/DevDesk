@@ -10,6 +10,9 @@ concurrency:
   group: release-gate-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   gate:
     name: Gate (${{ matrix.os }})
@@ -34,16 +37,10 @@ jobs:
         with:
           repository: reyanshdagoat9113/devdesk-addons
           path: devdesk-addons
-          # Prefer same-named branch when present; fall back to default branch.
-          ref: ${{ github.base_ref || github.ref_name }}
-        continue-on-error: true
-
-      - name: Ensure engine checkout (default branch fallback)
-        if: hashFiles('devdesk-addons/devdesk-engine/package.json') == ''
-        uses: actions/checkout@v4
-        with:
-          repository: reyanshdagoat9113/devdesk-addons
-          path: devdesk-addons
+          # DevDesk's dev branch is tested with the add-ons rev branch; main uses main.
+          ref: ${{ (github.base_ref || github.ref_name) == 'main' && 'main' || 'rev' }}
+          # Required because devdesk-addons is a separate private repository.
+          token: ${{ secrets.DEVDESK_ADDONS_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
