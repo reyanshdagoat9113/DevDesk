@@ -75,6 +75,26 @@ SQLite stores repositories, files, scan history, and git hotspots. FTS5 provides
 
 ---
 
+## Path Contract
+
+Engine API results use a stable cross-platform path form so Electron IPC and UI
+code can compare and persist paths without OS-specific branching.
+
+| Context | Form | Helper |
+|---------|------|--------|
+| API / JSON results (`repo`, `db`, stored absolute file paths) | Absolute, **forward slashes** (e.g. `C:/Users/proj`) | `normalizePath()` |
+| Search paths returned through DevDesk IPC | **Project-relative** with `/` (e.g. `src/app.ts`) | desktop `normalizeSearchResultPaths` |
+| Filesystem and Rust worker I/O | Native OS separators | `toNativePath()` / Node `path` |
+
+Rules:
+
+1. Never return native Windows backslashes from engine capability results.
+2. Callers that need to open files convert with `toNativePath` (or Node `path`
+   APIs, which accept `/` on Windows).
+3. DevDesk persists `dbPath` from the engine result as-is (canonical form).
+
+---
+
 ## CLI Commands
 
 ```bash
