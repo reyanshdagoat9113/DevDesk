@@ -1,8 +1,8 @@
 # Manual clean-install QA
 
-**Version under test:** `0.1.0`  
-**Plan reference:** launch-blocker task 5  
-**Last updated:** 2026-07-12  
+**Version under test:** `0.1.0`
+**Plan reference:** launch-blocker task 5
+**Last updated:** 2026-07-12
 
 This checklist is for the **packaged release artifact**, not `npm run dev`.
 

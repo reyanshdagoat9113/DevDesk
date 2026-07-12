@@ -20,7 +20,7 @@
 - [x] Make `node-pty` and `better-sqlite3` rebuilds reliable on Windows and CI.
 - [x] Define supported release platforms and produce/test their artifacts.
 - [x] Add release smoke tests and CI release gate (migration/native/terminal coverage).
-- [x] Complete manual QA evidence for clean installations (see `docs/manual-qa.md`).
+- [ ] Complete interactive clean-install QA on every supported platform (Windows evidence recorded; Linux pending; see `docs/manual-qa.md`).
 - [ ] Update release notes, installation instructions, and known limitations.
 
 ## Maintenance Backlog
