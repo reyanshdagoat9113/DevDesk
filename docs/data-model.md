@@ -1,122 +1,75 @@
-# Data Model (MVP)
+# Data model
 
-This is the current data model used by the app. It matches `apps/desktop/data/model.ts`.
+Canonical TypeScript types live in `apps/desktop/data/model.ts` (`DATA_VERSION` is the store export version).
 
-## Core Entities
+## Persistence (current)
+
+| Store | Location | Notes |
+|-------|----------|--------|
+| SQLite `devdesk.db` | Electron userData | Primary store; WAL; single-writer main process |
+| Legacy `devdesk-store.json` | Same userData | Imported once when preferences table is empty |
+| Engine indexes | `userData/engine/<projectId>.sqlite` | Performance engine |
+| Bug attachments | `userData/attachments/` | Files on disk |
+
+See [data-locations.md](./data-locations.md) for OS paths and backup/export behavior.
+
+## Core entities
 
 ### Project
-- `id`: unique id (string)
-- `path`: filesystem path
-- `name`: display name
-- `type`: `node | python | rust | go | unknown`
-- `icon`: display icon (string)
+- `id`, `path`, `name`, `type` (`node | python | rust | go | unknown`), `icon`
+- `linkedContainerNames`, optional `isPinned` / `pinnedAt`
 
 ### Command
-- `id`
-- `name`
-- `command`: shell command template
-- `description?`
-- `tags?`: string[]
-- `projectId?`: string
-- `workingDirectory?`: string (relative to project root)
+- `id`, `name`, `command`, optional `description`, `tags`, `projectId`, `workingDirectory`
+- optional `variables`, `isPinned` / `pinnedAt`
 
-### Container (runtime-only)
-- `id`
-- `name`
-- `image`
-- `state`: `running | stopped | paused`
-- `ports`: string[]
+### Run history
+- `id`, `commandId`, optional `projectId`, `status`, `startTime`, `endTime`, `output`
+- optional `resolvedCommand`
 
-### Run History Entry
-- `id`
-- `commandId`
-- `projectId?`
-- `status`: `running | success | failed | stopped`
-- `startTime`: ISO string
-- `endTime?`: ISO string
-- `output?`: string
+### Project notes
+- `projectId`, `setupSteps`, `todos`, `reminders`
 
-### Project Notes
-- `projectId`
-- `setupSteps`: string (multiline)
-- `todos`: string (multiline)
-- `reminders`: string (multiline)
+### Preferences
+- `editor` / `terminal` (`id`, optional `command`)
+- `trayEnabled`
 
-### App Preferences
-- `editor`: `{ id: string, command?: string }`
-- `terminal`: `{ id: string, command?: string }`
+### Bugs / health / automation
+- Bug reports, context snapshots, attachments
+- Health check runs
+- Command chains and triggers
 
-## Persisted Store
+Containers from Docker are **runtime-only** (not persisted as the source of truth).
 
-Stored locally as a single versioned object in userData (`devdesk-store.json`):
+## SQLite tables (overview)
 
-- `version`: 2
-- `projects`: Project[]
-- `commands`: Command[]
-- `runHistory`: RunHistoryEntry[]
-- `notes`: Record<string, ProjectNotes>
-- `preferences`: AppPreferences
+Created in `apps/desktop/data/store/core.ts` (`createSchema`), including:
 
-Containers are fetched from Docker at runtime and are not persisted in the store.
+- `projects`, `commands`, `chains`, `triggers`, `run_history`, `notes`, `preferences`
+- `engine_indexes`, `engine_search_sessions`
+- `health_check_runs` (and related)
+- `bug_reports`, `bug_context_snapshots`, `bug_attachments`
 
-## Planned SQLite Store (better-sqlite3)
+### Schema compatibility
 
-The app will migrate to a local SQLite database for reliability and performance. The database
-will live in the same userData directory as `devdesk-store.json`.
+`ensureSchemaCompatibility` adds missing columns for older DBs:
 
-File:
-- `devdesk.db`
+- `commands.variables`, `commands.is_pinned`, `commands.pinned_at`
+- `projects.is_pinned`, `projects.pinned_at`
+- `run_history.resolved_command`
 
-Mode:
-- WAL enabled for durability and concurrent reads.
-- Single-writer from the main process.
+### JSON → SQLite migration
 
-Schema (initial mapping):
+On init (`initializeDatabaseAt` / `ensureDbInitialized`):
 
-### projects
-- `id` TEXT PRIMARY KEY
-- `path` TEXT NOT NULL
-- `name` TEXT NOT NULL
-- `type` TEXT NOT NULL
-- `icon` TEXT NOT NULL
+1. Open/create `devdesk.db`, enable WAL + foreign keys  
+2. `createSchema` + `ensureSchemaCompatibility`  
+3. If no preferences row exists, import normalized JSON from `devdesk-store.json` (or write defaults)
 
-### commands
-- `id` TEXT PRIMARY KEY
-- `name` TEXT NOT NULL
-- `command` TEXT NOT NULL
-- `description` TEXT
-- `tags` TEXT (JSON array)
-- `project_id` TEXT
-- `working_directory` TEXT
+Legacy note fields `ports` / `urls` merge into `setupSteps` when setup steps are empty (`normalizeNotes`).
 
-### run_history
-- `id` TEXT PRIMARY KEY
-- `command_id` TEXT NOT NULL
-- `project_id` TEXT
-- `status` TEXT NOT NULL
-- `start_time` TEXT NOT NULL
-- `end_time` TEXT
-- `output` TEXT
+## Export format
 
-### notes
-- `project_id` TEXT PRIMARY KEY
-- `setup_steps` TEXT
-- `todos` TEXT
-- `reminders` TEXT
-
-### preferences
-- `id` TEXT PRIMARY KEY CHECK (id = 'app')
-- `editor_id` TEXT NOT NULL
-- `editor_command` TEXT
-- `terminal_id` TEXT NOT NULL
-- `terminal_command` TEXT
-
-Indexes:
-- `commands_project_id_idx` on `commands(project_id)`
-- `run_history_project_id_idx` on `run_history(project_id)`
-- `run_history_command_id_idx` on `run_history(command_id)`
-- `run_history_start_time_idx` on `run_history(start_time)`
-
-Migration strategy:
-- On startup, if `devdesk.db` does not exist and `devdesk-store.json` does, import JSON into SQLite.
-- Keep JSON as a backup for one or two releases, then optionally remove.
+In-app export produces a versioned JSON document of table rows (`export.ts`).  
+Import supports **merge** and **replace**, with a `devdesk.db.backup-*` file created first.  
+Attachment **files** are not embedded in the export payload (metadata only).

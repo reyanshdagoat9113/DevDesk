@@ -2,13 +2,15 @@
 
 > A comprehensive implementation guide for evolving DevDesk from MVP to a complete developer workspace platform.
 
-**Last Updated:** 2026-07-12
-**Active Phase:** Launch hardening and release validation (see `LAUNCH-BLOCKERS-PLAN.md`)
+**Last Updated:** 2026-07-12  
+**Active Phase:** Private beta (v0.1.0) — docs + remaining Linux interactive QA  
+**Current Phase:** Feature-complete late MVP → private beta distribution  
 
-The original feature roadmap is largely implemented. The active task queue is
-now `LAUNCH-BLOCKERS-PLAN.md`; the feature phases below are retained as
-historical scope and future-enhancement reference.
-**Current Phase:** Feature-complete late MVP → launch hardening
+The original feature roadmap is largely implemented. Launch engineering tasks
+(path contract, native rebuilds, packaging, release gate/CI, Windows QA) are
+done for the private-beta bar. Remaining: Linux interactive QA, optional
+signing/macOS, and ongoing maintenance. See `docs/beta-release-checklist.md`,
+`docs/RELEASE-NOTES-0.1.0.md`, and `docs/manual-qa.md`.
 
 ---
 
@@ -1021,9 +1023,16 @@ engine-backed file search and Git insights (Phases 5-6), tray actions (Phase
 9), and export/import plus LLM context bundling (Phase 10). Bug Recorder work
 and environment health-check work are also complete as product features.
 
-Remaining launch work is release hardening: fix the Windows engine IPC path
-contract, repair the stale native test command, make native rebuilds reliable,
-produce supported-platform artifacts, and complete clean-install/manual QA.
+Launch hardening status (2026-07-12):
+
+- [x] Windows engine IPC path contract  
+- [x] Native rebuild Node vs Electron workflows  
+- [x] Windows + Linux package targets + package verify  
+- [x] `release:gate` + CI  
+- [x] Install / data / release-notes docs  
+- [ ] Windows packaged QA record (`docs/manual-qa.md` — companion QA PR)  
+- [ ] Linux interactive QA completion  
+- [ ] Code signing / macOS (optional later)
 
 ## Technical Debt & Maintenance
 
@@ -1035,9 +1044,10 @@ produce supported-platform artifacts, and complete clean-install/manual QA.
 
 ### Code Quality
 - [x] Add unit and renderer test coverage for core services and UI flows
-- [ ] E2E tests for critical packaged-app paths
+- [x] Release-gate scripts and CI workflow
+- [ ] Broader E2E tests for critical packaged-app UI paths
 - [ ] TypeScript strict mode compliance
-- [ ] Documentation and release notes updates
+- [x] Documentation and release notes for v0.1.0 private beta
 
 ---
 
