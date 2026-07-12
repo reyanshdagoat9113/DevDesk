@@ -1,32 +1,21 @@
-# DevDesk - Electron App Overview
+# DevDesk
 
-A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, and Docker/Compose Manager into one clean, fast workspace.
+A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, Docker controls, terminals, and local code search into one workspace.
 
 ## Status (2026-07-12)
 
-DevDesk is in late MVP / pre-release beta. The core product is implemented and
-the main validation suite is green, but public launch is still gated by release
-engineering, cross-platform packaging, and one Windows engine IPC contract test.
+**Private beta / release candidate in hardening** — product features for v0.1.0 are implemented; launch work is packaging, QA, and docs.
 
-Implemented:
-- Electron shell + Vite renderer, shadcn/ui + Radix components.
-- SQLite persistence in userData (`devdesk.db`) with one-time migration from `devdesk-store.json`.
-- Projects: add, edit, remove, detect type, pin, open folder/IDE/terminal.
-- Preferences for editor/terminal (custom command support).
-- Command Vault: create/edit/delete/run commands with tags, descriptions, variables, project binding, working directory, presets per project, and command/project pinning.
-- Run history with live output streaming + full output viewer + clear history.
-- Project notes (setup steps/todos/reminders).
-- Docker containers: list/start/stop/logs with Windows + WSL fallback and compose-aware labeling.
-- Git summaries per project, including lightweight working-tree status.
-- Embedded terminals with tabs, fullscreen, resize, search, and web links.
-- Project health inspection and persisted environment health checks.
-- Bug Recorder with context snapshots, attachments, search, and resolution flow.
-- Engine-backed project indexing, full-text search, stats, and Git insights.
-- Export/import UI, tray quick actions, and LLM context bundling.
-- Linux release packaging configuration (`AppImage` + `deb`) and packaged engine smoke tests.
+| Area | State |
+|------|--------|
+| Core product features | Implemented |
+| Automated release gate + CI | Implemented (`npm run release:gate`) |
+| Windows x64 installer | Implemented (unsigned) |
+| Linux x64 AppImage/deb | Targets configured |
+| macOS | Deferred |
+| Manual QA | See [docs/manual-qa.md](docs/manual-qa.md) when present (Windows session + Linux template) |
 
 Remaining launch work:
-- Synchronize public install/release docs (task 6).
 - Complete the remaining Windows interactive Pass* checks in [docs/manual-qa.md](docs/manual-qa.md).
 - Complete Linux interactive QA rows in [docs/manual-qa.md](docs/manual-qa.md).
 - Optional later: code signing (Windows), macOS packaging/notarization.
@@ -35,136 +24,94 @@ Native rebuild notes: [docs/native-modules.md](docs/native-modules.md).
 Packaging notes: [docs/release.md](docs/release.md).
 Manual QA: [docs/manual-qa.md](docs/manual-qa.md).
 
-## Quick Start
+### Release notes
 
-- `npm run dev` - build main/preload, start Vite, launch Electron.
-- `npm run build` - build main/preload and renderer bundle.
-- `npm run rebuild:native:node` - ensure `better-sqlite3` for Node (app + engine).
-- `npm run rebuild:native` / `rebuild:native:electron` - Electron sqlite / sqlite+pty rebuilds.
-- `npm run test:engine-ipc` - engine IPC integration test (Node natives).
-- `npm run smoke:engine-packaged` - verify packaged engine resolution and a real index/search/stats flow.
-- `npm run release:gate` - full automated release baseline (lint, tests, engine smoke).
-- `npm run package:win` / `package:linux` - produce installable release artifacts.
-- `npm run verify:win-package` / `verify:linux-package` - build unpacked dir and smoke-test engine + natives.
-- `npm run typecheck` - validate TypeScript without emitting files.
-- `npm run lint` - run ESLint across main and renderer code.
-- `npm run test:run` / `npm run test:renderer:run` - run desktop and renderer tests.
+- [docs/RELEASE-NOTES-0.1.0.md](docs/RELEASE-NOTES-0.1.0.md)
 
-See the launch plan at the repo root (`LAUNCH-BLOCKERS-PLAN.md` if present) and [docs/native-modules.md](docs/native-modules.md).
+### Docs map
 
-## Purpose
+| Doc | Topic |
+|-----|--------|
+| [docs/install.md](docs/install.md) | Install, platforms, uninstall |
+| [docs/release.md](docs/release.md) | Packaging, gate, signing limits |
+| [docs/native-modules.md](docs/native-modules.md) | Native rebuild prerequisites |
+| [docs/data-locations.md](docs/data-locations.md) | userData paths, backup, export |
+| [docs/manual-qa.md](docs/manual-qa.md) | Clean-install QA checklist |
+| [docs/beta-release-checklist.md](docs/beta-release-checklist.md) | Maintainer release checklist |
+| [docs/data-model.md](docs/data-model.md) | Data model overview |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributor setup |
 
-DevDesk exists to remove daily developer friction:
-- Jump into projects without remembering commands.
-- Reuse complex terminal commands safely.
-- Control Docker containers and compose stacks visually.
-- Keep a simple history of what you ran and when.
+## Quick start (developers)
 
-If it saves even 5 minutes per day, it is doing its job.
+Repository layout expects a sibling engine package:
 
-## Core Principles
+```text
+parent/
+  DevDesk/
+  devdesk-addons/devdesk-engine/
+```
 
-- Local-first: everything runs on your machine.
-- Deterministic: buttons do predictable things.
-- Opinionated: optimized for solo dev workflows.
-- Safe by default: destructive actions require intent.
-- Fast UI: keyboard-first, minimal clicks.
+```bash
+npm install
+npm --prefix ../devdesk-addons/devdesk-engine install
+npm run rebuild:native:electron
+npm run dev
+```
 
-## Core Features (The Combo)
+Common commands:
 
-### 1) Project Manager
-- Add local project folders and detect project type.
-- Open in editor/terminal or reveal in file explorer.
-- Pin important projects.
-- Acts as the home screen of the app.
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Dev app with Vite + Electron |
+| `npm run build` | Production main/preload/renderer (+ engine prebuild) |
+| `npm run release:gate` | Lint, typecheck, unit/renderer/engine-ipc, engine smoke |
+| `npm run package:win` / `package:linux` | Installable artifacts under `release/` |
+| `npm run verify:win-package` / `verify:linux-package` | Packaged engine + native checks |
 
-### 2) Command Vault
-- Store frequently used terminal commands.
-- Add descriptions, tags, and variables.
-- Bind commands to a project or run globally.
-- Support project-relative working directories.
-- Create preset commands per project type.
+Windows native builds need Visual Studio C++ Build Tools, Python 3, and Git. See [docs/native-modules.md](docs/native-modules.md).
 
-### 3) Containers (Docker + Compose)
-- List running and stopped containers.
-- Start, stop, and view logs.
-- Show compose metadata when available.
-- Graceful fallback when Docker is missing; Windows + WSL support.
+## Install (end users)
 
-### 4) Run History
-- Shows what commands were run.
-- Displays status (running / success / failed / stopped).
-- Shows command and project names.
-- Allows stopping long-running commands.
-- Provides access to output for sharing or debugging.
+See [docs/install.md](docs/install.md). Short version:
 
-### 5) Project Notes
-- Lightweight notes for setup steps, todos, and reminders tied to a project.
+- **Windows:** run `DevDesk-<version>-win-x64.exe` (SmartScreen may warn — unsigned beta).
+- **Linux:** AppImage or deb from a Linux build host.
+- **macOS:** not shipped in this beta.
 
-### 6) Git Snapshot
-- Lightweight per-project git status summary.
-- Surface branch and working-tree health in the UI.
-- Load repository insights when available.
+## Features
 
-## How the App Works (High-Level)
+- **Projects** — add, pin, open folder/IDE/terminal, type detection
+- **Command Vault** — tags, variables, presets, pinning, live run history
+- **Containers** — Docker list/start/stop/logs; graceful missing-Docker UX; WSL-aware
+- **Terminals** — embedded tabs, resize, search, fullscreen
+- **Health** — project + environment checks with history
+- **Engine** — local index, search, stats, Git insights
+- **Bugs** — context snapshots and attachments
+- **Export/import** — merge or replace with DB backup
+- **Tray** — optional tray quick actions
+- **LLM context** — local context export helpers
 
-- Main process (Node.js + TypeScript)
-  - Runs commands.
-  - Talks to Docker.
-  - Reads the filesystem.
-  - Persists data locally in SQLite.
+## Data storage
 
-- Renderer (TypeScript + React)
-  - Displays UI.
-  - Sends intent-based requests (run, stop, list, etc.).
-  - Never accesses Node APIs directly.
+- Primary: SQLite `devdesk.db` in Electron userData (WAL).
+- Legacy: one-time import from `devdesk-store.json` when the DB is empty.
+- Engine indexes: `userData/engine/*.sqlite`.
+- Details: [docs/data-locations.md](docs/data-locations.md).
 
-- Preload layer
-  - Exposes a small, safe API to the renderer.
-  - Enforces security boundaries.
+## Architecture (high level)
 
-## Data Storage
+- **Main** — Node + TypeScript: IPC, store, Docker, terminals, engine spawn
+- **Preload** — small explicit bridge (`contextIsolation`, no `nodeIntegration`)
+- **Renderer** — React + Vite + shadcn/ui + Radix
 
-Current: data lives in a local SQLite database in the Electron userData directory.
-- File: `devdesk.db`
-- Schema: `apps/desktop/data/model.ts`
-- Migration: one-time import from `devdesk-store.json` if the DB does not exist
-- Mode: WAL enabled, single-writer from the main process
-- No backend required; app remains local-first
+## Non-goals
 
-Engine indexing also uses SQLite under the userData `engine/` directory.
+- Cloud sync, team collaboration, heavy analytics, full IDE replacement.
 
-## MVP Scope (Target)
+## Contributing
 
-- Add and list projects.
-- Create and run saved commands.
-- See Docker containers and logs.
-- View and stop running commands.
-- View run history with output access.
-- Edit simple project notes (setup steps, todos, reminders).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Prefer `npm run release:gate` before opening a PR.
 
-## Possible Future Enhancements (Optional)
+## License
 
-See the backlog above for post-release items.
-
-## Non-Goals
-
-- AI features or assistants.
-- Team collaboration.
-- Cloud sync.
-- Full terminal replacement.
-- Heavy analytics.
-
-## Definition of Done (V1)
-
-- You can open DevDesk and immediately:
-  - pick a project
-  - run a command
-  - manage a container
-- No setup wizard required.
-- App feels fast and predictable.
-- You would actually keep it installed.
-
-## Final Note
-
-DevDesk is not about doing everything. It is about becoming the one place you open before the terminal.
+MIT — see [LICENSE](LICENSE).

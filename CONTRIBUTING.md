@@ -4,14 +4,23 @@ Thanks for helping improve DevDesk.
 
 ## Development setup
 
+Expected monorepo-style layout:
+
+```text
+parent/
+  DevDesk/
+  devdesk-addons/devdesk-engine/
+```
+
 ```bash
 npm install
+npm --prefix ../devdesk-addons/devdesk-engine install
 npm run rebuild:native:electron
 npm run dev
 ```
 
 Windows native builds need Visual Studio Build Tools (C++), Python 3, and Git.
-See [docs/native-modules.md](docs/native-modules.md).
+See [docs/native-modules.md](docs/native-modules.md) and [docs/install.md](docs/install.md).
 
 ## Verification
 
@@ -27,12 +36,14 @@ When packaging changes:
 - Windows: `npm run verify:win-package` (and optionally `npm run package:win`)
 - Linux: `npm run verify:linux-package` (and optionally `npm run package:linux`)
 
-See [docs/release.md](docs/release.md).
+Maintainer release steps: [docs/beta-release-checklist.md](docs/beta-release-checklist.md).  
+Packaging details: [docs/release.md](docs/release.md).
 
 ## Guidelines
 
 - Keep changes local-first and deterministic.
 - Prefer small, focused commits.
-- Update docs when behavior or release expectations change.
+- Update docs when behavior or release expectations change (install, data locations, release notes).
 - If you touch the engine or packaging flow, verify the packaged smoke tests.
 - Do not rebuild Electron natives for Node tests (or the reverse); use the scripts in `docs/native-modules.md`.
+- Do not list completed launch items as open work in `TODO.md` / `ROADMAP.md`.

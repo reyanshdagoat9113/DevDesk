@@ -1,32 +1,31 @@
 # DevDesk TODO
 
-## Release Baseline
+## Release baseline (v0.1.0)
 
 - [x] Verify production build output loads in a packaged app.
-- [x] Add command search/filter by tag.
-- [x] Show command and project names in run history.
-- [x] Replace JSON persistence with SQLite and migrate existing installs.
-- [x] Add WAL mode and indexes for common queries.
-- [x] Add command variables, presets, favorites, and pinning.
-- [x] Add Git status and Compose-aware Docker integration.
-- [x] Add notes, preferences, and run history persistence.
-- [x] Add embedded terminals, project health checks, and engine search.
-- [x] Add Bug Recorder, export/import, tray actions, and LLM context bundling.
+- [x] Command search/filter, run history names, SQLite migration, WAL.
+- [x] Command variables, presets, favorites, pinning.
+- [x] Git status and Compose-aware Docker integration.
+- [x] Notes, preferences, run history persistence.
+- [x] Embedded terminals, project health checks, engine search.
+- [x] Bug Recorder, export/import, tray actions, LLM context bundling.
+- [x] Windows engine IPC path contract.
+- [x] Native rebuild scripts (Node vs Electron) and engine IPC test command.
+- [x] Windows + Linux release packaging targets and package verify.
+- [x] Automated release gate + CI.
+- [x] Install, data-location, release notes, and maintainer checklist docs.
+- [x] Windows packaged QA record in `docs/manual-qa.md`.
 
-## Launch Blockers
+## Open (post-docs)
 
-- [x] Fix the Windows engine IPC path-format contract test.
-- [x] Replace the stale `test:engine-ipc` `ensure:native` step with a valid native setup command.
-- [x] Make `node-pty` and `better-sqlite3` rebuilds reliable on Windows and CI.
-- [x] Define supported release platforms and produce/test their artifacts.
-- [x] Add release smoke tests and CI release gate (migration/native/terminal coverage).
-- [ ] Complete interactive clean-install QA on every supported platform (Windows evidence recorded; Linux pending; see `docs/manual-qa.md`).
-- [ ] Update release notes, installation instructions, and known limitations.
+- [ ] Complete the remaining Windows Pass* checks and Linux interactive QA in `docs/manual-qa.md`.
+- [ ] Optional: Windows code signing; macOS packaging/notarization.
+- [ ] Optional: auto-update channel decision.
 
-## Maintenance Backlog
+## Maintenance backlog
 
-- [ ] Add end-to-end tests for critical packaged-app paths.
-- [ ] Keep dependencies updated and run security audits.
+- [ ] Broader E2E tests for critical packaged-app UI paths.
+- [ ] Keep dependencies updated; run security audits.
 - [ ] Profile indexing, search, and large-project performance.
 - [ ] Improve error tracking and logging.
 - [ ] Continue modularizing oversized main and renderer files.
