@@ -101,6 +101,8 @@ Do not claim “signed installers” until signing secrets and CI are configured
 
 ## Manual packaged-app checks
 
+Full checklist and session results: [manual-qa.md](./manual-qa.md).
+
 After installing or running the unpacked binary:
 
 1. App launches without DevTools and loads the renderer.
