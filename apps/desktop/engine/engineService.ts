@@ -39,10 +39,11 @@ async function hasIndexMetadata(projectId: string) {
   }
 
   try {
-    await fs.access(getEngineDbPath(projectId))
+    const dbPath = getEngineDbPath(projectId)
+    await fs.access(dbPath)
     return {
       projectId,
-      dbPath: getEngineDbPath(projectId),
+      dbPath: toCanonicalEnginePath(dbPath),
       lastIndexed: '',
       fileCount: 0,
     } satisfies EngineIndexMeta
@@ -72,6 +73,26 @@ async function persistSearchSession(projectId: string, query: string, regex: boo
   }
   await upsertEngineSearchSession(session)
   return session
+}
+
+/** Canonical engine API form: absolute paths with forward slashes. */
+function toCanonicalEnginePath(p: string): string {
+  return path.normalize(p).replace(/\\/g, '/')
+}
+
+function normalizeIndexResultPaths(result: EngineIndexResult): EngineIndexResult {
+  return {
+    ...result,
+    repo: toCanonicalEnginePath(result.repo),
+    db: toCanonicalEnginePath(result.db),
+  }
+}
+
+function normalizeStatsPaths(result: EngineStats): EngineStats {
+  return {
+    ...result,
+    db: toCanonicalEnginePath(result.db),
+  }
 }
 
 function normalizeSearchResultPaths(projectPath: string, result: EngineSearchResult): EngineSearchResult {
@@ -107,7 +128,7 @@ export async function loadEngineSnapshot(): Promise<EngineSnapshot> {
 }
 
 export async function indexProject(projectId: string, projectPath: string): Promise<EngineIndexResult> {
-  const result = await engineIndex(projectPath, projectId)
+  const result = normalizeIndexResultPaths(await engineIndex(projectPath, projectId))
 
   if (result.ok) {
     await persistIndexMetadata(projectId, result)
@@ -149,7 +170,7 @@ export async function getProjectStats(projectId: string): Promise<EngineStats | 
   }
 
   try {
-    const result = await engineStats(projectId)
+    const result = normalizeStatsPaths(await engineStats(projectId))
     if (existingIndex.lastIndexed === '' || existingIndex.fileCount === 0) {
       await upsertEngineIndex({
         projectId,

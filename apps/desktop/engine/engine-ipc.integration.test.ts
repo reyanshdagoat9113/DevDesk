@@ -205,20 +205,39 @@ test('Electron IPC exposes engine index, search, and stats flows', async () => {
   assert.equal(initialState.status.available, true)
   assert.deepEqual(initialState.indexes, {})
 
+  // Engine API absolute paths are always canonical forward-slash form.
+  const toCanonicalEnginePath = (p: string) => path.normalize(p).replace(/\\/g, '/')
+  const expectedRepo = toCanonicalEnginePath(projectRoot)
+  const expectedDb = toCanonicalEnginePath(path.join(userDataRoot, 'engine', `${projectId}.sqlite`))
+
   const indexResult = await electronAPI.indexProject(projectId)
   assert.equal(indexResult.ok, true)
-  assert.equal(indexResult.repo, projectRoot)
+  assert.equal(indexResult.repo, expectedRepo)
+  assert.equal(indexResult.db, expectedDb)
   assert.equal(indexResult.filesIndexed, 2)
+  assert.ok(!indexResult.repo.includes('\\'), 'repo must not use backslashes')
+  assert.ok(!indexResult.db.includes('\\'), 'db must not use backslashes')
+
+  if (process.platform === 'win32') {
+    assert.match(indexResult.repo, /^[A-Za-z]:\//)
+    assert.match(indexResult.db, /^[A-Za-z]:\//)
+    assert.notEqual(indexResult.repo, projectRoot, 'Windows native path must differ from canonical form')
+  }
 
   const indexedState = await electronAPI.getEngineState()
   assert.equal(indexedState.indexes[projectId].fileCount, 2)
+  assert.equal(indexedState.indexes[projectId].dbPath, expectedDb)
+  assert.ok(!indexedState.indexes[projectId].dbPath.includes('\\'))
 
   const searchResult = await electronAPI.searchProjectContent(projectId, 'needle', { regex: true, limit: 10 })
   assert.equal(searchResult.ok, true)
   assert.ok(searchResult.results.length >= 1)
   assert.equal(searchResult.results[0].path, 'src/app.ts')
+  assert.ok(!searchResult.results[0].path.includes('\\'), 'search paths stay project-relative with /')
 
   const statsResult = await electronAPI.getProjectStats(projectId)
   assert.equal(statsResult.ok, true)
   assert.equal(statsResult.stats.totalFiles, 2)
+  assert.equal(statsResult.db, expectedDb)
+  assert.ok(!statsResult.db.includes('\\'))
 })

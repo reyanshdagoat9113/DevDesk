@@ -1,6 +1,14 @@
+/**
+ * Engine path contract (engine ↔ IPC ↔ UI):
+ * - Absolute paths in API results (`repo`, `db`) use canonical forward-slash form.
+ * - Search hit paths exposed to the UI are project-relative with `/` separators.
+ * - Filesystem I/O uses native OS separators (via Node path / engine toNativePath).
+ */
 export interface EngineIndexResult {
   ok: boolean
+  /** Absolute repository path, canonical forward-slash form */
   repo: string
+  /** Absolute SQLite db path, canonical forward-slash form */
   db: string
   filesIndexed: number
   filesSkipped: number
@@ -17,6 +25,7 @@ export interface EngineSearchMatch {
 }
 
 export interface EngineSearchFileResult {
+  /** Project-relative path with `/` separators (e.g. `src/app.ts`) */
   path: string
   language: string | null
   score: number
@@ -33,6 +42,7 @@ export interface EngineSearchResult {
 
 export interface EngineStats {
   ok: boolean
+  /** Absolute SQLite db path, canonical forward-slash form */
   db: string
   stats: {
     totalFiles: number

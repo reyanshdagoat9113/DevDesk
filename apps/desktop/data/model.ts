@@ -163,6 +163,7 @@ export interface TerminalCreateOptions {
 
 export interface EngineIndexMeta {
   projectId: string
+  /** Absolute SQLite path in engine canonical form (forward slashes) */
   dbPath: string
   lastIndexed: string
   fileCount: number
