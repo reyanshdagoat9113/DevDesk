@@ -1,0 +1,194 @@
+{
+  "meta": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.12.0",
+    "startedAt": "2026-07-13T14:06:20.941Z",
+    "repoRoot": "C:\\Users\\dagoa\\Code\\devapp\\DevDesk",
+    "sessionRoot": "C:\\Users\\dagoa\\AppData\\Local\\Temp\\devdesk-clean-qa-xgorxN",
+    "userDataDir": "C:\\Users\\dagoa\\AppData\\Local\\Temp\\devdesk-clean-qa-xgorxN\\user-data",
+    "installerSha256": "67d8db43a48fe4e52f1dd9decb2b81f9eddadc3b308fd58c40563b9547478b04",
+    "installerPath": "C:\\Users\\dagoa\\Code\\devapp\\DevDesk\\release\\DevDesk-0.1.0-win-x64.exe",
+    "installerBytes": 204051434,
+    "unpackedExe": "C:\\Users\\dagoa\\Code\\devapp\\DevDesk\\release\\win-unpacked\\DevDesk.exe",
+    "unpackedSha256": "34e7935dee4ca0ae8dcf50d50d11eb8d6580dfb93246acd8147b8618fccd90cc",
+    "dbPath": "C:\\Users\\dagoa\\AppData\\Local\\Temp\\devdesk-clean-qa-xgorxN\\user-data\\devdesk.db",
+    "endedAt": "2026-07-13T14:06:37.824Z"
+  },
+  "steps": [
+    {
+      "id": "01_project_lifecycle",
+      "name": "Add, edit, pin, and remove a project",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:21.215Z",
+      "endedAt": "2026-07-13T14:06:21.218Z",
+      "evidence": {
+        "projectId": "c3a89ecb-e3e6-45df-84df-48b4ed995610",
+        "renamed": "QA Fixture Renamed",
+        "pinned": true,
+        "removedTempId": "c8bf1921-f058-46c9-b4f8-a1b2ffeed102",
+        "remainingCount": 1
+      }
+    },
+    {
+      "id": "02_command_variables_and_fail",
+      "name": "Create/run command with variables and a failing command",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:21.218Z",
+      "endedAt": "2026-07-13T14:06:21.364Z",
+      "evidence": {
+        "successRunId": "92c1a209-0267-44fa-87bb-7d9b728606f7",
+        "failRunId": "ac3779a6-8bd6-4e50-a62b-e517d5faf3ae",
+        "resolvedCommand": "cmd /c echo \"clean-install-ok\"",
+        "successStatus": "success",
+        "failStatus": "failed",
+        "historyCount": 2
+      }
+    },
+    {
+      "id": "03_terminal",
+      "name": "Open terminal, resize, and close",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:21.364Z",
+      "endedAt": "2026-07-13T14:06:22.053Z",
+      "evidence": {
+        "sessionId": "2e464756-74af-4470-8857-7b27fd4a4266",
+        "shell": "powershell.exe",
+        "cwd": "C:\\Users\\dagoa\\AppData\\Local\\Temp\\devdesk-clean-qa-xgorxN\\fixture-project",
+        "resized": true,
+        "closed": true
+      }
+    },
+    {
+      "id": "04_health",
+      "name": "Run health check and inspect persisted history",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:22.054Z",
+      "endedAt": "2026-07-13T14:06:23.523Z",
+      "evidence": {
+        "runId": "e7a5da7a-6906-46be-9133-b4fae08e742d",
+        "itemCount": 18,
+        "listedCount": 1
+      }
+    },
+    {
+      "id": "05_engine",
+      "name": "Index project, search, and git insights",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:23.524Z",
+      "endedAt": "2026-07-13T14:06:27.298Z",
+      "evidence": {
+        "engineCli": "C:\\Users\\dagoa\\Code\\devapp\\DevDesk\\release\\win-unpacked\\resources\\engine\\cli.js",
+        "dbPath": "C:\\Users\\dagoa\\AppData\\Local\\Temp\\devdesk-clean-qa-xgorxN\\user-data\\engine\\c3a89ecb-e3e6-45df-84df-48b4ed995610.sqlite",
+        "filesIndexed": 3,
+        "searchHit": "C:/Users/dagoa/AppData/Local/Temp/devdesk-clean-qa-xgorxN/fixture-project/src/app.ts",
+        "gitBranch": "master"
+      }
+    },
+    {
+      "id": "06_bug_attachment",
+      "name": "Create a bug with context attachment",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:27.298Z",
+      "endedAt": "2026-07-13T14:06:27.305Z",
+      "evidence": {
+        "bugId": "1016ba6a-0c3b-427d-a99f-7e502eb15b14",
+        "attachmentId": "f6bc393a-58c1-43ff-99ae-7a1c8e490ede",
+        "relativePath": "attachments\\2d423078-df2e-44f1-89bf-fa86a742acc0.txt",
+        "fileExists": true
+      }
+    },
+    {
+      "id": "07_export_import",
+      "name": "Export and import merge + replace",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:27.305Z",
+      "endedAt": "2026-07-13T14:06:27.320Z",
+      "evidence": {
+        "exportFile": "C:\\Users\\dagoa\\AppData\\Local\\Temp\\devdesk-clean-qa-xgorxN\\export.json",
+        "exportCounts": {
+          "projects": 1,
+          "commands": 2,
+          "chains": 0,
+          "triggers": 0,
+          "run_history": 2,
+          "notes": 0,
+          "preferences": 3,
+          "engine_indexes": 1,
+          "engine_search_sessions": 0,
+          "health_check_runs": 1,
+          "health_check_items": 18,
+          "bug_reports": 1,
+          "bug_context_snapshots": 0,
+          "bug_attachments": 1
+        },
+        "mergeOk": true,
+        "replaceOk": true,
+        "backupCount": 2,
+        "backupSample": "C:\\Users\\dagoa\\AppData\\Local\\Temp\\devdesk-clean-qa-xgorxN\\user-data\\devdesk.db.backup-2026-07-13T14-06-27-308Z",
+        "warnings": [
+          "This backup contains 1 external attachment record(s). External files are not included in v1 exports and will not be available after restore.",
+          "This backup contains 1 external attachment record(s). External files are not included in v1 exports and will not be available after restore."
+        ]
+      }
+    },
+    {
+      "id": "08_tray_pref",
+      "name": "Toggle tray preference and persist",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:27.320Z",
+      "endedAt": "2026-07-13T14:06:27.321Z",
+      "evidence": {
+        "before": true,
+        "disabled": false,
+        "reenabled": true,
+        "note": "Preference persistence verified; live tray icon requires full Electron GUI session"
+      }
+    },
+    {
+      "id": "09_docker",
+      "name": "Docker present / missing detection",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:27.321Z",
+      "endedAt": "2026-07-13T14:06:27.481Z",
+      "evidence": {
+        "present": false,
+        "degradedOk": true,
+        "error": "Command failed: docker version --format {{.Server.Version}}\nfailed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.\n"
+      }
+    },
+    {
+      "id": "10_restart_persistence",
+      "name": "Restart process and confirm persistence",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:27.482Z",
+      "endedAt": "2026-07-13T14:06:27.573Z",
+      "evidence": {
+        "projects": 1,
+        "bugs": 1,
+        "health": 1,
+        "projectStillPresent": true,
+        "childProcessRead": true
+      }
+    },
+    {
+      "id": "11_packaged_launch",
+      "name": "Launch packaged app with clean userData",
+      "status": "pass",
+      "startedAt": "2026-07-13T14:06:27.573Z",
+      "endedAt": "2026-07-13T14:06:37.824Z",
+      "evidence": {
+        "exe": "C:\\Users\\dagoa\\Code\\devapp\\DevDesk\\release\\win-unpacked\\DevDesk.exe",
+        "pid": 25056,
+        "wasRunning": true,
+        "dbCreated": true,
+        "launchUserData": "C:\\Users\\dagoa\\AppData\\Local\\Temp\\devdesk-clean-qa-xgorxN\\packaged-userdata"
+      }
+    }
+  ],
+  "summary": {
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0
+  }
+}
