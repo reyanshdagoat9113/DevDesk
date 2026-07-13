@@ -48,6 +48,15 @@ npm run verify:win-package    # Windows
 npm run verify:linux-package  # Linux
 ```
 
+Windows clean-profile backend integration and packaged-startup evidence:
+
+```bash
+npm run qa:clean-install:win
+# → release/clean-install-qa-report.json
+```
+
+The command creates a fresh Windows package before testing it. It does not drive the renderer UI; interactive Windows and Linux sign-off remains tracked in `manual-qa.md`.
+
 CI workflow: `.github/workflows/release-gate.yml` on `windows-latest` and `ubuntu-latest`.
 
 ## Clean-checkout packaging
