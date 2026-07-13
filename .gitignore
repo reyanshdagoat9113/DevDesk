@@ -28,3 +28,7 @@ Screenshot*.png
 
 # Error files (Windows nul device accidentally created as file)
 nul
+
+# Accidental sibling checkout inside monorepo
+devdesk-addons/
+

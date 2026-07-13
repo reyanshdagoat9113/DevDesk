@@ -1,33 +1,40 @@
-# DevDesk Engine
+# DevDesk Engine (`devdesk-engine`)
 
-Fast local code-intelligence engine for DevDesk.
+Fast local code-intelligence engine for DevDesk. Lives in the monorepo at `packages/engine` and is linked via the root npm workspace.
 
-## Requirements
-
-- Node.js 24.x is the release/test environment used for this repo.
-- `better-sqlite3` is a native dependency, so it must be built or rebuilt for the active Node ABI.
-
-## Setup
+## Setup (from monorepo root)
 
 ```bash
 npm install
+npm run rebuild:native:node      # Node ABI for tests
+npm --workspace devdesk-engine run build:all
 ```
 
-If you switch Node versions, restore `node_modules`, or see a `NODE_MODULE_VERSION` mismatch, rebuild the native dependency:
-
-```bash
-npm run rebuild:native
-```
+Do **not** clone a separate `devdesk-addons` repository.
 
 ## Common commands
 
+From monorepo root:
+
 ```bash
-npm run build
-npm run build:rust
+npm --workspace devdesk-engine run build
+npm --workspace devdesk-engine run build:rust
+npm --workspace devdesk-engine run build:all
+npm run test:engine
+npm run test:engine-ipc
+npm run smoke:engine-packaged
+```
+
+From this package directory (optional):
+
+```bash
+npm run rebuild:native
 npm run build:all
+npm run test:run
 ```
 
 ## Notes
 
-- The Rust scanner binary is copied by `npm run build:rust`.
-- Engine tests are currently being reworked and will be reintroduced later.
+- `better-sqlite3` must match the runtime ABI (Node for tests, Electron for the app/packaged engine). Use root scripts in `docs/native-modules.md`.
+- The Rust scanner is produced by `build:rust` and copied into `dist/`.
+- Packaging copies `node_modules/devdesk-engine/dist` into app `resources/engine/`.

@@ -43,7 +43,7 @@ Manual QA: [docs/manual-qa.md](docs/manual-qa.md).
 
 ## Quick start (developers)
 
-The performance engine lives in this monorepo at `packages/engine` (`devdesk-engine`).
+The performance engine lives in this monorepo at `packages/engine` (`devdesk-engine`). The old `devdesk-addons` repository is archived; do not use a sibling checkout.
 
 ```bash
 npm install
