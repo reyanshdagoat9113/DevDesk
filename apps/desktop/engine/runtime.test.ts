@@ -13,8 +13,8 @@ const appPath = '/workspace/DevDesk'
 const resourcesPath = '/workspace/DevDesk/resources'
 
 describe('engine runtime helpers', () => {
-  it('resolves a dev engine binary from available candidates', () => {
-    const target = path.join(appPath, '..', 'devdesk-addons', 'devdesk-engine', 'dist', 'cli.js')
+  it('resolves a dev engine binary from the workspace package', () => {
+    const target = path.join(appPath, 'node_modules', 'devdesk-engine', 'dist', 'cli.js')
     const resolved = resolveEngineBinaryPath({
       appPath,
       moduleDirname: '/workspace/DevDesk/dist/main/engine',

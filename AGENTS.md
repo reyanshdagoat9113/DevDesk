@@ -6,6 +6,7 @@
 ## Project Structure & Module Organization
 - `apps/desktop/`: Electron main + preload + IPC + data store.
 - `apps/renderer/`: React renderer UI.
+- `packages/engine/`: `devdesk-engine` workspace package (local code intelligence).
 - `docs/`: Product and UI library documentation.
 - `Readme.md`: Product overview and current status.
 - `TODO.md`: Roadmap and implementation checklist.

@@ -19,6 +19,7 @@ const steps = [
   { name: 'lint:architecture', args: ['run', 'lint:architecture'] },
   { name: 'test:run', args: ['run', 'test:run'] },
   { name: 'test:renderer:run', args: ['run', 'test:renderer:run'] },
+  { name: 'test:engine', args: ['run', 'test:engine'] },
   { name: 'test:engine-ipc', args: ['run', 'test:engine-ipc'] },
   { name: 'smoke:engine-packaged', args: ['run', 'smoke:engine-packaged'] },
 ]

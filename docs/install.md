@@ -34,19 +34,11 @@
 
 ## Developer install (from source)
 
-Requires a sibling checkout of the performance engine:
-
-```text
-parent/
-  DevDesk/                 # this repository
-  devdesk-addons/
-    devdesk-engine/        # linked as file:../devdesk-addons/devdesk-engine
-```
+A single DevDesk clone is enough. The performance engine is packaged as `packages/engine` (`devdesk-engine`) in the root npm workspace.
 
 ```bash
 cd DevDesk
 npm install
-npm --prefix ../devdesk-addons/devdesk-engine install
 npm run rebuild:native:electron
 npm run dev
 ```

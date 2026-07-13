@@ -43,17 +43,10 @@ Manual QA: [docs/manual-qa.md](docs/manual-qa.md).
 
 ## Quick start (developers)
 
-Repository layout expects a sibling engine package:
-
-```text
-parent/
-  DevDesk/
-  devdesk-addons/devdesk-engine/
-```
+The performance engine lives in this monorepo at `packages/engine` (`devdesk-engine`).
 
 ```bash
 npm install
-npm --prefix ../devdesk-addons/devdesk-engine install
 npm run rebuild:native:electron
 npm run dev
 ```

@@ -42,8 +42,7 @@ function uniqueExistingPackageRoots(candidates) {
 function resolveEngineRoots() {
   return uniqueExistingPackageRoots([
     path.join(repoRoot, 'node_modules', 'devdesk-engine'),
-    path.join(repoRoot, '..', 'devdesk-addons', 'devdesk-engine'),
-    path.join(repoRoot, 'devdesk-addons', 'devdesk-engine'),
+    path.join(repoRoot, 'packages', 'engine'),
   ])
 }
 
@@ -62,11 +61,38 @@ function canLoadBetterSqlite3(moduleRoot) {
   }
 }
 
+function resolveBetterSqlite3Root(moduleRoot) {
+  try {
+    const entryPath = require.resolve('better-sqlite3', { paths: [moduleRoot] })
+    let current = path.dirname(entryPath)
+    while (true) {
+      const packageJsonPath = path.join(current, 'package.json')
+      if (fs.existsSync(packageJsonPath)) {
+        try {
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
+          if (packageJson.name === 'better-sqlite3') {
+            return current
+          }
+        } catch {
+          // keep walking
+        }
+      }
+      const parent = path.dirname(current)
+      if (parent === current) break
+      current = parent
+    }
+  } catch {
+    // fall through
+  }
+  return null
+}
+
 function rebuildBetterSqlite3(moduleRoot, label) {
   process.stdout.write(`Rebuilding better-sqlite3 for Node in ${label}...\n`)
+  const packageRoot = resolveBetterSqlite3Root(moduleRoot) ?? moduleRoot
   try {
     execFileSync(process.execPath, [npmCli, 'rebuild', 'better-sqlite3'], {
-      cwd: moduleRoot,
+      cwd: packageRoot,
       stdio: 'inherit',
       env: process.env,
     })
@@ -106,7 +132,7 @@ function main() {
   const engineRoots = resolveEngineRoots()
   if (engineRoots.length === 0) {
     throw new Error(
-      'Could not locate devdesk-engine. Expected node_modules/devdesk-engine or ../devdesk-addons/devdesk-engine.',
+      'Could not locate devdesk-engine. Expected node_modules/devdesk-engine or packages/engine.',
     )
   }
 

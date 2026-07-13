@@ -20,11 +20,10 @@ Example: `DevDesk-0.1.0-win-x64.exe`, `DevDesk-0.1.0-linux-x64.AppImage`.
 
 ## Release gate (automated)
 
-From a clean checkout of DevDesk (with sibling `../devdesk-addons/devdesk-engine`):
+From a clean checkout of DevDesk:
 
 ```bash
 npm install
-npm --prefix ../devdesk-addons/devdesk-engine install
 npm run rebuild:native:node
 npm run release:gate
 ```
