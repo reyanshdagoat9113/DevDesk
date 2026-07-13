@@ -48,7 +48,7 @@ jobs:
       - name: Ensure Node natives
         run: npm run rebuild:native:node
 
-      - name: Release gate (typecheck, lint, tests, engine smoke)
+      - name: Release gate (typecheck, lint, app and engine tests, engine smoke)
         run: npm run release:gate
 
       - name: Packaged app smoke (Windows)
