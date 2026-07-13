@@ -22,7 +22,7 @@ Node and Electron use different ABIs. Always rebuild against the runtime that wi
 Engine package helper:
 
 ```bash
-npm --prefix ../devdesk-addons/devdesk-engine run ensure:native
+npm --workspace devdesk-engine run ensure:native
 ```
 
 This only targets the engine package’s own `better-sqlite3` for the current Node process.

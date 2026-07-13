@@ -12,13 +12,41 @@ const execFileAsync = promisify(execFile)
 const require = createRequire(import.meta.url)
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(scriptDir, '..')
-const engineRootDir = path.join(repoRoot, '..', 'devdesk-addons', 'devdesk-engine')
+const engineRootDir = path.join(repoRoot, 'packages', 'engine')
 const engineDistDir = path.join(engineRootDir, 'dist')
-const engineNodeModulesDir = path.join(engineRootDir, 'node_modules')
 const enginePackageJsonPath = path.join(engineRootDir, 'package.json')
 const appNodeModulesDir = path.join(repoRoot, 'node_modules')
 const electronBinaryPath = require('electron')
 const builtRuntimePath = path.join(repoRoot, 'dist', 'main', 'engine', 'runtime.js')
+const engineRequire = createRequire(enginePackageJsonPath)
+
+function resolvePackageRoot(packageName) {
+  const entryPath = engineRequire.resolve(packageName)
+  let current = path.dirname(entryPath)
+
+  while (true) {
+    const packageJsonPath = path.join(current, 'package.json')
+    if (existsSync(packageJsonPath)) {
+      const packageJson = require(packageJsonPath)
+      if (packageJson.name === packageName) {
+        return current
+      }
+    }
+
+    const parent = path.dirname(current)
+    if (parent === current) {
+      throw new Error(`Could not resolve package root for ${packageName}`)
+    }
+    current = parent
+  }
+}
+
+async function copyPackageIntoEngine(packageName, packagedEngineDir) {
+  const sourceRoot = resolvePackageRoot(packageName)
+  const destination = path.join(packagedEngineDir, 'node_modules', packageName)
+  await mkdir(path.dirname(destination), { recursive: true })
+  await cp(sourceRoot, destination, { recursive: true })
+}
 
 async function main() {
   if (!existsSync(builtRuntimePath)) {
@@ -36,13 +64,28 @@ async function main() {
   try {
     await mkdir(resourcesPath, { recursive: true })
     await cp(engineDistDir, packagedEngineDir, { recursive: true })
-    await cp(engineNodeModulesDir, path.join(packagedEngineDir, 'node_modules'), { recursive: true })
-    await rm(path.join(packagedEngineDir, 'node_modules', 'better-sqlite3'), { recursive: true, force: true })
-    await rm(path.join(packagedEngineDir, 'node_modules', 'bindings'), { recursive: true, force: true })
-    await rm(path.join(packagedEngineDir, 'node_modules', 'file-uri-to-path'), { recursive: true, force: true })
-    await cp(path.join(appNodeModulesDir, 'better-sqlite3'), path.join(packagedEngineDir, 'node_modules', 'better-sqlite3'), { recursive: true })
-    await cp(path.join(appNodeModulesDir, 'bindings'), path.join(packagedEngineDir, 'node_modules', 'bindings'), { recursive: true })
-    await cp(path.join(appNodeModulesDir, 'file-uri-to-path'), path.join(packagedEngineDir, 'node_modules', 'file-uri-to-path'), { recursive: true })
+    await mkdir(path.join(packagedEngineDir, 'node_modules'), { recursive: true })
+
+    // Runtime deps may be hoisted by the monorepo workspace; resolve them and copy.
+    await copyPackageIntoEngine('commander', packagedEngineDir)
+
+    // Prefer Electron-rebuilt better-sqlite3 from the app install for packaged smoke.
+    await cp(
+      path.join(appNodeModulesDir, 'better-sqlite3'),
+      path.join(packagedEngineDir, 'node_modules', 'better-sqlite3'),
+      { recursive: true },
+    )
+    await cp(
+      path.join(appNodeModulesDir, 'bindings'),
+      path.join(packagedEngineDir, 'node_modules', 'bindings'),
+      { recursive: true },
+    )
+    await cp(
+      path.join(appNodeModulesDir, 'file-uri-to-path'),
+      path.join(packagedEngineDir, 'node_modules', 'file-uri-to-path'),
+      { recursive: true },
+    )
+
     await cp(enginePackageJsonPath, path.join(packagedEngineDir, 'package.json'))
     assert.ok(existsSync(path.join(packagedEngineDir, 'node_modules', 'commander')))
     assert.ok(existsSync(path.join(packagedEngineDir, 'node_modules', 'better-sqlite3')))

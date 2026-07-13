@@ -5,6 +5,10 @@
   "main": "dist/main/index.js",
   "author": "DevDesk",
   "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "rebuild:native": "node scripts/rebuild-native-electron.mjs",
     "rebuild:native:electron": "node scripts/rebuild-native-electron.mjs --with-pty",
@@ -12,7 +16,7 @@
     "pretest:run": "npm run rebuild:native:node",
     "dev": "npm run rebuild:native:electron && npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5180 && electron --enable-logging=false .\"",
     "dev:renderer": "vite",
-    "build:engine": "npm --prefix ../devdesk-addons/devdesk-engine run build:all",
+    "build:engine": "npm --workspace devdesk-engine run build:all",
     "prebuild": "npm run build:engine",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "smoke:engine-packaged": "npm run rebuild:native && npm run build:main && node scripts/smoke-packaged-engine.mjs",
@@ -20,6 +24,7 @@
     "test:run": "vitest --config ./vitest.desktop.config.ts run",
     "test:renderer": "vitest --config ./vitest.renderer.config.ts",
     "test:renderer:run": "vitest --config ./vitest.renderer.config.ts run",
+    "test:engine": "npm --workspace devdesk-engine run test:run",
     "test:engine-ipc": "npm run rebuild:native:node && npm run build:engine && npx vitest --config ./vitest.engine.config.ts run",
     "release:gate": "node scripts/release-gate.mjs",
     "icons:generate": "node scripts/generate-app-icons.mjs",
@@ -57,7 +62,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "devdesk-engine": "file:../devdesk-addons/devdesk-engine",
+    "devdesk-engine": "workspace:*",
     "fast-glob": "^3.3.3",
     "fuse.js": "^7.3.0",
     "ignore": "^7.0.5",
@@ -179,13 +184,10 @@
         ]
       },
       {
-        "from": "node_modules/devdesk-engine/node_modules",
-        "to": "engine/node_modules",
+        "from": "node_modules/commander",
+        "to": "engine/node_modules/commander",
         "filter": [
-          "**/*",
-          "!better-sqlite3{,/**}",
-          "!bindings{,/**}",
-          "!file-uri-to-path{,/**}"
+          "**/*"
         ]
       },
       {

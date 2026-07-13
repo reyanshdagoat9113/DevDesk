@@ -4,17 +4,10 @@ Thanks for helping improve DevDesk.
 
 ## Development setup
 
-Expected monorepo-style layout:
-
-```text
-parent/
-  DevDesk/
-  devdesk-addons/devdesk-engine/
-```
+Clone this repository only. The performance engine is at `packages/engine` and is linked via the root npm workspace.
 
 ```bash
 npm install
-npm --prefix ../devdesk-addons/devdesk-engine install
 npm run rebuild:native:electron
 npm run dev
 ```

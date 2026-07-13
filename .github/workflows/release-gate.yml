@@ -22,32 +22,16 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
 
-    defaults:
-      run:
-        working-directory: DevDesk
-
     steps:
-      - name: Checkout monorepo layout (DevDesk + engine)
+      - name: Checkout DevDesk
         uses: actions/checkout@v4
-        with:
-          path: DevDesk
-
-      - name: Checkout devdesk-addons (engine sibling)
-        uses: actions/checkout@v4
-        with:
-          repository: reyanshdagoat9113/devdesk-addons
-          path: devdesk-addons
-          # DevDesk's dev branch is tested with the add-ons rev branch; main uses main.
-          ref: ${{ (github.base_ref || github.ref_name) == 'main' && 'main' || 'rev' }}
-          # Required because devdesk-addons is a separate private repository.
-          token: ${{ secrets.DEVDESK_ADDONS_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: DevDesk/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install Linux build tools
         if: runner.os == 'Linux'
@@ -58,11 +42,7 @@ jobs:
       - name: Install Rust (engine binary)
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install app dependencies
-        run: npm ci
-
-      - name: Install engine dependencies
-        working-directory: devdesk-addons/devdesk-engine
+      - name: Install dependencies
         run: npm ci
 
       - name: Ensure Node natives

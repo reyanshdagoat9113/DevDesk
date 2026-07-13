@@ -6,6 +6,7 @@ dist/
 
 # Rust build
 rust/target/
+!rust/Cargo.lock
 
 # SQLite databases
 *.sqlite
