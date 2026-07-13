@@ -29,7 +29,7 @@
     "package:linux": "npm run rebuild:native:electron && npm run build && electron-builder --linux AppImage deb",
     "verify:win-package": "npm run package:win:dir && node scripts/verify-package.mjs --platform win",
     "verify:linux-package": "npm run package:linux:dir && node scripts/verify-package.mjs --platform linux",
-    "qa:clean-install:win": "npm run rebuild:native:node && npm run build:main && node scripts/clean-install-qa-windows.mjs --out release/clean-install-qa-report.json",
+    "qa:clean-install:win": "npm run package:win && npm run rebuild:native:node && npm run build:main && node scripts/clean-install-qa-windows.mjs --out release/clean-install-qa-report.json",
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build:preload": "tsc -p tsconfig.preload.json",

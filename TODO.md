@@ -15,11 +15,11 @@
 - [x] Automated release gate + CI.
 - [x] Install, data-location, release notes, and maintainer checklist docs.
 - [x] Windows packaged QA record in `docs/manual-qa.md`.
-- [x] Windows clean-profile workflow harness (`qa:clean-install:win`, 11/11 pass, no Pass*).
+- [x] Windows clean-profile backend workflow harness (`qa:clean-install:win`, 11/11 automated pass).
 
 ## Open (post-docs)
 
-- [ ] Complete Linux interactive QA rows in `docs/manual-qa.md` on a Linux host (task 15).
+- [ ] Complete interactive packaged-app QA rows on Windows and Linux (task 15).
 - [ ] Optional: Windows code signing; macOS packaging/notarization.
 - [ ] Optional: auto-update channel decision.
 

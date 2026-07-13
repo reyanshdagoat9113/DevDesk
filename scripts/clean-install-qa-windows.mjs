@@ -24,6 +24,7 @@ const outPath =
     ? path.resolve(args[outIdx + 1])
     : path.join(repoRoot, 'release', 'clean-install-qa-report.json')
 const keep = args.includes('--keep')
+const artifactMaxAgeMs = 30 * 60 * 1000
 
 const report = {
   meta: {
@@ -195,9 +196,34 @@ async function runEngineCli(electronBin, engineCli, engineArgs, envExtra = {}) {
 }
 
 async function main() {
+  if (process.platform !== 'win32') {
+    throw new Error('clean-install-qa-windows.mjs must run on Windows')
+  }
+
   const storeDist = path.join(repoRoot, 'dist', 'main', 'data', 'store.js')
   if (!fs.existsSync(storeDist)) {
     throw new Error('dist/main missing. Run npm run build:main first.')
+  }
+
+  const { stdout: gitHead } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+    cwd: repoRoot,
+    windowsHide: true,
+  })
+  const { stdout: gitStatus } = await execFileAsync('git', ['status', '--porcelain'], {
+    cwd: repoRoot,
+    windowsHide: true,
+  })
+  report.meta.gitHead = gitHead.trim()
+  report.meta.gitDirty = gitStatus.trim().length > 0
+
+  const installer = path.join(repoRoot, 'release', 'DevDesk-0.1.0-win-x64.exe')
+  const unpacked = path.join(repoRoot, 'release', 'win-unpacked', 'DevDesk.exe')
+  for (const artifact of [installer, unpacked]) {
+    if (!fs.existsSync(artifact)) throw new Error(`missing freshly packaged artifact: ${artifact}`)
+    const ageMs = Date.now() - fs.statSync(artifact).mtimeMs
+    if (ageMs > artifactMaxAgeMs) {
+      throw new Error(`stale packaged artifact (${Math.round(ageMs / 60000)} minutes old): ${artifact}`)
+    }
   }
 
   const sessionRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devdesk-clean-qa-'))
@@ -212,17 +238,16 @@ async function main() {
   report.meta.sessionRoot = sessionRoot
   report.meta.userDataDir = userDataDir
 
-  const installer = path.join(repoRoot, 'release', 'DevDesk-0.1.0-win-x64.exe')
-  if (fs.existsSync(installer)) {
-    report.meta.installerSha256 = createHash('sha256').update(fs.readFileSync(installer)).digest('hex')
-    report.meta.installerPath = installer
-    report.meta.installerBytes = fs.statSync(installer).size
-  }
-  const unpacked = path.join(repoRoot, 'release', 'win-unpacked', 'DevDesk.exe')
-  if (fs.existsSync(unpacked)) {
-    report.meta.unpackedExe = unpacked
-    report.meta.unpackedSha256 = createHash('sha256').update(fs.readFileSync(unpacked)).digest('hex')
-  }
+  const installerStat = fs.statSync(installer)
+  report.meta.installerSha256 = createHash('sha256').update(fs.readFileSync(installer)).digest('hex')
+  report.meta.installerPath = installer
+  report.meta.installerBytes = installerStat.size
+  report.meta.installerModifiedAt = installerStat.mtime.toISOString()
+
+  const unpackedStat = fs.statSync(unpacked)
+  report.meta.unpackedExe = unpacked
+  report.meta.unpackedSha256 = createHash('sha256').update(fs.readFileSync(unpacked)).digest('hex')
+  report.meta.unpackedModifiedAt = unpackedStat.mtime.toISOString()
 
   installElectronMock(userDataDir)
 
@@ -313,7 +338,7 @@ async function main() {
       successSpawn.code === 0 ? 'success' : 'failed',
     )
     const successOut = await store.getRunHistoryOutputById(successRunId)
-    if (!/clean-install-ok/i.test(successOut) && successSpawn.code !== 0) {
+    if (!/clean-install-ok/i.test(successOut) || successSpawn.code !== 0) {
       throw new Error(`success command failed: ${successSpawn.output}`)
     }
 
@@ -371,12 +396,19 @@ async function main() {
       mgr.write(session.id, 'echo terminal-qa\r')
       await new Promise((r) => setTimeout(r, 400))
       mgr.close(session.id)
-      await new Promise((r) => setTimeout(r, 200))
+      const closeDeadline = Date.now() + 5000
+      while (mgr.get(session.id) && Date.now() < closeDeadline) {
+        await new Promise((r) => setTimeout(r, 100))
+      }
+      if (mgr.get(session.id)) {
+        mgr.closeAll()
+        throw new Error('terminal process did not exit after close')
+      }
       return { sessionId: session.id, shell: session.shell, cwd: session.cwd, resized: true, closed: true }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (/NODE_MODULE_VERSION|ERR_DLOPEN_FAILED|was compiled against/i.test(message)) {
-        // node-pty ABI mismatch under system Node — prove package contains native binary instead
+        // A packaged binary being present does not prove the live terminal workflow works.
         const ptyNode = path.join(
           repoRoot,
           'release',
@@ -386,13 +418,8 @@ async function main() {
           'node_modules',
           'node-pty',
         )
-        if (!fs.existsSync(ptyNode)) throw new Error(`${message}; packaged node-pty also missing`)
-        return {
-          skippedLiveSpawn: true,
-          reason: 'node-pty built for Electron ABI; live spawn requires Electron host',
-          packagedNodePtyPresent: true,
-          unitCoverage: 'terminalManager.test.ts covers create/write/resize/close with mocked pty',
-        }
+        const packagedState = fs.existsSync(ptyNode) ? 'present' : 'missing'
+        throw new Error(`${message}; packaged node-pty is ${packagedState}, but live spawn was not exercised`)
       }
       throw error
     }
@@ -446,22 +473,18 @@ async function main() {
       throw new Error(`search failed: ${searchOut.stdout || searchOut.stderr}`)
     }
 
-    let gitBranch = null
-    try {
-      await execFileAsync('git', ['init'], { cwd: fixtureProject, windowsHide: true })
-      await execFileAsync('git', ['config', 'user.email', 'qa@devdesk.local'], {
-        cwd: fixtureProject,
-        windowsHide: true,
-      })
-      await execFileAsync('git', ['config', 'user.name', 'QA'], { cwd: fixtureProject, windowsHide: true })
-      await execFileAsync('git', ['add', '.'], { cwd: fixtureProject, windowsHide: true })
-      await execFileAsync('git', ['commit', '-m', 'qa'], { cwd: fixtureProject, windowsHide: true })
-      const gitOut = await runEngineCli(electronBin, cliPath, ['git', fixtureProject])
-      const gitJson = parseJsonPayload(gitOut.stdout)
-      gitBranch = gitJson.branch ?? String(gitJson.ok)
-    } catch (error) {
-      gitBranch = `git-step-warning: ${error instanceof Error ? error.message : error}`
-    }
+    await execFileAsync('git', ['init'], { cwd: fixtureProject, windowsHide: true })
+    await execFileAsync('git', ['config', 'user.email', 'qa@devdesk.local'], {
+      cwd: fixtureProject,
+      windowsHide: true,
+    })
+    await execFileAsync('git', ['config', 'user.name', 'QA'], { cwd: fixtureProject, windowsHide: true })
+    await execFileAsync('git', ['add', '.'], { cwd: fixtureProject, windowsHide: true })
+    await execFileAsync('git', ['commit', '-m', 'qa'], { cwd: fixtureProject, windowsHide: true })
+    const gitOut = await runEngineCli(electronBin, cliPath, ['git', fixtureProject])
+    const gitJson = parseJsonPayload(gitOut.stdout)
+    if (!gitJson.ok || !gitJson.branch) throw new Error(`git insights failed: ${gitOut.stdout || gitOut.stderr}`)
+    const gitBranch = gitJson.branch
 
     await store.upsertEngineIndex({
       projectId,
@@ -636,10 +659,8 @@ db.close();
       }
     }
     const dbCreated = fs.existsSync(path.join(launchUserData, 'devdesk.db'))
-    if (!dbCreated && !running) {
-      // app may write shortly after; wait once more if process was running
-      throw new Error('packaged app did not create devdesk.db')
-    }
+    if (!running) throw new Error('packaged app exited before the startup observation completed')
+    if (!dbCreated) throw new Error('packaged app did not create devdesk.db')
     return {
       exe,
       pid: child.pid,
@@ -649,34 +670,53 @@ db.close();
     }
   })
 
-  report.meta.endedAt = new Date().toISOString()
-  fs.mkdirSync(path.dirname(outPath), { recursive: true })
-  fs.writeFileSync(outPath, JSON.stringify(report, null, 2))
-  console.log(`\nReport written: ${outPath}`)
-  console.log(
-    `Summary: ${report.summary.passed} passed, ${report.summary.failed} failed, ${report.summary.skipped} skipped`,
-  )
+  try {
+    store.getDbOrThrow().close()
+  } catch (error) {
+    record({
+      id: 'cleanup_database',
+      name: 'Close QA database',
+      status: 'fail',
+      startedAt: new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 
   if (!keep) {
-    // leave report; remove session if no failures? keep always for evidence when --keep not set still leave report
     try {
-      // best-effort cleanup of large temp, keep if failures
       if (report.summary.failed === 0) {
         fs.rmSync(sessionRoot, { recursive: true, force: true })
+        if (fs.existsSync(sessionRoot)) throw new Error('session directory still exists after cleanup')
       } else {
         console.log(`Session kept due to failures: ${sessionRoot}`)
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      record({
+        id: 'cleanup_session',
+        name: 'Remove QA session directory',
+        status: 'fail',
+        startedAt: new Date().toISOString(),
+        endedAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   } else {
     console.log(`Session kept: ${sessionRoot}`)
   }
 
-  if (report.summary.failed > 0) process.exitCode = 1
+  report.meta.endedAt = new Date().toISOString()
+  fs.mkdirSync(path.dirname(outPath), { recursive: true })
+  fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`)
+  console.log(`\nReport written: ${outPath}`)
+  console.log(
+    `Summary: ${report.summary.passed} passed, ${report.summary.failed} failed, ${report.summary.skipped} skipped`,
+  )
+
+  process.exit(report.summary.failed > 0 ? 1 : 0)
 }
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.stack || error.message : error)
-  process.exitCode = 1
+  process.exit(1)
 })
