@@ -54,9 +54,9 @@ Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is o
 |-------|--------|
 | Host | Windows 11 (`win32` x64) |
 | Installer | `release/DevDesk-0.1.0-win-x64.exe` |
-| Installer SHA-256 | Regenerated with the corrected harness |
+| Installer SHA-256 | `b26c68913161c626a1e2249de6367f7bfd9b8a4457f521bb76621924c405c5be` |
 | Unpacked exe | `release/win-unpacked/DevDesk.exe` |
-| Unpacked SHA-256 | Regenerated with the corrected harness |
+| Unpacked SHA-256 | `e494ddee8ffd0b40e9a5d43db0894ccdae862fda547842624d3ea11e878111ce` |
 | Clean userData | Temporary backend profile plus a separate `--user-data-dir` packaged launch |
 | Evidence report | `release/clean-install-qa-report.json` and committed `docs/qa-evidence/clean-install-qa-windows-2026-07-13.json` |
 | Harness summary | **11 passed, 0 failed, 0 skipped** |
