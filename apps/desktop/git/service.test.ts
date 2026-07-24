@@ -98,4 +98,33 @@ describe('git service', () => {
     expect(result.mode).toBe('manual')
     expect(result.url).toContain('https://github.com/foo/bar/compare/')
   })
+
+  it('returns unstaged and untracked file diffs', async () => {
+    const { getFileDiff } = await import('./service')
+    fs.writeFileSync(path.join(repoDir, 'src', 'tracked.ts'), 'export const value = 2\n')
+    fs.writeFileSync(path.join(repoDir, 'notes.md'), '# scratch\n')
+
+    const modified = await getFileDiff(repoDir, 'src/tracked.ts')
+    const untracked = await getFileDiff(repoDir, 'notes.md')
+    const missing = await getFileDiff(repoDir, 'does-not-exist.ts')
+
+    expect(modified.ok).toBe(true)
+    expect(modified.sections.some((section) => section.scope === 'unstaged')).toBe(true)
+    expect(modified.sections[0]?.lines.some((line) => line.kind === 'add' || line.kind === 'del')).toBe(true)
+
+    expect(untracked.ok).toBe(true)
+    expect(untracked.sections).toHaveLength(1)
+    expect(untracked.sections[0]?.scope).toBe('untracked')
+    expect(untracked.sections[0]?.additions).toBeGreaterThan(0)
+
+    expect(missing.ok).toBe(true)
+    expect(missing.sections).toHaveLength(0)
+  })
+
+  it('rejects path traversal for diffs', async () => {
+    const { getFileDiff } = await import('./service')
+    const result = await getFileDiff(repoDir, '../outside.ts')
+    expect(result.ok).toBe(false)
+    expect(result.sections).toHaveLength(0)
+  })
 })

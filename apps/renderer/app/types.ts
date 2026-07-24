@@ -490,6 +490,36 @@ export interface GitCreatePullRequestResult {
   isDraft: boolean
 }
 
+export type GitDiffScope = 'staged' | 'unstaged' | 'untracked'
+
+export type GitDiffLineKind = 'meta' | 'hunk' | 'context' | 'add' | 'del'
+
+export interface GitDiffLine {
+  kind: GitDiffLineKind
+  text: string
+  oldLineNumber?: number
+  newLineNumber?: number
+}
+
+export interface GitDiffSection {
+  scope: GitDiffScope
+  label: string
+  binary: boolean
+  truncated: boolean
+  additions: number
+  deletions: number
+  lines: GitDiffLine[]
+}
+
+export interface GitFileDiffResult {
+  ok: boolean
+  available: boolean
+  path: string
+  previousPath?: string
+  message?: string
+  sections: GitDiffSection[]
+}
+
 export interface EngineIndexLifecyclePayload {
   projectId: string
 }

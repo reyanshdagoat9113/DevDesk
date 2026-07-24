@@ -214,6 +214,27 @@ interface ElectronAPI {
   commitProjectChanges: (projectId: string, message: string) => Promise<{ ok: boolean; message: string; branch: string | null; commitHash?: string }>
   pushProjectBranch: (projectId: string) => Promise<{ ok: boolean; message: string; branch: string | null; remoteName: string | null; remoteUrl: string | null }>
   createProjectPullRequest: (projectId: string, input: { title: string; body: string; isDraft: boolean; baseBranch?: string }) => Promise<{ ok: boolean; message: string; url?: string; mode?: 'created' | 'manual'; branch: string | null; baseBranch: string | null; isDraft: boolean }>
+  getProjectFileDiff: (projectId: string, relativePath: string) => Promise<{
+    ok: boolean
+    available: boolean
+    path: string
+    previousPath?: string
+    message?: string
+    sections: Array<{
+      scope: 'staged' | 'unstaged' | 'untracked'
+      label: string
+      binary: boolean
+      truncated: boolean
+      additions: number
+      deletions: number
+      lines: Array<{
+        kind: 'meta' | 'hunk' | 'context' | 'add' | 'del'
+        text: string
+        oldLineNumber?: number
+        newLineNumber?: number
+      }>
+    }>
+  }>
   clearProjectIndex: (projectId: string) => Promise<{ success: boolean }>
   clearProjectSearchSession: (projectId: string) => Promise<{ success: boolean }>
   isEngineAvailable: () => Promise<boolean>
@@ -532,6 +553,8 @@ const electronAPI: ElectronAPI = {
   pushProjectBranch: (projectId: string) => ipcRenderer.invoke('git:push', projectId),
   createProjectPullRequest: (projectId: string, input: { title: string; body: string; isDraft: boolean; baseBranch?: string }) =>
     ipcRenderer.invoke('git:create-pr', projectId, input),
+  getProjectFileDiff: (projectId: string, relativePath: string) =>
+    ipcRenderer.invoke('git:diff', projectId, relativePath),
   clearProjectIndex: (projectId: string) => ipcRenderer.invoke('engine:clear', projectId),
   clearProjectSearchSession: (projectId: string) => ipcRenderer.invoke('engine:clear-search-session', projectId),
   isEngineAvailable: () => ipcRenderer.invoke('engine:is-available'),

@@ -100,6 +100,7 @@ function createProps() {
     onLoadStats: vi.fn(async () => stats),
     onLoadGitInsights: vi.fn(async (): Promise<EngineGitInsights> => ({ branch: 'main', totalCommits: 1, contributors: [], hotspots: [], recentCommits: [], churnFiles: [], workingTree: { isClean: true, hasStagedChanges: false, hasUnstagedChanges: false, hasUntrackedChanges: false, hasConflicts: false, stagedCount: 0, unstagedCount: 0, untrackedCount: 0, conflictedCount: 0, ahead: 0, behind: 0, files: [] } })),
     onLoadGitState: vi.fn(async (): Promise<GitWorkflowState> => ({ ok: true, available: true, repoPath: project.path, branch: 'main', upstream: 'origin/main', remoteName: 'origin', remoteUrl: 'https://github.com/foo/bar.git', provider: 'github', ahead: 0, behind: 0, canPush: true, canCreatePullRequest: true, workingTree: null })),
+    onLoadFileDiff: vi.fn(async () => ({ ok: true, available: true, path: 'src/file.ts', sections: [] })),
     onCommitChanges: vi.fn(async (): Promise<GitCommitResult> => ({ ok: true, message: 'Committed', branch: 'main', commitHash: 'abc123' })),
     onPushBranch: vi.fn(async (): Promise<GitPushResult> => ({ ok: true, message: 'Pushed', branch: 'main', remoteName: 'origin', remoteUrl: 'https://github.com/foo/bar.git' })),
     onCreatePullRequest: vi.fn(async (): Promise<GitCreatePullRequestResult> => ({ ok: true, message: 'Opened', branch: 'main', baseBranch: 'main', isDraft: false, mode: 'manual', url: 'https://github.com/foo/bar/compare/main...main' })),

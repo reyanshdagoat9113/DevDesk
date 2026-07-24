@@ -55,6 +55,7 @@ import type {
   EngineStatus,
   GitCommitResult,
   GitCreatePullRequestResult,
+  GitFileDiffResult,
   GitPushResult,
   GitWorkflowState,
   Project,
@@ -135,6 +136,7 @@ export function ProjectsSection({
   onLoadEngineStats,
   onLoadEngineGitInsights,
   onLoadGitState,
+  onLoadFileDiff,
   onCommitProjectChanges,
   onPushProjectBranch,
   onCreateProjectPullRequest,
@@ -174,6 +176,7 @@ export function ProjectsSection({
   onLoadEngineStats?: (projectId: string) => Promise<EngineStats>
   onLoadEngineGitInsights?: (projectId: string) => Promise<EngineGitInsights>
   onLoadGitState?: (projectId: string) => Promise<GitWorkflowState>
+  onLoadFileDiff?: (projectId: string, relativePath: string) => Promise<GitFileDiffResult>
   onCommitProjectChanges?: (projectId: string, message: string) => Promise<GitCommitResult>
   onPushProjectBranch?: (projectId: string) => Promise<GitPushResult>
   onCreateProjectPullRequest?: (
@@ -1225,6 +1228,7 @@ export function ProjectsSection({
                     onLoadEngineStats &&
                     onLoadEngineGitInsights &&
                     onLoadGitState &&
+                    onLoadFileDiff &&
                     onCommitProjectChanges &&
                     onPushProjectBranch &&
                     onCreateProjectPullRequest &&
@@ -1247,6 +1251,7 @@ export function ProjectsSection({
                             onLoadStats={onLoadEngineStats}
                             onLoadGitInsights={onLoadEngineGitInsights}
                             onLoadGitState={onLoadGitState}
+                            onLoadFileDiff={onLoadFileDiff}
                             onCommitChanges={onCommitProjectChanges}
                             onPushBranch={onPushProjectBranch}
                             onCreatePullRequest={onCreateProjectPullRequest}

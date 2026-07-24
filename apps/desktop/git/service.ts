@@ -9,9 +9,16 @@ import type {
   GitCommitResult,
   GitCreatePullRequestInput,
   GitCreatePullRequestResult,
+  GitDiffLine,
+  GitDiffScope,
+  GitDiffSection,
+  GitFileDiffResult,
   GitPushResult,
   GitWorkflowState,
 } from './types'
+
+const MAX_DIFF_BYTES = 250_000
+const MAX_DIFF_LINES = 5_000
 
 type CommandResult = {
   ok: boolean
@@ -45,7 +52,8 @@ function resolveGitCommandCandidates() {
 }
 
 function cleanShellText(value: string) {
-  return value.replace(/\u0000/g, '').trim()
+  // Keep leading spaces — git status --porcelain uses them as status columns.
+  return value.replace(/\u0000/g, '').replace(/\s+$/u, '')
 }
 
 async function runCommand(command: string, args: string[], cwd: string): Promise<CommandResult> {
@@ -481,6 +489,364 @@ export async function pushCurrentBranch(repoPath: string, setUpstreamIfNeeded: b
     branch: state.branch,
     remoteName,
     remoteUrl: state.remoteUrl,
+  }
+}
+
+function normalizeRepoRelativePath(filePath: string) {
+  const normalized = filePath.replace(/\\/g, '/').replace(/^\.\/+/, '').trim()
+  if (!normalized || path.isAbsolute(normalized) || normalized.split('/').includes('..')) {
+    throw new Error('A valid repository-relative file path is required.')
+  }
+  return normalized
+}
+
+function isBinaryBuffer(buffer: Buffer) {
+  const sample = buffer.subarray(0, Math.min(buffer.length, 8_192))
+  return sample.includes(0)
+}
+
+function countDiffStats(patch: string) {
+  let additions = 0
+  let deletions = 0
+
+  for (const line of patch.split(/\r?\n/)) {
+    if (!line || line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('@@')) {
+      continue
+    }
+    if (line.startsWith('+')) {
+      additions += 1
+    } else if (line.startsWith('-')) {
+      deletions += 1
+    }
+  }
+
+  return { additions, deletions }
+}
+
+function isBinaryPatch(patch: string) {
+  return /Binary files .* differ/i.test(patch) || /^GIT binary patch$/m.test(patch)
+}
+
+function parseUnifiedDiff(patch: string, truncated: boolean): GitDiffLine[] {
+  const lines: GitDiffLine[] = []
+  let oldLine = 0
+  let newLine = 0
+
+  for (const rawLine of patch.split(/\r?\n/)) {
+    if (!rawLine && lines.length === 0) {
+      continue
+    }
+
+    if (
+      rawLine.startsWith('diff ') ||
+      rawLine.startsWith('index ') ||
+      rawLine.startsWith('new file mode') ||
+      rawLine.startsWith('deleted file mode') ||
+      rawLine.startsWith('old mode') ||
+      rawLine.startsWith('new mode') ||
+      rawLine.startsWith('similarity index') ||
+      rawLine.startsWith('rename from') ||
+      rawLine.startsWith('rename to') ||
+      rawLine.startsWith('copy from') ||
+      rawLine.startsWith('copy to') ||
+      rawLine.startsWith('--- ') ||
+      rawLine.startsWith('+++ ')
+    ) {
+      lines.push({ kind: 'meta', text: rawLine })
+      continue
+    }
+
+    const hunkMatch = rawLine.match(/^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s@@(.*)$/)
+    if (hunkMatch) {
+      oldLine = Number(hunkMatch[1])
+      newLine = Number(hunkMatch[2])
+      lines.push({ kind: 'hunk', text: rawLine })
+      continue
+    }
+
+    if (rawLine.startsWith('+')) {
+      lines.push({
+        kind: 'add',
+        text: rawLine.slice(1),
+        newLineNumber: newLine,
+      })
+      newLine += 1
+      continue
+    }
+
+    if (rawLine.startsWith('-')) {
+      lines.push({
+        kind: 'del',
+        text: rawLine.slice(1),
+        oldLineNumber: oldLine,
+      })
+      oldLine += 1
+      continue
+    }
+
+    if (rawLine.startsWith(' ') || rawLine === '') {
+      lines.push({
+        kind: 'context',
+        text: rawLine.startsWith(' ') ? rawLine.slice(1) : rawLine,
+        oldLineNumber: oldLine,
+        newLineNumber: newLine,
+      })
+      oldLine += 1
+      newLine += 1
+      continue
+    }
+
+    if (rawLine.startsWith('\\')) {
+      lines.push({ kind: 'meta', text: rawLine })
+      continue
+    }
+
+    lines.push({ kind: 'meta', text: rawLine })
+  }
+
+  if (truncated) {
+    lines.push({ kind: 'meta', text: '… diff truncated' })
+  }
+
+  return lines
+}
+
+function buildDiffSection(scope: GitDiffScope, label: string, patch: string): GitDiffSection {
+  const binary = isBinaryPatch(patch)
+  let workingPatch = patch
+  let truncated = false
+
+  if (Buffer.byteLength(workingPatch, 'utf8') > MAX_DIFF_BYTES) {
+    workingPatch = workingPatch.slice(0, MAX_DIFF_BYTES)
+    truncated = true
+  }
+
+  const lineCount = workingPatch ? workingPatch.split(/\r?\n/).length : 0
+  if (lineCount > MAX_DIFF_LINES) {
+    workingPatch = workingPatch.split(/\r?\n/).slice(0, MAX_DIFF_LINES).join('\n')
+    truncated = true
+  }
+
+  const stats = binary ? { additions: 0, deletions: 0 } : countDiffStats(workingPatch)
+
+  return {
+    scope,
+    label,
+    binary,
+    truncated,
+    additions: stats.additions,
+    deletions: stats.deletions,
+    lines: binary
+      ? [{ kind: 'meta', text: 'Binary file differs.' }]
+      : parseUnifiedDiff(workingPatch, truncated),
+  }
+}
+
+async function runGitDiff(repoPath: string, args: string[]) {
+  const result = await tryGit(repoPath, args)
+  // git diff exits 1 when differences exist
+  if (result.ok || result.code === 1) {
+    return {
+      ok: true as const,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    }
+  }
+
+  return {
+    ok: false as const,
+    stdout: result.stdout,
+    stderr: result.stderr || `git ${args.join(' ')} failed`,
+  }
+}
+
+async function buildUntrackedDiffSection(repoPath: string, relativePath: string): Promise<GitDiffSection> {
+  const absolutePath = path.join(repoPath, relativePath)
+
+  let buffer: Buffer
+  try {
+    buffer = await fs.readFile(absolutePath)
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : 'Unable to read untracked file.')
+  }
+
+  if (isBinaryBuffer(buffer)) {
+    return {
+      scope: 'untracked',
+      label: 'Untracked',
+      binary: true,
+      truncated: false,
+      additions: 0,
+      deletions: 0,
+      lines: [{ kind: 'meta', text: 'Binary file differs.' }],
+    }
+  }
+
+  let text = buffer.toString('utf8')
+  let truncated = false
+  if (Buffer.byteLength(text, 'utf8') > MAX_DIFF_BYTES) {
+    text = text.slice(0, MAX_DIFF_BYTES)
+    truncated = true
+  }
+
+  const contentLines = text.split(/\r?\n/)
+  if (contentLines.length > MAX_DIFF_LINES) {
+    contentLines.length = MAX_DIFF_LINES
+    truncated = true
+  }
+
+  const body = contentLines.map((line) => `+${line}`).join('\n')
+  const patch = [
+    `diff --git a/${relativePath} b/${relativePath}`,
+    'new file mode 100644',
+    '--- /dev/null',
+    `+++ b/${relativePath}`,
+    `@@ -0,0 +1,${contentLines.length} @@`,
+    body,
+  ].join('\n')
+
+  const section = buildDiffSection('untracked', 'Untracked', patch)
+  return truncated ? { ...section, truncated: true } : section
+}
+
+export async function getFileDiff(repoPath: string, filePath: string): Promise<GitFileDiffResult> {
+  let relativePath: string
+  try {
+    relativePath = normalizeRepoRelativePath(filePath)
+  } catch (error) {
+    return {
+      ok: false,
+      available: false,
+      path: filePath,
+      message: error instanceof Error ? error.message : 'Invalid file path.',
+      sections: [],
+    }
+  }
+
+  const repositoryCheck = await checkGitRepository(repoPath)
+  if (!repositoryCheck.available) {
+    return {
+      ok: false,
+      available: false,
+      path: relativePath,
+      message: repositoryCheck.message || 'This project is not a git repository.',
+      sections: [],
+    }
+  }
+
+  const statusResult = await tryGit(repoPath, ['status', '--porcelain=1', '--', relativePath])
+  if (!statusResult.ok) {
+    return {
+      ok: false,
+      available: true,
+      path: relativePath,
+      message: statusResult.stderr || 'Unable to read git status for this file.',
+      sections: [],
+    }
+  }
+
+  const statusLine = statusResult.stdout.split(/\r?\n/).map((line) => line.trimEnd()).find(Boolean) ?? ''
+  if (!statusLine) {
+    return {
+      ok: true,
+      available: true,
+      path: relativePath,
+      message: 'No pending changes for this file.',
+      sections: [],
+    }
+  }
+
+  // porcelain v1: XY<path> where X/Y are status chars and path is separated by a space
+  const indexStatus = statusLine[0] ?? ' '
+  const workingTreeStatus = statusLine[1] ?? ' '
+  const pathPart = statusLine.length >= 3 ? statusLine.slice(2).replace(/^\s+/, '') : ''
+  const renamed = indexStatus === 'R' || workingTreeStatus === 'R' || pathPart.includes(' -> ')
+  const [previousPath, nextPath] = renamed
+    ? pathPart.split(' -> ', 2)
+    : [undefined, pathPart || relativePath]
+  const targetPath = (nextPath || relativePath).replace(/\\/g, '/').replace(/^"|"$/g, '')
+  const sourcePath = previousPath?.replace(/\\/g, '/').replace(/^"|"$/g, '')
+  const untracked = indexStatus === '?' && workingTreeStatus === '?'
+  const staged = indexStatus !== ' ' && indexStatus !== '?'
+  const unstaged = workingTreeStatus !== ' ' && workingTreeStatus !== '?'
+
+  const sections: GitDiffSection[] = []
+
+  try {
+    if (untracked) {
+      sections.push(await buildUntrackedDiffSection(repoPath, targetPath))
+    } else {
+      if (staged) {
+        const stagedPaths = sourcePath && sourcePath !== targetPath
+          ? [sourcePath, targetPath]
+          : [targetPath]
+        const stagedDiff = await runGitDiff(repoPath, ['diff', '--cached', '--', ...stagedPaths])
+        if (!stagedDiff.ok) {
+          return {
+            ok: false,
+            available: true,
+            path: targetPath,
+            previousPath: sourcePath,
+            message: stagedDiff.stderr,
+            sections: [],
+          }
+        }
+        if (stagedDiff.stdout.trim()) {
+          sections.push(buildDiffSection('staged', 'Staged', stagedDiff.stdout))
+        }
+      }
+
+      if (unstaged) {
+        const unstagedDiff = await runGitDiff(repoPath, ['diff', '--', targetPath])
+        if (!unstagedDiff.ok) {
+          return {
+            ok: false,
+            available: true,
+            path: targetPath,
+            previousPath: sourcePath,
+            message: unstagedDiff.stderr,
+            sections: [],
+          }
+        }
+        if (unstagedDiff.stdout.trim()) {
+          sections.push(buildDiffSection('unstaged', 'Unstaged', unstagedDiff.stdout))
+        } else if (workingTreeStatus === 'D') {
+          sections.push(buildDiffSection(
+            'unstaged',
+            'Unstaged',
+            `diff --git a/${targetPath} b/${targetPath}\ndeleted file mode 100644\n--- a/${targetPath}\n+++ /dev/null\n`
+          ))
+        }
+      }
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      available: true,
+      path: targetPath,
+      previousPath: sourcePath,
+      message: error instanceof Error ? error.message : 'Failed to produce file diff.',
+      sections: [],
+    }
+  }
+
+  if (!sections.length) {
+    return {
+      ok: true,
+      available: true,
+      path: targetPath,
+      previousPath: sourcePath,
+      message: 'No textual diff is available for this file.',
+      sections: [],
+    }
+  }
+
+  return {
+    ok: true,
+    available: true,
+    path: targetPath,
+    previousPath: sourcePath,
+    sections,
   }
 }
 

@@ -47,6 +47,7 @@ import type {
   EngineStatus,
   GitCommitResult,
   GitCreatePullRequestResult,
+  GitFileDiffResult,
   GitPushResult,
   GitWorkflowState,
   Project,
@@ -1031,6 +1032,17 @@ function App() {
     }
   }, [])
 
+  const handleLoadFileDiff = useCallback(async (projectId: string, relativePath: string): Promise<GitFileDiffResult> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.getProjectFileDiff(projectId, relativePath)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load file diff.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
   const handleCommitProjectChanges = useCallback(async (projectId: string, message: string): Promise<GitCommitResult> => {
     setLoadError(null)
     try {
@@ -1390,6 +1402,7 @@ function App() {
                onLoadEngineStats={handleLoadEngineStats}
                onLoadEngineGitInsights={handleLoadEngineGitInsights}
                onLoadGitState={handleLoadGitState}
+               onLoadFileDiff={handleLoadFileDiff}
                onCommitProjectChanges={handleCommitProjectChanges}
               onPushProjectBranch={handlePushProjectBranch}
               onCreateProjectPullRequest={handleCreateProjectPullRequest}
@@ -1445,6 +1458,7 @@ function App() {
                onLoadStats={handleLoadEngineStats}
                onLoadGitInsights={handleLoadEngineGitInsights}
                onLoadGitState={handleLoadGitState}
+               onLoadFileDiff={handleLoadFileDiff}
                onCommitChanges={handleCommitProjectChanges}
               onPushBranch={handlePushProjectBranch}
               onCreatePullRequest={handleCreateProjectPullRequest}

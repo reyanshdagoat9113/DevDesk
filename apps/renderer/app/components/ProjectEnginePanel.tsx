@@ -15,6 +15,7 @@ import type {
   EngineStatus,
   GitCommitResult,
   GitCreatePullRequestResult,
+  GitFileDiffResult,
   GitPushResult,
   GitWorkflowState,
   Project,
@@ -49,6 +50,7 @@ export function ProjectEnginePanel({
   onLoadStats,
   onLoadGitInsights,
   onLoadGitState,
+  onLoadFileDiff,
   onCommitChanges,
   onPushBranch,
   onCreatePullRequest,
@@ -72,6 +74,7 @@ export function ProjectEnginePanel({
   onLoadStats: (projectId: string) => Promise<EngineStats>
   onLoadGitInsights: (projectId: string) => Promise<EngineGitInsights>
   onLoadGitState: (projectId: string) => Promise<GitWorkflowState>
+  onLoadFileDiff: (projectId: string, relativePath: string) => Promise<GitFileDiffResult>
   onCommitChanges: (projectId: string, message: string) => Promise<GitCommitResult>
   onPushBranch: (projectId: string) => Promise<GitPushResult>
   onCreatePullRequest: (
@@ -525,6 +528,7 @@ export function ProjectEnginePanel({
           project={project}
           onLoadGitInsights={onLoadGitInsights}
           onLoadGitState={onLoadGitState}
+          onLoadFileDiff={onLoadFileDiff}
           onCommitChanges={onCommitChanges}
           onPushBranch={onPushBranch}
           onCreatePullRequest={onCreatePullRequest}

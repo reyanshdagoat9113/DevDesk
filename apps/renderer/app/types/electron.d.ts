@@ -27,6 +27,7 @@ import type {
   EngineGitInsights,
   GitCommitResult,
   GitCreatePullRequestResult,
+  GitFileDiffResult,
   GitPushResult,
   GitWorkflowState,
   HealthCheckRun,
@@ -156,6 +157,7 @@ export interface ElectronAPI {
     projectId: string,
     input: { title: string; body: string; isDraft: boolean; baseBranch?: string }
   ) => Promise<GitCreatePullRequestResult>
+  getProjectFileDiff: (projectId: string, relativePath: string) => Promise<GitFileDiffResult>
   clearProjectIndex: (projectId: string) => Promise<{ success: boolean }>
   clearProjectSearchSession: (projectId: string) => Promise<{ success: boolean }>
   isEngineAvailable: () => Promise<boolean>

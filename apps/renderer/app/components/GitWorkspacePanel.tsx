@@ -9,6 +9,7 @@ import {
   Send,
   TriangleAlert,
 } from 'lucide-react'
+import { GitDiffViewer } from './GitDiffViewer'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog'
@@ -27,6 +28,7 @@ import type {
   EngineGitInsights,
   GitCommitResult,
   GitCreatePullRequestResult,
+  GitFileDiffResult,
   GitPushResult,
   GitWorkflowState,
   Project,
@@ -91,6 +93,7 @@ export function GitWorkspacePanel({
   project,
   onLoadGitInsights,
   onLoadGitState,
+  onLoadFileDiff,
   onCommitChanges,
   onPushBranch,
   onCreatePullRequest,
@@ -101,6 +104,7 @@ export function GitWorkspacePanel({
   project: Project
   onLoadGitInsights: (projectId: string) => Promise<EngineGitInsights>
   onLoadGitState: (projectId: string) => Promise<GitWorkflowState>
+  onLoadFileDiff: (projectId: string, relativePath: string) => Promise<GitFileDiffResult>
   onCommitChanges: (projectId: string, message: string) => Promise<GitCommitResult>
   onPushBranch: (projectId: string) => Promise<GitPushResult>
   onCreatePullRequest: (
@@ -129,10 +133,36 @@ export function GitWorkspacePanel({
   const [prBaseBranch, setPrBaseBranch] = useState('')
   const [prMode, setPrMode] = useState<'draft' | 'ready'>('draft')
   const [prResult, setPrResult] = useState<GitCreatePullRequestResult | null>(null)
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)
+  const [selectedFileDiff, setSelectedFileDiff] = useState<GitFileDiffResult | null>(null)
+  const [isLoadingDiff, setIsLoadingDiff] = useState(false)
+  const [diffError, setDiffError] = useState<string | null>(null)
+  const [diffReloadToken, setDiffReloadToken] = useState(0)
 
   const changedFiles = useMemo(() => gitState?.workingTree?.files ?? [], [gitState?.workingTree?.files])
   const recentCommits = gitInsights?.recentCommits ?? []
   const firstRecentCommit = recentCommits[0]
+  const selectedFile = useMemo(
+    () => changedFiles.find((file) => file.path === selectedFilePath) ?? null,
+    [changedFiles, selectedFilePath]
+  )
+
+  const loadFileDiff = useCallback(async (relativePath: string) => {
+    setIsLoadingDiff(true)
+    setDiffError(null)
+    try {
+      const result = await onLoadFileDiff(project.id, relativePath)
+      setSelectedFileDiff(result)
+      if (!result.ok) {
+        setDiffError(result.message || 'Failed to load file diff.')
+      }
+    } catch (loadError) {
+      setSelectedFileDiff(null)
+      setDiffError(loadError instanceof Error ? loadError.message : 'Failed to load file diff.')
+    } finally {
+      setIsLoadingDiff(false)
+    }
+  }, [onLoadFileDiff, project.id])
 
   const refreshGitData = useCallback(async () => {
     setIsLoadingState(true)
@@ -158,6 +188,7 @@ export function GitWorkspacePanel({
       setError(loadError instanceof Error ? loadError.message : 'Failed to load git workspace.')
     } finally {
       setIsLoadingState(false)
+      setDiffReloadToken((token) => token + 1)
     }
   }, [onLoadGitInsights, onLoadGitState, project.id])
 
@@ -173,6 +204,28 @@ export function GitWorkspacePanel({
       setInsightView('overview')
     }
   }, [changedFiles.length, insightView, recentCommits.length])
+
+  useEffect(() => {
+    if (!changedFiles.length) {
+      setSelectedFilePath(null)
+      setSelectedFileDiff(null)
+      setDiffError(null)
+      return
+    }
+
+    if (selectedFilePath && changedFiles.some((file) => file.path === selectedFilePath)) {
+      return
+    }
+
+    setSelectedFilePath(changedFiles[0]?.path ?? null)
+  }, [changedFiles, selectedFilePath])
+
+  useEffect(() => {
+    if (!selectedFilePath || insightView !== 'changes') {
+      return
+    }
+    void loadFileDiff(selectedFilePath)
+  }, [diffReloadToken, insightView, loadFileDiff, selectedFilePath])
 
   useEffect(() => {
     setPrTitle(buildDefaultPrTitle(gitState?.branch ?? null, firstRecentCommit))
@@ -427,74 +480,106 @@ export function GitWorkspacePanel({
                 </div>
               ) : null}
 
-              <div className={insightView === 'overview' ? 'hidden' : 'px-4 py-3'}>
+              <div className={insightView === 'changes' ? 'px-4 py-3' : 'hidden'}>
                 <div className="mb-2.5">
                   <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                     Changed Files
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Review pending file changes, open them in the editor, or reveal them in the folder.
+                    Select a file to inspect its diff, open it in the editor, or reveal it in the folder.
                   </p>
                 </div>
-                <ScrollArea className="h-[320px]">
-                  <div className="space-y-1.5 pr-1">
-                    {changedFiles.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-border/40 px-4 py-6 text-center text-sm text-muted-foreground">
-                        No pending file changes.
-                      </div>
-                    ) : (
-                      changedFiles.map((file) => (
-                        <div key={file.path} className="rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/50">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge
-                                  variant={summaryBadgeVariant(file.summary)}
-                                  className="h-5 px-2 text-[9px] uppercase tracking-wider"
-                                >
-                                  {file.summary}
-                                </Badge>
-                                {file.conflicted ? (
-                                  <Badge variant="destructive" className="h-5 px-2 text-[9px] uppercase tracking-wider">
-                                    Conflict
-                                  </Badge>
+                <div className="grid gap-3 xl:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.35fr)]">
+                  <ScrollArea className="h-[420px] rounded-xl border border-border/30 bg-background/40">
+                    <div className="space-y-1 p-2">
+                      {changedFiles.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-6 text-center text-sm text-muted-foreground">
+                          No pending file changes.
+                        </div>
+                      ) : (
+                        changedFiles.map((file) => {
+                          const isSelected = file.path === selectedFilePath
+                          return (
+                            <button
+                              key={file.path}
+                              type="button"
+                              onClick={() => {
+                                setSelectedFilePath(file.path)
+                                setInsightView('changes')
+                              }}
+                              className={cn(
+                                'w-full rounded-xl px-3 py-2.5 text-left transition-colors',
+                                isSelected ? 'bg-primary/10 ring-1 ring-primary/20' : 'hover:bg-muted/50'
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge
+                                      variant={summaryBadgeVariant(file.summary)}
+                                      className="h-5 px-2 text-[9px] uppercase tracking-wider"
+                                    >
+                                      {file.summary}
+                                    </Badge>
+                                    {file.conflicted ? (
+                                      <Badge variant="destructive" className="h-5 px-2 text-[9px] uppercase tracking-wider">
+                                        Conflict
+                                      </Badge>
+                                    ) : null}
+                                  </div>
+                                  <p className="truncate font-mono text-[10.5px] font-semibold text-foreground">
+                                    {file.path}
+                                  </p>
+                                </div>
+                                <div className="shrink-0 text-right text-[10px] text-muted-foreground">
+                                  <div className="tabular-nums">+{file.additions} / -{file.deletions}</div>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {onOpenResult ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void onOpenResult(project.id, file.path)
+                                    }}
+                                  >
+                                    Open
+                                  </Button>
+                                ) : null}
+                                {onRevealResult ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void onRevealResult(project.id, file.path)
+                                    }}
+                                  >
+                                    Reveal
+                                  </Button>
                                 ) : null}
                               </div>
-                              <p className="truncate font-mono text-[10.5px] font-semibold text-foreground">
-                                {file.path}
-                              </p>
-                            </div>
-                            <div className="shrink-0 text-right text-[10px] text-muted-foreground">
-                              <div className="tabular-nums">+{file.additions} / -{file.deletions}</div>
-                            </div>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {onOpenResult ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 px-2 text-[10px]"
-                                onClick={() => void onOpenResult(project.id, file.path)}
-                              >
-                                Open
-                              </Button>
-                            ) : null}
-                            {onRevealResult ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 px-2 text-[10px]"
-                                onClick={() => void onRevealResult(project.id, file.path)}
-                              >
-                                Reveal
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))
-                    )}
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
+                  </ScrollArea>
+
+                  <div className="min-w-0">
+                    <GitDiffViewer
+                      path={selectedFilePath}
+                      previousPath={selectedFile?.previousPath}
+                      diff={selectedFileDiff}
+                      isLoading={isLoadingDiff}
+                      error={diffError}
+                    />
                   </div>
-                </ScrollArea>
+                </div>
               </div>
 
               <div className={insightView === 'overview' ? 'border-t border-border/30 px-4 py-3' : 'border-t border-border/30 px-4 py-4'}>

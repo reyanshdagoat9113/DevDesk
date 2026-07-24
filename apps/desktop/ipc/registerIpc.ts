@@ -2818,6 +2818,23 @@ export function registerIpcHandlers() {
     return result
   })
 
+  ipcMain.handle('git:diff', async (_event, projectId: string, relativePath: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!relativePath?.trim()) {
+      throw new Error('File path is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getFileDiff } = await import('../git/service')
+    return getFileDiff(project.path, relativePath)
+  })
+
   // Engine operations (devdesk-engine integration)
   ipcMain.handle('engine:state', async () => {
     const { loadEngineSnapshot } = await import('../engine/engineService')
