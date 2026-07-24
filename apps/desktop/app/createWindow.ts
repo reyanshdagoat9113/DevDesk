@@ -3,7 +3,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 function resolveWindowIcon(): string | undefined {
+  // Windows renders the crisp multi-resolution .ico for the taskbar/title bar;
+  // other platforms use the PNG.
+  const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
+
   const candidates = [
+    path.join(__dirname, '../../../build', iconFile),
+    path.join(process.resourcesPath ?? '', 'build', iconFile),
+    // Fallback to PNG if the platform-preferred icon is unavailable.
     path.join(__dirname, '../../../build/icon.png'),
     path.join(process.resourcesPath ?? '', 'build', 'icon.png'),
   ]

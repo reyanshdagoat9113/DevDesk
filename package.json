@@ -126,7 +126,8 @@
       "dist/**/*",
       "node_modules/**/*",
       "package.json",
-      "build/icon.png"
+      "build/icon.png",
+      "build/icon.ico"
     ],
     "win": {
       "target": [

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import { Command, Search } from 'lucide-react'
+import { Command } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/Tabs'
 import { cn } from '../../lib/utils'
+import appIcon from '../../assets/devdesk-icon.png'
 
 interface NavItem {
   value: string
@@ -29,9 +30,12 @@ export function AppShell({ navItems, activeNav, onNavChange, title, action, them
         {/* Logo */}
         <div className="flex h-14 items-center px-4 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary border border-primary/20">
-              <Search className="h-3.5 w-3.5" />
-            </div>
+            <img
+              src={appIcon}
+              alt="DevDesk logo"
+              className="h-7 w-7 select-none rounded-md object-contain"
+              draggable={false}
+            />
             <span className="text-sm font-bold tracking-tight text-foreground">DevDesk</span>
           </div>
         </div>
