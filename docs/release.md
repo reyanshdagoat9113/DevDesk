@@ -88,7 +88,7 @@ Native rebuild prerequisites: [native-modules.md](./native-modules.md).
 
 - App main/preload/renderer under `dist/`
 - Electron-native `better-sqlite3` and `node-pty` (asar-unpacked)
-- Packaged performance engine under `resources/engine/` with Electron-built `better-sqlite3`
+- Packaged performance engine under `resources/engine/` from `packages/engine/dist` (workspace package), with Electron-built `better-sqlite3` and `commander` under `resources/engine/node_modules/`
 
 ## Icons and metadata
 

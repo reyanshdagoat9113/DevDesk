@@ -37,4 +37,4 @@ npm run test:run
 
 - `better-sqlite3` must match the runtime ABI (Node for tests, Electron for the app/packaged engine). Use root scripts in `docs/native-modules.md`.
 - The Rust scanner is produced by `build:rust` and copied into `dist/`.
-- Packaging copies `node_modules/devdesk-engine/dist` into app `resources/engine/`.
+- Packaging copies `packages/engine/dist` into app `resources/engine/` (plus runtime deps under `resources/engine/node_modules/`).

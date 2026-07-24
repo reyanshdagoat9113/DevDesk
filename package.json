@@ -177,10 +177,17 @@
     },
     "extraResources": [
       {
-        "from": "node_modules/devdesk-engine/dist",
+        "from": "packages/engine/dist",
         "to": "engine",
         "filter": [
-          "**/*"
+          "**/*",
+          "!**/*.test.js",
+          "!**/*.test.d.ts",
+          "!**/*.test.js.map",
+          "!**/*.test.d.ts.map",
+          "!**/*.d.ts",
+          "!**/*.d.ts.map",
+          "!**/*.js.map"
         ]
       },
       {
@@ -212,7 +219,7 @@
         ]
       },
       {
-        "from": "node_modules/devdesk-engine/package.json",
+        "from": "packages/engine/package.json",
         "to": "engine/package.json"
       }
     ]
