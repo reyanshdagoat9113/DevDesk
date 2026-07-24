@@ -10,6 +10,7 @@ DevDesk is a local-first Electron application for developers, integrating projec
   - `apps/desktop/`: Main process (Node.js/TS). Handles system interaction, IPC, and persistence.
   - `apps/renderer/`: Renderer process (React/TS). Handles UI and user interaction.
   - `apps/desktop/preload.ts`: Preload script for secure IPC exposure.
+  - `packages/engine/`: `devdesk-engine` workspace package (local code intelligence), packaged into app `resources/engine/`.
 
 ## Common Commands
 
@@ -24,12 +25,27 @@ npm run build:main    # Build main process (tsc)
 npm run build:preload # Build preload script (tsc)
 npm run build:renderer # Build renderer (vite)
 
+# Testing (vitest)
+npm run test:run          # Desktop (main process) tests
+npm run test:renderer:run # Renderer tests
+npm run test:engine       # Engine workspace tests
+npm run test:engine-ipc   # Electron-to-engine IPC tests
+
 # Release / verification
+npm run release:gate           # Full gate: typecheck + lint + all tests + engine smoke
 npm run smoke:engine-packaged  # Verify packaged engine path and real engine operations
+npm run verify:win-package     # Build and smoke-test the Windows package
 npm run verify:linux-package   # Build and smoke-test the Linux package
+npm run package:win            # Windows NSIS installer under release/
+npm run package:linux          # Linux AppImage + deb under release/
+
+# Native ABI (see docs/native-modules.md)
+npm run rebuild:native:node     # Before Node-based tests
+npm run rebuild:native:electron # Before running/packaging the app
 
 # Quality & Type Safety
 npm run lint          # Run ESLint
+npm run lint:architecture
 npm run typecheck     # Run TypeScript type checking
 ```
 
@@ -66,15 +82,16 @@ npm run typecheck     # Run TypeScript type checking
 3. **Deterministic:** Predictable UI behavior and command execution.
 4. **Performance:** Ensure the UI remains responsive, especially during long-running commands.
 
-## Current Release State
-Supported for the first public release:
-- Linux packaging targets: `AppImage` and `deb`
-- Packaged engine resolution and smoke-verified engine operations
-- Electron-to-engine integration smoke test
-- SQLite-backed app persistence
-- Command presets, command/project pinning, run history, notes, compose awareness, and git snapshots
+## Current Release State (v0.1.0 private beta)
+Product features are complete, including:
+- Projects, Command Vault (variables/presets/chains/triggers), run history, notes
+- Embedded terminals, health checks, git workspace, Docker/compose awareness
+- Packaged engine (index/search/stats/Git insights) with smoke-verified operations
+- SQLite-backed app persistence (one-time import from legacy JSON store)
+- Export/import, tray quick actions, LLM context export, bug recorder
+- Windows NSIS installer (unsigned); Linux AppImage/deb targets configured
 
-Deferred/post-release backlog:
-- Export/import config
-- Tray quick actions
-- Context bundling for LLM workflows
+Remaining launch work (release-process only):
+- Interactive packaged-app QA on Windows + Linux (`docs/manual-qa.md`)
+- Linux host verification (`verify:linux-package`)
+- Optional: Windows code signing, auto-update decision; macOS deferred

@@ -2,7 +2,7 @@
 
 A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, Docker controls, terminals, and local code search into one workspace.
 
-## Status (2026-07-12)
+## Status (2026-07-24)
 
 **Private beta / release candidate in hardening** — product features for v0.1.0 are implemented; launch work is packaging, QA, and docs.
 
@@ -13,7 +13,7 @@ A local-first Electron desktop app for developers that combines a Project Manage
 | Windows x64 installer | Implemented (unsigned) |
 | Linux x64 AppImage/deb | Targets configured |
 | macOS | Deferred |
-| Manual QA | See [docs/manual-qa.md](docs/manual-qa.md) when present (Windows session + Linux template) |
+| Manual QA | See [docs/manual-qa.md](docs/manual-qa.md) (Windows session + Linux template; interactive rows pending) |
 
 Remaining launch work:
 - Complete the remaining Windows interactive Pass* checks in [docs/manual-qa.md](docs/manual-qa.md).

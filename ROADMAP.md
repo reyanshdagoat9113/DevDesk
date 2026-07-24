@@ -2,13 +2,14 @@
 
 > A comprehensive implementation guide for evolving DevDesk from MVP to a complete developer workspace platform.
 
-**Last Updated:** 2026-07-12  
-**Active Phase:** Private beta (v0.1.0) — docs + remaining Linux interactive QA  
+**Last Updated:** 2026-07-24  
+**Active Phase:** Private beta (v0.1.0) — remaining Windows + Linux interactive QA  
 **Current Phase:** Feature-complete late MVP → private beta distribution  
 
 The original feature roadmap is largely implemented. Launch engineering tasks
-(path contract, native rebuilds, packaging, release gate/CI, Windows QA) are
-done for the private-beta bar. Remaining: Linux interactive QA, optional
+(path contract, native rebuilds, packaging, release gate/CI, automated Windows
+clean-install QA) are done for the private-beta bar. Remaining: interactive
+packaged-app QA rows on Windows and Linux, Linux host verification, optional
 signing/macOS, and ongoing maintenance. See `docs/beta-release-checklist.md`,
 `docs/RELEASE-NOTES-0.1.0.md`, and `docs/manual-qa.md`.
 
@@ -1153,8 +1154,8 @@ Phase 10: Polish
 
 ## Quick Reference: Historical Next 3 Tasks
 
-The former next tasks have been implemented. See `LAUNCH-BLOCKERS-PLAN.md` for
-the current sequence of work.
+The former next tasks have been implemented. See `TODO.md` and
+`docs/beta-release-checklist.md` for the current sequence of work.
 
 1. **Terminal Manager Service** (3-4 hrs)
    - Add PTY session lifecycle in the main process

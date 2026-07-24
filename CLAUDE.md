@@ -3,47 +3,63 @@
 ## Common Commands
 
 ```bash
-npm run dev
-npm run build
-npm run lint
-npm run typecheck
+npm run dev            # Rebuild natives for Electron, build main/preload, start Vite + Electron
+npm run build          # Production build (engine prebuild + main/preload/renderer)
+npm run lint           # ESLint over apps/**
+npm run typecheck      # TypeScript typecheck
+npm run test:run       # Desktop (main-process) unit tests (vitest)
+npm run test:renderer:run
+npm run test:engine    # Engine workspace tests
+npm run test:engine-ipc
+npm run release:gate   # Full gate: typecheck + lint + all test suites + packaged-engine smoke
+npm run package:win    # Windows NSIS installer under release/
+npm run verify:win-package
 ```
+
+Native module note: `better-sqlite3` and `node-pty` must match the runtime ABI. Use `npm run rebuild:native:node` before Node-based tests and `npm run rebuild:native:electron` before running/packaging the app. See `docs/native-modules.md`.
 
 ## Architecture
 
-DevDesk is an Electron app with a three-layer architecture:
+DevDesk is a local-first Electron app in an npm-workspaces monorepo:
 
-- Main process: Node.js + TypeScript in `apps/desktop`. Handles IPC, command execution, persistence, and project detection.
-- Renderer: TypeScript + React in `apps/renderer`. UI only.
+- Main process: Node.js + TypeScript in `apps/desktop`. IPC, command execution, persistence, Docker, terminals (node-pty), git, engine spawn.
+- Renderer: TypeScript + React + Vite + shadcn/ui in `apps/renderer`. UI only.
 - Preload: `apps/desktop/preload.ts` exposes a small, explicit API as `window.electronAPI`.
+- Engine: `packages/engine` (`devdesk-engine` workspace package) — local code intelligence (index, search, stats, Git insights). Packaged into app `resources/engine/` from `packages/engine/dist`.
 
 Implementation notes:
-- IPC channels use kebab-case (e.g. `projects:add`, `commands:run`).
-- Current data store is JSON in userData as `devdesk-store.json`. Schema lives in `apps/desktop/data/model.ts`.
-- Planned migration to SQLite using `better-sqlite3` in userData as `devdesk.db` with WAL and a one-time JSON import.
+- IPC channels use kebab-case (e.g. `projects:add`, `commands:run`) and are registered in `apps/desktop/ipc/registerIpc.ts`.
+- Persistence is SQLite via `better-sqlite3` in userData as `devdesk.db` (WAL mode). Schema lives in `apps/desktop/data/model.ts`; store logic in `apps/desktop/data/store.ts`.
+- Legacy JSON store (`devdesk-store.json`) is imported once when the DB is empty.
+- Engine indexes live under `userData/engine/*.sqlite`.
 - `reconcileRunHistory()` marks any "running" entries as "stopped" on startup.
 
-## Current Feature Coverage
+## Current Feature Coverage (v0.1.0 — feature complete)
 
-Implemented:
-- Projects: add, edit, remove, open folder/editor/terminal, type detection.
+- Projects: add/edit/remove/pin, open folder/editor/terminal, type detection.
 - Preferences: editor/terminal selection with custom command support (`{path}`).
-- Commands: create/edit/delete/run, tags + description, project binding + working directory.
-- Run history: status + output streaming + output retrieval + clear.
-- Notes: per-project setup steps/todos/reminders.
-- Containers: list/start/stop/logs via Docker CLI with Windows + WSL fallback.
+- Command Vault: CRUD, tags + filtering, variables, presets by project type, pinning, chains, triggers.
+- Run history: status + live output streaming + retrieval + clear, command/project names shown.
+- Embedded terminals: tabs, resize, search, fullscreen (node-pty + xterm).
+- Health: project + environment checks with history.
+- Notes: per-project markdown notes with preview and task checkboxes.
+- Containers: list/start/stop/logs via Docker CLI with Windows + WSL fallback; compose awareness.
+- Git: status panel, changed files, quick commit, push, PR creation, palette commands.
+- Engine: local index/search/stats/Git insights via packaged `devdesk-engine`.
+- Bugs: context snapshots and attachments.
+- Export/import (merge or replace, DB backup), tray quick actions, LLM context export.
+- Global Command Palette (Cmd/Ctrl+K) with fuzzy search.
 
-Not implemented yet:
-- Command search/filter UI.
-- Run history shows command + project names instead of ids.
-- Production build verification.
+Remaining launch work (release-process, not code): interactive packaged-app QA on Windows + Linux (`docs/manual-qa.md`), Linux host verification, optional Windows code signing, macOS deferred. See `TODO.md` and `docs/beta-release-checklist.md`.
 
 ## Key Constraints
-- Local-first only. No cloud, no accounts, no AI.
+- Local-first only. No cloud, no accounts, no AI services.
 - Safe by default. Destructive actions require confirmation.
-- Platform targets: macOS + Windows (Linux post-MVP).
+- Platform targets: Windows (installer shipped, unsigned) + Linux (AppImage/deb targets configured). macOS deferred.
 
 ## Build Outputs
 - Renderer output: `dist/renderer`
 - Main/preload output: `dist/main`, `dist/preload` (tsc)
+- Engine output: `packages/engine/dist` (copied to app `resources/engine/` at package time)
 - Production loads `../../renderer/index.html` from main process build output.
+- Installable artifacts land under `release/`.
