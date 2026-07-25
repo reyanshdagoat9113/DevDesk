@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DevDesk — local-first developer workspace</title>
+    <meta
+      name="description"
+      content="DevDesk is a local-first desktop app that combines a project manager, command vault, Docker controls, terminals, and local code search into one workspace."
+    />
+    <script>
+      // Dark by default; honour a stored choice before first paint to avoid a flash.
+      try {
+        var stored = localStorage.getItem('devdesk-site-theme')
+        if (stored === 'light') document.documentElement.classList.remove('dark')
+      } catch (error) {
+        /* localStorage unavailable: keep the default dark class */
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

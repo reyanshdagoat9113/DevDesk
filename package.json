@@ -2,6 +2,14 @@
   "name": "devdesk",
   "version": "0.1.0",
   "description": "A local-first Electron desktop app for developers",
+  "homepage": "https://github.com/reyanshdagoat9113/DevDesk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reyanshdagoat9113/DevDesk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/reyanshdagoat9113/DevDesk/issues"
+  },
   "main": "dist/main/index.js",
   "author": "DevDesk",
   "license": "MIT",
@@ -51,7 +59,13 @@
     "lint:architecture": "node scripts/check-architecture.mjs",
     "test:production": "electron .",
     "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "landing:dev": "npm --workspace @devdesk/landing run dev",
+    "landing:build": "npm --workspace @devdesk/landing run build",
+    "landing:start": "npm --workspace @devdesk/landing run start",
+    "landing:lint": "npm --workspace @devdesk/landing run lint",
+    "landing:typecheck": "npm --workspace @devdesk/landing run typecheck",
+    "landing:verify-downloads": "npm --workspace @devdesk/landing run verify-downloads"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
