@@ -1,5 +1,10 @@
 # DevDesk
 
+[![Release gate](https://github.com/reyanshdagoat9113/DevDesk/actions/workflows/release-gate.yml/badge.svg?branch=main)](https://github.com/reyanshdagoat9113/DevDesk/actions/workflows/release-gate.yml)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue)](docs/RELEASE-NOTES-0.1.0.md)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-lightgrey)](docs/install.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, Docker controls, terminals, and local code search into one workspace.
 
 ## Status (2026-07-24)

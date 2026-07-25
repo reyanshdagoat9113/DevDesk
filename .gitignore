@@ -22,6 +22,7 @@ pnpm-debug.log*
 Screenshot*.png
 *Screenshot*.png
 *.screenshot.png
+ChatGPT Image*.png
 
 # Claude Code local settings
 .claude/
