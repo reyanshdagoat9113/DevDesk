@@ -52,11 +52,10 @@ function resolveGitCommandCandidates() {
 }
 
 function cleanShellText(value: string) {
-  // Keep leading spaces — git status --porcelain uses them as status columns.
-  return value.replace(/\u0000/g, '').replace(/\s+$/u, '')
+  return value.replace(/\u0000/g, '').trim()
 }
 
-async function runCommand(command: string, args: string[], cwd: string): Promise<CommandResult> {
+async function runCommand(command: string, args: string[], cwd: string, preserveOutput = false): Promise<CommandResult> {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
@@ -87,15 +86,15 @@ async function runCommand(command: string, args: string[], cwd: string): Promise
     child.on('close', (code) => {
       resolve({
         ok: code === 0,
-        stdout: cleanShellText(stdout),
-        stderr: cleanShellText(stderr),
+        stdout: preserveOutput ? stdout : cleanShellText(stdout),
+        stderr: preserveOutput ? stderr : cleanShellText(stderr),
         code,
       })
     })
   })
 }
 
-async function runGitCommand(args: string[], cwd: string): Promise<CommandResult> {
+async function runGitCommand(args: string[], cwd: string, preserveOutput = false): Promise<CommandResult> {
   let gitNotFound: CommandResult | null = null
 
   for (const command of resolveGitCommandCandidates()) {
@@ -103,7 +102,7 @@ async function runGitCommand(args: string[], cwd: string): Promise<CommandResult
       continue
     }
 
-    const result = await runCommand(command, args, cwd)
+    const result = await runCommand(command, args, cwd, preserveOutput)
     const isMissingGit = result.code === null && /ENOENT/i.test(result.stderr)
     if (!isMissingGit) {
       return result
@@ -127,8 +126,8 @@ async function runGit(repoPath: string, args: string[]) {
   return result.stdout
 }
 
-async function tryGit(repoPath: string, args: string[]) {
-  return runGitCommand(args, repoPath)
+async function tryGit(repoPath: string, args: string[], preserveOutput = false) {
+  return runGitCommand(args, repoPath, preserveOutput)
 }
 
 async function checkGitRepository(repoPath: string): Promise<GitRepositoryCheck> {
@@ -210,35 +209,69 @@ function summarizeFileStatus(indexStatus: string, workingTreeStatus: string): En
   return 'unknown'
 }
 
+type PorcelainStatusEntry = {
+  indexStatus: string
+  workingTreeStatus: string
+  path: string
+  previousPath?: string
+}
+
+function parsePorcelainStatus(output: string): PorcelainStatusEntry[] {
+  const records = output.split('\u0000')
+  const entries: PorcelainStatusEntry[] = []
+
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index]
+    if (!record || record.length < 3) {
+      continue
+    }
+
+    const indexStatus = record[0] ?? ' '
+    const workingTreeStatus = record[1] ?? ' '
+    const pathValue = record.slice(3)
+    const hasSourcePath = indexStatus === 'R' ||
+      indexStatus === 'C' ||
+      workingTreeStatus === 'R' ||
+      workingTreeStatus === 'C'
+    const previousPath = hasSourcePath ? records[index + 1] || undefined : undefined
+
+    if (hasSourcePath) {
+      index += 1
+    }
+
+    entries.push({
+      indexStatus,
+      workingTreeStatus,
+      path: pathValue,
+      previousPath,
+    })
+  }
+
+  return entries
+}
+
 async function getFallbackGitInsights(repoPath: string): Promise<EngineGitInsights | null> {
   if (!(await isGitRepository(repoPath))) {
     return null
   }
 
-  const statusOutput = await runGit(repoPath, ['status', '--porcelain=1', '--branch'])
-  const statusEntries = statusOutput.split(/\r?\n/).filter(Boolean)
-  const branchInfo = parseBranchStatus(statusEntries[0] ?? '')
+  const branchOutput = await runGit(repoPath, ['status', '--porcelain=1', '--branch', '--untracked-files=no'])
+  const branchInfo = parseBranchStatus(branchOutput.split(/\r?\n/)[0] ?? '')
+  const statusResult = await tryGit(repoPath, ['status', '--porcelain=1', '-z', '--untracked-files=all'], true)
+  if (!statusResult.ok) {
+    throw new Error(statusResult.stderr || 'Unable to read git status.')
+  }
+  const statusEntries = parsePorcelainStatus(statusResult.stdout)
   const files: EngineGitInsights['workingTree']['files'] = []
 
-  for (let index = 1; index < statusEntries.length; index += 1) {
-    const entry = statusEntries[index]
-    if (entry.length < 3) {
-      continue
-    }
-
-    const indexStatus = entry[0] ?? ' '
-    const workingTreeStatus = entry[1] ?? ' '
-    const rawPath = entry.slice(3)
+  for (const entry of statusEntries) {
+    const { indexStatus, workingTreeStatus } = entry
     const summary = summarizeFileStatus(indexStatus, workingTreeStatus)
     const conflicted = isConflictStatus(indexStatus, workingTreeStatus)
-    const renamed = summary === 'renamed'
-    const [previousPath, nextPath] = renamed
-      ? rawPath.split(' -> ', 2)
-      : [undefined, rawPath]
 
     files.push({
-      path: nextPath,
-      previousPath,
+      path: entry.path,
+      previousPath: entry.previousPath,
       indexStatus,
       workingTreeStatus,
       staged: indexStatus !== ' ' && indexStatus !== '?',
@@ -493,8 +526,8 @@ export async function pushCurrentBranch(repoPath: string, setUpstreamIfNeeded: b
 }
 
 function normalizeRepoRelativePath(filePath: string) {
-  const normalized = filePath.replace(/\\/g, '/').replace(/^\.\/+/, '').trim()
-  if (!normalized || path.isAbsolute(normalized) || normalized.split('/').includes('..')) {
+  const normalized = filePath.replace(/\\/g, '/').replace(/^\.\/+/, '')
+  if (!normalized || normalized.includes('\u0000') || path.isAbsolute(normalized) || normalized.split('/').includes('..')) {
     throw new Error('A valid repository-relative file path is required.')
   }
   return normalized
@@ -525,6 +558,19 @@ function countDiffStats(patch: string) {
 
 function isBinaryPatch(patch: string) {
   return /Binary files .* differ/i.test(patch) || /^GIT binary patch$/m.test(patch)
+}
+
+function truncateUtf8(value: string, maxBytes: number) {
+  const buffer = Buffer.from(value, 'utf8')
+  if (buffer.length <= maxBytes) {
+    return value
+  }
+
+  let end = maxBytes
+  while (end > 0 && (buffer[end] & 0xc0) === 0x80) {
+    end -= 1
+  }
+  return buffer.subarray(0, end).toString('utf8')
 }
 
 function parseUnifiedDiff(patch: string, truncated: boolean): GitDiffLine[] {
@@ -617,7 +663,7 @@ function buildDiffSection(scope: GitDiffScope, label: string, patch: string): Gi
   let truncated = false
 
   if (Buffer.byteLength(workingPatch, 'utf8') > MAX_DIFF_BYTES) {
-    workingPatch = workingPatch.slice(0, MAX_DIFF_BYTES)
+    workingPatch = truncateUtf8(workingPatch, MAX_DIFF_BYTES)
     truncated = true
   }
 
@@ -664,8 +710,19 @@ async function buildUntrackedDiffSection(repoPath: string, relativePath: string)
   const absolutePath = path.join(repoPath, relativePath)
 
   let buffer: Buffer
+  let fileMode = '100644'
   try {
-    buffer = await fs.readFile(absolutePath)
+    const stat = await fs.lstat(absolutePath)
+    if (stat.isDirectory()) {
+      throw new Error('Cannot display a diff for a directory.')
+    }
+    if (stat.isSymbolicLink()) {
+      buffer = Buffer.from(await fs.readlink(absolutePath))
+      fileMode = '120000'
+    } else {
+      buffer = await fs.readFile(absolutePath)
+      fileMode = stat.mode & 0o111 ? '100755' : '100644'
+    }
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : 'Unable to read untracked file.')
   }
@@ -685,11 +742,14 @@ async function buildUntrackedDiffSection(repoPath: string, relativePath: string)
   let text = buffer.toString('utf8')
   let truncated = false
   if (Buffer.byteLength(text, 'utf8') > MAX_DIFF_BYTES) {
-    text = text.slice(0, MAX_DIFF_BYTES)
+    text = truncateUtf8(text, MAX_DIFF_BYTES)
     truncated = true
   }
 
   const contentLines = text.split(/\r?\n/)
+  if (contentLines.at(-1) === '') {
+    contentLines.pop()
+  }
   if (contentLines.length > MAX_DIFF_LINES) {
     contentLines.length = MAX_DIFF_LINES
     truncated = true
@@ -698,7 +758,7 @@ async function buildUntrackedDiffSection(repoPath: string, relativePath: string)
   const body = contentLines.map((line) => `+${line}`).join('\n')
   const patch = [
     `diff --git a/${relativePath} b/${relativePath}`,
-    'new file mode 100644',
+    `new file mode ${fileMode}`,
     '--- /dev/null',
     `+++ b/${relativePath}`,
     `@@ -0,0 +1,${contentLines.length} @@`,
@@ -734,7 +794,11 @@ export async function getFileDiff(repoPath: string, filePath: string): Promise<G
     }
   }
 
-  const statusResult = await tryGit(repoPath, ['status', '--porcelain=1', '--', relativePath])
+  const statusResult = await tryGit(
+    repoPath,
+    ['status', '--porcelain=1', '-z', '--untracked-files=all'],
+    true,
+  )
   if (!statusResult.ok) {
     return {
       ok: false,
@@ -745,8 +809,10 @@ export async function getFileDiff(repoPath: string, filePath: string): Promise<G
     }
   }
 
-  const statusLine = statusResult.stdout.split(/\r?\n/).map((line) => line.trimEnd()).find(Boolean) ?? ''
-  if (!statusLine) {
+  const statusEntry = parsePorcelainStatus(statusResult.stdout).find(
+    (entry) => entry.path === relativePath || entry.previousPath === relativePath,
+  )
+  if (!statusEntry) {
     return {
       ok: true,
       available: true,
@@ -756,16 +822,9 @@ export async function getFileDiff(repoPath: string, filePath: string): Promise<G
     }
   }
 
-  // porcelain v1: XY<path> where X/Y are status chars and path is separated by a space
-  const indexStatus = statusLine[0] ?? ' '
-  const workingTreeStatus = statusLine[1] ?? ' '
-  const pathPart = statusLine.length >= 3 ? statusLine.slice(2).replace(/^\s+/, '') : ''
-  const renamed = indexStatus === 'R' || workingTreeStatus === 'R' || pathPart.includes(' -> ')
-  const [previousPath, nextPath] = renamed
-    ? pathPart.split(' -> ', 2)
-    : [undefined, pathPart || relativePath]
-  const targetPath = (nextPath || relativePath).replace(/\\/g, '/').replace(/^"|"$/g, '')
-  const sourcePath = previousPath?.replace(/\\/g, '/').replace(/^"|"$/g, '')
+  const { indexStatus, workingTreeStatus } = statusEntry
+  const targetPath = statusEntry.path
+  const sourcePath = statusEntry.previousPath
   const untracked = indexStatus === '?' && workingTreeStatus === '?'
   const staged = indexStatus !== ' ' && indexStatus !== '?'
   const unstaged = workingTreeStatus !== ' ' && workingTreeStatus !== '?'

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowUpRight,
   GitBranch,
@@ -138,6 +138,7 @@ export function GitWorkspacePanel({
   const [isLoadingDiff, setIsLoadingDiff] = useState(false)
   const [diffError, setDiffError] = useState<string | null>(null)
   const [diffReloadToken, setDiffReloadToken] = useState(0)
+  const diffRequestId = useRef(0)
 
   const changedFiles = useMemo(() => gitState?.workingTree?.files ?? [], [gitState?.workingTree?.files])
   const recentCommits = gitInsights?.recentCommits ?? []
@@ -148,19 +149,30 @@ export function GitWorkspacePanel({
   )
 
   const loadFileDiff = useCallback(async (relativePath: string) => {
+    const requestId = diffRequestId.current + 1
+    diffRequestId.current = requestId
     setIsLoadingDiff(true)
+    setSelectedFileDiff(null)
     setDiffError(null)
     try {
       const result = await onLoadFileDiff(project.id, relativePath)
+      if (requestId !== diffRequestId.current) {
+        return
+      }
       setSelectedFileDiff(result)
       if (!result.ok) {
         setDiffError(result.message || 'Failed to load file diff.')
       }
     } catch (loadError) {
+      if (requestId !== diffRequestId.current) {
+        return
+      }
       setSelectedFileDiff(null)
       setDiffError(loadError instanceof Error ? loadError.message : 'Failed to load file diff.')
     } finally {
-      setIsLoadingDiff(false)
+      if (requestId === diffRequestId.current) {
+        setIsLoadingDiff(false)
+      }
     }
   }, [onLoadFileDiff, project.id])
 
@@ -207,6 +219,7 @@ export function GitWorkspacePanel({
 
   useEffect(() => {
     if (!changedFiles.length) {
+      diffRequestId.current += 1
       setSelectedFilePath(null)
       setSelectedFileDiff(null)
       setDiffError(null)
@@ -504,7 +517,13 @@ export function GitWorkspacePanel({
                               key={file.path}
                               type="button"
                               onClick={() => {
-                                setSelectedFilePath(file.path)
+                                if (file.path !== selectedFilePath) {
+                                  diffRequestId.current += 1
+                                  setSelectedFilePath(file.path)
+                                  setSelectedFileDiff(null)
+                                  setDiffError(null)
+                                  setIsLoadingDiff(true)
+                                }
                                 setInsightView('changes')
                               }}
                               className={cn(

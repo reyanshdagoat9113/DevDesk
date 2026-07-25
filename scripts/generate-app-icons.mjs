@@ -1,6 +1,6 @@
 /**
  * Generate electron-builder icon assets from the product logo.
- * Produces build/icon.png (512) and build/icon.ico (Windows).
+ * Produces the build, renderer, and favicon copies of the app icon.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -18,6 +18,8 @@ const pngOut = path.join(buildDir, 'icon.png')
 const icoOut = path.join(buildDir, 'icon.ico')
 // In-app logo tile (same rounded mark) bundled by the renderer.
 const appIconOut = path.join(repoRoot, 'apps', 'renderer', 'assets', 'devdesk-icon.png')
+const faviconPngOut = path.join(repoRoot, 'apps', 'renderer', 'public', 'favicon.png')
+const faviconIcoOut = path.join(repoRoot, 'apps', 'renderer', 'public', 'favicon.ico')
 
 /**
  * Scan a region and return the tight bounding box of pixels that differ from
@@ -88,6 +90,7 @@ function roundCorners(img, radius) {
 
 async function main() {
   fs.mkdirSync(buildDir, { recursive: true })
+  fs.mkdirSync(path.dirname(faviconPngOut), { recursive: true })
 
   if (!fs.existsSync(sourceLogo)) {
     throw new Error(`Logo source not found: ${sourceLogo}`)
@@ -132,17 +135,20 @@ async function main() {
   roundCorners(canvas, CORNER_RADIUS)
   await canvas.write(pngOut)
 
-  // Reuse the same rounded tile as the in-app logo shown in the sidebar.
+  // Keep every runtime copy synchronized with the generated build icon.
   await canvas.clone().write(appIconOut)
+  await canvas.clone().write(faviconPngOut)
 
-  fs.writeFileSync(icoOut, await pngToIco(pngOut))
+  const ico = await pngToIco(pngOut)
+  fs.writeFileSync(icoOut, ico)
+  fs.writeFileSync(faviconIcoOut, ico)
 
   if (!fs.existsSync(icoOut) || fs.statSync(icoOut).size < 100) {
     throw new Error(`Failed to write Windows icon: ${icoOut}`)
   }
 
   console.log(
-    `Wrote ${path.relative(repoRoot, pngOut)}, ${path.relative(repoRoot, icoOut)}, and ${path.relative(repoRoot, appIconOut)}`,
+    `Wrote ${path.relative(repoRoot, pngOut)}, ${path.relative(repoRoot, icoOut)}, ${path.relative(repoRoot, appIconOut)}, ${path.relative(repoRoot, faviconPngOut)}, and ${path.relative(repoRoot, faviconIcoOut)}`,
   )
 }
 

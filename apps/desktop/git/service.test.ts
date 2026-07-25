@@ -115,10 +115,50 @@ describe('git service', () => {
     expect(untracked.ok).toBe(true)
     expect(untracked.sections).toHaveLength(1)
     expect(untracked.sections[0]?.scope).toBe('untracked')
-    expect(untracked.sections[0]?.additions).toBeGreaterThan(0)
+    expect(untracked.sections[0]?.additions).toBe(1)
 
     expect(missing.ok).toBe(true)
     expect(missing.sections).toHaveLength(0)
+  })
+
+  it('handles renamed paths with spaces and separate staged and unstaged changes', async () => {
+    const { getFileDiff, getGitWorkflowState } = await import('./service')
+    const originalPath = path.join(repoDir, 'src', 'old name.ts')
+    const renamedPath = path.join(repoDir, 'src', 'new name.ts')
+    fs.writeFileSync(originalPath, 'export const value = 1\n')
+    runGit(['add', '.'])
+    runGit(['commit', '-m', 'Add unusual path'])
+    fs.renameSync(originalPath, renamedPath)
+    runGit(['add', '-A'])
+    fs.writeFileSync(renamedPath, 'export const value = 2\n')
+
+    const workflow = await getGitWorkflowState(repoDir)
+    const changedFile = workflow.workingTree?.files.find((file) => file.path === 'src/new name.ts')
+    const result = await getFileDiff(repoDir, changedFile?.path ?? '')
+
+    expect(changedFile?.previousPath).toBe('src/old name.ts')
+    expect(result.ok).toBe(true)
+    expect(result.path).toBe('src/new name.ts')
+    expect(result.previousPath).toBe('src/old name.ts')
+    expect(result.sections.map((section) => section.scope)).toEqual(['staged', 'unstaged'])
+  })
+
+  it('shows an untracked symlink without reading its target', async () => {
+    if (process.platform === 'win32') {
+      return
+    }
+
+    const { getFileDiff } = await import('./service')
+    const outsidePath = path.join(tempDir, 'outside-secret.txt')
+    fs.writeFileSync(outsidePath, 'secret contents\n')
+    fs.symlinkSync(outsidePath, path.join(repoDir, 'outside-link'))
+
+    const result = await getFileDiff(repoDir, 'outside-link')
+    const renderedText = result.sections.flatMap((section) => section.lines).map((line) => line.text).join('\n')
+
+    expect(result.ok).toBe(true)
+    expect(renderedText).toContain(outsidePath)
+    expect(renderedText).not.toContain('secret contents')
   })
 
   it('rejects path traversal for diffs', async () => {
