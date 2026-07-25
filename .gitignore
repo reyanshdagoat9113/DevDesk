@@ -1,5 +1,6 @@
 # Build outputs
 dist/
+release/
 *.tsbuildinfo
 
 # Dependencies
@@ -8,6 +9,8 @@ node_modules/
 # Local env / OS files
 .DS_Store
 Thumbs.db
+.env
+.env.*
 
 # Logs
 npm-debug.log*
@@ -19,10 +22,14 @@ pnpm-debug.log*
 Screenshot*.png
 *Screenshot*.png
 *.screenshot.png
+ChatGPT Image*.png
 
 # Claude Code local settings
 .claude/
 
 # Error files (Windows nul device accidentally created as file)
 nul
+
+# Accidental sibling checkout inside monorepo
+devdesk-addons/
 

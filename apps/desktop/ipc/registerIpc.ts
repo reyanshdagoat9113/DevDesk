@@ -1,24 +1,199 @@
-import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { getStore, updateStore } from '../data/store'
+import {
+  addBugAttachmentRecord,
+  cleanupOldHealthChecks,
+  clearRunHistoryInStore,
+  createChain,
+  createBugReport,
+  createCommand,
+  createHealthCheckRun,
+  createProject,
+  createRunHistoryEntry,
+  createTrigger,
+  deleteBugAttachmentRecord,
+  deleteBugReport,
+  exportAllData,
+  finalizeRunHistoryEntry,
+  validateExportData,
+  getBugAttachmentById,
+  getBugReportById,
+  getBugContextSnapshotByBugId,
+  getChainById,
+  getCommandById,
+  getHealthCheckRunById,
+  getLatestHealthCheckForProject,
+  getPreferencesFromStore,
+  getProjectById,
+  getProjectNotesById,
+  getRunHistoryOutputById,
+  getTriggerById,
+  importAllData,
+  listBugAttachmentPathsByBugId,
+  listBugAttachments,
+  listChains,
+  listBugReports,
+  listCommands,
+  listHealthCheckRuns,
+  listProjects,
+  listRecentRunHistory,
+  listRunHistory,
+  listTriggers,
+  removeCommand,
+  removeChain,
+  removeProject,
+  removeRunHistoryEntry,
+  removeTrigger,
+  renameProject,
+  replaceChain,
+  replaceCommand,
+  replaceTrigger,
+  saveBugContextSnapshot,
+  toggleCommandPin,
+  toggleProjectPin,
+  updateBugReport,
+  updatePreferencesInStore,
+  updateProjectLinkedContainers,
+  upsertProjectNotes,
+} from '../data/store'
+import type { ImportMode } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
-import type { AppPreference, AppPreferences, Command, Container, Project, RunStatus } from '../data/model'
+import { inspectProjectHealth } from '../projectIntelligence/healthInspector'
+import type {
+  AddBugAttachmentInput,
+  AppPreference,
+  AppPreferences,
+  BugAttachment,
+  BugAttachmentKind,
+  BugContextSnapshot,
+  BugContextSnapshotData,
+  BugReport,
+  BugReportFilters,
+  BugSeverity,
+  BugStatus,
+  ChainStep,
+  Command,
+  CommandChain,
+  CommandTrigger,
+  CommandTriggerEvent,
+  CreateBugReportInput,
+  Container,
+  Project,
+  ProjectHealthReport,
+  ProjectNotes,
+  RunStatus,
+  UpdateBugReportInput,
+} from '../data/model'
+import { copyFileToAttachments, deleteAttachmentFile } from '../bugs/attachmentService'
+import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
+import { variableResolver } from '../commands/variableResolver'
+import { detectVariables } from '../commands/variableDetector'
+import { terminalManager } from '../terminal/terminalManager'
+import type { TerminalCreateOptions } from '../data/model'
+import { runSystemChecks } from '../health/systemChecks'
+import { runRuntimeChecks } from '../health/runtimeChecks'
+import { captureContextSnapshot } from '../bugs/contextSnapshot'
+import { bundleLlmContext, type LlmBundleOptions } from '../llm/bundler'
 
 type RunningCommand = {
   process: ChildProcessWithoutNullStreams
   output: string
   requestedStop: boolean
+  completion: Promise<RunStatus>
 }
 
 const runningCommands = new Map<string, RunningCommand>()
+
+type ChainStepRunPayload = {
+  stepId: string
+  commandId: string
+  status: 'pending' | 'running' | 'success' | 'failed' | 'stopped' | 'skipped'
+  runId?: string
+  startedAt?: string
+  endedAt?: string
+  error?: string
+}
+
+type ChainRunPayload = {
+  runId: string
+  chainId: string
+  projectId?: string
+  status: 'running' | 'success' | 'failed' | 'stopped'
+  startedAt: string
+  endedAt?: string
+  activeStepId?: string
+  error?: string
+  steps: ChainStepRunPayload[]
+}
+
+const runningChains = new Map<string, ChainRunPayload>()
+
+type TriggerMutationInput = {
+  name: string
+  description?: string
+  projectId?: string
+  chainId: string
+  event: CommandTriggerEvent
+  enabled?: boolean
+  requireConfirmation?: boolean
+}
+
+type BugApiErrorCode = 'validation' | 'not_found' | 'internal'
+
+type BugApiResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: { code: BugApiErrorCode; message: string } }
+
+type TriggerEventContext = {
+  projectId?: string
+  containerNames?: string[]
+}
+
+type TriggerConfirmationRequestPayload = {
+  id: string
+  triggerId: string
+  triggerName: string
+  chainId: string
+  chainName: string
+  event: CommandTriggerEvent
+  projectId?: string
+  projectName?: string
+  containerNames?: string[]
+  createdAt: string
+}
+
+type PendingTriggerConfirmation = {
+  request: TriggerConfirmationRequestPayload
+  resolve: (approved: boolean) => void
+  timeout: NodeJS.Timeout
+}
+
+const pendingTriggerConfirmations = new Map<string, PendingTriggerConfirmation>()
+
+type RunningDockerLogSubscription = {
+  process: ChildProcessWithoutNullStreams
+  containerId: string
+}
+
+const runningDockerLogSubscriptions = new Map<string, RunningDockerLogSubscription>()
 
 type WslProjectLocation = {
   distro: string
   linuxPath: string
   uncPath: string
+}
+
+type SpawnDetachedOptions = {
+  shell?: boolean
+  windowsHide?: boolean
+}
+
+type DetachedLaunchCommand = {
+  command: string
+  args: string[]
 }
 
 const WSL_UNC_PATH_PATTERN = /^\\\\wsl(?:\.localhost|\$)\\([^\\/]+)(?:[\\/](.*))?$/i
@@ -47,6 +222,236 @@ function resolveWslExecutablePath() {
 const WSL_EXECUTABLE_PATH = resolveWslExecutablePath()
 
 const WSL_DISTRO_NAME_BLACKLIST = new Set(['docker-desktop', 'docker-desktop-data'])
+const VALID_BUG_SEVERITIES = new Set<BugSeverity>(['low', 'medium', 'high', 'critical'])
+const VALID_BUG_STATUSES = new Set<BugStatus>(['open', 'in_progress', 'resolved', 'closed'])
+const BUG_CREATE_INPUT_KEYS = new Set<keyof CreateBugReportInput | 'contextSnapshot'>([
+  'projectId',
+  'title',
+  'severity',
+  'status',
+  'expectedResult',
+  'actualResult',
+  'reproductionSteps',
+  'notes',
+  'resolutionNotes',
+  'contextSnapshot',
+])
+const BUG_UPDATE_INPUT_KEYS = new Set<keyof UpdateBugReportInput>([
+  'title',
+  'severity',
+  'status',
+  'expectedResult',
+  'actualResult',
+  'reproductionSteps',
+  'notes',
+  'resolutionNotes',
+])
+const BUG_FILTER_KEYS = new Set<keyof BugReportFilters>(['projectId', 'status', 'severity'])
+
+function bugSuccess<T>(data: T): BugApiResult<T> {
+  return { ok: true, data }
+}
+
+function bugFailure<T>(code: BugApiErrorCode, message: string): BugApiResult<T> {
+  return { ok: false, error: { code, message } }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function validateAllowedKeys(value: Record<string, unknown>, allowedKeys: Set<string>, label: string) {
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key)) {
+      throw new Error(`${label} contains an unsupported field: ${key}.`)
+    }
+  }
+}
+
+function sanitizeRequiredBugString(value: unknown, field: string): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${field} is required.`)
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed) {
+    throw new Error(`${field} is required.`)
+  }
+
+  return trimmed
+}
+
+function sanitizeOptionalBugString(value: unknown, field: string): string | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (typeof value !== 'string') {
+    throw new Error(`${field} must be a string.`)
+  }
+
+  return value
+}
+
+function sanitizeBugSeverity(value: unknown, field: string): BugSeverity | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (typeof value !== 'string' || !VALID_BUG_SEVERITIES.has(value as BugSeverity)) {
+    throw new Error(`${field} must be one of: low, medium, high, critical.`)
+  }
+
+  return value as BugSeverity
+}
+
+function sanitizeBugStatus(value: unknown, field: string): BugStatus | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (typeof value !== 'string' || !VALID_BUG_STATUSES.has(value as BugStatus)) {
+    throw new Error(`${field} must be one of: open, in_progress, resolved, closed.`)
+  }
+
+  return value as BugStatus
+}
+
+function sanitizeBugId(value: unknown, field = 'Bug id'): string {
+  return sanitizeRequiredBugString(value, field)
+}
+
+function sanitizeCreateBugInput(input: unknown): CreateBugReportInput {
+  if (!isRecord(input)) {
+    throw new Error('Bug create input is required.')
+  }
+
+  validateAllowedKeys(input, BUG_CREATE_INPUT_KEYS as Set<string>, 'Bug create input')
+
+  return {
+    projectId: sanitizeRequiredBugString(input.projectId, 'Bug projectId'),
+    title: sanitizeRequiredBugString(input.title, 'Bug title'),
+    severity: sanitizeBugSeverity(input.severity, 'Bug severity'),
+    status: sanitizeBugStatus(input.status, 'Bug status'),
+    expectedResult: sanitizeOptionalBugString(input.expectedResult, 'Bug expectedResult'),
+    actualResult: sanitizeOptionalBugString(input.actualResult, 'Bug actualResult'),
+    reproductionSteps: sanitizeOptionalBugString(input.reproductionSteps, 'Bug reproductionSteps'),
+    notes: sanitizeOptionalBugString(input.notes, 'Bug notes'),
+    resolutionNotes: sanitizeOptionalBugString(input.resolutionNotes, 'Bug resolutionNotes'),
+  }
+}
+
+function sanitizeUpdateBugInput(input: unknown): UpdateBugReportInput {
+  if (!isRecord(input)) {
+    throw new Error('Bug update input is required.')
+  }
+
+  validateAllowedKeys(input, BUG_UPDATE_INPUT_KEYS as Set<string>, 'Bug update input')
+
+  const sanitized: UpdateBugReportInput = {}
+
+  if ('title' in input) {
+    sanitized.title = sanitizeRequiredBugString(input.title, 'Bug title')
+  }
+  if ('severity' in input) {
+    sanitized.severity = sanitizeBugSeverity(input.severity, 'Bug severity')
+  }
+  if ('status' in input) {
+    sanitized.status = sanitizeBugStatus(input.status, 'Bug status')
+  }
+  if ('expectedResult' in input) {
+    sanitized.expectedResult = sanitizeOptionalBugString(input.expectedResult, 'Bug expectedResult')
+  }
+  if ('actualResult' in input) {
+    sanitized.actualResult = sanitizeOptionalBugString(input.actualResult, 'Bug actualResult')
+  }
+  if ('reproductionSteps' in input) {
+    sanitized.reproductionSteps = sanitizeOptionalBugString(input.reproductionSteps, 'Bug reproductionSteps')
+  }
+  if ('notes' in input) {
+    sanitized.notes = sanitizeOptionalBugString(input.notes, 'Bug notes')
+  }
+  if ('resolutionNotes' in input) {
+    sanitized.resolutionNotes = sanitizeOptionalBugString(input.resolutionNotes, 'Bug resolutionNotes')
+  }
+
+  return sanitized
+}
+
+function sanitizeBugFilters(filters: unknown): BugReportFilters {
+  if (filters === undefined) {
+    return {}
+  }
+
+  if (!isRecord(filters)) {
+    throw new Error('Bug filters must be an object.')
+  }
+
+  validateAllowedKeys(filters, BUG_FILTER_KEYS as Set<string>, 'Bug filters')
+
+  const sanitized: BugReportFilters = {}
+
+  if ('projectId' in filters) {
+    sanitized.projectId = sanitizeRequiredBugString(filters.projectId, 'Bug filters projectId')
+  }
+  if ('status' in filters) {
+    sanitized.status = sanitizeBugStatus(filters.status, 'Bug filters status')
+  }
+  if ('severity' in filters) {
+    sanitized.severity = sanitizeBugSeverity(filters.severity, 'Bug filters severity')
+  }
+
+  return sanitized
+}
+
+function toBugApiError(error: unknown): { code: BugApiErrorCode; message: string } {
+  if (error instanceof Error) {
+    return { code: 'validation', message: error.message }
+  }
+
+  return { code: 'internal', message: 'Unexpected bug IPC error.' }
+}
+
+const VALID_ATTACHMENT_KINDS = new Set<BugAttachmentKind>(['screenshot', 'log', 'file', 'env_snapshot'])
+
+function sanitizeAddAttachmentInput(input: unknown): AddBugAttachmentInput {
+  if (!isRecord(input)) {
+    throw new Error('Attachment input is required.')
+  }
+
+  const bugReportId = sanitizeRequiredBugString(input.bugReportId, 'Bug report id')
+  const sourceFilePath = sanitizeRequiredBugString(input.sourceFilePath, 'Source file path')
+
+  let kind: BugAttachmentKind | undefined
+  if (input.kind !== undefined) {
+    if (typeof input.kind !== 'string' || !VALID_ATTACHMENT_KINDS.has(input.kind as BugAttachmentKind)) {
+      throw new Error('Attachment kind must be one of: screenshot, log, file, env_snapshot.')
+    }
+    kind = input.kind as BugAttachmentKind
+  }
+
+  let mimeType: string | undefined
+  if (input.mimeType !== undefined) {
+    if (typeof input.mimeType !== 'string') {
+      throw new Error('Attachment mimeType must be a string.')
+    }
+    mimeType = input.mimeType
+  }
+
+  return { bugReportId, sourceFilePath, kind, mimeType }
+}
+
+function isValidContextSnapshotData(value: unknown): value is BugContextSnapshotData {
+  if (!isRecord(value)) return false
+
+  return typeof value.commandHistoryJson === 'string' &&
+    typeof value.runHistoryJson === 'string' &&
+    typeof value.logsJson === 'string' &&
+    typeof value.environmentSnapshotJson === 'string' &&
+    typeof value.activeContainerStateJson === 'string' &&
+    typeof value.healthSnapshotJson === 'string' &&
+    typeof value.notesSnippetJson === 'string'
+}
 
 function cleanWslDistroName(rawValue: string) {
   return rawValue.replace(/\u0000/g, '').replace(/\uFEFF/g, '').replace(/\s+\(default\)$/i, '').trim()
@@ -190,15 +595,61 @@ function getWslVscodeFolderUri(location: WslProjectLocation): string {
   return `vscode-remote://wsl+${encodeURIComponent(location.distro)}${encodedPath}`
 }
 
+function formatPowerShellLiteral(value: string) {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+function formatCmdLiteral(value: string) {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
+function getWslTerminalLaunchCandidates(location: WslProjectLocation, terminalPreferenceId: string): DetachedLaunchCommand[] {
+  const windowsTerminalLaunches: DetachedLaunchCommand[] = [
+    { command: 'wt', args: [WSL_EXECUTABLE_PATH, '-d', location.distro, '--cd', location.linuxPath] },
+    { command: 'wt', args: ['-d', location.uncPath] },
+  ]
+
+  const powershellLaunch: DetachedLaunchCommand = {
+    command: 'powershell',
+    args: [
+      '-NoExit',
+      '-Command',
+      `& ${formatPowerShellLiteral(WSL_EXECUTABLE_PATH)} -d ${formatPowerShellLiteral(location.distro)} --cd ${formatPowerShellLiteral(location.linuxPath)}`,
+    ],
+  }
+
+  const cmdLaunch: DetachedLaunchCommand = {
+    command: 'cmd.exe',
+    args: ['/k', `${formatCmdLiteral(WSL_EXECUTABLE_PATH)} -d ${formatCmdLiteral(location.distro)} --cd ${formatCmdLiteral(location.linuxPath)}`],
+  }
+
+  if (terminalPreferenceId === 'powershell') {
+    return [powershellLaunch, cmdLaunch, ...windowsTerminalLaunches]
+  }
+
+  if (terminalPreferenceId === 'cmd') {
+    return [cmdLaunch, powershellLaunch, ...windowsTerminalLaunches]
+  }
+
+  return [...windowsTerminalLaunches, powershellLaunch, cmdLaunch]
+}
+
 async function openWslProjectInTerminal(location: WslProjectLocation, terminalPreferenceId: string) {
-  if (terminalPreferenceId === 'windows-terminal') {
-    const result = await spawnDetached('wt', [WSL_EXECUTABLE_PATH, '-d', location.distro, '--cd', location.linuxPath])
+  const launchCandidates = getWslTerminalLaunchCandidates(location, terminalPreferenceId)
+  let lastError = 'Failed to open WSL project in terminal.'
+
+  for (const launch of launchCandidates) {
+    const result = await spawnDetachedWithShellFallback(launch.command, launch.args, { windowsHide: false })
     if (result.success) {
       return result
     }
+
+    if (result.error) {
+      lastError = result.error
+    }
   }
 
-  return spawnDetached(WSL_EXECUTABLE_PATH, ['-d', location.distro, '--cd', location.linuxPath])
+  return { success: false, error: lastError }
 }
 
 async function listWslDistros(): Promise<string[]> {
@@ -245,8 +696,8 @@ async function listWslDistros(): Promise<string[]> {
   }
 
   try {
-    const store = await getStore()
-    for (const project of store.projects) {
+    const projects = await listProjects()
+    for (const project of projects) {
       const parsed = parseWslProjectPath(project.path)
       if (parsed) {
         addWslDistroName(distros, parsed.distro)
@@ -270,11 +721,36 @@ async function listWslDistros(): Promise<string[]> {
   return [defaultEntry, ...sorted]
 }
 
+function formatProcessExitCode(code: number | null) {
+  if (code === null) {
+    return 'unknown'
+  }
+
+  return code > 0x7fffffff ? `${code - 0x100000000}` : `${code}`
+}
+
 function runDockerCommandWith(command: string, args: string[]) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(command, args, { windowsHide: true })
     let stdout = ''
     let stderr = ''
+    let settled = false
+
+    const resolveOnce = (value: string) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      resolve(value)
+    }
+
+    const rejectOnce = (error: Error) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      reject(error)
+    }
 
     child.stdout.on('data', (chunk) => {
       stdout += chunk.toString()
@@ -285,16 +761,22 @@ function runDockerCommandWith(command: string, args: string[]) {
     })
 
     child.on('error', (error) => {
-      reject(error)
+      rejectOnce(error)
     })
 
     child.on('close', (code) => {
-      if (code === 0) {
-        resolve(stdout.trimEnd())
+      if (settled) {
         return
       }
-      const message = stderr.trim() || `Docker command failed (exit ${code}).`
-      reject(new Error(message))
+
+      if (code === 0) {
+        resolveOnce(stdout.trimEnd())
+        return
+      }
+
+      const formattedCode = formatProcessExitCode(code)
+      const message = stderr.trim() || `Docker command failed (exit ${formattedCode}).`
+      rejectOnce(new Error(message))
     })
   })
 }
@@ -306,9 +788,12 @@ function sanitizeShellMessage(message: string) {
 function isDockerDaemonError(message: string) {
   const normalized = sanitizeShellMessage(message).toLowerCase()
   return (
+    normalized.includes('failed to connect to the docker api') ||
     normalized.includes('cannot connect to the docker daemon') ||
     normalized.includes('is the docker daemon running') ||
-    normalized.includes('error during connect')
+    normalized.includes('error during connect') ||
+    normalized.includes('dial unix') ||
+    normalized.includes('docker.sock')
   )
 }
 
@@ -316,8 +801,7 @@ function isDockerNotFoundError(message: string) {
   const normalized = sanitizeShellMessage(message).toLowerCase()
   return (
     normalized.includes('command not found') ||
-    normalized.includes('not recognized as an internal or external command') ||
-    normalized.includes('no such file or directory')
+    normalized.includes('not recognized as an internal or external command')
   )
 }
 
@@ -424,18 +908,28 @@ async function runDockerCommand(args: string[]) {
     if (isNotFound) {
       throw new Error('Docker CLI not found. Install Docker Desktop to enable containers.')
     }
+
+    if (isDaemonError) {
+      throw new Error('Docker daemon is not running. Start Docker Desktop and try again.')
+    }
     
     throw new Error(message)
   }
 }
 
 function parseDockerContainers(output: string): Container[] {
-  if (!output.trim()) return []
-  return output
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
+  if (!output.trim()) {
+    return []
+  }
+
+  const containers: Container[] = []
+  for (const rawLine of output.split('\n')) {
+    const line = rawLine.trim()
+    if (!line) {
+      continue
+    }
+
+    try {
       const entry = JSON.parse(line) as {
         ID?: string
         Names?: string
@@ -473,7 +967,7 @@ function parseDockerContainers(output: string): Container[] {
           ? rawCommand.slice(1, -1)
           : rawCommand
 
-      return {
+      containers.push({
         id: entry.ID ?? '',
         name: entry.Names ?? entry.ID ?? 'Unknown',
         image: entry.Image ?? 'Unknown',
@@ -483,8 +977,122 @@ function parseDockerContainers(output: string): Container[] {
         createdAt: entry.CreatedAt ?? '',
         labels,
         command: command ?? '',
+      })
+    } catch {
+      continue
+    }
+  }
+
+  return containers
+}
+
+function sanitizeLinkedContainerNames(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const seen = new Set<string>()
+  const next: string[] = []
+  for (const raw of value) {
+    if (typeof raw !== 'string') {
+      continue
+    }
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      continue
+    }
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    next.push(trimmed)
+  }
+
+  return next
+}
+
+async function listDockerContainers(): Promise<Container[]> {
+  const output = await runDockerCommand(['ps', '-a', '--no-trunc', '--format', '{{json .}}'])
+  return parseDockerContainers(output)
+}
+
+function requireContainerId(input: string) {
+  const containerId = input.trim()
+  if (!containerId) {
+    throw new Error('Container id is required.')
+  }
+  return containerId
+}
+
+function getContainerByLinkedName(containers: Container[], linkedName: string): Container | null {
+  const key = linkedName.trim().toLowerCase()
+  if (!key) {
+    return null
+  }
+  return containers.find((container) => container.name.trim().toLowerCase() === key) ?? null
+}
+
+function getWslDockerLaunchArgs(args: string[]) {
+  return ['-e', 'bash', '-lc', buildDockerShellCommand(args)]
+}
+
+function getWslDistroDockerLaunchArgs(distro: string, args: string[]) {
+  return ['-d', distro, ...getWslDockerLaunchArgs(args)]
+}
+
+async function resolveDockerStreamLaunch(args: string[]): Promise<{ command: string; args: string[] }> {
+  if (process.platform !== 'win32') {
+    return { command: 'docker', args }
+  }
+
+  try {
+    await runDockerCommandWith('docker', ['version', '--format', '{{.Server.Version}}'])
+    return { command: 'docker', args }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Docker not available.'
+    if (!isRecoverableWslDockerError(message)) {
+      throw error
+    }
+  }
+
+  try {
+    await runDockerCommandWith(WSL_EXECUTABLE_PATH, getWslDockerLaunchArgs(['version', '--format', '{{.Server.Version}}']))
+    return {
+      command: WSL_EXECUTABLE_PATH,
+      args: getWslDockerLaunchArgs(args),
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Docker not available in WSL.'
+    if (!isRecoverableWslDockerError(message)) {
+      throw error
+    }
+  }
+
+  const distros = await listWslDistros()
+  for (const distro of distros) {
+    try {
+      await runDockerCommandWith(
+        WSL_EXECUTABLE_PATH,
+        getWslDistroDockerLaunchArgs(distro, ['version', '--format', '{{.Server.Version}}'])
+      )
+      return {
+        command: WSL_EXECUTABLE_PATH,
+        args: getWslDistroDockerLaunchArgs(distro, args),
       }
-    })
+    } catch {
+      // Try next distro
+    }
+  }
+
+  throw new Error('Docker is not available. Install Docker Desktop or enable Docker inside WSL.')
+}
+
+async function spawnDockerCommandStream(args: string[]): Promise<ChildProcessWithoutNullStreams> {
+  const launch = await resolveDockerStreamLaunch(args)
+  return spawn(launch.command, launch.args, {
+    windowsHide: true,
+  })
 }
 
 function broadcast(channel: string, payload: unknown) {
@@ -505,6 +1113,7 @@ const MAC_EDITOR_APPS: Record<string, string> = {
 const MAC_TERMINAL_APPS: Record<string, string> = {
   terminal: 'Terminal',
   iterm: 'iTerm',
+  ghostty: 'Ghostty',
   warp: 'Warp',
   hyper: 'Hyper',
 }
@@ -512,35 +1121,6 @@ const MAC_TERMINAL_APPS: Record<string, string> = {
 const WINDOWS_EDITOR_COMMANDS: Record<string, { command: string; args: (projectPath: string) => string[] }> = {
   vscode: { command: 'code', args: (projectPath) => [projectPath] },
   'visual-studio': { command: 'devenv', args: (projectPath) => [projectPath] },
-}
-
-const LINUX_EDITOR_COMMANDS: Record<string, { command: string; args: (projectPath: string, target?: EditorTarget) => string[] }> = {
-  vscode: {
-    command: 'code',
-    args: (projectPath, target) => (target ? ['--goto', buildEditorFileArgument(target)] : [projectPath]),
-  },
-  cursor: {
-    command: 'cursor',
-    args: (projectPath, target) => (target ? ['--goto', buildEditorFileArgument(target)] : [projectPath]),
-  },
-  webstorm: {
-    command: 'webstorm',
-    args: (_projectPath, target) => [target?.path ?? _projectPath],
-  },
-  intellij: {
-    command: 'idea',
-    args: (_projectPath, target) => [target?.path ?? _projectPath],
-  },
-  sublime: {
-    command: 'subl',
-    args: (_projectPath, target) => [target ? buildEditorFileArgument(target) : _projectPath],
-  },
-}
-
-type EditorTarget = {
-  path: string
-  line?: number
-  column?: number
 }
 
 const WINDOWS_TERMINAL_COMMANDS: Record<string, { command: string; args: (projectPath: string) => string[] }> = {
@@ -552,18 +1132,11 @@ const WINDOWS_TERMINAL_COMMANDS: Record<string, { command: string; args: (projec
   cmd: { command: 'cmd.exe', args: (projectPath) => ['/k', `cd /d "${projectPath}"`] },
 }
 
-const LINUX_TERMINAL_COMMANDS: Record<string, { command: string; args: (projectPath: string) => string[] }> = {
-  terminal: { command: 'x-terminal-emulator', args: (projectPath) => ['--working-directory', projectPath] },
-  gnome: { command: 'gnome-terminal', args: (projectPath) => ['--working-directory', projectPath] },
-  konsole: { command: 'konsole', args: (projectPath) => ['--workdir', projectPath] },
-}
-
 async function getProjectPath(projectId: string): Promise<string> {
   if (!projectId) {
     throw new Error('Project not found.')
   }
-  const store = await getStore()
-  const project = store.projects.find((entry) => entry.id === projectId)
+  const project = await getProjectById(projectId)
   if (!project) {
     throw new Error('Project not found.')
   }
@@ -576,7 +1149,7 @@ async function getProjectPath(projectId: string): Promise<string> {
 
 async function getProjectDirectories(projectId: string, relativePath?: string): Promise<string[]> {
   const projectPath = await getProjectPath(projectId)
-  const targetPath = relativePath ? path.join(projectPath, relativePath) : projectPath
+  const targetPath = resolveProjectPath(projectPath, relativePath)
 
   if (!fs.existsSync(targetPath)) {
     return []
@@ -590,17 +1163,19 @@ async function getProjectDirectories(projectId: string, relativePath?: string): 
 }
 
 async function getPreferences(): Promise<AppPreferences> {
-  const store = await getStore()
-  return store.preferences
+  return getPreferencesFromStore()
 }
 
-function spawnDetached(command: string, args: string[]) {
+function spawnDetached(command: string, args: string[], options: SpawnDetachedOptions = {}) {
   return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    const shell = options.shell ?? false
+    const windowsHide = options.windowsHide ?? true
     try {
       const child = spawn(command, args, {
         detached: true,
         stdio: 'ignore',
-        windowsHide: true,
+        windowsHide,
+        shell,
       })
       child.on('error', (error) => resolve({ success: false, error: error.message }))
       child.on('spawn', () => {
@@ -613,13 +1188,32 @@ function spawnDetached(command: string, args: string[]) {
   })
 }
 
-function spawnShellDetached(command: string) {
+function shouldRetryDetachedWithShell(error?: string) {
+  if (!error) {
+    return false
+  }
+
+  const normalized = error.toLowerCase()
+  return normalized.includes('enoent') || normalized.includes('not recognized as an internal or external command')
+}
+
+async function spawnDetachedWithShellFallback(command: string, args: string[], options: SpawnDetachedOptions = {}) {
+  const result = await spawnDetached(command, args, options)
+  if (result.success || process.platform !== 'win32' || options.shell || !shouldRetryDetachedWithShell(result.error)) {
+    return result
+  }
+
+  return spawnDetached(command, args, { ...options, shell: true })
+}
+
+function spawnShellDetached(command: string, options: SpawnDetachedOptions = {}) {
   return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    const windowsHide = options.windowsHide ?? true
     try {
       const child = spawn(command, {
         detached: true,
         stdio: 'ignore',
-        windowsHide: true,
+        windowsHide,
         shell: true,
       })
       child.on('error', (error) => resolve({ success: false, error: error.message }))
@@ -633,87 +1227,14 @@ function spawnShellDetached(command: string) {
   })
 }
 
-function buildEditorFileArgument(target: EditorTarget) {
-  const line = target.line && target.line > 0 ? target.line : 1
-  const column = target.column && target.column > 0 ? target.column : 1
-  return `${target.path}:${line}:${column}`
-}
-
-async function openEditorPath(preference: AppPreference, projectPath: string, target?: EditorTarget) {
-  if (preference.id === 'custom') {
-    return resolveCustomCommand(preference, projectPath, target)
-  }
-
-  const openPath = target?.path ?? projectPath
-
-  if (process.platform === 'darwin') {
-    if (preference.id === 'vscode' || preference.id === 'cursor') {
-      const command = preference.id === 'cursor' ? 'cursor' : 'code'
-      const args = target ? ['--goto', buildEditorFileArgument(target)] : [projectPath]
-      const result = await spawnDetached(command, args)
-      if (result.success) {
-        return result
-      }
-    }
-
-    const appName = MAC_EDITOR_APPS[preference.id] ?? MAC_EDITOR_APPS.vscode
-    return spawnDetached('open', ['-a', appName, openPath])
-  }
-
-  if (process.platform === 'win32') {
-    if (preference.id === 'vscode') {
-      const args = target ? ['--goto', buildEditorFileArgument(target)] : [projectPath]
-      return spawnDetached('code', args)
-    }
-
-    const command = WINDOWS_EDITOR_COMMANDS[preference.id] ?? WINDOWS_EDITOR_COMMANDS.vscode
-    return spawnDetached(command.command, command.args(openPath))
-  }
-
-  const command = LINUX_EDITOR_COMMANDS[preference.id] ?? LINUX_EDITOR_COMMANDS.vscode
-  return spawnDetached(command.command, command.args(projectPath, target))
-}
-
-function resolveCustomCommand(preference: AppPreference, projectPath: string, target?: EditorTarget) {
+function resolveCustomCommand(preference: AppPreference, projectPath: string, options: SpawnDetachedOptions = {}) {
   if (!preference.command) {
     return { success: false, error: 'Custom command is required.' }
   }
-  const filePath = target?.path ?? projectPath
-  const line = String(target?.line && target.line > 0 ? target.line : 1)
-  const column = String(target?.column && target.column > 0 ? target.column : 1)
-  const interpolated = preference.command
-    .split('{path}')
-    .join(`"${projectPath}"`)
-    .split('{file}')
-    .join(`"${filePath}"`)
-    .split('{line}')
-    .join(line)
-    .split('{column}')
-    .join(column)
-  const command = interpolated === preference.command ? `${preference.command} "${filePath}"` : interpolated
-  return spawnShellDetached(command)
-}
-
-function resolveProjectFilePath(projectPath: string, relativePath: string) {
-  const trimmed = relativePath.trim()
-  if (!trimmed) {
-    throw new Error('File path is required.')
-  }
-
-  if (path.isAbsolute(trimmed) || /^[a-zA-Z]:[\\/]/.test(trimmed)) {
-    throw new Error('Expected a project-relative file path.')
-  }
-
-  const absolutePath = path.resolve(projectPath, trimmed)
-  const relativeToProject = path.relative(projectPath, absolutePath)
-  const isOutsideProject =
-    relativeToProject === '' ? false : relativeToProject === '..' || relativeToProject.startsWith(`..${path.sep}`)
-
-  if (isOutsideProject) {
-    throw new Error('File path must stay within the project.')
-  }
-
-  return absolutePath
+  const command = preference.command.includes('{path}')
+    ? preference.command.split('{path}').join(`"${projectPath}"`)
+    : `${preference.command} "${projectPath}"`
+  return spawnShellDetached(command, options)
 }
 
 function getProjectName(projectPath: string): string {
@@ -728,6 +1249,555 @@ function getProjectName(projectPath: string): string {
   }
 
   return path.basename(trimTrailingPathSeparators(projectPath))
+}
+
+type ChainMutationInput = {
+  name: string
+  description?: string
+  projectId?: string
+  steps: Array<{ id: string; commandId: string; variables?: Record<string, string>; delayMs?: number }>
+  stopOnFailure: boolean
+  parallel?: boolean
+}
+
+type CommandNeedsInputResponse = {
+  status: 'needs-input'
+  inputs: Array<{ name: string; default?: string; required: boolean; description?: string }>
+  preview: string
+}
+
+type PreparedCommandExecution = {
+  command: Command
+  project: Project
+  projectPath: string
+  workingDirectoryPath: string
+  workingDirectoryRelative?: string
+  finalCommand: string
+}
+
+type StartedCommandRun = {
+  runId: string
+  status: 'running'
+  startTime: string
+  completion: Promise<RunStatus>
+}
+
+function sanitizeStepVariables(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, entryValue]) => [key.trim(), typeof entryValue === 'string' ? entryValue : String(entryValue ?? '')] as const)
+    .filter(([key, entryValue]) => Boolean(key) && Boolean(entryValue.trim()))
+
+  if (!entries.length) {
+    return undefined
+  }
+
+  return Object.fromEntries(entries)
+}
+
+function sanitizeChainSteps(steps: unknown): ChainStep[] {
+  if (!Array.isArray(steps)) {
+    throw new Error('Chain steps are required.')
+  }
+
+  const sanitized = steps.reduce<ChainStep[]>((acc, entry, index) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new Error(`Step ${index + 1} is invalid.`)
+    }
+
+    const raw = entry as Partial<ChainStep>
+    const stepId = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : randomUUID()
+    const commandId = typeof raw.commandId === 'string' ? raw.commandId.trim() : ''
+    if (!commandId) {
+      throw new Error(`Step ${index + 1} must reference a command.`)
+    }
+
+    const delayMs =
+      typeof raw.delayMs === 'number' && Number.isFinite(raw.delayMs) && raw.delayMs > 0
+        ? Math.max(0, Math.floor(raw.delayMs))
+        : undefined
+
+    acc.push({
+      id: stepId,
+      commandId,
+      variables: sanitizeStepVariables(raw.variables),
+      delayMs,
+    })
+    return acc
+  }, [])
+
+  if (!sanitized.length) {
+    throw new Error('Add at least one step to the chain.')
+  }
+
+  return sanitized
+}
+
+function sanitizeChainInput(input: ChainMutationInput): Omit<CommandChain, 'id' | 'createdAt' | 'updatedAt'> {
+  const name = typeof input?.name === 'string' ? input.name.trim() : ''
+  if (!name) {
+    throw new Error('Chain name is required.')
+  }
+
+  return {
+    name,
+    description: typeof input.description === 'string' && input.description.trim() ? input.description.trim() : undefined,
+    projectId: typeof input.projectId === 'string' && input.projectId.trim() ? input.projectId.trim() : undefined,
+    steps: sanitizeChainSteps(input.steps),
+    stopOnFailure: input.stopOnFailure !== false,
+    parallel: Boolean(input.parallel),
+  }
+}
+
+async function prepareCommandExecution(
+  command: Command,
+  preferredProjectId?: string,
+  variables?: Record<string, string>
+): Promise<PreparedCommandExecution | CommandNeedsInputResponse> {
+  const effectiveProjectId = preferredProjectId ?? command.projectId
+  if (!effectiveProjectId) {
+    throw new Error('Project is required to run a command.')
+  }
+
+  const project = await getProjectById(effectiveProjectId)
+  if (!project) {
+    throw new Error('Project not found.')
+  }
+
+  const projectPath = normalizeProjectPath(project.path)
+  if (!fs.existsSync(projectPath)) {
+    throw new Error('Project path does not exist.')
+  }
+
+  const workingDirectoryRelative = command.workingDirectory?.trim() || undefined
+  const workingDirectoryPath = resolveProjectPath(projectPath, workingDirectoryRelative)
+  const shellDialect =
+    process.platform === 'win32' && !parseWslProjectPath(projectPath) ? 'windows' : 'posix'
+
+  const hasContainerVariables = variableResolver
+    .extractVariables(command.command)
+    .some((variable) => variable.startsWith('container.'))
+
+  let linkedContainers: Container[] = []
+  if (hasContainerVariables) {
+    const containers = await listDockerContainers()
+    linkedContainers = containers.filter((container) =>
+      project.linkedContainerNames.some((name) => container.name.toLowerCase() === name.toLowerCase())
+    )
+  }
+
+  const resolution = variableResolver.resolve(
+    command.command,
+    {
+      project,
+      containers: linkedContainers,
+      env: process.env,
+    },
+    variables,
+    shellDialect
+  )
+
+  if (resolution.unresolvedInputs.length > 0) {
+    return {
+      status: 'needs-input',
+      inputs: resolution.unresolvedInputs,
+      preview: resolution.resolvedCommand,
+    }
+  }
+
+  return {
+    command,
+    project,
+    projectPath,
+    workingDirectoryPath,
+    workingDirectoryRelative,
+    finalCommand: resolution.resolvedCommand,
+  }
+}
+
+async function startPreparedCommandExecution(prepared: PreparedCommandExecution): Promise<StartedCommandRun> {
+  const runId = randomUUID()
+  const startTime = new Date().toISOString()
+
+  await createRunHistoryEntry({
+    id: runId,
+    commandId: prepared.command.id,
+    projectId: prepared.project.id,
+    status: 'running',
+    startTime,
+    output: '',
+    resolvedCommand: prepared.finalCommand,
+  })
+
+  broadcast('runs:started', {
+    id: runId,
+    commandId: prepared.command.id,
+    projectId: prepared.project.id,
+    status: 'running',
+    startTime,
+    output: '',
+    resolvedCommand: prepared.finalCommand,
+  })
+
+  const wslLocation = parseWslProjectPath(prepared.projectPath)
+  const child = wslLocation
+    ? spawn(
+        WSL_EXECUTABLE_PATH,
+        [
+          '-d',
+          wslLocation.distro,
+          '-e',
+          'bash',
+          '-lc',
+          buildWslBashCommand(
+            prepared.finalCommand,
+            resolveWslWorkingDirectory(wslLocation, prepared.workingDirectoryRelative)
+          ),
+        ],
+        {
+          env: process.env,
+          windowsHide: true,
+        }
+      )
+    : spawn(prepared.finalCommand, {
+        cwd: prepared.workingDirectoryPath,
+        shell: true,
+        env: process.env,
+      })
+
+  let resolveCompletion: ((status: RunStatus) => void) | null = null
+  const completion = new Promise<RunStatus>((resolve) => {
+    resolveCompletion = resolve
+  })
+
+  const running: RunningCommand = {
+    process: child,
+    output: '',
+    requestedStop: false,
+    completion,
+  }
+  runningCommands.set(runId, running)
+
+  const flushOutput = async (runStatus?: RunStatus) => {
+    await finalizeRunHistoryEntry(runId, running.output, runStatus)
+  }
+
+  const pushChunk = (chunk: Buffer) => {
+    const text = chunk.toString()
+    running.output += text
+    broadcast('runs:output', { runId, chunk: text })
+  }
+
+  child.stdout.on('data', pushChunk)
+  child.stderr.on('data', pushChunk)
+
+  child.on('error', async (error) => {
+    running.output += `\n${error.message}\n`
+    await flushOutput('failed')
+    runningCommands.delete(runId)
+    broadcast('runs:status', { runId, status: 'failed' })
+    resolveCompletion?.('failed')
+  })
+
+  child.on('close', async (code) => {
+    const status: RunStatus = running.requestedStop ? 'stopped' : code === 0 ? 'success' : 'failed'
+    await flushOutput(status)
+    runningCommands.delete(runId)
+    broadcast('runs:status', { runId, status })
+    resolveCompletion?.(status)
+  })
+
+  return {
+    runId,
+    status: 'running',
+    startTime,
+    completion,
+  }
+}
+
+async function startCommandExecution(
+  command: Command,
+  preferredProjectId?: string,
+  variables?: Record<string, string>
+): Promise<StartedCommandRun | CommandNeedsInputResponse> {
+  const prepared = await prepareCommandExecution(command, preferredProjectId, variables)
+  if ('status' in prepared) {
+    return prepared
+  }
+  return startPreparedCommandExecution(prepared)
+}
+
+function cloneChainRunPayload(payload: ChainRunPayload): ChainRunPayload {
+  return {
+    ...payload,
+    steps: payload.steps.map((step) => ({ ...step })),
+  }
+}
+
+function emitChainProgress(payload: ChainRunPayload) {
+  const snapshot = cloneChainRunPayload(payload)
+  runningChains.set(snapshot.runId, snapshot)
+  broadcast('chains:progress', snapshot)
+  if (snapshot.status !== 'running') {
+    runningChains.delete(snapshot.runId)
+  }
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+function sanitizeTriggerInput(input: TriggerMutationInput): Omit<CommandTrigger, 'id' | 'createdAt' | 'updatedAt'> {
+  const name = typeof input?.name === 'string' ? input.name.trim() : ''
+  if (!name) {
+    throw new Error('Trigger name is required.')
+  }
+
+  const chainId = typeof input.chainId === 'string' ? input.chainId.trim() : ''
+  if (!chainId) {
+    throw new Error('Select a command chain for this trigger.')
+  }
+
+  if (!['onProjectOpen', 'afterContainerStart', 'onStartup'].includes(input.event)) {
+    throw new Error('Trigger event is invalid.')
+  }
+
+  return {
+    name,
+    description: typeof input.description === 'string' && input.description.trim() ? input.description.trim() : undefined,
+    projectId: typeof input.projectId === 'string' && input.projectId.trim() ? input.projectId.trim() : undefined,
+    chainId,
+    event: input.event,
+    enabled: input.enabled !== false,
+    requireConfirmation: input.requireConfirmation === true,
+  }
+}
+
+async function getProjectsLinkedToContainer(containerName: string): Promise<Project[]> {
+  const normalizedName = containerName.trim().toLowerCase()
+  if (!normalizedName) {
+    return []
+  }
+
+  const projects = await listProjects()
+  return projects.filter((project) =>
+    project.linkedContainerNames.some((name) => name.trim().toLowerCase() === normalizedName)
+  )
+}
+
+function getPendingTriggerConfirmationRequests(): TriggerConfirmationRequestPayload[] {
+  return Array.from(pendingTriggerConfirmations.values()).map((entry) => entry.request)
+}
+
+async function requestTriggerConfirmation(
+  trigger: CommandTrigger,
+  chain: CommandChain,
+  context: TriggerEventContext
+): Promise<boolean> {
+  const requestId = randomUUID()
+  const project = context.projectId ? await getProjectById(context.projectId) : null
+  const request: TriggerConfirmationRequestPayload = {
+    id: requestId,
+    triggerId: trigger.id,
+    triggerName: trigger.name,
+    chainId: chain.id,
+    chainName: chain.name,
+    event: trigger.event,
+    projectId: context.projectId,
+    projectName: project?.name,
+    containerNames: context.containerNames,
+    createdAt: new Date().toISOString(),
+  }
+
+  return new Promise<boolean>((resolve) => {
+    const timeout = setTimeout(() => {
+      pendingTriggerConfirmations.delete(requestId)
+      resolve(false)
+    }, 120000)
+
+    pendingTriggerConfirmations.set(requestId, {
+      request,
+      resolve: (approved) => {
+        clearTimeout(timeout)
+        resolve(approved)
+      },
+      timeout,
+    })
+
+    broadcast('triggers:confirmation-requested', request)
+  })
+}
+
+async function executeChainRun(chain: CommandChain, projectId?: string): Promise<{ runId: string; status: 'running' }> {
+  if (!chain.steps.length) {
+    throw new Error('Add at least one step before running this chain.')
+  }
+
+  const effectiveProjectId = projectId?.trim() || chain.projectId
+  const runId = randomUUID()
+  const payload: ChainRunPayload = {
+    runId,
+    chainId: chain.id,
+    projectId: effectiveProjectId,
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    steps: chain.steps.map((step) => ({
+      stepId: step.id,
+      commandId: step.commandId,
+      status: 'pending',
+    })),
+  }
+
+  emitChainProgress(payload)
+
+  void (async () => {
+    let finalStatus: ChainRunPayload['status'] = 'success'
+    let finalError: string | undefined
+
+    for (let index = 0; index < chain.steps.length; index += 1) {
+      const step = chain.steps[index]
+      const stepPayload = payload.steps[index]
+
+      if (step.delayMs && step.delayMs > 0) {
+        await delay(step.delayMs)
+      }
+
+      payload.activeStepId = step.id
+      stepPayload.status = 'running'
+      stepPayload.startedAt = new Date().toISOString()
+      emitChainProgress(payload)
+
+      const command = await getCommandById(step.commandId)
+      if (!command) {
+        stepPayload.status = 'failed'
+        stepPayload.endedAt = new Date().toISOString()
+        stepPayload.error = 'Referenced command no longer exists.'
+        finalStatus = 'failed'
+        finalError = stepPayload.error
+        emitChainProgress(payload)
+        break
+      }
+
+      try {
+        const run = await startCommandExecution(command, command.projectId ?? effectiveProjectId, step.variables)
+
+        if ('status' in run && run.status === 'needs-input') {
+          stepPayload.status = 'failed'
+          stepPayload.endedAt = new Date().toISOString()
+          stepPayload.error = `Missing chain step variables: ${run.inputs.map((input) => input.name).join(', ')}`
+          finalStatus = 'failed'
+          finalError = stepPayload.error
+          emitChainProgress(payload)
+          break
+        }
+
+        stepPayload.runId = run.runId
+        emitChainProgress(payload)
+
+        const runStatus = await run.completion
+        stepPayload.status = runStatus
+        stepPayload.endedAt = new Date().toISOString()
+        emitChainProgress(payload)
+
+        if (runStatus === 'stopped') {
+          finalStatus = 'stopped'
+          break
+        }
+
+        if (runStatus !== 'success') {
+          finalStatus = 'failed'
+          finalError = `Step ${index + 1} failed.`
+          if (chain.stopOnFailure) {
+            break
+          }
+        }
+      } catch (error) {
+        stepPayload.status = 'failed'
+        stepPayload.endedAt = new Date().toISOString()
+        stepPayload.error = error instanceof Error ? error.message : 'Step failed to start.'
+        finalStatus = 'failed'
+        finalError = stepPayload.error
+        emitChainProgress(payload)
+        if (chain.stopOnFailure) {
+          break
+        }
+      }
+    }
+
+    for (const step of payload.steps) {
+      if (step.status === 'pending') {
+        step.status = finalStatus === 'success' ? 'success' : 'skipped'
+      }
+    }
+
+    payload.status = finalStatus
+    payload.error = finalError
+    payload.activeStepId = undefined
+    payload.endedAt = new Date().toISOString()
+    emitChainProgress(payload)
+  })()
+
+  return { runId, status: 'running' }
+}
+
+function doesTriggerMatchEvent(trigger: CommandTrigger, event: CommandTriggerEvent, context: TriggerEventContext): boolean {
+  if (!trigger.enabled || trigger.event !== event) {
+    return false
+  }
+
+  if (trigger.projectId && context.projectId && trigger.projectId !== context.projectId) {
+    return false
+  }
+
+  if (event !== 'onStartup' && trigger.projectId && !context.projectId) {
+    return false
+  }
+
+  return true
+}
+
+async function runTrigger(trigger: CommandTrigger, context: TriggerEventContext): Promise<void> {
+  const chain = await getChainById(trigger.chainId)
+  if (!chain) {
+    return
+  }
+
+  const effectiveProjectId = trigger.projectId ?? context.projectId ?? chain.projectId
+  if (trigger.requireConfirmation) {
+    const approved = await requestTriggerConfirmation(trigger, chain, {
+      ...context,
+      projectId: effectiveProjectId,
+    })
+    if (!approved) {
+      return
+    }
+  }
+
+  await executeChainRun(chain, effectiveProjectId)
+}
+
+async function emitAutomationTriggerEvent(event: CommandTriggerEvent, context: TriggerEventContext = {}): Promise<void> {
+  const triggers = await listTriggers()
+  for (const trigger of triggers) {
+    if (!doesTriggerMatchEvent(trigger, event, context)) {
+      continue
+    }
+
+    try {
+      await runTrigger(trigger, context)
+    } catch {
+      // Keep subsequent triggers running even when one trigger fails.
+    }
+  }
+}
+
+export function emitStartupAutomationTriggers() {
+  void emitAutomationTriggerEvent('onStartup')
 }
 
 // Register all IPC handlers
@@ -759,8 +1829,7 @@ export function registerIpcHandlers() {
   })
   // Projects
   ipcMain.handle('projects:get', async () => {
-    const store = await getStore()
-    return store.projects
+    return listProjects()
   })
 
   ipcMain.handle('projects:add', async (_event, inputPath: string) => {
@@ -777,9 +1846,9 @@ export function registerIpcHandlers() {
       throw new Error('Project path does not exist.')
     }
 
-    const store = await getStore()
+    const projects = await listProjects()
     const normalizedPathKey = getProjectPathKey(normalizedPath)
-    const existing = store.projects.find((project) => getProjectPathKey(project.path) === normalizedPathKey)
+    const existing = projects.find((project) => getProjectPathKey(project.path) === normalizedPathKey)
     if (existing) {
       return existing
     }
@@ -791,11 +1860,10 @@ export function registerIpcHandlers() {
       name: getProjectName(normalizedPath),
       type,
       icon: getProjectIcon(type),
+      linkedContainerNames: [],
     }
 
-    await updateStore((draft) => {
-      draft.projects.push(nextProject)
-    })
+    await createProject(nextProject)
 
     return nextProject
   })
@@ -805,11 +1873,9 @@ export function registerIpcHandlers() {
       return { success: false }
     }
 
-    await updateStore((draft) => {
-      draft.projects = draft.projects.filter((project) => project.id !== _id)
-      draft.runHistory = draft.runHistory.filter((entry) => entry.projectId !== _id)
-      delete draft.notes[_id]
-    })
+    const { clearProjectIndex } = await import('../engine/engineService')
+    await clearProjectIndex(_id)
+    await removeProject(_id)
 
     return { success: true }
   })
@@ -824,22 +1890,226 @@ export function registerIpcHandlers() {
       throw new Error('Project name is required.')
     }
 
-    let updatedProject: Project | null = null
-    await updateStore((draft) => {
-      const index = draft.projects.findIndex((project) => project.id === _id)
-      if (index === -1) {
-        return
-      }
-      const current = draft.projects[index]
-      updatedProject = { ...current, name: nextName }
-      draft.projects[index] = updatedProject
-    })
-
-    if (!updatedProject) {
+    const updated = await renameProject(_id, nextName)
+    if (!updated) {
       throw new Error('Project not found.')
     }
 
+    const updatedProject = await getProjectById(_id)
+    if (!updatedProject) {
+      throw new Error('Project not found.')
+    }
     return updatedProject
+  })
+
+  ipcMain.handle('projects:set-linked-containers', async (_event, projectId: string, linkedContainerNames: unknown) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const sanitized = sanitizeLinkedContainerNames(linkedContainerNames)
+
+    const updated = await updateProjectLinkedContainers(projectId, sanitized)
+    if (!updated) {
+      throw new Error('Project not found.')
+    }
+
+    const updatedProject = await getProjectById(projectId)
+    if (!updatedProject) {
+      throw new Error('Project not found.')
+    }
+    return updatedProject
+  })
+
+  ipcMain.handle('projects:start-dev-stack', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const linkedNames = sanitizeLinkedContainerNames(project.linkedContainerNames)
+    if (!linkedNames.length) {
+      return { success: true, started: [], resumed: [], alreadyRunning: [], missing: [] }
+    }
+
+    const containers = await listDockerContainers()
+    const started: string[] = []
+    const resumed: string[] = []
+    const alreadyRunning: string[] = []
+    const missing: string[] = []
+
+    for (const linkedName of linkedNames) {
+      const container = getContainerByLinkedName(containers, linkedName)
+      if (!container) {
+        missing.push(linkedName)
+        continue
+      }
+
+      if (container.state === 'running') {
+        alreadyRunning.push(container.name)
+        continue
+      }
+
+      if (container.state === 'paused') {
+        await runDockerCommand(['unpause', container.id])
+        resumed.push(container.name)
+        continue
+      }
+
+      await runDockerCommand(['start', container.id])
+      started.push(container.name)
+    }
+
+    const result = { success: true, started, resumed, alreadyRunning, missing }
+
+    if (started.length > 0 || resumed.length > 0) {
+      void emitAutomationTriggerEvent('afterContainerStart', {
+        projectId,
+        containerNames: [...started, ...resumed],
+      })
+    }
+
+    return result
+  })
+
+  ipcMain.handle('projects:stop-dev-stack', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const linkedNames = sanitizeLinkedContainerNames(project.linkedContainerNames)
+    if (!linkedNames.length) {
+      return { success: true, stopped: [], alreadyStopped: [], missing: [] }
+    }
+
+    const containers = await listDockerContainers()
+    const stopped: string[] = []
+    const alreadyStopped: string[] = []
+    const missing: string[] = []
+
+    for (const linkedName of linkedNames) {
+      const container = getContainerByLinkedName(containers, linkedName)
+      if (!container) {
+        missing.push(linkedName)
+        continue
+      }
+
+      if (container.state === 'stopped') {
+        alreadyStopped.push(container.name)
+        continue
+      }
+
+      if (container.state === 'paused') {
+        await runDockerCommand(['unpause', container.id])
+      }
+
+      await runDockerCommand(['stop', container.id])
+      stopped.push(container.name)
+    }
+
+    return { success: true, stopped, alreadyStopped, missing }
+  })
+
+  ipcMain.handle('projects:restart-dev-stack', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const linkedNames = sanitizeLinkedContainerNames(project.linkedContainerNames)
+    if (!linkedNames.length) {
+      return { success: true, stopped: [], started: [], missing: [] }
+    }
+
+    const containers = await listDockerContainers()
+    const stopped: string[] = []
+    const started: string[] = []
+    const missing: string[] = []
+
+    // First pass: stop all running containers
+    for (const linkedName of linkedNames) {
+      const container = getContainerByLinkedName(containers, linkedName)
+      if (!container) {
+        missing.push(linkedName)
+        continue
+      }
+
+      if (container.state === 'stopped') {
+        // Container is already stopped, will try to start it later
+        continue
+      }
+
+      if (container.state === 'paused') {
+        // Unpause first, then stop
+        await runDockerCommand(['unpause', container.id])
+      }
+
+      await runDockerCommand(['stop', container.id])
+      stopped.push(container.name)
+    }
+
+    // Second pass: start all containers (including those that were already stopped)
+    for (const linkedName of linkedNames) {
+      const container = getContainerByLinkedName(containers, linkedName)
+      if (!container) {
+        // Already tracked in missing array
+        continue
+      }
+
+      // Container should be stopped now, start it
+      await runDockerCommand(['start', container.id])
+      started.push(container.name)
+    }
+
+    const result = { success: true, stopped, started, missing }
+
+    if (started.length > 0) {
+      void emitAutomationTriggerEvent('afterContainerStart', {
+        projectId,
+        containerNames: started,
+      })
+    }
+
+    return result
+  })
+
+  ipcMain.handle('projects:toggle-pin', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await toggleProjectPin(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return project
+  })
+
+  ipcMain.handle('project:inspect', async (_event, projectId: string): Promise<ProjectHealthReport> => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return inspectProjectHealth(project)
   })
 
   ipcMain.handle('preferences:get', async () => {
@@ -847,20 +2117,13 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('preferences:update', async (_event, updates: Partial<AppPreferences>) => {
-    await updateStore((draft) => {
-      const current = draft.preferences
-      draft.preferences = {
-        editor: {
-          id: updates?.editor?.id ?? current.editor.id,
-          command: updates?.editor?.command ?? current.editor.command,
-        },
-        terminal: {
-          id: updates?.terminal?.id ?? current.terminal.id,
-          command: updates?.terminal?.command ?? current.terminal.command,
-        },
-      }
-    })
+    await updatePreferencesInStore(updates)
+    app.emit('preferences:updated')
     return { success: true }
+  })
+
+  ipcMain.handle('llm:bundle-context', async (_event, projectId: string, options?: LlmBundleOptions) => {
+    return bundleLlmContext(projectId, options)
   })
 
   ipcMain.handle('projects:open-folder', async (_event, _id: string) => {
@@ -872,46 +2135,32 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('projects:reveal-file', async (_event, projectId: string, relativePath: string) => {
-    const projectPath = await getProjectPath(projectId)
-    const targetPath = resolveProjectFilePath(projectPath, relativePath)
-    shell.showItemInFolder(targetPath)
-    return { success: true }
-  })
-
   ipcMain.handle('projects:open-editor', async (_event, _id: string) => {
     const projectPath = await getProjectPath(_id)
+    const wslLocation = parseWslProjectPath(projectPath)
     const preferences = await getPreferences()
     const preference = preferences.editor
-    const wslLocation = parseWslProjectPath(projectPath)
-    if (process.platform === 'win32' && wslLocation && preference.id === 'vscode') {
-      const remoteUri = getWslVscodeFolderUri(wslLocation)
-      const openRemoteResult = await spawnDetached('code', ['--folder-uri', remoteUri])
-      if (openRemoteResult.success) {
-        return openRemoteResult
+    if (preference.id === 'custom') {
+      return resolveCustomCommand(preference, projectPath)
+    }
+    if (process.platform === 'darwin') {
+      const appName = MAC_EDITOR_APPS[preference.id] ?? MAC_EDITOR_APPS.vscode
+      return spawnDetached('open', ['-a', appName, projectPath])
+    }
+    if (process.platform === 'win32') {
+      if (wslLocation && preference.id === 'vscode') {
+        const remoteUri = getWslVscodeFolderUri(wslLocation)
+        const openRemoteResult = await spawnDetachedWithShellFallback('code', ['--folder-uri', remoteUri])
+        if (openRemoteResult.success) {
+          return openRemoteResult
+        }
+        return spawnDetachedWithShellFallback('code', [projectPath])
       }
+      const command = WINDOWS_EDITOR_COMMANDS[preference.id] ?? WINDOWS_EDITOR_COMMANDS.vscode
+      return spawnDetachedWithShellFallback(command.command, command.args(projectPath))
     }
-    return openEditorPath(preference, projectPath)
+    return spawnDetached('code', [projectPath])
   })
-
-  ipcMain.handle(
-    'projects:open-editor-file',
-    async (
-      _event,
-      projectId: string,
-      relativePath: string,
-      location?: { line?: number; column?: number }
-    ) => {
-      const projectPath = await getProjectPath(projectId)
-      const preferences = await getPreferences()
-      const targetPath = resolveProjectFilePath(projectPath, relativePath)
-      return openEditorPath(preferences.editor, projectPath, {
-        path: targetPath,
-        line: location?.line,
-        column: location?.column,
-      })
-    }
-  )
 
   ipcMain.handle('projects:open-terminal', async (_event, _id: string) => {
     const projectPath = await getProjectPath(_id)
@@ -919,7 +2168,7 @@ export function registerIpcHandlers() {
     const preferences = await getPreferences()
     const preference = preferences.terminal
     if (preference.id === 'custom') {
-      return resolveCustomCommand(preference, projectPath)
+      return resolveCustomCommand(preference, projectPath, { windowsHide: false })
     }
     if (process.platform === 'darwin') {
       const appName = MAC_TERMINAL_APPS[preference.id] ?? MAC_TERMINAL_APPS.terminal
@@ -930,16 +2179,14 @@ export function registerIpcHandlers() {
         return openWslProjectInTerminal(wslLocation, preference.id)
       }
       const command = WINDOWS_TERMINAL_COMMANDS[preference.id] ?? WINDOWS_TERMINAL_COMMANDS['windows-terminal']
-      return spawnDetached(command.command, command.args(projectPath))
+      return spawnDetachedWithShellFallback(command.command, command.args(projectPath), { windowsHide: false })
     }
-    const command = LINUX_TERMINAL_COMMANDS[preference.id] ?? LINUX_TERMINAL_COMMANDS.terminal
-    return spawnDetached(command.command, command.args(projectPath))
+    return spawnDetached('x-terminal-emulator', ['--working-directory', projectPath])
   })
 
   // Commands
   ipcMain.handle('commands:get', async () => {
-    const store = await getStore()
-    return store.commands
+    return listCommands()
   })
 
   ipcMain.handle(
@@ -962,9 +2209,7 @@ export function registerIpcHandlers() {
         workingDirectory: command.workingDirectory,
       }
 
-      await updateStore((draft) => {
-        draft.commands.push(nextCommand)
-      })
+      await createCommand(nextCommand)
 
       return nextCommand
     }
@@ -991,29 +2236,22 @@ export function registerIpcHandlers() {
       throw new Error('Command is required.')
     }
 
-    let updatedCommand: Command | null = null
-    await updateStore((draft) => {
-      const index = draft.commands.findIndex((entry) => entry.id === _id)
-      if (index === -1) {
-        return
-      }
-      const current = draft.commands[index]
-      updatedCommand = {
-        ...current,
-        name: nextName ?? current.name,
-        command: nextCommand ?? current.command,
-        description: updates?.description ?? current.description,
-        tags: Array.isArray(updates?.tags) ? updates.tags.filter(Boolean) : current.tags,
-        projectId: updates?.projectId ?? current.projectId,
-        workingDirectory: updates?.workingDirectory ?? current.workingDirectory,
-      }
-      draft.commands[index] = updatedCommand
-    })
-
-    if (!updatedCommand) {
+    const current = await getCommandById(_id)
+    if (!current) {
       throw new Error('Command not found.')
     }
 
+    const updatedCommand: Command = {
+      ...current,
+      name: nextName ?? current.name,
+      command: nextCommand ?? current.command,
+      description: updates?.description ?? current.description,
+      tags: Array.isArray(updates?.tags) ? updates.tags.filter(Boolean) : current.tags,
+      projectId: updates?.projectId ?? current.projectId,
+      workingDirectory: updates?.workingDirectory ?? current.workingDirectory,
+    }
+
+    await replaceCommand(updatedCommand)
     return updatedCommand
   })
 
@@ -1022,9 +2260,7 @@ export function registerIpcHandlers() {
       return { success: false }
     }
 
-    await updateStore((draft) => {
-      draft.commands = draft.commands.filter((entry) => entry.id !== _id)
-    })
+    await removeCommand(_id)
 
     return { success: true }
   })
@@ -1033,111 +2269,54 @@ export function registerIpcHandlers() {
     return getProjectDirectories(projectId, relativePath)
   })
 
-  ipcMain.handle('commands:run', async (_event, _id: string, _projectId?: string) => {
-    const store = await getStore()
-    const command = store.commands.find((entry) => entry.id === _id)
+  ipcMain.handle('commands:run', async (_event, _id: string, _projectId?: string, _variables?: Record<string, string>) => {
+    const command = await getCommandById(_id)
     if (!command) {
       throw new Error('Command not found.')
     }
 
-    // Use command's projectId if not provided
-    const effectiveProjectId = _projectId ?? command.projectId
+    const run = await startCommandExecution(command, _projectId, _variables)
+    if ('status' in run && run.status === 'needs-input') {
+      return run
+    }
+    return { runId: run.runId, status: run.status, startTime: run.startTime }
+  })
+
+  ipcMain.handle('commands:run-adhoc', async (_event, projectId: string, commandString: string, options?: { workingDirectory?: string }) => {
+    const commandText = typeof commandString === 'string' ? commandString.trim() : ''
+    const effectiveProjectId = typeof projectId === 'string' ? projectId.trim() : ''
+    const workingDirectory =
+      typeof options?.workingDirectory === 'string' && options.workingDirectory.trim()
+        ? options.workingDirectory.trim()
+        : undefined
+
     if (!effectiveProjectId) {
-      throw new Error('Project is required to run a command.')
+      throw new Error('Project is required to run a wiki command.')
     }
 
-    const project = store.projects.find((entry) => entry.id === effectiveProjectId)
-    if (!project) {
-      throw new Error('Project not found.')
+    if (!commandText) {
+      throw new Error('Command is required.')
     }
 
-    const runId = randomUUID()
-    const startTime = new Date().toISOString()
-
-    await updateStore((draft) => {
-      draft.runHistory.unshift({
-        id: runId,
-        commandId: command.id,
-        projectId: project.id,
-        status: 'running',
-        startTime,
-        output: '',
-      })
-    })
-
-    const projectPath = normalizeProjectPath(project.path)
-    if (!fs.existsSync(projectPath)) {
-      throw new Error('Project path does not exist.')
+    const command: Command = {
+      id: `wiki:${randomUUID()}`,
+      name: 'Wiki command',
+      command: commandText,
+      description: 'Ad hoc command started from project notes.',
+      tags: ['wiki'],
+      projectId: effectiveProjectId,
+      workingDirectory,
     }
 
-    const wslLocation = parseWslProjectPath(projectPath)
-    const child = wslLocation
-      ? spawn(
-          WSL_EXECUTABLE_PATH,
-          [
-            '-d',
-            wslLocation.distro,
-            '-e',
-            'bash',
-            '-lc',
-            buildWslBashCommand(command.command, resolveWslWorkingDirectory(wslLocation, command.workingDirectory)),
-          ],
-          {
-            env: process.env,
-            windowsHide: true,
-          }
-        )
-      : spawn(command.command, {
-          cwd: command.workingDirectory ? path.join(projectPath, command.workingDirectory) : projectPath,
-          shell: true,
-          env: process.env,
-        })
-
-    const running: RunningCommand = {
-      process: child,
-      output: '',
-      requestedStop: false,
+    const run = await startCommandExecution(command, effectiveProjectId)
+    if ('status' in run && run.status === 'needs-input') {
+      return run
     }
-    runningCommands.set(runId, running)
+    return { runId: run.runId, status: run.status, startTime: run.startTime }
+  })
 
-    const flushOutput = async (runStatus?: RunStatus) => {
-      const output = running.output
-      await updateStore((draft) => {
-        const entry = draft.runHistory.find((item) => item.id === runId)
-        if (!entry) return
-        entry.output = output
-        if (runStatus) {
-          entry.status = runStatus
-          entry.endTime = new Date().toISOString()
-        }
-      })
-    }
-
-    const pushChunk = (chunk: Buffer) => {
-      const text = chunk.toString()
-      running.output += text
-      broadcast('runs:output', { runId, chunk: text })
-    }
-
-    child.stdout.on('data', pushChunk)
-    child.stderr.on('data', pushChunk)
-
-    child.on('error', async (error) => {
-      running.output += `\n${error.message}\n`
-      await flushOutput('failed')
-      runningCommands.delete(runId)
-      broadcast('runs:status', { runId, status: 'failed' })
-    })
-
-    child.on('close', async (code) => {
-      const status: RunStatus =
-        running.requestedStop ? 'stopped' : code === 0 ? 'success' : 'failed'
-      await flushOutput(status)
-      runningCommands.delete(runId)
-      broadcast('runs:status', { runId, status })
-    })
-
-    return { runId, status: 'running' }
+  ipcMain.handle('commands:detect-variables', async (_event, commandString: string) => {
+    return detectVariables(commandString)
   })
 
   ipcMain.handle('commands:stop', async (_event, _runId: string) => {
@@ -1151,83 +2330,334 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
+  ipcMain.handle('commands:toggle-pin', async (_event, commandId: string) => {
+    if (!commandId?.trim()) {
+      throw new Error('Command id is required.')
+    }
+
+    const command = await toggleCommandPin(commandId)
+    if (!command) {
+      throw new Error('Command not found.')
+    }
+
+    return command
+  })
+
+  ipcMain.handle('chains:list', async () => {
+    return listChains()
+  })
+
+  ipcMain.handle('chains:create', async (_event, input: ChainMutationInput) => {
+    const sanitized = sanitizeChainInput(input)
+    const now = new Date().toISOString()
+    const nextChain: CommandChain = {
+      id: randomUUID(),
+      ...sanitized,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    await createChain(nextChain)
+    return nextChain
+  })
+
+  ipcMain.handle('chains:update', async (_event, chainId: string, input: ChainMutationInput) => {
+    if (!chainId?.trim()) {
+      throw new Error('Chain id is required.')
+    }
+
+    const current = await getChainById(chainId)
+    if (!current) {
+      throw new Error('Chain not found.')
+    }
+
+    const sanitized = sanitizeChainInput(input)
+    const updatedChain: CommandChain = {
+      ...current,
+      ...sanitized,
+      updatedAt: new Date().toISOString(),
+    }
+
+    await replaceChain(updatedChain)
+    return updatedChain
+  })
+
+  ipcMain.handle('chains:delete', async (_event, chainId: string) => {
+    if (!chainId?.trim()) {
+      return { success: false }
+    }
+
+    await removeChain(chainId)
+    return { success: true }
+  })
+
+  ipcMain.handle('chains:run', async (_event, chainId: string, projectId?: string) => {
+    if (!chainId?.trim()) {
+      throw new Error('Chain id is required.')
+    }
+
+    const chain = await getChainById(chainId)
+    if (!chain) {
+      throw new Error('Chain not found.')
+    }
+
+    return executeChainRun(chain, projectId)
+  })
+
+  ipcMain.handle('triggers:list', async () => {
+    return listTriggers()
+  })
+
+  ipcMain.handle('triggers:create', async (_event, input: TriggerMutationInput) => {
+    const sanitized = sanitizeTriggerInput(input)
+    const chain = await getChainById(sanitized.chainId)
+    if (!chain) {
+      throw new Error('Selected chain not found.')
+    }
+
+    const now = new Date().toISOString()
+    const nextTrigger: CommandTrigger = {
+      id: randomUUID(),
+      ...sanitized,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    await createTrigger(nextTrigger)
+    return nextTrigger
+  })
+
+  ipcMain.handle('triggers:update', async (_event, triggerId: string, input: TriggerMutationInput) => {
+    if (!triggerId?.trim()) {
+      throw new Error('Trigger id is required.')
+    }
+
+    const current = await getTriggerById(triggerId)
+    if (!current) {
+      throw new Error('Trigger not found.')
+    }
+
+    const sanitized = sanitizeTriggerInput(input)
+    const chain = await getChainById(sanitized.chainId)
+    if (!chain) {
+      throw new Error('Selected chain not found.')
+    }
+
+    const updatedTrigger: CommandTrigger = {
+      ...current,
+      ...sanitized,
+      updatedAt: new Date().toISOString(),
+    }
+
+    await replaceTrigger(updatedTrigger)
+    return updatedTrigger
+  })
+
+  ipcMain.handle('triggers:delete', async (_event, triggerId: string) => {
+    if (!triggerId?.trim()) {
+      return { success: false }
+    }
+
+    await removeTrigger(triggerId)
+    return { success: true }
+  })
+
+  ipcMain.handle('triggers:emit', async (_event, event: CommandTriggerEvent, context: TriggerEventContext) => {
+    await emitAutomationTriggerEvent(event, context)
+    return { success: true }
+  })
+
+  ipcMain.handle('triggers:pending-confirmations', async () => {
+    return getPendingTriggerConfirmationRequests()
+  })
+
+  ipcMain.handle('triggers:respond-confirmation', async (_event, requestId: string, approved: boolean) => {
+    const pending = pendingTriggerConfirmations.get(requestId)
+    if (!pending) {
+      return { success: false }
+    }
+
+    pendingTriggerConfirmations.delete(requestId)
+    clearTimeout(pending.timeout)
+    pending.resolve(Boolean(approved))
+    return { success: true }
+  })
+
   // Containers
   ipcMain.handle('containers:get', async () => {
-    const output = await runDockerCommand(['ps', '-a', '--no-trunc', '--format', '{{json .}}'])
-    return parseDockerContainers(output)
+    return listDockerContainers()
   })
 
   ipcMain.handle('containers:start', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['start', containerId])
+    const containers = await listDockerContainers()
+    const started = containers.find((container) => container.id === containerId)
+    if (started) {
+      const linkedProjects = await getProjectsLinkedToContainer(started.name)
+      for (const project of linkedProjects) {
+        void emitAutomationTriggerEvent('afterContainerStart', {
+          projectId: project.id,
+          containerNames: [started.name],
+        })
+      }
     }
-    await runDockerCommand(['start', _id])
     return { success: true }
   })
 
   ipcMain.handle('containers:stop', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    await runDockerCommand(['stop', _id])
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['stop', containerId])
     return { success: true }
   })
 
   ipcMain.handle('containers:restart', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['restart', containerId])
+    const containers = await listDockerContainers()
+    const restarted = containers.find((container) => container.id === containerId)
+    if (restarted) {
+      const linkedProjects = await getProjectsLinkedToContainer(restarted.name)
+      for (const project of linkedProjects) {
+        void emitAutomationTriggerEvent('afterContainerStart', {
+          projectId: project.id,
+          containerNames: [restarted.name],
+        })
+      }
     }
-    await runDockerCommand(['restart', _id])
     return { success: true }
   })
 
   ipcMain.handle('containers:pause', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    await runDockerCommand(['pause', _id])
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['pause', containerId])
     return { success: true }
   })
 
   ipcMain.handle('containers:unpause', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    await runDockerCommand(['unpause', _id])
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['unpause', containerId])
     return { success: true }
   })
 
   ipcMain.handle('containers:remove', async (_event, _id: string, force?: boolean) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
+    const containerId = requireContainerId(_id)
     const args = ['rm']
     if (force) {
       args.push('--force')
     }
-    args.push(_id)
+    args.push(containerId)
     await runDockerCommand(args)
     return { success: true }
   })
 
   ipcMain.handle('containers:logs', async (_event, _id: string) => {
-    if (!_id) {
-      throw new Error('Container id is required.')
-    }
-    const output = await runDockerCommand(['logs', '--tail', '200', _id])
+    const containerId = requireContainerId(_id)
+    const output = await runDockerCommand(['logs', '--tail', '200', containerId])
     return output
+  })
+
+  ipcMain.handle('docker:list', async () => {
+    return listDockerContainers()
+  })
+
+  ipcMain.handle('docker:start', async (_event, _id: string) => {
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['start', containerId])
+    return { success: true }
+  })
+
+  ipcMain.handle('docker:stop', async (_event, _id: string) => {
+    const containerId = requireContainerId(_id)
+    await runDockerCommand(['stop', containerId])
+    return { success: true }
+  })
+
+  ipcMain.handle('docker:logs:subscribe', async (_event, _id: string, tail?: number) => {
+    const containerId = requireContainerId(_id)
+    const subscriptionId = randomUUID()
+    const tailCount = Number.isFinite(tail) ? Math.max(1, Math.min(2000, Math.floor(tail as number))) : 200
+    const stream = await spawnDockerCommandStream(['logs', '--follow', '--tail', String(tailCount), containerId])
+
+    runningDockerLogSubscriptions.set(subscriptionId, {
+      process: stream,
+      containerId,
+    })
+
+    const pushChunk = (chunk: Buffer) => {
+      broadcast('docker:logs:data', {
+        subscriptionId,
+        containerId,
+        chunk: chunk.toString(),
+      })
+    }
+
+    stream.stdout.on('data', pushChunk)
+    stream.stderr.on('data', pushChunk)
+
+    stream.on('error', (error) => {
+      runningDockerLogSubscriptions.delete(subscriptionId)
+      broadcast('docker:logs:error', {
+        subscriptionId,
+        containerId,
+        error: error.message,
+      })
+    })
+
+    stream.on('close', (code) => {
+      runningDockerLogSubscriptions.delete(subscriptionId)
+      broadcast('docker:logs:end', {
+        subscriptionId,
+        containerId,
+        code,
+      })
+    })
+
+    return { subscriptionId }
+  })
+
+  ipcMain.handle('docker:logs:unsubscribe', async (_event, subscriptionId: string) => {
+    const id = subscriptionId?.trim()
+    if (!id) {
+      return { success: false }
+    }
+
+    const running = runningDockerLogSubscriptions.get(id)
+    if (!running) {
+      return { success: false }
+    }
+
+    running.process.kill()
+    runningDockerLogSubscriptions.delete(id)
+    return { success: true }
   })
 
   // Run History
   ipcMain.handle('history:get', async () => {
-    const store = await getStore()
-    return store.runHistory
+    return listRunHistory()
+  })
+
+  ipcMain.handle('history:listRecent', async (_event, limit?: number) => {
+    const cap = Math.min(Math.max(1, limit ?? 20), 100)
+    return listRecentRunHistory(cap)
   })
 
   ipcMain.handle('history:clear', async () => {
-    await updateStore((draft) => {
-      draft.runHistory = []
-    })
+    await clearRunHistoryInStore()
+    return { success: true }
+  })
+
+  ipcMain.handle('history:remove', async (_event, runId: string) => {
+    const id = runId?.trim()
+    if (!id) {
+      return { success: false }
+    }
+
+    if (runningCommands.has(id)) {
+      throw new Error('Cannot remove a running command.')
+    }
+
+    await removeRunHistoryEntry(id)
     return { success: true }
   })
 
@@ -1236,123 +2666,697 @@ export function registerIpcHandlers() {
     if (running) {
       return running.output
     }
-    const store = await getStore()
-    return store.runHistory.find((entry) => entry.id === _runId)?.output ?? ''
+    return getRunHistoryOutputById(_runId)
   })
 
-  // Notes
-  ipcMain.handle('notes:get', async (_event, _projectId: string) => {
-    const store = await getStore()
-    return (
-      store.notes[_projectId] ?? {
-        projectId: _projectId,
-        setupSteps: '',
-        todos: '',
-        reminders: '',
-      }
-    )
-  })
-
-  ipcMain.handle('notes:update', async (_event, _projectId: string, _notes: unknown) => {
-    if (!_projectId) {
-      return { success: false }
+  // File navigation
+  ipcMain.handle('files:list', async (_event, projectId: string, dir?: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
     }
 
-    const updates =
-      typeof _notes === 'object' && _notes
-        ? (_notes as Partial<{ setupSteps: string; todos: string; reminders: string }>)
-        : {}
-
-    await updateStore((draft) => {
-      const current = draft.notes[_projectId] ?? {
-        projectId: _projectId,
-        setupSteps: '',
-        todos: '',
-        reminders: '',
-      }
-      draft.notes[_projectId] = {
-        projectId: _projectId,
-        setupSteps: updates.setupSteps ?? current.setupSteps,
-        todos: updates.todos ?? current.todos,
-        reminders: updates.reminders ?? current.reminders,
-      }
-    })
-
-    return { success: true }
-  })
-
-  // Engine - Performance Engine Integration
-  ipcMain.handle('engine:status', async () => {
-    const { getEngineStatus } = await import('../engine/binary.js')
-    return getEngineStatus()
-  })
-
-  ipcMain.handle('engine:indexes', async () => {
-    const store = await getStore()
-    return store.engineIndexes ?? {}
-  })
-
-  ipcMain.handle('engine:search-sessions', async () => {
-    const store = await getStore()
-    return store.engineSearchSessions ?? {}
-  })
-
-  ipcMain.handle('engine:clear-search-session', async (_event, projectId: string) => {
-    await updateStore((draft) => {
-      if (!draft.engineSearchSessions) {
-        return
-      }
-      delete draft.engineSearchSessions[projectId]
-    })
-    return { success: true }
-  })
-
-  ipcMain.handle('engine:index', async (_event, projectId: string) => {
-    const store = await getStore()
-    const project = store.projects.find((p) => p.id === projectId)
+    const project = await getProjectById(projectId)
     if (!project) {
       throw new Error('Project not found.')
     }
 
-    const { engineIndex, getEngineDbPath } = await import('../engine/binary.js')
-    const result = await engineIndex(project.path, projectId)
+    return listProjectFiles(project.path, dir)
+  })
 
-    // Store index metadata
-    await updateStore((draft) => {
-      if (!draft.engineIndexes) {
-        draft.engineIndexes = {}
-      }
-      draft.engineIndexes[projectId] = {
-        projectId,
-        dbPath: getEngineDbPath(projectId),
-        lastIndexed: new Date().toISOString(),
-        fileCount: result.filesIndexed,
-      }
-    })
+  ipcMain.handle('files:search', async (_event, projectId: string, query: string, limit?: number) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
 
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return searchProjectFiles(projectId, project.path, query, limit)
+  })
+
+  ipcMain.handle('files:openInEditor', async (
+    _event,
+    projectId: string,
+    relativePath: string,
+    line?: number,
+    column?: number
+  ) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!relativePath) {
+      throw new Error('File path is required.')
+    }
+
+    const [project, preferences] = await Promise.all([
+      getProjectById(projectId),
+      getPreferencesFromStore(),
+    ])
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    return openFileInEditor(project.path, relativePath, preferences, line, column)
+  })
+
+  ipcMain.handle('files:revealInFolder', async (_event, projectId: string, relativePath: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!relativePath) {
+      throw new Error('File path is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const targetPath = resolveProjectPath(project.path, relativePath)
+    shell.showItemInFolder(targetPath)
+    return { success: true }
+  })
+
+  ipcMain.handle('files:clearIndex', async (_event, projectId: string) => {
+    clearFileIndex(projectId)
+    return { success: true }
+  })
+
+  ipcMain.handle('shell:open-external', async (_event, url: string) => {
+    if (!url?.trim()) {
+      return { success: false }
+    }
+
+    await shell.openExternal(url)
+    return { success: true }
+  })
+
+  ipcMain.handle('git:get-state', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getGitWorkflowState } = await import('../git/service')
+    return getGitWorkflowState(project.path)
+  })
+
+  ipcMain.handle('git:commit', async (_event, projectId: string, message: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { commitAllChanges } = await import('../git/service')
+    return commitAllChanges(project.path, message)
+  })
+
+  ipcMain.handle('git:push', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { pushCurrentBranch } = await import('../git/service')
+    return pushCurrentBranch(project.path)
+  })
+
+  ipcMain.handle('git:create-pr', async (_event, projectId: string, input: {
+    title: string
+    body: string
+    isDraft: boolean
+    baseBranch?: string
+  }) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { createPullRequest } = await import('../git/service')
+    const result = await createPullRequest(project.path, input)
+    if (result.ok && result.url) {
+      await shell.openExternal(result.url)
+    }
     return result
   })
 
-  ipcMain.handle('engine:search', async (_event, projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => {
-    const { engineSearch } = await import('../engine/binary.js')
-    const result = await engineSearch(projectId, query, options)
-    await updateStore((draft) => {
-      if (!draft.engineSearchSessions) {
-        draft.engineSearchSessions = {}
-      }
-      draft.engineSearchSessions[projectId] = {
-        projectId,
-        query,
-        regex: options?.regex ?? false,
-        updatedAt: new Date().toISOString(),
-        result,
-      }
-    })
+  ipcMain.handle('git:diff', async (_event, projectId: string, relativePath: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!relativePath?.trim()) {
+      throw new Error('File path is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getFileDiff } = await import('../git/service')
+    return getFileDiff(project.path, relativePath)
+  })
+
+  // Engine operations (devdesk-engine integration)
+  ipcMain.handle('engine:state', async () => {
+    const { loadEngineSnapshot } = await import('../engine/engineService')
+    return loadEngineSnapshot()
+  })
+
+  ipcMain.handle('engine:index', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { indexProject } = await import('../engine/engineService')
+    _event.sender.send('engine:indexing-started', { projectId })
+    const result = await indexProject(projectId, project.path)
+    _event.sender.send('engine:indexing-completed', { projectId, result })
     return result
+  })
+
+  ipcMain.handle('engine:search', async (
+    _event,
+    projectId: string,
+    query: string,
+    options?: { regex?: boolean; limit?: number }
+  ) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+    if (!query) {
+      return { ok: true, query: '', results: [], totalMatches: 0, durationMs: 0 }
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { searchProject } = await import('../engine/engineService')
+    return searchProject(projectId, project.path, query, options)
   })
 
   ipcMain.handle('engine:stats', async (_event, projectId: string) => {
-    const { engineStats } = await import('../engine/binary.js')
-    return engineStats(projectId)
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getProjectStats } = await import('../engine/engineService')
+    return getProjectStats(projectId)
   })
+
+  ipcMain.handle('engine:git-insights', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const { getGitInsights } = await import('../git/service')
+    return getGitInsights(project.path)
+  })
+
+  ipcMain.handle('engine:clear', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const { clearProjectIndex } = await import('../engine/engineService')
+    return clearProjectIndex(projectId)
+  })
+
+  ipcMain.handle('engine:clear-search-session', async (_event, projectId: string) => {
+    if (!projectId) {
+      throw new Error('Project id is required.')
+    }
+
+    const { clearProjectSearchSession } = await import('../engine/engineService')
+    return clearProjectSearchSession(projectId)
+  })
+
+  ipcMain.handle('engine:is-available', async () => {
+    const { isEngineAvailable } = await import('../engine/engineService')
+    return isEngineAvailable()
+  })
+
+  // Terminal
+  ipcMain.handle('terminal:create', async (_event, options: TerminalCreateOptions) => {
+    const session = await terminalManager.create(options)
+    return { terminalId: session.id }
+  })
+
+  ipcMain.handle('terminal:write', async (_event, terminalId: string, data: string) => {
+    if (!terminalId?.trim()) {
+      throw new Error('Terminal id is required.')
+    }
+    if (typeof data !== 'string') {
+      throw new Error('Data is required.')
+    }
+
+    terminalManager.write(terminalId, data)
+  })
+
+  ipcMain.handle('terminal:resize', async (_event, terminalId: string, cols: number, rows: number) => {
+    if (!terminalId?.trim()) {
+      throw new Error('Terminal id is required.')
+    }
+    if (!Number.isFinite(cols) || cols < 1 || cols > 500) {
+      throw new Error('Cols must be between 1 and 500.')
+    }
+    if (!Number.isFinite(rows) || rows < 1 || rows > 500) {
+      throw new Error('Rows must be between 1 and 500.')
+    }
+
+    terminalManager.resize(terminalId, cols, rows)
+  })
+
+  ipcMain.handle('terminal:close', async (_event, terminalId: string) => {
+    if (!terminalId?.trim()) {
+      throw new Error('Terminal id is required.')
+    }
+
+    terminalManager.close(terminalId)
+  })
+
+  // Bugs
+  ipcMain.handle('bugs:create', async (_event, input: unknown): Promise<BugApiResult<BugReport>> => {
+    try {
+      const contextSnapshot = isRecord(input) && isValidContextSnapshotData(input.contextSnapshot)
+        ? input.contextSnapshot
+        : undefined
+
+      const report = await createBugReport(sanitizeCreateBugInput(input))
+
+      if (contextSnapshot) {
+        await saveBugContextSnapshot(report.id, contextSnapshot)
+      }
+
+      return bugSuccess(report)
+    } catch (error) {
+      return bugFailure<BugReport>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:update', async (_event, bugId: unknown, input: unknown): Promise<BugApiResult<BugReport>> => {
+    try {
+      const updated = await updateBugReport(
+        sanitizeBugId(bugId),
+        sanitizeUpdateBugInput(input)
+      )
+
+      if (!updated) {
+        return bugFailure('not_found', 'Bug report not found.')
+      }
+
+      return bugSuccess(updated)
+    } catch (error) {
+      return bugFailure<BugReport>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:delete', async (_event, bugId: unknown): Promise<BugApiResult<{ success: boolean }>> => {
+    try {
+      const sanitizedId = sanitizeBugId(bugId)
+      const attachmentPaths = await listBugAttachmentPathsByBugId(sanitizedId)
+      const deleted = await deleteBugReport(sanitizedId)
+      if (!deleted) {
+        return bugFailure('not_found', 'Bug report not found.')
+      }
+
+      for (const relPath of attachmentPaths) {
+        try {
+          deleteAttachmentFile(relPath)
+        } catch {
+          // best-effort cleanup
+        }
+      }
+
+      return bugSuccess({ success: true })
+    } catch (error) {
+      return bugFailure<{ success: boolean }>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:get', async (_event, bugId: unknown): Promise<BugApiResult<BugReport | null>> => {
+    try {
+      const report = await getBugReportById(sanitizeBugId(bugId))
+      return bugSuccess(report)
+    } catch (error) {
+      return bugFailure<BugReport | null>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:list', async (_event, filters?: unknown): Promise<BugApiResult<BugReport[]>> => {
+    try {
+      const reports = await listBugReports(sanitizeBugFilters(filters))
+      return bugSuccess(reports)
+    } catch (error) {
+      return bugFailure<BugReport[]>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:capture-context', async (_event, projectId: unknown): Promise<BugApiResult<BugContextSnapshotData>> => {
+    try {
+      const sanitizedProjectId = sanitizeRequiredBugString(projectId, 'Bug projectId')
+      const containers = await listDockerContainers()
+      const snapshot = await captureContextSnapshot(sanitizedProjectId, containers)
+      return bugSuccess(snapshot)
+    } catch (error) {
+      return bugFailure<BugContextSnapshotData>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:get-context-snapshot', async (_event, bugReportId: unknown): Promise<BugApiResult<BugContextSnapshot | null>> => {
+    try {
+      const sanitizedId = sanitizeBugId(bugReportId, 'Bug report id')
+      const snapshot = await getBugContextSnapshotByBugId(sanitizedId)
+      return bugSuccess(snapshot)
+    } catch (error) {
+      return bugFailure<BugContextSnapshot | null>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:list-attachments', async (_event, bugReportId: unknown): Promise<BugApiResult<BugAttachment[]>> => {
+    try {
+      const sanitizedId = sanitizeBugId(bugReportId, 'Bug report id')
+      const attachments = await listBugAttachments(sanitizedId)
+      return bugSuccess(attachments)
+    } catch (error) {
+      return bugFailure<BugAttachment[]>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:add-attachment', async (_event, input: unknown): Promise<BugApiResult<BugAttachment>> => {
+    try {
+      const sanitized = sanitizeAddAttachmentInput(input)
+      const { relativePath, fileSize } = copyFileToAttachments(sanitized.sourceFilePath)
+      const attachment = await addBugAttachmentRecord({
+        ...sanitized,
+        storedRelativePath: relativePath,
+        fileSize,
+      })
+      return bugSuccess(attachment)
+    } catch (error) {
+      return bugFailure<BugAttachment>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:remove-attachment', async (_event, attachmentId: unknown): Promise<BugApiResult<{ success: boolean }>> => {
+    try {
+      const sanitizedId = sanitizeBugId(attachmentId, 'Attachment id')
+      const attachment = await getBugAttachmentById(sanitizedId)
+      if (!attachment) {
+        return bugFailure('not_found', 'Attachment not found.')
+      }
+
+      const deleted = await deleteBugAttachmentRecord(sanitizedId)
+      if (!deleted) {
+        return bugFailure('not_found', 'Attachment not found.')
+      }
+
+      try {
+        deleteAttachmentFile(attachment.filePath)
+      } catch {
+        // best-effort cleanup
+      }
+
+      return bugSuccess({ success: true })
+    } catch (error) {
+      return bugFailure<{ success: boolean }>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  ipcMain.handle('bugs:pick-attachment-file', async (_event, options?: unknown): Promise<BugApiResult<{ canceled: boolean; filePaths: string[] }>> => {
+    try {
+      const dialogOptions: OpenDialogOptions = {
+        properties: ['openFile', 'multiSelections'],
+      }
+
+      if (isRecord(options)) {
+        if (typeof options.title === 'string') {
+          dialogOptions.title = options.title
+        }
+        if (Array.isArray(options.filters)) {
+          dialogOptions.filters = options.filters.filter(
+            (f): f is { name: string; extensions: string[] } =>
+              isRecord(f) && typeof f.name === 'string' && Array.isArray(f.extensions)
+          )
+        }
+      }
+
+      const result = await dialog.showOpenDialog(dialogOptions)
+      return bugSuccess({ canceled: result.canceled, filePaths: result.filePaths })
+    } catch (error) {
+      return bugFailure<{ canceled: boolean; filePaths: string[] }>(toBugApiError(error).code, toBugApiError(error).message)
+    }
+  })
+
+  // Notes
+  ipcMain.handle('notes:get', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+    return getProjectNotesById(projectId)
+  })
+
+  ipcMain.handle('notes:update', async (_event, projectId: string, updates: Partial<ProjectNotes>) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+    const sanitized: Partial<ProjectNotes> = {}
+    if (typeof updates.setupSteps === 'string') {
+      sanitized.setupSteps = updates.setupSteps
+    }
+    if (typeof updates.todos === 'string') {
+      sanitized.todos = updates.todos
+    }
+    if (typeof updates.reminders === 'string') {
+      sanitized.reminders = updates.reminders
+    }
+    await upsertProjectNotes(projectId, sanitized)
+  })
+
+  // ── Health Check ──────────────────────────────────────────────────
+
+  ipcMain.handle('health:run', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const project = await getProjectById(projectId)
+    if (!project) {
+      throw new Error('Project not found.')
+    }
+
+    const projectPath = normalizeProjectPath(project.path)
+    if (!fs.existsSync(projectPath)) {
+      throw new Error('Project path does not exist.')
+    }
+
+    try {
+      const [systemItems, runtimeItems] = await Promise.all([
+        runSystemChecks(),
+        runRuntimeChecks(projectPath),
+      ])
+
+      const combinedItems = [...systemItems, ...runtimeItems]
+
+      const run = await createHealthCheckRun(projectId, combinedItems)
+      await cleanupOldHealthChecks(projectId)
+      return run
+    } catch (error) {
+      throw new Error(
+        `Health check failed: ${error instanceof Error ? error.message : 'Unexpected error.'}`
+      )
+    }
+  })
+
+  ipcMain.handle('health:get-latest', async (_event, projectId: string) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    return getLatestHealthCheckForProject(projectId)
+  })
+
+  ipcMain.handle('health:list-runs', async (_event, projectId: string, limit?: number) => {
+    if (!projectId?.trim()) {
+      throw new Error('Project id is required.')
+    }
+
+    const cap = Number.isFinite(limit) ? Math.max(1, Math.min(100, limit as number)) : 20
+    return listHealthCheckRuns(projectId, cap)
+  })
+
+  ipcMain.handle('health:get-run', async (_event, runId: string) => {
+    if (!runId?.trim()) {
+      throw new Error('Run id is required.')
+    }
+
+    return getHealthCheckRunById(runId)
+  })
+
+  ipcMain.handle('config:export', async () => {
+    try {
+      return await exportAllData()
+    } catch (err) {
+      return {
+        success: false,
+        data: { version: 0, exportedAt: '', platform: '', tables: {} },
+        recordCounts: {},
+      }
+    }
+  })
+
+  ipcMain.handle('config:export-to-file', async () => {
+    try {
+      const result = await exportAllData()
+      if (!result.success) {
+        return { success: false, error: 'Export failed.' }
+      }
+
+      const focusedWindow = BrowserWindow.getFocusedWindow()
+      const options = {
+        title: 'Export DevDesk Data',
+        defaultPath: 'devdesk-backup.json',
+        filters: [{ name: 'JSON Files', extensions: ['json'] }] as Electron.FileFilter[],
+      }
+
+      const dialogResult = focusedWindow
+        ? await dialog.showSaveDialog(focusedWindow, options)
+        : await dialog.showSaveDialog(options)
+
+      if (dialogResult.canceled || !dialogResult.filePath) {
+        return { success: false, canceled: true }
+      }
+
+      await fs.promises.writeFile(dialogResult.filePath, JSON.stringify(result.data, null, 2), 'utf-8')
+      return { success: true, filePath: dialogResult.filePath, recordCounts: result.recordCounts }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      }
+    }
+  })
+
+  ipcMain.handle('config:import-preview', async () => {
+    try {
+      const focusedWindow = BrowserWindow.getFocusedWindow()
+      const options: OpenDialogOptions = {
+        title: 'Import DevDesk Data',
+        filters: [{ name: 'JSON Files', extensions: ['json'] }],
+        properties: ['openFile'],
+      }
+
+      const dialogResult = focusedWindow
+        ? await dialog.showOpenDialog(focusedWindow, options)
+        : await dialog.showOpenDialog(options)
+
+      if (dialogResult.canceled || dialogResult.filePaths.length === 0) {
+        return { success: false, canceled: true }
+      }
+
+      const filePath = dialogResult.filePaths[0]
+      const MAX_IMPORT_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
+      const stats = await fs.promises.stat(filePath)
+      if (stats.size > MAX_IMPORT_FILE_SIZE) {
+        return { success: false, error: 'Selected file is too large (max 100 MB).' }
+      }
+
+      const raw = await fs.promises.readFile(filePath, 'utf-8')
+      const parsed = JSON.parse(raw) as unknown
+
+      const validation = validateExportData(parsed)
+      if (!validation.valid) {
+        return { success: false, error: validation.error }
+      }
+
+      const data = validation.data!
+      const recordCounts: Record<string, number> = {}
+      for (const tableName of Object.keys(data.tables)) {
+        const rows = data.tables[tableName]
+        recordCounts[tableName] = Array.isArray(rows) ? rows.length : 0
+      }
+
+      const warnings: string[] = []
+      const attachmentCount = data.tables['bug_attachments']?.length ?? 0
+      if (attachmentCount > 0) {
+        warnings.push(
+          `This backup contains ${attachmentCount} external attachment record(s). External files are not included in v1 exports and will not be available after restore.`
+        )
+      }
+
+      return { success: true, data, recordCounts, warnings }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      }
+    }
+  })
+
+  ipcMain.handle('config:import', async (_event, data: unknown, mode: ImportMode) => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return {
+        success: false,
+        recordCounts: {},
+        error: 'Import data must be a non-null object.',
+      }
+    }
+    return importAllData(data, mode)
+  })
+}
+
+export async function runLastCommand(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const history = await listRecentRunHistory(1)
+    if (!history.length) {
+      return { success: false, error: 'No command history found.' }
+    }
+    const entry = history[0]
+    const command = await getCommandById(entry.commandId)
+    if (!command) {
+      return { success: false, error: 'The last run command no longer exists.' }
+    }
+    const run = await startCommandExecution(command, entry.projectId)
+    if ('status' in run && run.status === 'needs-input') {
+      return { success: false, error: 'Last command requires input variables.' }
+    }
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to run last command.' }
+  }
 }

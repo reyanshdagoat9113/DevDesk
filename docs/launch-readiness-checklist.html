@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevDesk — Launch Readiness Checklist</title>
+  <style>
+    :root {
+      --bg-primary: #0b0f14;
+      --bg-secondary: #111820;
+      --bg-card: #161e28;
+      --bg-card-hover: #1c2632;
+      --border: #1e2a38;
+      --text-primary: #e8eef4;
+      --text-secondary: #8b9db0;
+      --text-muted: #5a6e82;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #06b6d4;
+      --success-bg: rgba(16, 185, 129, 0.08);
+      --warning-bg: rgba(245, 158, 11, 0.08);
+      --danger-bg: rgba(239, 68, 68, 0.08);
+      --info-bg: rgba(6, 182, 212, 0.08);
+      --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2a3a4c; }
+
+    .header {
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 32px 40px;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--warning), var(--danger));
+    }
+    .header-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 24px;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .logo {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 8px 32px rgba(59, 130, 246, 0.25);
+      flex-shrink: 0;
+    }
+    .header-content h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 760px;
+    }
+    .header-meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .meta-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+    }
+    .meta-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      margin-left: 8px;
+    }
+    .goal-box,
+    .status-box,
+    .card,
+    .risk-card,
+    .phase-card {
+      background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+    .goal-box,
+    .status-box {
+      padding: 28px 32px;
+      margin-bottom: 32px;
+      position: relative;
+    }
+    .goal-box::before,
+    .status-box::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 16px;
+      bottom: 16px;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+    }
+    .goal-box::before { background: linear-gradient(180deg, var(--accent), var(--info)); }
+    .status-box::before { background: linear-gradient(180deg, var(--warning), var(--danger)); }
+    .goal-box h2,
+    .status-box h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    .goal-box p,
+    .status-box p { color: var(--text-secondary); }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(245, 158, 11, 0.24);
+      background: var(--warning-bg);
+      color: #ffd089;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .card {
+      padding: 24px;
+    }
+    .card h3 {
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+    .card p,
+    .card li,
+    .risk-card p,
+    .phase-card p { color: var(--text-secondary); }
+    .card ul,
+    .risk-card ul,
+    .phase-card ul {
+      margin-left: 18px;
+      display: grid;
+      gap: 8px;
+    }
+    .card code,
+    .risk-card code,
+    .phase-card code {
+      font-family: var(--font-mono);
+      color: #c6e2ff;
+      background: rgba(59, 130, 246, 0.08);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    .check-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .check-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 20px 24px 12px;
+    }
+    .check-number {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: rgba(59, 130, 246, 0.14);
+      color: #93c5fd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+    }
+    .check-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .check-body {
+      padding: 0 24px 24px;
+      color: var(--text-secondary);
+    }
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 10px 0 14px;
+    }
+    .tag {
+      display: inline-flex;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--border);
+    }
+    .tag.blocker {
+      background: var(--danger-bg);
+      color: #fda4af;
+      border-color: rgba(239, 68, 68, 0.24);
+    }
+    .tag.warning {
+      background: var(--warning-bg);
+      color: #ffd089;
+      border-color: rgba(245, 158, 11, 0.24);
+    }
+    .tag.good {
+      background: var(--success-bg);
+      color: #9ae6b4;
+      border-color: rgba(16, 185, 129, 0.24);
+    }
+    .tag.info {
+      background: var(--info-bg);
+      color: #93ddf0;
+      border-color: rgba(6, 182, 212, 0.24);
+    }
+
+    .risk-grid,
+    .phase-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+    .risk-card,
+    .phase-card {
+      padding: 24px;
+    }
+    .risk-title,
+    .phase-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .severity {
+      display: inline-flex;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .severity.high { background: var(--danger-bg); color: #fda4af; }
+    .severity.medium { background: var(--warning-bg); color: #ffd089; }
+    .severity.low { background: var(--info-bg); color: #93ddf0; }
+
+    .footer {
+      padding: 28px 32px 40px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .footer-brand {
+      color: var(--text-primary);
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    @media (max-width: 960px) {
+      .grid.two,
+      .grid.three,
+      .risk-grid,
+      .phase-grid {
+        grid-template-columns: 1fr;
+      }
+      .header-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .header,
+      .container,
+      .footer { padding-left: 20px; padding-right: 20px; }
+      .goal-box,
+      .status-box,
+      .card,
+      .risk-card,
+      .phase-card,
+      .check-body,
+      .check-head { padding-left: 18px; padding-right: 18px; }
+      .check-head { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-grid">
+      <div class="logo">D</div>
+      <div class="header-content">
+        <h1>Launch Readiness Checklist</h1>
+        <p class="subtitle">A go / no-go plan for deciding whether DevDesk is actually ready for launch after milestones 1–4. This document separates feature completion from release readiness and focuses on validation, packaging, quality, and launch operations.</p>
+        <div class="header-meta">
+          <span class="meta-badge"><span class="dot"></span> Current Verdict: Not Launch Ready</span>
+          <span class="meta-badge">Post Milestones 1–4 Review</span>
+          <span class="meta-badge">Electron + Vite + TS</span>
+          <span class="meta-badge">Release Gate Checklist</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="goal-box">
+      <h2>Document Goal</h2>
+      <p>Give DevDesk a practical launch decision framework. A launch should only be approved when the app is stable, test results are green, packaging is verified on the release target, documentation matches reality, and the repo is in a clean releasable state.</p>
+    </div>
+
+    <div class="status-box">
+      <div class="status-pill">No-Go Right Now</div>
+      <h2>Current Assessment</h2>
+      <p>Milestones 1–4 being complete is a strong feature-progress signal, but it is not enough by itself to declare DevDesk finished. The current repo still shows failing desktop tests, a non-clean git state, and README / roadmap signals that more release work remains.</p>
+    </div>
+
+    <div class="section-title">Evidence Snapshot</div>
+    <div class="grid two">
+      <article class="card">
+        <h3>What Looks Good</h3>
+        <ul>
+          <li><code>npm run build</code> completed successfully.</li>
+          <li>Renderer and main/preload TypeScript builds completed.</li>
+          <li>Lint reported warnings only, not hard errors.</li>
+          <li>Readme already describes a strong local-first MVP baseline.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>What Blocks Launch</h3>
+        <ul>
+          <li><code>npm run test:run</code> failed with 20 failing tests.</li>
+          <li><code>better-sqlite3</code> native module mismatch is breaking store tests.</li>
+          <li>Git working tree is not clean (<code>docs/milestone4-plan.html</code> modified).</li>
+          <li><code>Readme.md</code> and <code>ROADMAP.md</code> still imply unfinished work.</li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="section-title">Launch Gates</div>
+    <div class="checklist">
+      <article class="check-item">
+        <div class="check-head">
+          <div class="check-number">1</div>
+          <div>
+            <div class="check-title">Code Health Gate</div>
+            <div class="tag-row">
+              <span class="tag blocker">Blocker</span>
+              <span class="tag warning">Currently Failing</span>
+            </div>
+          </div>
+        </div>
+        <div class="check-body">
+          <p>All required validation commands should pass from a fresh checkout on the intended release environment.</p>
+          <ul>
+            <li>Required: <code>npm run test:run</code></li>
+            <li>Required: <code>npm run test:renderer:run</code></li>
+            <li>Required: <code>npm run typecheck</code></li>
+            <li>Required: <code>npm run lint</code> with either zero issues or explicitly accepted warnings</li>
+          </ul>
+          <p><strong>Current issue:</strong> the desktop test suite is failing because <code>better-sqlite3</code> is compiled for a different Node module version than the runtime used by the tests.</p>
+        </div>
+      </article>
+
+      <article class="check-item">
+        <div class="check-head">
+          <div class="check-number">2</div>
+          <div>
+            <div class="check-title">Packaging Gate</div>
+            <div class="tag-row">
+              <span class="tag blocker">Blocker</span>
+              <span class="tag info">Must Reverify</span>
+            </div>
+          </div>
+        </div>
+        <div class="check-body">
+          <p>A successful build is not the same as a successful release package. Launch approval should require packaged-app verification on the actual target platform(s).</p>
+          <ul>
+            <li>Run packaged smoke tests for the chosen release platform.</li>
+            <li>Launch the packaged app and verify core flows: projects, commands, Docker, history, notes, and milestone-added features.</li>
+            <li>Verify native dependencies work in packaged mode.</li>
+            <li>Confirm release artifacts are generated into the expected <code>release/</code> output path.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="check-item">
+        <div class="check-head">
+          <div class="check-number">3</div>
+          <div>
+            <div class="check-title">Repo State Gate</div>
+            <div class="tag-row">
+              <span class="tag blocker">Blocker</span>
+              <span class="tag warning">Not Clean</span>
+            </div>
+          </div>
+        </div>
+        <div class="check-body">
+          <p>The launch candidate should be cut from a clean, reviewable git state.</p>
+          <ul>
+            <li>No uncommitted changes in tracked files.</li>
+            <li>No accidental documentation drift.</li>
+            <li>Tagged or otherwise versioned release commit.</li>
+            <li>Release notes match what actually shipped.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="check-item">
+        <div class="check-head">
+          <div class="check-number">4</div>
+          <div>
+            <div class="check-title">Scope Gate</div>
+            <div class="tag-row">
+              <span class="tag warning">Decision Needed</span>
+              <span class="tag info">V1 vs Post-Launch</span>
+            </div>
+          </div>
+        </div>
+        <div class="check-body">
+          <p>Launch readiness depends on what is truly in scope for v1. The current docs still list unfinished backlog items, so they must be intentionally classified.</p>
+          <ul>
+            <li>Decide whether export/import config is required for v1.</li>
+            <li>Decide whether tray quick actions are required for v1.</li>
+            <li>Decide whether context bundling is now shipped, partially shipped, or deferred.</li>
+            <li>Update <code>Readme.md</code> and <code>ROADMAP.md</code> to reflect the final launch scope truthfully.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="check-item">
+        <div class="check-head">
+          <div class="check-number">5</div>
+          <div>
+            <div class="check-title">Manual QA Gate</div>
+            <div class="tag-row">
+              <span class="tag warning">Needs Sign-Off</span>
+              <span class="tag info">High Confidence</span>
+            </div>
+          </div>
+        </div>
+        <div class="check-body">
+          <p>Before launch, perform one structured end-to-end pass through the core user journey.</p>
+          <ul>
+            <li>Add/edit/remove a project.</li>
+            <li>Create and run saved commands with variables.</li>
+            <li>Review live output and run history.</li>
+            <li>Open notes, git snapshot, health, bugs, and milestone-specific features.</li>
+            <li>Verify Docker integration with both present and absent Docker environments.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="check-item">
+        <div class="check-head">
+          <div class="check-number">6</div>
+          <div>
+            <div class="check-title">Launch Ops Gate</div>
+            <div class="tag-row">
+              <span class="tag info">Final Prep</span>
+              <span class="tag good">Quick Win</span>
+            </div>
+          </div>
+        </div>
+        <div class="check-body">
+          <p>Even a solo-developer launch benefits from a lightweight release checklist.</p>
+          <ul>
+            <li>Choose release version number.</li>
+            <li>Prepare release notes and known limitations.</li>
+            <li>Confirm install instructions are current.</li>
+            <li>Archive or note the exact commands used to validate the release candidate.</li>
+          </ul>
+        </div>
+      </article>
+    </div>
+
+    <div class="section-title">Recommended Recovery Plan</div>
+    <div class="phase-grid">
+      <article class="phase-card">
+        <div class="phase-title">Phase A — Stabilize</div>
+        <p>Goal: remove blockers that make the launch verdict impossible today.</p>
+        <ul>
+          <li>Fix the <code>better-sqlite3</code> native module mismatch.</li>
+          <li>Get desktop tests passing again.</li>
+          <li>Decide whether lint warnings must be resolved pre-launch.</li>
+        </ul>
+      </article>
+      <article class="phase-card">
+        <div class="phase-title">Phase B — Revalidate</div>
+        <p>Goal: prove the app works as a release candidate, not just a dev build.</p>
+        <ul>
+          <li>Run the full validation suite on a fresh state.</li>
+          <li>Build and launch the packaged app.</li>
+          <li>Perform manual QA on core flows.</li>
+        </ul>
+      </article>
+      <article class="phase-card">
+        <div class="phase-title">Phase C — Declare</div>
+        <p>Goal: make the launch decision explicit and documented.</p>
+        <ul>
+          <li>Clean the git tree.</li>
+          <li>Update product docs to match reality.</li>
+          <li>Record a final go / no-go verdict with evidence.</li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="section-title">Risk Summary</div>
+    <div class="risk-grid">
+      <article class="risk-card">
+        <div class="severity high">High Risk</div>
+        <div class="risk-title">False Sense of Completion</div>
+        <p>Feature milestones can be complete while launch quality gates still fail. Shipping in this state risks immediate regressions and credibility loss.</p>
+      </article>
+      <article class="risk-card">
+        <div class="severity high">High Risk</div>
+        <div class="risk-title">Native Module Breakage</div>
+        <p>DevDesk depends on native SQLite bindings. If those are not aligned with the test/runtime environment, packaged or local installs may behave inconsistently.</p>
+      </article>
+      <article class="risk-card">
+        <div class="severity medium">Medium Risk</div>
+        <div class="risk-title">Documentation Drift</div>
+        <p>If the launch scope is not reflected in the README and roadmap, launch messaging will be confusing and post-launch maintenance gets harder.</p>
+      </article>
+    </div>
+
+    <div class="section-title">Go / No-Go Rule</div>
+    <div class="card" style="margin-bottom: 40px;">
+      <h3>Launch Decision Rule</h3>
+      <p>DevDesk is ready for launch only when all launch blockers are cleared:</p>
+      <ul>
+        <li>All required tests pass</li>
+        <li>Typecheck passes</li>
+        <li>Lint is acceptable by policy</li>
+        <li>Packaged release is verified on target platform(s)</li>
+        <li>Manual QA is signed off</li>
+        <li>Docs and git state are clean</li>
+      </ul>
+      <p style="margin-top: 12px;"><strong>Until then, the correct verdict is:</strong> <code>No-Go / Not Yet Launch Ready</code>.</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-brand">DevDesk</div>
+    <div>Launch readiness checklist and release gate plan</div>
+  </footer>
+</body>
+</html>

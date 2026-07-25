@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Clock3, Code2, Database, ExternalLink, Pencil, SearchCode, Terminal, Trash2, Zap } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Code2, Pencil, Terminal, Trash2, FolderGit2, Monitor, Link2, RefreshCw, Activity, Trash, Star } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/Card'
+import { Skeleton } from '../components/ui/Skeleton'
 import {
   Dialog,
   DialogContent,
@@ -12,107 +20,177 @@ import {
 } from '../components/ui/Dialog'
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
-import { Separator } from '../components/ui/Separator'
+import { ScrollArea } from '../components/ui/ScrollArea'
+import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
+import { ProjectGitSummary } from '../components/ProjectGitSummary'
+import { ProjectHealthPanel } from '../components/ProjectHealthPanel'
+import { ProjectNotesPanel } from '../components/ProjectNotesPanel'
+import { BugRecorderPanel } from '../components/BugRecorderPanel'
+import { LlmContextExporter } from '../components/LlmContextExporter'
+import { ProjectDetailTabs } from '../components/ProjectDetailTabs'
 import { SectionLayout } from '../layout/SectionLayout'
-import type { AppPreferences, EngineIndexMeta, EngineSearchSession, EngineStatus, Project } from '../types'
+import { cn } from '../../lib/utils'
+import {
+  containerStateBadge,
+  isWslPath,
+  linuxEditorOptions,
+  linuxTerminalOptions,
+  macEditorOptions,
+  macTerminalOptions,
+  selectClass,
+  windowsEditorOptions,
+  windowsTerminalOptions,
+} from './projectsSectionConfig'
+import type {
+  AppPreferences,
+  Container,
+  Command,
+  CreateCommandInput,
+  EngineGitInsights,
+  EngineIndexResult,
+  EngineIndexMeta,
+  EngineSearchResult,
+  EngineSearchSession,
+  EngineStats,
+  EngineStatus,
+  GitCommitResult,
+  GitCreatePullRequestResult,
+  GitFileDiffResult,
+  GitPushResult,
+  GitWorkflowState,
+  Project,
+  ProjectHealthReport,
+} from '../types'
 
-const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm'
-const selectClass =
-  'flex h-9 w-full rounded-md border border-input bg-background/70 px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
+function getProjectHealthBadge(report?: ProjectHealthReport) {
+  if (!report) {
+    return {
+      label: '...',
+      variant: 'outline' as const,
+      className: 'h-4 px-1.5 text-[8px] font-bold opacity-50',
+      title: 'Health inspection pending',
+    }
+  }
 
-function isWslPath(projectPath: string) {
-  return /^\\\\wsl(?:\.localhost|\$)\\/i.test(projectPath)
+  if (report.status === 'critical') {
+    return {
+      label: 'Critical',
+      variant: 'destructive' as const,
+      className: 'h-4 px-1.5 text-[8px] font-bold',
+      title: 'Project health is critical',
+    }
+  }
+
+  if (report.status === 'warning') {
+    return {
+      label: 'Warning',
+      variant: 'warning' as const,
+      className: 'h-4 px-1.5 text-[8px] font-bold',
+      title: 'Project health has warnings',
+    }
+  }
+
+  return {
+    label: 'Healthy',
+    variant: 'success' as const,
+    className: 'h-4 px-1.5 text-[8px] font-bold',
+    title: 'Project health looks good',
+  }
 }
 
-function formatRelativeDate(value?: string) {
-  if (!value) return 'Never'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
+function ProjectHealthBadge({ report }: { report?: ProjectHealthReport }) {
+  const badge = getProjectHealthBadge(report)
 
-  const diffMs = Date.now() - date.getTime()
-  const diffMinutes = Math.round(diffMs / 60000)
-  if (diffMinutes < 1) return 'Just now'
-  if (diffMinutes < 60) return `${diffMinutes}m ago`
-  const diffHours = Math.round(diffMinutes / 60)
-  if (diffHours < 24) return `${diffHours}h ago`
-  const diffDays = Math.round(diffHours / 24)
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString()
+  return (
+    <Badge variant={badge.variant} className={badge.className} title={badge.title}>
+      {badge.label}
+    </Badge>
+  )
 }
-
-const macEditorOptions = [
-  { id: 'vscode', label: 'Visual Studio Code' },
-  { id: 'cursor', label: 'Cursor' },
-  { id: 'webstorm', label: 'WebStorm' },
-  { id: 'intellij', label: 'IntelliJ IDEA' },
-  { id: 'sublime', label: 'Sublime Text' },
-  { id: 'xcode', label: 'Xcode' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const windowsEditorOptions = [
-  { id: 'vscode', label: 'Visual Studio Code' },
-  { id: 'visual-studio', label: 'Visual Studio' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const linuxEditorOptions = [
-  { id: 'vscode', label: 'Visual Studio Code' },
-  { id: 'cursor', label: 'Cursor' },
-  { id: 'webstorm', label: 'WebStorm' },
-  { id: 'intellij', label: 'IntelliJ IDEA' },
-  { id: 'sublime', label: 'Sublime Text' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const macTerminalOptions = [
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'iterm', label: 'iTerm' },
-  { id: 'warp', label: 'Warp' },
-  { id: 'hyper', label: 'Hyper' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const windowsTerminalOptions = [
-  { id: 'windows-terminal', label: 'Windows Terminal' },
-  { id: 'powershell', label: 'PowerShell' },
-  { id: 'cmd', label: 'Command Prompt' },
-  { id: 'custom', label: 'Custom command' },
-]
-
-const linuxTerminalOptions = [
-  { id: 'terminal', label: 'Default Terminal' },
-  { id: 'gnome', label: 'GNOME Terminal' },
-  { id: 'konsole', label: 'Konsole' },
-  { id: 'custom', label: 'Custom command' },
-]
 
 export function ProjectsSection({
   projects,
+  containers,
   isLoading,
   error,
+  containersLoading,
+  containersError,
   preferences,
-  onSavePreferences,
-  onUpdateProject,
-  onRemoveProject,
   engineStatus,
   engineIndexes,
-  searchSessions,
+  engineSearchSessions,
+  engineIndexingProjects,
+  engineLatestIndexResults,
+  onSavePreferences,
+  onUpdateProject,
+  onSetLinkedContainers,
+  onStartDevStack,
+  onStopDevStack,
+  onRestartDevStack,
+  onRefreshContainers,
+  onRemoveProject,
+  onToggleProjectPin,
+  onSelectProject,
   onIndexProject,
-  onOpenSearch,
+  onSearchProjectContent,
+  onLoadEngineStats,
+  onLoadEngineGitInsights,
+  onLoadGitState,
+  onLoadFileDiff,
+  onCommitProjectChanges,
+  onPushProjectBranch,
+  onCreateProjectPullRequest,
+  onOpenEngineResult,
+  onRevealEngineResult,
+  onClearProjectIndex,
+  onClearProjectSearchSession,
+  onOpenExternalUrl,
+  onOpenProjectEngine,
+  onCreateCommand,
+  onRunCommand,
 }: {
   projects: Project[]
+  containers: Container[]
   isLoading?: boolean
   error?: string | null
+  containersLoading?: boolean
+  containersError?: string | null
   preferences?: AppPreferences | null
-  onSavePreferences?: (next: AppPreferences) => Promise<void>
-  onUpdateProject?: (projectId: string, updates: { name: string }) => Promise<void>
-  onRemoveProject?: (projectId: string) => Promise<void>
   engineStatus?: EngineStatus | null
   engineIndexes?: Record<string, EngineIndexMeta>
-  searchSessions?: Record<string, EngineSearchSession>
-  onIndexProject?: (projectId: string) => Promise<void>
-  onOpenSearch?: (projectId: string) => void
+  engineSearchSessions?: Record<string, EngineSearchSession>
+  engineIndexingProjects?: Record<string, boolean>
+  engineLatestIndexResults?: Record<string, EngineIndexResult>
+  onSavePreferences?: (next: AppPreferences) => Promise<void>
+  onUpdateProject?: (projectId: string, updates: { name: string }) => Promise<void>
+  onToggleProjectPin?: (projectId: string) => Promise<Project>
+  onSetLinkedContainers?: (projectId: string, linkedContainerNames: string[]) => Promise<Project>
+  onStartDevStack?: (projectId: string) => Promise<{ success: boolean; started: string[]; resumed: string[]; alreadyRunning: string[]; missing: string[] }>
+  onStopDevStack?: (projectId: string) => Promise<{ success: boolean; stopped: string[]; alreadyStopped: string[]; missing: string[] }>
+  onRestartDevStack?: (projectId: string) => Promise<{ success: boolean; stopped: string[]; started: string[]; missing: string[] }>
+  onRefreshContainers?: () => Promise<void>
+  onRemoveProject?: (projectId: string) => Promise<void>
+  onSelectProject?: (projectId: string) => void
+  onIndexProject?: (projectId: string) => Promise<unknown>
+  onSearchProjectContent?: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
+  onLoadEngineStats?: (projectId: string) => Promise<EngineStats>
+  onLoadEngineGitInsights?: (projectId: string) => Promise<EngineGitInsights>
+  onLoadGitState?: (projectId: string) => Promise<GitWorkflowState>
+  onLoadFileDiff?: (projectId: string, relativePath: string) => Promise<GitFileDiffResult>
+  onCommitProjectChanges?: (projectId: string, message: string) => Promise<GitCommitResult>
+  onPushProjectBranch?: (projectId: string) => Promise<GitPushResult>
+  onCreateProjectPullRequest?: (
+    projectId: string,
+    input: { title: string; body: string; isDraft: boolean; baseBranch?: string }
+  ) => Promise<GitCreatePullRequestResult>
+  onOpenEngineResult?: (projectId: string, relativePath: string, location?: { line?: number; column?: number }) => Promise<void>
+  onRevealEngineResult?: (projectId: string, relativePath: string) => Promise<void>
+  onClearProjectIndex?: (projectId: string) => Promise<void>
+  onClearProjectSearchSession?: (projectId: string) => Promise<void>
+  onOpenExternalUrl?: (url: string) => Promise<void>
+  onOpenProjectEngine?: (projectId: string) => void
+  onCreateCommand?: (command: CreateCommandInput) => Promise<Command>
+  onRunCommand?: (commandId: string, projectId: string) => Promise<unknown>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -127,7 +205,43 @@ export function ProjectsSection({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isIndexing, setIsIndexing] = useState(false)
+  const [linkedContainerToAdd, setLinkedContainerToAdd] = useState('')
+  const [linkingError, setLinkingError] = useState<string | null>(null)
+  const [stackActionLoading, setStackActionLoading] = useState<'start' | 'stop' | 'restart' | null>(null)
+  const [stackActionError, setStackActionError] = useState<string | null>(null)
+  const [stackActionMessage, setStackActionMessage] = useState<string | null>(null)
+  const [stopStackDialogOpen, setStopStackDialogOpen] = useState(false)
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false)
+  const [liveLogsTarget, setLiveLogsTarget] = useState<string | null>(null)
+  const [liveLogsText, setLiveLogsText] = useState('')
+  const [liveLogsError, setLiveLogsError] = useState<string | null>(null)
+  const [liveLogsConnecting, setLiveLogsConnecting] = useState(false)
+  const [liveLogsClosed, setLiveLogsClosed] = useState(false)
+  const [projectHealthReports, setProjectHealthReports] = useState<Record<string, ProjectHealthReport>>({})
+  const liveLogsSubscriptionIdRef = useRef<string | null>(null)
+
+  // Sort projects: pinned first, then by name
+  const sortedProjects = useMemo(() => {
+    return [...projects].sort((a, b) => {
+      // Pinned projects come first
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      // If both have same pin status, sort by pinnedAt (most recent first) if pinned
+      if (a.isPinned && b.isPinned) {
+        const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0
+        const bTime = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0
+        return bTime - aTime
+      }
+      // Otherwise sort by name
+      return a.name.localeCompare(b.name)
+    })
+  }, [projects])
+
+  const [pinnedProjects, unpinnedProjects] = useMemo(() => {
+    const pinned = sortedProjects.filter((project) => project.isPinned)
+    const unpinned = sortedProjects.filter((project) => !project.isPinned)
+    return [pinned, unpinned]
+  }, [sortedProjects])
 
   useEffect(() => {
     if (!projects.length) {
@@ -154,11 +268,344 @@ export function ProjectsSection({
   }, [projects, selectedId])
 
   useEffect(() => {
+    let cancelled = false
+    const missingProjects = projects.filter((project) => !projectHealthReports[project.id])
+    if (missingProjects.length === 0) {
+      return
+    }
+
+    void Promise.all(
+      missingProjects.map(async (project) => {
+        try {
+          return await window.electronAPI.inspectProject(project.id)
+        } catch {
+          return null
+        }
+      })
+    ).then((reports) => {
+      if (cancelled) {
+        return
+      }
+
+      setProjectHealthReports((current) => {
+        const next = { ...current }
+        for (const report of reports) {
+          if (report) {
+            next[report.projectId] = report
+          }
+        }
+        return next
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectHealthReports, projects])
+
+  useEffect(() => {
+    setProjectHealthReports((current) => {
+      const projectIds = new Set(projects.map((project) => project.id))
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([projectId]) => projectIds.has(projectId))
+      )
+      return Object.keys(next).length === Object.keys(current).length ? current : next
+    })
+  }, [projects])
+
+  useEffect(() => {
+    if (!selectedProject?.id) {
+      return
+    }
+
+    onSelectProject?.(selectedProject.id)
+  }, [onSelectProject, selectedProject?.id])
+
+  useEffect(() => {
     setEditName(selectedProject?.name ?? '')
   }, [selectedProject?.id, selectedProject?.name])
 
-  const selectedIndex = selectedProject && engineIndexes ? engineIndexes[selectedProject.id] ?? null : null
-  const selectedSession = selectedProject && searchSessions ? searchSessions[selectedProject.id] ?? null : null
+  const linkedContainerNames = useMemo(
+    () => selectedProject?.linkedContainerNames ?? [],
+    [selectedProject?.linkedContainerNames]
+  )
+
+  const containersByName = useMemo(() => {
+    const map = new Map<string, Container>()
+    for (const container of containers) {
+      map.set(container.name.trim().toLowerCase(), container)
+    }
+    return map
+  }, [containers])
+
+  const linkedContainers = useMemo(
+    () =>
+      linkedContainerNames.map((name) => ({
+        linkedName: name,
+        container: containersByName.get(name.trim().toLowerCase()) ?? null,
+      })),
+    [containersByName, linkedContainerNames]
+  )
+
+  const linkableContainers = useMemo(() => {
+    const linked = new Set(linkedContainerNames.map((name) => name.trim().toLowerCase()))
+    return containers.filter((container) => !linked.has(container.name.trim().toLowerCase()))
+  }, [containers, linkedContainerNames])
+
+  useEffect(() => {
+    setLinkedContainerToAdd((current) => {
+      if (!current) {
+        return linkableContainers[0]?.name ?? ''
+      }
+      return linkableContainers.some((container) => container.name === current)
+        ? current
+        : linkableContainers[0]?.name ?? ''
+    })
+  }, [linkableContainers])
+
+  useEffect(() => {
+    setLinkingError(null)
+    setStackActionError(null)
+    setStackActionMessage(null)
+  }, [selectedProject?.id])
+
+  const unsubscribeLiveLogs = useCallback(async () => {
+    const subscriptionId = liveLogsSubscriptionIdRef.current
+    if (!subscriptionId) {
+      return
+    }
+    liveLogsSubscriptionIdRef.current = null
+    try {
+      await window.electronAPI.unsubscribeContainerLogs(subscriptionId)
+    } catch {
+      // Best-effort cleanup
+    }
+  }, [])
+
+  useEffect(() => {
+    const unsubscribeData = window.electronAPI.onContainerLogsData(({ subscriptionId, chunk }) => {
+      if (subscriptionId !== liveLogsSubscriptionIdRef.current) {
+        return
+      }
+      setLiveLogsText((prev) => `${prev}${chunk}`)
+    })
+
+    const unsubscribeEnd = window.electronAPI.onContainerLogsEnd(({ subscriptionId }) => {
+      if (subscriptionId !== liveLogsSubscriptionIdRef.current) {
+        return
+      }
+      setLiveLogsClosed(true)
+      void unsubscribeLiveLogs()
+    })
+
+    const unsubscribeError = window.electronAPI.onContainerLogsError(({ subscriptionId, error }) => {
+      if (subscriptionId !== liveLogsSubscriptionIdRef.current) {
+        return
+      }
+      setLiveLogsError(error || 'Live log stream failed.')
+      void unsubscribeLiveLogs()
+    })
+
+    return () => {
+      unsubscribeData()
+      unsubscribeEnd()
+      unsubscribeError()
+    }
+  }, [unsubscribeLiveLogs])
+
+  useEffect(() => {
+    if (logsDialogOpen) {
+      return
+    }
+    setLiveLogsTarget(null)
+    setLiveLogsText('')
+    setLiveLogsError(null)
+    setLiveLogsConnecting(false)
+    setLiveLogsClosed(false)
+    void unsubscribeLiveLogs()
+  }, [logsDialogOpen, unsubscribeLiveLogs])
+
+  useEffect(() => {
+    return () => {
+      void unsubscribeLiveLogs()
+    }
+  }, [unsubscribeLiveLogs])
+
+  const persistLinkedContainers = useCallback(
+    async (nextLinkedNames: string[]) => {
+      if (!selectedProject || !onSetLinkedContainers) {
+        return
+      }
+      setLinkingError(null)
+      await onSetLinkedContainers(selectedProject.id, nextLinkedNames)
+    },
+    [onSetLinkedContainers, selectedProject]
+  )
+
+  const handleAddLinkedContainer = async () => {
+    if (!selectedProject || !onSetLinkedContainers) {
+      return
+    }
+
+    const nextName = linkedContainerToAdd.trim()
+    if (!nextName) {
+      setLinkingError('Select a container to link.')
+      return
+    }
+
+    const deduped = Array.from(
+      new Set([...linkedContainerNames, nextName].map((entry) => entry.trim()).filter(Boolean))
+    )
+
+    try {
+      await persistLinkedContainers(deduped)
+      setStackActionMessage(`Linked ${nextName} to ${selectedProject.name}.`)
+      setLinkingError(null)
+    } catch (error) {
+      setLinkingError(error instanceof Error ? error.message : 'Failed to link container.')
+    }
+  }
+
+  const handleRemoveLinkedContainer = async (linkedName: string) => {
+    if (!selectedProject || !onSetLinkedContainers) {
+      return
+    }
+
+    const next = linkedContainerNames.filter((entry) => entry.trim().toLowerCase() !== linkedName.trim().toLowerCase())
+    try {
+      await persistLinkedContainers(next)
+      setStackActionMessage(`Unlinked ${linkedName} from ${selectedProject.name}.`)
+      setLinkingError(null)
+    } catch (error) {
+      setLinkingError(error instanceof Error ? error.message : 'Failed to unlink container.')
+    }
+  }
+
+  const formatStackSummary = (values: string[], label: string) => {
+    if (!values.length) {
+      return null
+    }
+    return `${label}: ${values.join(', ')}`
+  }
+
+  const handleStartDevStack = async () => {
+    if (!selectedProject || !onStartDevStack || stackActionLoading) {
+      return
+    }
+    setStackActionLoading('start')
+    setStackActionError(null)
+    setStackActionMessage(null)
+    try {
+      const result = await onStartDevStack(selectedProject.id)
+      const summary = [
+        formatStackSummary(result.started, 'Started'),
+        formatStackSummary(result.resumed, 'Resumed'),
+        formatStackSummary(result.alreadyRunning, 'Already running'),
+        formatStackSummary(result.missing, 'Missing links'),
+      ]
+        .filter(Boolean)
+        .join(' | ')
+      setStackActionMessage(summary || 'No linked containers to start.')
+    } catch (error) {
+      setStackActionError(error instanceof Error ? error.message : 'Failed to start dev stack.')
+    } finally {
+      setStackActionLoading(null)
+    }
+  }
+
+  const handleStopDevStack = async () => {
+    if (!selectedProject || !onStopDevStack || stackActionLoading) {
+      return
+    }
+    setStackActionLoading('stop')
+    setStackActionError(null)
+    setStackActionMessage(null)
+    try {
+      const result = await onStopDevStack(selectedProject.id)
+      const summary = [
+        formatStackSummary(result.stopped, 'Stopped'),
+        formatStackSummary(result.alreadyStopped, 'Already stopped'),
+        formatStackSummary(result.missing, 'Missing links'),
+      ]
+        .filter(Boolean)
+        .join(' | ')
+      setStackActionMessage(summary || 'No linked containers to stop.')
+      setStopStackDialogOpen(false)
+    } catch (error) {
+      setStackActionError(error instanceof Error ? error.message : 'Failed to stop dev stack.')
+    } finally {
+      setStackActionLoading(null)
+    }
+  }
+
+  const handleRestartDevStack = async () => {
+    if (!selectedProject || !onRestartDevStack || stackActionLoading) {
+      return
+    }
+    setStackActionLoading('restart')
+    setStackActionError(null)
+    setStackActionMessage(null)
+    try {
+      const result = await onRestartDevStack(selectedProject.id)
+      const summary = [
+        formatStackSummary(result.stopped, 'Stopped'),
+        formatStackSummary(result.started, 'Started'),
+        formatStackSummary(result.missing, 'Missing links'),
+      ]
+        .filter(Boolean)
+        .join(' | ')
+      setStackActionMessage(summary || 'No linked containers to restart.')
+    } catch (error) {
+      setStackActionError(error instanceof Error ? error.message : 'Failed to restart dev stack.')
+    } finally {
+      setStackActionLoading(null)
+    }
+  }
+
+  const startLiveLogs = useCallback(
+    async (linkedName: string) => {
+      const container = containersByName.get(linkedName.trim().toLowerCase())
+      setLiveLogsTarget(linkedName)
+      setLiveLogsText('')
+      setLiveLogsError(null)
+      setLiveLogsClosed(false)
+
+      if (!container) {
+        setLiveLogsConnecting(false)
+        setLiveLogsError(`Container "${linkedName}" is not available in Docker right now.`)
+        return
+      }
+
+      setLiveLogsConnecting(true)
+      await unsubscribeLiveLogs()
+      try {
+        const { subscriptionId } = await window.electronAPI.subscribeContainerLogs(container.id, 200)
+        liveLogsSubscriptionIdRef.current = subscriptionId
+      } catch (error) {
+        setLiveLogsError(error instanceof Error ? error.message : 'Failed to subscribe to container logs.')
+      } finally {
+        setLiveLogsConnecting(false)
+      }
+    },
+    [containersByName, unsubscribeLiveLogs]
+  )
+
+  const handleOpenLiveLogs = async (linkedName: string) => {
+    setLogsDialogOpen(true)
+    await startLiveLogs(linkedName)
+  }
+
+  const handleRefreshLinkedContainers = async () => {
+    if (!onRefreshContainers) {
+      return
+    }
+    setStackActionError(null)
+    try {
+      await onRefreshContainers()
+    } catch (error) {
+      setStackActionError(error instanceof Error ? error.message : 'Failed to refresh containers.')
+    }
+  }
 
   const handleOpen = async (action: 'folder' | 'editor' | 'terminal') => {
     if (!selectedProject || actionLoading) return
@@ -197,13 +644,15 @@ export function ProjectsSection({
   const updatePreference = (partial: Partial<AppPreferences>, commit = true) => {
     if (!prefsDraft) return
     const next: AppPreferences = {
+      ...prefsDraft,
+      ...partial,
       editor: {
-        id: partial.editor?.id ?? prefsDraft.editor.id,
-        command: partial.editor?.command ?? prefsDraft.editor.command,
+        ...prefsDraft.editor,
+        ...partial.editor,
       },
       terminal: {
-        id: partial.terminal?.id ?? prefsDraft.terminal.id,
-        command: partial.terminal?.command ?? prefsDraft.terminal.command,
+        ...prefsDraft.terminal,
+        ...partial.terminal,
       },
     }
     setPrefsDraft(next)
@@ -212,9 +661,9 @@ export function ProjectsSection({
     }
   }
 
-  const platform = typeof navigator !== 'undefined' ? navigator.platform.toLowerCase() : ''
-  const isMac = platform.includes('mac')
-  const isWindows = platform.includes('win')
+  const platform = window.electronAPI.platform
+  const isMac = platform === 'darwin'
+  const isWindows = platform === 'win32'
   const editorOptions = isMac ? macEditorOptions : isWindows ? windowsEditorOptions : linuxEditorOptions
   const terminalOptions = isMac ? macTerminalOptions : isWindows ? windowsTerminalOptions : linuxTerminalOptions
 
@@ -251,360 +700,713 @@ export function ProjectsSection({
     }
   }
 
-  const handleIndexProject = async () => {
-    if (!selectedProject || !onIndexProject || isIndexing) return
-    setActionError(null)
-    setIsIndexing(true)
-    try {
-      await onIndexProject(selectedProject.id)
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Failed to index project.')
-    } finally {
-      setIsIndexing(false)
-    }
-  }
-
   return (
     <>
       <SectionLayout
         list={
-          <div className={panelClass}>
-            <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Projects</p>
+          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+            <div className="border-b border-border/30 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground">Projects</p>
+                <span className="text-xs text-muted-foreground tabular-nums">{projects.length}</span>
+              </div>
             </div>
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto px-2 py-2">
               {isLoading ? (
-                <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-                  Loading projects...
+                <div className="flex h-full flex-col gap-3 p-3">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-4/5" />
                 </div>
               ) : error ? (
-                <div className="flex h-full items-center justify-center px-6 text-sm text-destructive">
+                <div className="flex h-full items-center justify-center p-4 text-center text-sm text-destructive bg-destructive/5 rounded-lg border border-destructive/10">
                   {error}
                 </div>
               ) : projects.length === 0 ? (
-                <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-                  No projects added yet.
+                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50 animate-fade-in">
+                  <FolderGit2 className="h-10 w-10 mb-2 opacity-20 animate-pulse-subtle" />
+                  <p className="text-sm">No projects added yet.</p>
                 </div>
               ) : (
-                projects.map((project) => {
-                  const isActive = selectedProject?.id === project.id
-                  const isWslProject = isWslPath(project.path)
-                  const projectIndex = engineIndexes ? engineIndexes[project.id] ?? null : null
-                  const projectSession = searchSessions ? searchSessions[project.id] ?? null : null
-                  return (
-                    <button
-                      key={project.id}
-                      onClick={() => setSelectedId(project.id)}
-                      aria-pressed={isActive}
-                      className={`group relative flex w-full items-center gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring last:border-b-0 ${
-                        isActive
-                          ? "bg-accent/70 text-foreground before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:bg-primary before:content-['']"
-                          : 'hover:bg-accent/60'
-                      }`}
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
-                        {project.name.slice(0, 1).toUpperCase()}
+                <div className="space-y-1">
+                  {pinnedProjects.length > 0 && (
+                    <>
+                      <div className="px-2 py-1">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-500/80">Pinned</p>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{project.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">{project.path}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          {projectIndex ? (
-                            <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
-                              {projectIndex.fileCount} files
-                            </Badge>
-                          ) : null}
-                          {projectSession ? (
-                            <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
-                              {projectSession.result.totalMatches} hits
-                            </Badge>
-                          ) : null}
+                      {pinnedProjects.map((project) => {
+                        const isActive = selectedProject?.id === project.id
+                        const isWslProject = isWslPath(project.path)
+                        const healthReport = projectHealthReports[project.id]
+                        return (
+                          <button
+                            key={project.id}
+                            onClick={() => setSelectedId(project.id)}
+                            className={cn(
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150",
+                              isActive
+                                ? "bg-primary/10 text-foreground border border-primary/15"
+                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground border border-transparent"
+                            )}
+                          >
+                            <div className={cn(
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors",
+                              isActive
+                                ? "bg-primary/15 text-primary"
+                                : "bg-muted text-muted-foreground group-hover:text-foreground"
+                            )}>
+                              {project.name.slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium leading-tight">{project.name}</p>
+                              <p className="truncate text-[11px] text-muted-foreground font-mono mt-0.5">{project.path}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <ProjectHealthBadge report={healthReport} />
+                              <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
+                              {isWslProject && (
+                                <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
+                                  WSL
+                                </Badge>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
+
+                  {unpinnedProjects.length > 0 && (
+                    <>
+                      {pinnedProjects.length > 0 && (
+                        <div className="px-2 pt-3 pb-1">
+                          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">All Projects</p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {isWslProject ? (
-                          <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
-                            🐧
-                          </Badge>
-                        ) : null}
-                        <Badge variant="secondary" className="text-[10px] font-medium uppercase tracking-wide">
-                          {project.type}
-                        </Badge>
-                      </div>
-                    </button>
-                  )
-                })
+                      )}
+                      {unpinnedProjects.map((project, index) => {
+                        const isActive = selectedProject?.id === project.id
+                        const isWslProject = isWslPath(project.path)
+                        const healthReport = projectHealthReports[project.id]
+                        return (
+                          <button
+                            key={project.id}
+                            onClick={() => setSelectedId(project.id)}
+                            style={{ animationDelay: `${(index + pinnedProjects.length) * 50}ms` }}
+                            className={cn(
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150 animate-slide-up opacity-0",
+                              isActive
+                                ? "bg-primary/10 text-foreground border border-primary/15"
+                                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground border border-transparent"
+                            )}
+                          >
+                            <div className={cn(
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors",
+                              isActive
+                                ? "bg-primary/15 text-primary"
+                                : "bg-muted text-muted-foreground group-hover:text-foreground"
+                            )}>
+                              {project.name.slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium leading-tight">{project.name}</p>
+                              <p className="truncate text-[11px] text-muted-foreground font-mono mt-0.5">{project.path}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <ProjectHealthBadge report={healthReport} />
+                              {project.isPinned && (
+                                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                              )}
+                              {isWslProject && (
+                                <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
+                                  WSL
+                                </Badge>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
+                </div>
               )}
             </div>
-          </div>
+          </Card>
         }
         detail={
-          <div className={`${panelClass} p-5`}>
-            {selectedProject ? (
-              <div className="flex h-full flex-col gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Details</p>
-                    <h2 className="mt-3 text-lg font-semibold">{selectedProject.name}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">{selectedProject.path}</p>
+          selectedProject ? (
+            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+              <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-2xl font-bold tracking-tight truncate">{selectedProject.name}</CardTitle>
+                      <Badge variant="secondary" className="h-5 text-[10px] font-bold uppercase tracking-widest bg-muted/20 border-border/40">
+                        {selectedProject.type}
+                      </Badge>
+                    </div>
+                    <CardDescription className="flex items-center gap-2 font-mono text-[11px] bg-muted/20 w-fit px-2 py-0.5 rounded border border-border/20">
+                      {selectedProject.path}
+                    </CardDescription>
                   </div>
-                  <div className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
-                    {isWslPath(selectedProject.path) ? (
-                      <span className="rounded border border-border/80 bg-background/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground">
-                        🐧 Linux
-                      </span>
-                    ) : null}
-                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Type</span>
-                    <span className="text-foreground">{selectedProject.type}</span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-500"
+                      onClick={() => onToggleProjectPin?.(selectedProject.id)}
+                      disabled={!onToggleProjectPin}
+                      aria-label={selectedProject.isPinned ? 'Unpin project' : 'Pin project'}
+                      title={selectedProject.isPinned ? 'Unpin project' : 'Pin project'}
+                    >
+                      <Star className={cn("h-4 w-4", selectedProject.isPinned && "fill-amber-400 text-amber-400")} />
+                    </Button>
+                    {isWslPath(selectedProject.path) && (
+                      <Badge variant="outline" className="gap-1.5 border-blue-500/20 text-blue-500 bg-blue-500/5 py-1 px-2">
+                        <Monitor className="h-3 w-3" /> <span className="text-[10px] font-bold uppercase tracking-wider">WSL Environment</span>
+                      </Badge>
+                    )}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
+              </CardHeader>
+              
+              <CardContent className="flex-1 flex flex-col overflow-hidden p-0">
+                <ProjectDetailTabs
+                  key={selectedProject.id}
+                  bugsPanel={<BugRecorderPanel projectId={selectedProject.id} />}
+                  overviewPanel={
+                    <div className="space-y-10">
+                  {/* Quick Actions */}
+                  <div className="space-y-4">
+                    <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                      Execution Launchers
+                    </h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <Button
+                        variant="outline"
+                        className="h-20 flex-col gap-2 border-border/50 bg-card hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors duration-150"
+                        onClick={() => handleOpen('editor')}
+                        disabled={actionLoading !== null}
+                      >
+                        <Code2 className="h-5 w-5" />
+                        <span className="text-xs font-semibold">Open in Editor</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-20 flex-col gap-2 border-border/50 bg-card hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors duration-150"
+                        onClick={() => handleOpen('terminal')}
+                        disabled={actionLoading !== null}
+                      >
+                        <Terminal className="h-5 w-5" />
+                        <span className="text-xs font-semibold">Launch Terminal</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-20 flex-col gap-2 border-border/50 bg-card hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors duration-150"
+                        onClick={() => handleOpen('folder')}
+                        disabled={actionLoading !== null}
+                      >
+                        <FolderGit2 className="h-5 w-5" />
+                        <span className="text-xs font-semibold">Open Folder</span>
+                      </Button>
+                    </div>
+                    {actionError && (
+                      <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+                        {actionError}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dev Stack */}
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                        Dev Stack
+                      </h3>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 px-2.5 text-[10px]"
+                        onClick={() => void handleRefreshLinkedContainers()}
+                        disabled={!onRefreshContainers || containersLoading}
+                      >
+                        <RefreshCw className={cn('h-3.5 w-3.5', containersLoading && 'animate-spin')} />
+                        Refresh
+                      </Button>
+                    </div>
+
+                    <div className="rounded-lg border border-border/40 bg-card p-5 space-y-4">
+                      <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                          <span>{linkedContainers.filter(({ container }) => container?.state === 'running').length} running</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-amber-500" />
+                          <span>{linkedContainers.filter(({ container }) => container?.state === 'paused').length} paused</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
+                          <span>{linkedContainers.filter(({ container }) => !container || container.state === 'stopped').length} stopped</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-8 gap-2 text-[11px] font-semibold"
+                          onClick={() => void handleStartDevStack()}
+                          disabled={!onStartDevStack || linkedContainerNames.length === 0 || stackActionLoading !== null}
+                        >
+                          <Activity className="h-3.5 w-3.5" />
+                          {stackActionLoading === 'start' ? 'Starting...' : 'Start Dev Stack'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-2 text-[11px] font-semibold"
+                          onClick={() => void handleRestartDevStack()}
+                          disabled={!onRestartDevStack || linkedContainerNames.length === 0 || stackActionLoading !== null}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          {stackActionLoading === 'restart' ? 'Restarting...' : 'Restart Dev Stack'}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-8 gap-2 text-[11px] font-semibold"
+                          onClick={() => setStopStackDialogOpen(true)}
+                          disabled={!onStopDevStack || linkedContainerNames.length === 0 || stackActionLoading !== null}
+                        >
+                          <Trash className="h-3.5 w-3.5" />
+                          Stop Dev Stack
+                        </Button>
+                      </div>
+
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                        <div className="space-y-2">
+                          <Label htmlFor="link-container-select" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                            Link Container
+                          </Label>
+                          <select
+                            id="link-container-select"
+                            className={cn(selectClass, 'bg-background shadow-sm')}
+                            value={linkedContainerToAdd}
+                            onChange={(event) => setLinkedContainerToAdd(event.target.value)}
+                            disabled={linkableContainers.length === 0 || !onSetLinkedContainers}
+                          >
+                            {linkableContainers.length > 0 ? (
+                              linkableContainers.map((container) => (
+                                <option key={container.id} value={container.name}>
+                                  {container.name} ({container.state})
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">No additional containers found</option>
+                            )}
+                          </select>
+                        </div>
+                        <div className="flex items-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 gap-2 text-[11px] font-semibold"
+                            onClick={() => void handleAddLinkedContainer()}
+                            disabled={!onSetLinkedContainers || !linkedContainerToAdd.trim() || linkableContainers.length === 0}
+                          >
+                            <Link2 className="h-3.5 w-3.5" />
+                            Link
+                          </Button>
+                        </div>
+                      </div>
+
+                      {containersError ? (
+                        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
+                          {containersError}
+                        </div>
+                      ) : null}
+                      {linkingError ? (
+                        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
+                          {linkingError}
+                        </div>
+                      ) : null}
+                      {stackActionError ? (
+                        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
+                          {stackActionError}
+                        </div>
+                      ) : null}
+                      {stackActionMessage ? (
+                        <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-[11px] text-primary/90">
+                          {stackActionMessage}
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        {linkedContainers.length === 0 ? (
+                          <div className="rounded-lg border border-dashed border-border/40 px-3 py-5 text-center text-[11px] text-muted-foreground">
+                            Link containers to this project to enable one-click dev stack controls.
+                          </div>
+                        ) : (
+                          linkedContainers.map(({ linkedName, container }) => (
+                            <div
+                              key={linkedName}
+                              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold">{linkedName}</p>
+                                <p className="truncate text-[10px] text-muted-foreground font-mono">
+                                  {container ? container.image : 'Container not found in current Docker list'}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant={container ? containerStateBadge[container.state] : 'outline'}
+                                  className="text-[10px] uppercase tracking-wider"
+                                >
+                                  {container?.state ?? 'missing'}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[10px]"
+                                  onClick={() => void handleOpenLiveLogs(linkedName)}
+                                >
+                                  Live Logs
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-[10px] text-destructive hover:text-destructive"
+                                  onClick={() => void handleRemoveLinkedContainer(linkedName)}
+                                  disabled={!onSetLinkedContainers}
+                                >
+                                  Unlink
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preferences */}
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                        Launch Configuration
+                      </h3>
+                      {prefsSaving && (
+                        <div className="flex items-center gap-2 text-[10px] text-primary/70 font-semibold uppercase tracking-wider">
+                          <div className="h-2 w-2 animate-spin rounded-full border border-primary border-r-transparent" />
+                          Auto-saving
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid gap-8 md:grid-cols-2 p-5 rounded-lg border border-border/40 bg-card">
+                      <div className="space-y-3">
+                        <Label htmlFor="preferred-editor" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Preferred IDE</Label>
+                        <select
+                          id="preferred-editor"
+                          className={cn(selectClass, "bg-background shadow-sm")}
+                          value={prefsDraft?.editor.id ?? ''}
+                          onChange={(event) =>
+                            updatePreference({
+                              editor: { id: event.target.value, command: prefsDraft?.editor.command },
+                            })
+                          }
+                          disabled={!prefsDraft}
+                        >
+                          {editorOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        {prefsDraft?.editor.id === 'custom' && (
+                          <div className="pt-1">
+                            <Input
+                              value={prefsDraft.editor.command ?? ''}
+                              onChange={(event) =>
+                                updatePreference(
+                                  { editor: { id: 'custom', command: event.target.value } },
+                                  false
+                                )
+                              }
+                              onBlur={() =>
+                                updatePreference({ editor: { id: 'custom', command: prefsDraft?.editor.command } })
+                              }
+                              placeholder={isMac ? 'open -a "App" {path}' : 'code {path}'}
+                              className="h-8 text-[11px] font-mono bg-background"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <Label htmlFor="preferred-terminal" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Terminal Emulator</Label>
+                        <select
+                          id="preferred-terminal"
+                          className={cn(selectClass, "bg-background shadow-sm")}
+                          value={prefsDraft?.terminal.id ?? ''}
+                          onChange={(event) =>
+                            updatePreference({
+                              terminal: { id: event.target.value, command: prefsDraft?.terminal.command },
+                            })
+                          }
+                          disabled={!prefsDraft}
+                        >
+                          {terminalOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        {prefsDraft?.terminal.id === 'custom' && (
+                          <div className="pt-1">
+                            <Input
+                              value={prefsDraft.terminal.command ?? ''}
+                              onChange={(event) =>
+                                updatePreference(
+                                  { terminal: { id: 'custom', command: event.target.value } },
+                                  false
+                                )
+                              }
+                              onBlur={() =>
+                                updatePreference({ terminal: { id: 'custom', command: prefsDraft?.terminal.command } })
+                              }
+                              placeholder={isMac ? 'open -a "Term" {path}' : 'wt -d {path}'}
+                              className="h-8 text-[11px] font-mono bg-background"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-3 md:col-span-2 pt-2 border-t border-border/30">
+                        <input
+                          id="tray-enabled"
+                          type="checkbox"
+                          checked={prefsDraft?.trayEnabled ?? false}
+                          onChange={(event) =>
+                            updatePreference({ trayEnabled: event.target.checked })
+                          }
+                          disabled={!prefsDraft}
+                          className="h-4 w-4 rounded border-border bg-background text-primary accent-primary focus:ring-primary/20"
+                        />
+                        <Label htmlFor="tray-enabled" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 cursor-pointer">
+                          Show system tray icon
+                        </Label>
+                      </div>
+                    </div>
+                    {prefsError && <p className="text-[11px] text-destructive bg-destructive/5 p-2 rounded border border-destructive/10">{prefsError}</p>}
+                  </div>
+                    </div>
+                  }
+                  healthPanel={
+                    <ProjectHealthPanel
+                      project={selectedProject}
+                      onCreateCommand={onCreateCommand}
+                      onRunCommand={onRunCommand}
+                      onReportLoaded={(report) => {
+                        setProjectHealthReports((current) => ({
+                          ...current,
+                          [report.projectId]: report,
+                        }))
+                      }}
+                    />
+                  }
+                  notesPanel={<ProjectNotesPanel key={selectedProject.id} projectId={selectedProject.id} />}
+                  llmPanel={<LlmContextExporter project={selectedProject} />}
+                  enginePanel={
+                    selectedProject &&
+                    engineIndexes &&
+                    engineSearchSessions &&
+                    onIndexProject &&
+                    onSearchProjectContent &&
+                    onLoadEngineStats &&
+                    onLoadEngineGitInsights &&
+                    onLoadGitState &&
+                    onLoadFileDiff &&
+                    onCommitProjectChanges &&
+                    onPushProjectBranch &&
+                    onCreateProjectPullRequest &&
+                    onOpenEngineResult &&
+                    onRevealEngineResult &&
+                    onClearProjectIndex &&
+                    onClearProjectSearchSession &&
+                    onOpenExternalUrl &&
+                    onOpenProjectEngine
+                      ? (
+                          <ProjectEnginePanel
+                            project={selectedProject}
+                            engineStatus={engineStatus ?? null}
+                            engineIndexes={engineIndexes}
+                            searchSessions={engineSearchSessions}
+                            indexingProjects={engineIndexingProjects ?? {}}
+                            latestIndexResults={engineLatestIndexResults ?? {}}
+                            onIndexProject={onIndexProject}
+                            onSearch={onSearchProjectContent}
+                            onLoadStats={onLoadEngineStats}
+                            onLoadGitInsights={onLoadEngineGitInsights}
+                            onLoadGitState={onLoadGitState}
+                            onLoadFileDiff={onLoadFileDiff}
+                            onCommitChanges={onCommitProjectChanges}
+                            onPushBranch={onPushProjectBranch}
+                            onCreatePullRequest={onCreateProjectPullRequest}
+                            onOpenResult={onOpenEngineResult}
+                            onRevealResult={onRevealEngineResult}
+                            onClearProjectIndex={onClearProjectIndex}
+                            onClearSearchSession={onClearProjectSearchSession}
+                            onOpenExternalUrl={onOpenExternalUrl}
+                            onOpenEngine={onOpenProjectEngine}
+                          />
+                        )
+                      : null
+                  }
+                  gitPanel={
+                    selectedProject &&
+                    onLoadEngineGitInsights &&
+                    onOpenProjectEngine
+                      ? (
+                          <ProjectGitSummary
+                            project={selectedProject}
+                            onLoadGitInsights={onLoadEngineGitInsights}
+                            onOpenWorkspace={onOpenProjectEngine}
+                          />
+                        )
+                      : null
+                  }
+                />
+              </CardContent>
+
+              <div className="border-t border-border/40 bg-muted/5 p-5">
+                <div className="flex justify-between items-center px-1">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                      onClick={() => setEditDialogOpen(true)}
+                      disabled={!onUpdateProject}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Settings
+                    </Button>
+                  </div>
                   <Button
-                    size="sm"
-                    variant="secondary"
-                    className="gap-1.5"
-                    onClick={() => handleOpen('editor')}
-                    disabled={actionLoading !== null}
-                  >
-                    <Code2 className="h-4 w-4" />
-                    {actionLoading === 'editor' ? 'Opening...' : 'Open in IDE'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => handleOpen('terminal')}
-                    disabled={actionLoading !== null}
-                  >
-                    <Terminal className="h-4 w-4" />
-                    {actionLoading === 'terminal' ? 'Opening...' : 'Open Terminal'}
-                  </Button>
-                  <Button
-                    size="sm"
                     variant="ghost"
-                    className="gap-1.5"
-                    onClick={() => handleOpen('folder')}
-                    disabled={actionLoading !== null}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    {actionLoading === 'folder' ? 'Opening...' : 'Open Folder'}
-                  </Button>
-                  <Button
                     size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => setEditDialogOpen(true)}
-                    disabled={!onUpdateProject}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="gap-1.5"
+                    className="h-8 gap-2 text-[11px] font-bold uppercase tracking-wider text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors"
                     onClick={() => setDeleteDialogOpen(true)}
                     disabled={!onRemoveProject}
                   >
-                    <Trash2 className="h-4 w-4" />
-                    Remove
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
                   </Button>
                 </div>
-                {actionError ? (
-                  <p className="text-xs text-destructive">{actionError}</p>
-                ) : null}
-                <Separator />
-                <div className="space-y-3 rounded-md border border-border/60 bg-background/40 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Search Index</p>
-                      <p className="text-sm text-foreground">
-                        {selectedIndex ? `${selectedIndex.fileCount} files indexed` : 'No search index yet'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedIndex ? `Last updated ${new Date(selectedIndex.lastIndexed).toLocaleString()}` : 'Index this project to enable code search and stats.'}
-                      </p>
-                    </div>
-                    <Badge variant={engineStatus?.available ? 'secondary' : 'destructive'}>
-                      {engineStatus?.available ? 'Engine ready' : 'Engine unavailable'}
-                    </Badge>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="gap-1.5"
-                      onClick={handleIndexProject}
-                      disabled={!onIndexProject || !engineStatus?.available || isIndexing}
-                    >
-                      <Zap className="h-4 w-4" />
-                      {isIndexing ? 'Indexing...' : selectedIndex ? 'Reindex' : 'Index'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5"
-                      onClick={() => selectedProject && onOpenSearch?.(selectedProject.id)}
-                      disabled={!onOpenSearch || !selectedProject}
-                    >
-                      <SearchCode className="h-4 w-4" />
-                      {selectedSession ? 'Resume Search' : 'Open Search'}
-                    </Button>
-                  </div>
-                  {selectedSession ? (
-                    <div className="rounded-xl border border-border/60 bg-card/70 p-3">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Latest Search</p>
-                          <p className="text-sm font-medium text-foreground">{selectedSession.query}</p>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <Clock3 className="h-3.5 w-3.5" />
-                              {formatRelativeDate(selectedSession.updatedAt)}
-                            </span>
-                            <span className="text-border">•</span>
-                            <span>{selectedSession.result.totalMatches} hits</span>
-                            {selectedSession.regex ? (
-                              <>
-                                <span className="text-border">•</span>
-                                <span>Regex</span>
-                              </>
-                            ) : null}
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="gap-1.5"
-                          onClick={() => onOpenSearch?.(selectedProject.id)}
-                          disabled={!onOpenSearch}
-                        >
-                          <SearchCode className="h-4 w-4" />
-                          View Results
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-                  {selectedIndex ? (
-                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2 py-1">
-                        <Database className="h-3.5 w-3.5" />
-                        {selectedIndex.dbPath}
-                      </span>
-                    </div>
-                  ) : null}
+              </div>
+            </Card>
+          ) : (
+            <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center">
+              <div className="max-w-[240px] space-y-4 opacity-40">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/20 border-2 border-border/40 border-dashed">
+                  <FolderGit2 className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <Separator />
-                <div className="mt-auto space-y-3 rounded-md border border-border/60 bg-muted/20 p-4">
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                      Preferred Apps
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Choose what opens when you launch a project.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="preferred-editor">IDE / Editor</Label>
-                    <select
-                      id="preferred-editor"
-                      className={selectClass}
-                      value={prefsDraft?.editor.id ?? ''}
-                      onChange={(event) =>
-                        updatePreference({
-                          editor: { id: event.target.value, command: prefsDraft?.editor.command },
-                        })
-                      }
-                      disabled={!prefsDraft}
-                    >
-                      {editorOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    {prefsDraft?.editor.id === 'custom' ? (
-                      <div className="space-y-2">
-                        <Input
-                          value={prefsDraft.editor.command ?? ''}
-                          onChange={(event) =>
-                            updatePreference(
-                              {
-                                editor: { id: 'custom', command: event.target.value },
-                              },
-                              false
-                            )
-                          }
-                          onBlur={() =>
-                            updatePreference({ editor: { id: 'custom', command: prefsDraft?.editor.command } })
-                          }
-                          placeholder={
-                            isMac ? 'open -a "Visual Studio Code" {path}' : 'code {path}'
-                          }
-                          disabled={!prefsDraft}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Use {'{path}'} for the project folder. Search-result launches also support {'{file}'}, {'{line}'}, and {'{column}'}.
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="preferred-terminal">Terminal</Label>
-                    <select
-                      id="preferred-terminal"
-                      className={selectClass}
-                      value={prefsDraft?.terminal.id ?? ''}
-                      onChange={(event) =>
-                        updatePreference({
-                          terminal: { id: event.target.value, command: prefsDraft?.terminal.command },
-                        })
-                      }
-                      disabled={!prefsDraft}
-                    >
-                      {terminalOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    {prefsDraft?.terminal.id === 'custom' ? (
-                      <div className="space-y-2">
-                        <Input
-                          value={prefsDraft.terminal.command ?? ''}
-                          onChange={(event) =>
-                            updatePreference(
-                              {
-                                terminal: { id: 'custom', command: event.target.value },
-                              },
-                              false
-                            )
-                          }
-                          onBlur={() =>
-                            updatePreference({ terminal: { id: 'custom', command: prefsDraft?.terminal.command } })
-                          }
-                          placeholder={isMac ? 'open -a "iTerm" {path}' : 'wt -d {path}'}
-                          disabled={!prefsDraft}
-                        />
-                        <p className="text-xs text-muted-foreground">Use {'{path}'} for the project folder.</p>
-                      </div>
-                    ) : null}
-                  </div>
-                  {prefsError ? (
-                    <p className="text-xs text-destructive">{prefsError}</p>
-                  ) : prefsSaving ? (
-                    <p className="text-xs text-muted-foreground">Saving preferences...</p>
-                  ) : null}
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-bold uppercase tracking-widest">Workspace</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">Select a project from the explorer list to manage execution environments and settings.</p>
                 </div>
               </div>
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Select a project to see details.
-              </div>
-            )}
-          </div>
+            </Card>
+          )
         }
       />
+      <Dialog
+        open={stopStackDialogOpen}
+        onOpenChange={(open) => {
+          setStopStackDialogOpen(open)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Stop linked dev stack?</DialogTitle>
+            <DialogDescription>
+              This will stop all linked running containers for {selectedProject?.name ?? 'this project'}.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStopStackDialogOpen(false)} disabled={stackActionLoading === 'stop'}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => void handleStopDevStack()} disabled={stackActionLoading === 'stop'}>
+              {stackActionLoading === 'stop' ? 'Stopping...' : 'Stop Dev Stack'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={logsDialogOpen}
+        onOpenChange={(open) => {
+          setLogsDialogOpen(open)
+        }}
+      >
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Live Container Logs</DialogTitle>
+            <DialogDescription>
+              {liveLogsTarget
+                ? `Streaming logs for ${liveLogsTarget}.`
+                : 'Select a linked container to stream logs.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {linkedContainers.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {linkedContainers.map(({ linkedName, container }) => (
+                  <Button
+                    key={`logs-target-${linkedName}`}
+                    size="sm"
+                    variant={linkedName === liveLogsTarget ? 'default' : 'outline'}
+                    className="h-7 px-2 text-[10px]"
+                    onClick={() => void startLiveLogs(linkedName)}
+                    disabled={!container}
+                  >
+                    {linkedName}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            {liveLogsError ? (
+              <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {liveLogsError}
+              </div>
+            ) : null}
+            {liveLogsClosed ? (
+              <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-500">
+                Log stream ended.
+              </div>
+            ) : null}
+            <div className="rounded-lg border border-border/40 bg-black text-green-300">
+              <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 text-[10px] uppercase tracking-widest text-white/60">
+                <span>{liveLogsTarget ?? 'No container selected'}</span>
+                <span>{liveLogsConnecting ? 'Connecting...' : 'Streaming'}</span>
+              </div>
+              <ScrollArea className="h-[380px]">
+                <pre className="whitespace-pre-wrap px-3 py-2 text-xs leading-relaxed">
+                  {liveLogsText || (liveLogsConnecting ? 'Connecting to log stream...' : 'No log output yet.')}
+                </pre>
+              </ScrollArea>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogsDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={editDialogOpen}
         onOpenChange={(open) => {
@@ -634,7 +1436,7 @@ export function ProjectsSection({
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-project-path">Project path</Label>
-              <Input id="edit-project-path" value={selectedProject?.path ?? ''} readOnly />
+              <Input id="edit-project-path" value={selectedProject?.path ?? ''} readOnly className="bg-muted font-mono text-xs" />
             </div>
             {editError ? <p className="text-xs text-destructive">{editError}</p> : null}
           </div>

@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
-import { Sparkles } from 'lucide-react'
-import { Badge } from '../components/ui/Badge'
-import { ScrollArea } from '../components/ui/ScrollArea'
-import { Separator } from '../components/ui/Separator'
+import { Command } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/Tabs'
+import { cn } from '../../lib/utils'
+import appIcon from '../../assets/devdesk-icon.png'
 
 interface NavItem {
   value: string
@@ -18,68 +17,133 @@ interface AppShellProps {
   onNavChange: (value: string) => void
   title: string
   action?: ReactNode
+  themeToggle?: ReactNode
+  settingsButton?: ReactNode
   children: ReactNode
 }
 
-export function AppShell({ navItems, activeNav, onNavChange, title, action, children }: AppShellProps) {
+export function AppShell({ navItems, activeNav, onNavChange, title, action, themeToggle, settingsButton, children }: AppShellProps) {
   return (
-    <div className="flex h-screen bg-gradient-to-br from-background via-background to-muted/20 text-foreground">
-      <aside className="flex w-60 flex-col border-r border-border/60 bg-card/80 backdrop-blur">
-        <div className="px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            <div className="leading-tight">
-              <p className="text-sm font-semibold">DevDesk</p>
-              <p className="text-xs text-muted-foreground">Workspace</p>
-            </div>
+    <div className="flex h-screen overflow-hidden bg-background text-foreground selection:bg-primary/15 selection:text-foreground">
+      {/* Sidebar */}
+      <aside className="flex w-[240px] flex-col border-r border-border bg-card z-10 shadow-sm">
+        {/* Logo */}
+        <div className="flex h-14 items-center px-4 border-b border-border">
+          <div className="flex items-center gap-2.5">
+            <img
+              src={appIcon}
+              alt="DevDesk logo"
+              className="h-7 w-7 select-none rounded-md object-contain"
+              draggable={false}
+            />
+            <span className="text-sm font-bold tracking-tight text-foreground">DevDesk</span>
           </div>
         </div>
-        <Separator />
-        <ScrollArea className="flex-1 px-2 py-3">
+
+        {/* Navigation */}
+        <div className="flex-1 px-3 py-4">
           <Tabs
             value={activeNav}
             onValueChange={onNavChange}
             orientation="vertical"
-            className="flex h-full flex-col"
+            className="flex flex-col"
           >
-            <TabsList className="h-auto w-full flex-col items-stretch gap-1 bg-transparent p-0">
+            <TabsList className="flex flex-col h-auto bg-transparent p-0 gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon
+                const isActive = activeNav === item.value
                 return (
                   <TabsTrigger
                     key={item.value}
                     value={item.value}
-                    className="group w-full justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                    className={cn(
+                      "group relative w-full justify-start gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 outline-none",
+                      "hover:bg-muted/60 hover:text-foreground",
+                      isActive
+                        ? "bg-primary/15 text-primary border border-primary/20"
+                        : "text-muted-foreground border border-transparent"
+                    )}
                   >
-                    <span className="flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-muted-foreground transition-colors group-data-[state=active]:text-foreground" />
-                      <span>{item.label}</span>
-                    </span>
-                    {typeof item.count === 'number' ? (
-                      <Badge
-                        variant="secondary"
-                        className="min-w-[26px] justify-center px-2 text-[10px] font-semibold"
-                      >
-                        {item.count}
-                      </Badge>
-                    ) : null}
+                    <Icon className={cn(
+                      "h-4 w-4 transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground/80"
+                    )} />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {typeof item.count === 'number' && item.count > 0 && (
+                      <span className={cn(
+                        "ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-medium tabular-nums",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
+                      )}>
+                        {item.count > 99 ? '99+' : item.count}
+                      </span>
+                    )}
                   </TabsTrigger>
                 )
               })}
             </TabsList>
           </Tabs>
-        </ScrollArea>
+        </div>
+
+        {/* Quick Action */}
+        <div className="p-4">
+          <button
+            type="button"
+            aria-label={`Open Quick Launcher. Keyboard shortcut: ${window.electronAPI.platform === 'darwin' ? '⌘' : 'Ctrl'}+K`}
+            className={cn(
+              "w-full rounded-lg border border-border/40 bg-muted/30 p-3 text-left shadow-sm",
+              "transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring group"
+            )}
+            onClick={() => {
+              const isMac = window.electronAPI.platform === 'darwin'
+              const event = new KeyboardEvent('keydown', {
+                key: 'k',
+                ...(isMac ? { metaKey: true } : { ctrlKey: true }),
+              })
+              window.dispatchEvent(event)
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <Command className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              <div className="flex-1 overflow-hidden">
+                <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">Quick Launcher</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <kbd className="pointer-events-none inline-flex h-[18px] select-none items-center gap-1 rounded border border-border/50 bg-background/50 font-mono text-[10px] font-medium text-muted-foreground px-1.5 shadow-sm">
+                    <span className="text-[10px]">{window.electronAPI.platform === 'darwin' ? '⌘' : 'Ctrl'}</span>K
+                  </kbd>
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
       </aside>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-4 backdrop-blur">
-          <h1 className="text-base font-semibold">{title}</h1>
-          {action ? <div className="flex items-center gap-2">{action}</div> : null}
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col overflow-hidden relative">
+        {/* Header */}
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-6 z-10 shadow-sm">
+          <div className="flex items-center gap-4">
+            <h2 className="text-base font-semibold tracking-tight text-foreground">{title}</h2>
+          </div>
+          <div className="flex items-center gap-4">
+            {themeToggle}
+            {settingsButton && (
+              <div className="flex items-center gap-4 pl-4 border-l border-border">
+                {settingsButton}
+              </div>
+            )}
+            {action && (
+              <div className="flex items-center gap-4 pl-4 border-l border-border">
+                {action}
+              </div>
+            )}
+          </div>
         </header>
-        <main className="flex-1 overflow-hidden">
-          <div className="h-full p-4 lg:p-6">{children}</div>
+
+        {/* Content Area */}
+        <main className="flex-1 overflow-hidden bg-transparent">
+          {children}
         </main>
       </div>
     </div>

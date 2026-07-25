@@ -9,9 +9,8 @@ export function resolveEngineBinaryPath(options: {
 }): string {
   if (!options.isPackaged) {
     const devCandidates = [
-      path.join(options.appPath, '..', 'devdesk-addons', 'devdesk-engine', 'dist', 'cli.js'),
-      path.join(options.appPath, '..', '..', 'devdesk-addons', 'devdesk-engine', 'dist', 'cli.js'),
-      path.join(options.moduleDirname, '..', '..', '..', '..', '..', 'devdesk-addons', 'devdesk-engine', 'dist', 'cli.js'),
+      path.join(options.appPath, 'node_modules', 'devdesk-engine', 'dist', 'cli.js'),
+      path.join(options.appPath, 'packages', 'engine', 'dist', 'cli.js'),
     ]
 
     for (const candidate of devCandidates) {
@@ -55,4 +54,8 @@ export function buildEngineSearchArgs(
 
 export function buildEngineStatsArgs(dbPath: string): string[] {
   return ['stats', '--db', dbPath]
+}
+
+export function buildEngineGitArgs(projectPath: string): string[] {
+  return ['git', projectPath]
 }

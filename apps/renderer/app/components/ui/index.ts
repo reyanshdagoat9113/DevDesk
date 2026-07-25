@@ -4,6 +4,7 @@ export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
 export { Badge, badgeVariants, type BadgeProps } from './Badge'
 export { Alert, AlertTitle, AlertDescription } from './Alert'
 export { Label } from './Label'
+export { Skeleton } from './Skeleton'
 export {
   Dialog,
   DialogTrigger,

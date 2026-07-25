@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevDesk Phase 3: Embedded Terminals Plan</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111318;
+      --panel: #181b22;
+      --panel-2: #20242d;
+      --text: #eef1f5;
+      --muted: #aab2c0;
+      --line: #303642;
+      --accent: #4fb3ff;
+      --accent-2: #7bd88f;
+      --warn: #ffd166;
+      --danger: #ff6b6b;
+      --code: #0c0f14;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 40px 0 64px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 28px;
+      margin-bottom: 28px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.15;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3.8rem);
+      letter-spacing: 0;
+      max-width: 900px;
+    }
+
+    h2 {
+      font-size: 1.45rem;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: #dce6f3;
+      margin: 12px 0 0;
+      overflow-x: auto;
+      padding: 16px;
+      font-size: 0.9rem;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .summary {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+
+    .stat,
+    section,
+    .phase-card,
+    .deliverable,
+    .risk {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .stat {
+      padding: 16px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.35rem;
+      margin-bottom: 4px;
+    }
+
+    section {
+      margin-top: 20px;
+      padding: 22px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .phase-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .phase-card {
+      background: var(--panel-2);
+      padding: 16px;
+    }
+
+    .phase-card .label {
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .deliverables,
+    .risks {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .deliverable,
+    .risk {
+      padding: 15px;
+    }
+
+    ul,
+    ol {
+      color: var(--muted);
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li {
+      margin-bottom: 7px;
+    }
+
+    table {
+      border-collapse: collapse;
+      color: var(--muted);
+      margin-top: 12px;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--panel-2);
+      color: var(--text);
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text);
+      display: inline-flex;
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 6px 9px;
+      white-space: nowrap;
+    }
+
+    .success {
+      color: var(--accent-2);
+    }
+
+    .complete {
+      border-color: rgba(123, 216, 143, 0.45);
+      color: var(--accent-2);
+    }
+
+    .partial {
+      border-color: rgba(255, 209, 102, 0.5);
+      color: var(--warn);
+    }
+
+    .warning {
+      color: var(--warn);
+    }
+
+    .critical {
+      color: var(--danger);
+    }
+
+    .note {
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+      padding-left: 14px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        width: min(100% - 24px, 1180px);
+        padding-top: 24px;
+      }
+
+      .summary,
+      .phase-grid,
+      .deliverables,
+      .risks,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">DevDesk roadmap planning</div>
+      <h1>Phase 3: Embedded Terminals</h1>
+      <p>
+        A practical implementation plan for integrating persistent PTY sessions into DevDesk
+        using node-pty in the main process and XTerm.js in the renderer, with full WSL support
+        and project-scoped terminal tabs.
+      </p>
+      <div class="summary" aria-label="Embedded terminal summary">
+        <div class="stat">
+          <strong>4 features</strong>
+          <span>Manager, UI, tabs, palette shortcuts</span>
+        </div>
+        <div class="stat">
+          <strong>9-11 hrs</strong>
+          <span>Estimated total roadmap effort</span>
+        </div>
+        <div class="stat">
+          <strong>v1.3</strong>
+          <span>Release milestone with in-app terminals</span>
+        </div>
+        <div class="stat">
+          <strong>High</strong>
+          <span>Primary roadmap priority</span>
+        </div>
+      </div>
+    </header>
+
+    <section>
+      <h2>Objective</h2>
+      <p>
+        Keep developers inside DevDesk by providing embedded terminal sessions that feel native.
+        The implementation must support Windows (conpty), macOS, Linux, and WSL paths; reuse
+        existing shell-resolution logic from preferences; and stream PTY output to the renderer
+        without blocking the UI.
+      </p>
+      <p class="note">
+        Source: Phase 3 in <a href="../../ROADMAP.md">ROADMAP.md</a>. This plan keeps the roadmap scope intact
+        and expands it into implementation order, contracts, UI behavior, and acceptance criteria.
+      </p>
+    </section>
+
+    <section>
+      <h2>Implementation Sequence</h2>
+      <div class="phase-grid">
+        <div class="phase-card">
+          <div class="label">3.1 Terminal Manager Service</div>
+          <p>Main-process PTY lifecycle with node-pty, IPC handlers, and event broadcasting.</p>
+          <span class="badge partial">Planned</span>
+        </div>
+        <div class="phase-card">
+          <div class="label">3.2 Terminal UI Component</div>
+          <p>XTerm.js integration with fit, search, and weblink addons plus theme sync.</p>
+          <span class="badge partial">Planned</span>
+        </div>
+        <div class="phase-card">
+          <div class="label">3.3 Terminal Tabs in Projects</div>
+          <p>Tab bar for multiple terminals per project with creation and cleanup.</p>
+          <span class="badge partial">Planned</span>
+        </div>
+        <div class="phase-card">
+          <div class="label">3.4 Palette Terminal Shortcuts</div>
+          <p>Command palette actions for open, focus, and close-all terminals.</p>
+          <span class="badge partial">Planned</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Core Data Contract</h2>
+      <p><span class="badge partial">Planned</span> Shared terminal types for the main and renderer layers.</p>
+      <p>
+        Keep the session shape small and renderer-friendly. The main process owns the PTY lifecycle;
+        the renderer consumes already-normalized output chunks.
+      </p>
+      <pre><code>interface TerminalSession {
+  id: string
+  projectId?: string
+  cwd: string
+  shell: string
+  createdAt: string
+  cols: number
+  rows: number
+}
+
+interface TerminalCreateOptions {
+  projectId?: string
+  cwd?: string
+  shell?: string
+  cols?: number
+  rows?: number
+}</code></pre>
+    </section>
+
+    <section>
+      <h2>IPC Surface</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>Direction</th>
+            <th>Payload</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>terminal:create</code></td>
+            <td>invoke &rarr; main</td>
+            <td><code>TerminalCreateOptions</code></td>
+            <td>Spawns a PTY and returns <code>{ terminalId: string }</code>.</td>
+          </tr>
+          <tr>
+            <td><code>terminal:write</code></td>
+            <td>invoke &rarr; main</td>
+            <td><code>{ terminalId: string; data: string }</code></td>
+            <td>Writes keystrokes / input to the PTY stdin.</td>
+          </tr>
+          <tr>
+            <td><code>terminal:resize</code></td>
+            <td>invoke &rarr; main</td>
+            <td><code>{ terminalId: string; cols: number; rows: number }</code></td>
+            <td>Resizes the PTY to match the renderer container.</td>
+          </tr>
+          <tr>
+            <td><code>terminal:close</code></td>
+            <td>invoke &rarr; main</td>
+            <td><code>{ terminalId: string }</code></td>
+            <td>Kills the PTY process and removes the session.</td>
+          </tr>
+          <tr>
+            <td><code>terminal:data</code></td>
+            <td>main &rarr; renderer</td>
+            <td><code>{ terminalId: string; data: string }</code></td>
+            <td>Streams PTY stdout/stderr output to the renderer.</td>
+          </tr>
+          <tr>
+            <td><code>terminal:exit</code></td>
+            <td>main &rarr; renderer</td>
+            <td><code>{ terminalId: string; code?: number }</code></td>
+            <td>Notifies when the PTY process exits.</td>
+          </tr>
+          <tr>
+            <td><code>terminal:error</code></td>
+            <td>main &rarr; renderer</td>
+            <td><code>{ terminalId: string; error: string }</code></td>
+            <td>Surfaces spawn or runtime errors from the PTY.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Files And Ownership</h2>
+      <div class="grid">
+        <div>
+          <h3>Main Process</h3>
+          <ul>
+            <li><span class="badge partial">Planned</span> Add <code>apps/desktop/terminal/terminalManager.ts</code> with <code>TerminalManager</code> class.</li>
+            <li><span class="badge partial">Planned</span> Extend <code>apps/desktop/ipc/registerIpc.ts</code> with <code>terminal:*</code> handlers.</li>
+            <li><span class="badge partial">Planned</span> Extend <code>apps/desktop/preload.ts</code> to expose terminal bridge methods.</li>
+            <li><span class="badge partial">Planned</span> Extend <code>apps/desktop/data/model.ts</code> with <code>TerminalSession</code> type.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Renderer</h3>
+          <ul>
+            <li><span class="badge partial">Planned</span> Add <code>apps/renderer/app/components/Terminal/Terminal.tsx</code> XTerm.js wrapper.</li>
+            <li><span class="badge partial">Planned</span> Add <code>apps/renderer/app/components/Terminal/TerminalTabs.tsx</code> tab bar.</li>
+            <li><span class="badge partial">Planned</span> Extend <code>apps/renderer/app/components/CommandPalette.tsx</code> with terminal actions.</li>
+            <li><span class="badge partial">Planned</span> Extend <code>apps/renderer/app/types/electron.d.ts</code> with terminal API types.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>UI Behavior</h2>
+      <div class="deliverables">
+        <div class="deliverable">
+          <h3>Terminal Creation Flow</h3>
+          <ul>
+            <li>User clicks "+" in the project terminal tab bar or selects a palette action.</li>
+            <li>Renderer invokes <code>terminal:create</code> with <code>projectId</code> and optional <code>cwd</code>.</li>
+            <li>Main process resolves the project path, determines the shell from <code>preferences.terminal</code>, and spawns <code>node-pty</code>.</li>
+            <li>Session ID is returned and the renderer mounts a <code>Terminal</code> component for that ID.</li>
+          </ul>
+        </div>
+        <div class="deliverable">
+          <h3>Data Flow</h3>
+          <ul>
+            <li>Main PTY emits <code>data</code> events as the process writes to stdout/stderr.</li>
+            <li><code>TerminalManager</code> broadcasts <code>terminal:data</code> via <code>BrowserWindow.webContents.send</code>.</li>
+            <li>Renderer receives the event and writes the chunk into the active XTerm.js instance.</li>
+          </ul>
+        </div>
+        <div class="deliverable">
+          <h3>Input Flow</h3>
+          <ul>
+            <li>XTerm.js captures key events via its <code>onData</code> handler.</li>
+            <li>The <code>Terminal</code> component invokes <code>window.electronAPI.terminalWrite(id, data)</code>.</li>
+            <li>Preload forwards <code>terminal:write</code> to the main process IPC handler.</li>
+            <li><code>TerminalManager</code> writes the data to the PTY stdin for that session.</li>
+          </ul>
+        </div>
+        <div class="deliverable">
+          <h3>Resize Flow</h3>
+          <ul>
+            <li>A <code>ResizeObserver</code> on the terminal container detects dimension changes.</li>
+            <li>FitAddon calculates the new column/row count from the container size.</li>
+            <li>Renderer invokes <code>terminal:resize</code> with the new dimensions.</li>
+            <li>Main process calls <code>pty.resize(cols, rows)</code> so the shell receives a SIGWINCH equivalent.</li>
+          </ul>
+        </div>
+        <div class="deliverable">
+          <h3>Cleanup Flow</h3>
+          <ul>
+            <li>Closing a tab invokes <code>terminal:close</code> and unmounts the XTerm.js instance.</li>
+            <li>Main process kills the PTY process and deletes the session from the internal Map.</li>
+            <li>On app quit, all remaining PTY processes are terminated before the main process exits.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>WSL Support</h2>
+      <p>
+        WSL projects must open an interactive bash session inside the correct distro instead of the
+        Windows default shell. Reuse the existing <code>parseWslProjectPath</code> and
+        <code>WSL_EXECUTABLE_PATH</code> patterns already defined in <code>apps/desktop/ipc/registerIpc.ts</code>.
+      </p>
+      <p class="note">
+        When a project path matches <code>\\\\wsl.localhost\\&lt;distro&gt;</code>, the terminal manager
+        should spawn the PTY with:<br>
+        <code>wsl.exe -d &lt;distro&gt; -e bash -l</code><br><br>
+        This ensures the terminal starts in the user's WSL home and respects <code>.bashrc</code> /
+        <code>.profile</code>. The working directory can then be changed to the project linux path
+        via an initial <code>cd</code> command or by passing <code>--cd</code> if the WSL version supports it.
+      </p>
+    </section>
+
+    <section>
+      <h2>Acceptance Criteria</h2>
+      <ol>
+        <li><span class="badge partial">Planned</span> <code>terminal:create</code> spawns a PTY and returns a stable <code>terminalId</code> for Windows, macOS, and Linux.</li>
+        <li><span class="badge partial">Planned</span> <code>terminal:data</code> streams PTY output to the renderer in real time without UI jank.</li>
+        <li><span class="badge partial">Planned</span> XTerm.js renders output and captures keyboard input for the active terminal; copy/paste works.</li>
+        <li><span class="badge partial">Planned</span> <code>terminal:resize</code> updates PTY dimensions when the container resizes, and FitAddon keeps the terminal sized correctly.</li>
+        <li><span class="badge partial">Planned</span> Terminal tabs allow multiple sessions per project with independent lifecycle and tab labels.</li>
+        <li><span class="badge partial">Planned</span> Closing a tab kills the PTY process and removes the renderer instance without leaking resources.</li>
+        <li><span class="badge partial">Planned</span> Command palette shows "Open terminal in [Project Name]" and "Close all terminals" actions.</li>
+        <li><span class="badge partial">Planned</span> WSL projects use <code>wsl.exe -d &lt;distro&gt; -e bash -l</code> as the shell backend via existing path helpers.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Risks</h2>
+      <div class="risks">
+        <div class="risk">
+          <h3>Native Module Rebuild</h3>
+          <p><code>node-pty</code> must be rebuilt against Electron 33 ABI headers. Add an <code>electron-rebuild</code> step or use <code>@electron/rebuild</code> in the build pipeline so CI and fresh clones compile correctly.</p>
+        </div>
+        <div class="risk">
+          <h3>Windows Conpty Compatibility</h3>
+          <p>Windows PTY behavior depends on the conpty backend and varies by OS version. Test on Windows 10 and 11. If conpty causes issues, <code>node-pty</code> can fallback to winpty, but prefer conpty for Unicode and color support.</p>
+        </div>
+        <div class="risk">
+          <h3>Security</h3>
+          <p>Never execute arbitrary shell strings from the renderer. Only spawn the shell resolved from <code>preferences.terminal</code> (or the WSL fallback). Do not expose a generic "run any command" IPC for the terminal layer.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Definition Of Done</h2>
+      <ul>
+        <li><span class="badge partial">Planned</span> Types, IPC, and preload exposure are wired end to end.</li>
+        <li><span class="badge partial">Planned</span> Terminal renders correctly in both dark and light app themes.</li>
+        <li><span class="badge partial">Planned</span> Manual validation covers Windows (conpty), macOS, and Linux PTY paths.</li>
+        <li><span class="badge partial">Planned</span> WSL terminal paths reuse existing <code>parseWslProjectPath</code> and <code>WSL_EXECUTABLE_PATH</code> patterns.</li>
+        <li><span class="badge partial">Planned</span> Roadmap Phase 3 entries can be updated with concrete implementation status.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

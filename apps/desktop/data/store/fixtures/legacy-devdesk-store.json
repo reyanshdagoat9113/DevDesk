@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "projects": [
+    {
+      "id": "legacy-project",
+      "path": "C:/Users/legacy/Code/demo",
+      "name": "Legacy Demo",
+      "type": "node",
+      "icon": "box",
+      "linkedContainerNames": ["demo-api"]
+    }
+  ],
+  "commands": [
+    {
+      "id": "legacy-cmd",
+      "name": "Start demo",
+      "command": "npm run dev",
+      "description": "Legacy command without variables or pin fields",
+      "tags": ["dev"],
+      "projectId": "legacy-project",
+      "workingDirectory": "."
+    }
+  ],
+  "runHistory": [
+    {
+      "id": "legacy-run",
+      "commandId": "legacy-cmd",
+      "projectId": "legacy-project",
+      "status": "success",
+      "startTime": "2025-01-01T00:00:00.000Z",
+      "endTime": "2025-01-01T00:00:05.000Z",
+      "output": "ok"
+    }
+  ],
+  "notes": {
+    "legacy-project": {
+      "setupSteps": "npm install",
+      "todos": "ship it",
+      "reminders": "check ports",
+      "ports": "3000",
+      "urls": "http://localhost:3000"
+    }
+  },
+  "preferences": {
+    "editor": { "id": "vscode" },
+    "terminal": { "id": "windows-terminal" }
+  }
+}

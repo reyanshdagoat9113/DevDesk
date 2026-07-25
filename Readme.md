@@ -1,141 +1,115 @@
-# DevDesk - Electron App Overview
+# DevDesk
 
-A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, and Docker/Compose Manager into one clean, fast workspace.
+[![Release gate](https://github.com/reyanshdagoat9113/DevDesk/actions/workflows/release-gate.yml/badge.svg?branch=main)](https://github.com/reyanshdagoat9113/DevDesk/actions/workflows/release-gate.yml)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue)](docs/RELEASE-NOTES-0.1.0.md)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-lightgrey)](docs/install.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## Status (2026-02-04)
+A local-first Electron desktop app for developers that combines a Project Manager, Command Vault, Docker controls, terminals, and local code search into one workspace.
 
-Implemented:
-- Electron shell + Vite renderer, shadcn/ui + Radix components.
-- JSON persistence in userData (`devdesk-store.json`).
-- Projects: add, edit, remove, detect type, open folder/IDE/terminal.
-- Preferences for editor/terminal (custom command support).
-- Command Vault: create/edit/delete/run commands with tags + description, project binding, working directory.
-- Run history with live output streaming + full output viewer + clear history.
-- Project notes (setup steps/todos/reminders).
-- Docker containers: list/start/stop/logs with Windows + WSL fallback.
+## Status (2026-07-24)
 
-In progress:
-- Command search/filter by tag.
-- Run history shows command + project names (not just ids).
-- Production build verification.
+**Private beta / release candidate in hardening** — product features for v0.1.0 are implemented; launch work is packaging, QA, and docs.
 
-## Quick Start
+| Area | State |
+|------|--------|
+| Core product features | Implemented |
+| Automated release gate + CI | Implemented (`npm run release:gate`) |
+| Windows x64 installer | Implemented (unsigned) |
+| Linux x64 AppImage/deb | Targets configured |
+| macOS | Deferred |
+| Manual QA | See [docs/manual-qa.md](docs/manual-qa.md) (Windows session + Linux template; interactive rows pending) |
 
-- `npm run dev` - build main/preload, start Vite, launch Electron.
-- `npm run build` - build main/preload and renderer bundle.
+Remaining launch work:
+- Complete the remaining Windows interactive Pass* checks in [docs/manual-qa.md](docs/manual-qa.md).
+- Complete Linux interactive QA rows in [docs/manual-qa.md](docs/manual-qa.md).
+- Optional later: code signing (Windows), macOS packaging/notarization.
 
-## Purpose
+Native rebuild notes: [docs/native-modules.md](docs/native-modules.md).
+Packaging notes: [docs/release.md](docs/release.md).
+Manual QA: [docs/manual-qa.md](docs/manual-qa.md).
 
-DevDesk exists to remove daily developer friction:
-- Jump into projects without remembering commands.
-- Reuse complex terminal commands safely.
-- Control Docker containers and compose stacks visually.
-- Keep a simple history of what you ran and when.
+### Release notes
 
-If it saves even 5 minutes per day, it is doing its job.
+- [docs/RELEASE-NOTES-0.1.0.md](docs/RELEASE-NOTES-0.1.0.md)
 
-## Core Principles
+### Docs map
 
-- Local-first: everything runs on your machine.
-- Deterministic: buttons do predictable things.
-- Opinionated: optimized for solo dev workflows.
-- Safe by default: destructive actions require intent.
-- Fast UI: keyboard-first, minimal clicks.
+| Doc | Topic |
+|-----|--------|
+| [docs/install.md](docs/install.md) | Install, platforms, uninstall |
+| [docs/release.md](docs/release.md) | Packaging, gate, signing limits |
+| [docs/native-modules.md](docs/native-modules.md) | Native rebuild prerequisites |
+| [docs/data-locations.md](docs/data-locations.md) | userData paths, backup, export |
+| [docs/manual-qa.md](docs/manual-qa.md) | Clean-install QA checklist |
+| [docs/beta-release-checklist.md](docs/beta-release-checklist.md) | Maintainer release checklist |
+| [docs/data-model.md](docs/data-model.md) | Data model overview |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributor setup |
 
-## Core Features (The Combo)
+## Quick start (developers)
 
-### 1) Project Manager
-- Add local project folders and detect project type.
-- Open in editor/terminal or reveal in file explorer.
-- Acts as the home screen of the app.
+The performance engine lives in this monorepo at `packages/engine` (`devdesk-engine`). The old `devdesk-addons` repository is archived; do not use a sibling checkout.
 
-### 2) Command Vault
-- Store frequently used terminal commands.
-- Add descriptions and tags.
-- Bind commands to a project or run globally.
-- Support project-relative working directories.
+```bash
+npm install
+npm run rebuild:native:electron
+npm run dev
+```
 
-### 3) Containers (Docker + Compose)
-- List running and stopped containers.
-- Start, stop, and view logs.
-- Graceful fallback when Docker is missing; Windows + WSL support.
+Common commands:
 
-### 4) Run History
-- Shows what commands were run.
-- Displays status (running / success / failed / stopped).
-- Allows stopping long-running commands.
-- Provides access to output for sharing or debugging.
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Dev app with Vite + Electron |
+| `npm run build` | Production main/preload/renderer (+ engine prebuild) |
+| `npm run release:gate` | Lint, typecheck, unit/renderer/engine-ipc, engine smoke |
+| `npm run package:win` / `package:linux` | Installable artifacts under `release/` |
+| `npm run verify:win-package` / `verify:linux-package` | Packaged engine + native checks |
 
-### 5) Project Notes
-- Lightweight notes for setup steps, todos, and reminders tied to a project.
+Windows native builds need Visual Studio C++ Build Tools, Python 3, and Git. See [docs/native-modules.md](docs/native-modules.md).
 
-## How the App Works (High-Level)
+## Install (end users)
 
-- Main process (Node.js + TypeScript)
-  - Runs commands.
-  - Talks to Docker.
-  - Reads the filesystem.
-  - Persists data locally.
+See [docs/install.md](docs/install.md). Short version:
 
-- Renderer (TypeScript + React)
-  - Displays UI.
-  - Sends intent-based requests (run, stop, list, etc.).
-  - Never accesses Node APIs directly.
+- **Windows:** run `DevDesk-<version>-win-x64.exe` (SmartScreen may warn — unsigned beta).
+- **Linux:** AppImage or deb from a Linux build host.
+- **macOS:** not shipped in this beta.
 
-- Preload layer
-  - Exposes a small, safe API to the renderer.
-  - Enforces security boundaries.
+## Features
 
-## Data Storage
+- **Projects** — add, pin, open folder/IDE/terminal, type detection
+- **Command Vault** — tags, variables, presets, pinning, live run history
+- **Containers** — Docker list/start/stop/logs; graceful missing-Docker UX; WSL-aware
+- **Terminals** — embedded tabs, resize, search, fullscreen
+- **Health** — project + environment checks with history
+- **Engine** — local index, search, stats, Git insights
+- **Bugs** — context snapshots and attachments
+- **Export/import** — merge or replace with DB backup
+- **Tray** — optional tray quick actions
+- **LLM context** — local context export helpers
 
-Current: data lives in a single JSON store in the Electron userData directory:
-- File: `devdesk-store.json`
-- Schema: `apps/desktop/data/model.ts`
+## Data storage
 
-Planned: migrate to a local SQLite store using `better-sqlite3` for reliability and performance.
-- File: `devdesk.db` (same userData directory)
-- Migration: one-time import from `devdesk-store.json` if the DB does not exist
-- Mode: WAL enabled, single-writer from the main process
-- No backend required; app remains local-first
+- Primary: SQLite `devdesk.db` in Electron userData (WAL).
+- Legacy: one-time import from `devdesk-store.json` when the DB is empty.
+- Engine indexes: `userData/engine/*.sqlite`.
+- Details: [docs/data-locations.md](docs/data-locations.md).
 
-Containers are runtime-only and not persisted.
+## Architecture (high level)
 
-## MVP Scope (Target)
+- **Main** — Node + TypeScript: IPC, store, Docker, terminals, engine spawn
+- **Preload** — small explicit bridge (`contextIsolation`, no `nodeIntegration`)
+- **Renderer** — React + Vite + shadcn/ui + Radix
 
-- Add and list projects.
-- Create and run saved commands.
-- See Docker containers and logs.
-- View and stop running commands.
-- View run history with output access.
-- Edit simple project notes (setup steps, todos, reminders).
+## Non-goals
 
-## Possible Future Enhancements (Optional)
+- Cloud sync, team collaboration, heavy analytics, full IDE replacement.
 
-- Command presets per project.
-- Port usage inspector.
-- Lightweight Git status per project.
-- Tray mode with quick actions.
-- Export/import configuration.
-- Profiles for different machines.
+## Contributing
 
-## Non-Goals
+See [CONTRIBUTING.md](CONTRIBUTING.md). Prefer `npm run release:gate` before opening a PR.
 
-- AI features or assistants.
-- Team collaboration.
-- Cloud sync.
-- Full terminal replacement.
-- Heavy analytics.
+## License
 
-## Definition of Done (V1)
-
-- You can open DevDesk and immediately:
-  - pick a project
-  - run a command
-  - manage a container
-- No setup wizard required.
-- App feels fast and predictable.
-- You would actually keep it installed.
-
-## Final Note
-
-DevDesk is not about doing everything. It is about becoming the one place you open before the terminal.
+MIT — see [LICENSE](LICENSE).

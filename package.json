@@ -5,31 +5,41 @@
   "main": "dist/main/index.js",
   "author": "DevDesk",
   "license": "MIT",
-  "build": {
-    "files": [
-      "dist/**/*",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../devdesk-addons/devdesk-engine/dist",
-        "to": "engine",
-        "filter": [
-          "cli.js",
-          "devdesk-scan",
-          "devdesk-scan.exe"
-        ]
-      }
-    ]
-  },
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5180 && electron .\"",
+    "rebuild:native": "node scripts/rebuild-native-electron.mjs",
+    "rebuild:native:electron": "node scripts/rebuild-native-electron.mjs --with-pty",
+    "rebuild:native:node": "node scripts/ensure-native-modules.mjs",
+    "pretest:run": "npm run rebuild:native:node",
+    "dev": "npm run rebuild:native:electron && npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5180 && electron --enable-logging=false .\"",
     "dev:renderer": "vite",
+    "build:engine": "npm --workspace devdesk-engine run build:all",
+    "prebuild": "npm run build:engine",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "smoke:engine-packaged": "npm run rebuild:native && npm run build:main && node scripts/smoke-packaged-engine.mjs",
+    "test": "vitest --config ./vitest.desktop.config.ts",
+    "test:run": "vitest --config ./vitest.desktop.config.ts run",
+    "test:renderer": "vitest --config ./vitest.renderer.config.ts",
+    "test:renderer:run": "vitest --config ./vitest.renderer.config.ts run",
+    "test:engine": "npm run rebuild:native:node && npm --workspace devdesk-engine run test:run",
+    "test:engine-ipc": "npm run rebuild:native:node && npm run build:engine && npx vitest --config ./vitest.engine.config.ts run",
+    "release:gate": "node scripts/release-gate.mjs",
+    "icons:generate": "node scripts/generate-app-icons.mjs",
+    "package:win:dir": "npm run rebuild:native:electron && npm run build && electron-builder --win dir",
+    "package:win": "npm run rebuild:native:electron && npm run build && electron-builder --win nsis",
+    "package:linux:dir": "npm run rebuild:native:electron && npm run build && electron-builder --linux dir",
+    "package:linux": "npm run rebuild:native:electron && npm run build && electron-builder --linux AppImage deb",
+    "verify:win-package": "npm run package:win:dir && node scripts/verify-package.mjs --platform win",
+    "verify:linux-package": "npm run package:linux:dir && node scripts/verify-package.mjs --platform linux",
+    "qa:clean-install:win": "npm run package:win && npm run rebuild:native:node && npm run build:main && node scripts/clean-install-qa-windows.mjs --out release/clean-install-qa-report.json",
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build:preload": "tsc -p tsconfig.preload.json",
-    "test:desktop": "npm run build:main && node --test dist/main/engine/*.test.js",
+    "lint:architecture": "node scripts/check-architecture.mjs",
+    "test:production": "electron .",
     "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
     "typecheck": "tsc --noEmit"
   },
@@ -41,32 +51,178 @@
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.8",
-    "@radix-ui/react-slot": "^1.1.2",
+    "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-search": "^0.16.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "devdesk-engine": "workspace:*",
+    "fast-glob": "^3.3.3",
+    "fuse.js": "^7.3.0",
+    "ignore": "^7.0.5",
     "lucide-react": "^0.563.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.4.0"
+    "node-pty": "^1.1.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^15.6.6",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@types/node": "^22.13.4",
-    "@types/react": "^19.0.8",
-    "@types/react-dom": "^19.0.3",
-    "@typescript-eslint/parser": "^8.54.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "concurrently": "^9.1.2",
-    "electron": "^40.1.0",
-    "electron-builder": "^26.4.0",
-    "eslint": "^9.39.2",
+    "@electron/rebuild": "^4.0.4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.19.19",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@typescript-eslint/parser": "^8.59.4",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.5.0",
+    "concurrently": "^9.2.1",
+    "electron": "^33.4.11",
+    "electron-builder": "^26.8.1",
+    "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.18",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
-    "typescript": "~5.7.2",
-    "vite": "^6.3.5",
-    "wait-on": "^8.0.1"
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "jsdom": "^26.1.0",
+    "jimp": "^1.6.0",
+    "postcss": "^8.5.15",
+    "png-to-ico": "^2.1.1",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.7.3",
+    "vite": "^6.4.2",
+    "vitest": "^1.6.1",
+    "wait-on": "^8.0.5"
+  },
+  "build": {
+    "appId": "com.devdesk.app",
+    "productName": "DevDesk",
+    "copyright": "Copyright © DevDesk",
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node",
+      "**/better-sqlite3/**/*",
+      "**/node-pty/**/*",
+      "**/bindings/**/*",
+      "**/file-uri-to-path/**/*"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "icon": "build/icon.png",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "build/icon.png",
+      "build/icon.ico"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DevDesk",
+      "uninstallDisplayName": "DevDesk"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Development",
+      "icon": "build/icon.png",
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+      "synopsis": "Local-first developer workspace",
+      "description": "Project manager, command vault, terminals, and Docker controls for local development."
+    },
+    "mac": {
+      "target": [],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png"
+    },
+    "extraResources": [
+      {
+        "from": "packages/engine/dist",
+        "to": "engine",
+        "filter": [
+          "**/*",
+          "!**/*.test.js",
+          "!**/*.test.d.ts",
+          "!**/*.test.js.map",
+          "!**/*.test.d.ts.map",
+          "!**/*.d.ts",
+          "!**/*.d.ts.map",
+          "!**/*.js.map"
+        ]
+      },
+      {
+        "from": "node_modules/commander",
+        "to": "engine/node_modules/commander",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "node_modules/better-sqlite3",
+        "to": "engine/node_modules/better-sqlite3",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "node_modules/bindings",
+        "to": "engine/node_modules/bindings",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "node_modules/file-uri-to-path",
+        "to": "engine/node_modules/file-uri-to-path",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "packages/engine/package.json",
+        "to": "engine/package.json"
+      }
+    ]
   }
 }

@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevDesk Phase 4: Project Intelligence Plan</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111318;
+      --panel: #181b22;
+      --panel-2: #20242d;
+      --text: #eef1f5;
+      --muted: #aab2c0;
+      --line: #303642;
+      --accent: #4fb3ff;
+      --accent-2: #7bd88f;
+      --warn: #ffd166;
+      --danger: #ff6b6b;
+      --code: #0c0f14;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 40px 0 64px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 28px;
+      margin-bottom: 28px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.15;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3.8rem);
+      letter-spacing: 0;
+      max-width: 900px;
+    }
+
+    h2 {
+      font-size: 1.45rem;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: #dce6f3;
+      margin: 12px 0 0;
+      overflow-x: auto;
+      padding: 16px;
+      font-size: 0.9rem;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .summary {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 28px;
+    }
+
+    .stat,
+    section,
+    .phase-card,
+    .deliverable,
+    .risk {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .stat {
+      padding: 16px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.35rem;
+      margin-bottom: 4px;
+    }
+
+    section {
+      margin-top: 20px;
+      padding: 22px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .phase-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .phase-card {
+      background: var(--panel-2);
+      padding: 16px;
+    }
+
+    .phase-card .label {
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .deliverables,
+    .risks {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .deliverable,
+    .risk {
+      padding: 15px;
+    }
+
+    ul,
+    ol {
+      color: var(--muted);
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li {
+      margin-bottom: 7px;
+    }
+
+    table {
+      border-collapse: collapse;
+      color: var(--muted);
+      margin-top: 12px;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--panel-2);
+      color: var(--text);
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text);
+      display: inline-flex;
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 6px 9px;
+      white-space: nowrap;
+    }
+
+    .success {
+      color: var(--accent-2);
+    }
+
+    .complete {
+      border-color: rgba(123, 216, 143, 0.45);
+      color: var(--accent-2);
+    }
+
+    .partial {
+      border-color: rgba(255, 209, 102, 0.5);
+      color: var(--warn);
+    }
+
+    .warning {
+      color: var(--warn);
+    }
+
+    .critical {
+      color: var(--danger);
+    }
+
+    .note {
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+      padding-left: 14px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        width: min(100% - 24px, 1180px);
+        padding-top: 24px;
+      }
+
+      .summary,
+      .phase-grid,
+      .deliverables,
+      .risks,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">DevDesk roadmap planning</div>
+      <h1>Phase 4: Project Intelligence</h1>
+      <p>
+        A practical implementation plan for automated project analysis, actionable suggestions,
+        script discovery, and project health indicators.
+      </p>
+      <div class="summary" aria-label="Project intelligence summary">
+        <div class="stat">
+          <strong>4 features</strong>
+          <span>Inspector, actions, scripts, indicators</span>
+        </div>
+        <div class="stat">
+          <strong>9-11 hrs</strong>
+          <span>Estimated total roadmap effort</span>
+        </div>
+        <div class="stat">
+          <strong>v1.4</strong>
+          <span>Release milestone with file search</span>
+        </div>
+        <div class="stat">
+          <strong>Medium</strong>
+          <span>Primary roadmap priority</span>
+        </div>
+      </div>
+    </header>
+
+    <section>
+      <h2>Objective</h2>
+      <p>
+        Project Intelligence should give developers a fast, trustworthy read on whether a project is ready
+        to run and what DevDesk can do next. The first release should focus on local, deterministic checks:
+        package manager detection, dependency state, Git presence, Docker Compose presence, runtime hints,
+        and runnable scripts.
+      </p>
+      <p class="note">
+        Source: Phase 4 in <a href="../../ROADMAP.md">ROADMAP.md</a>. This plan keeps the roadmap scope intact
+        and expands it into implementation order, contracts, UI behavior, and acceptance criteria.
+      </p>
+    </section>
+
+    <section>
+      <h2>Implementation Sequence</h2>
+      <div class="phase-grid">
+        <div class="phase-card">
+          <div class="label">4.1 Health Inspector</div>
+          <p>Build the main-process inspection service and IPC endpoint.</p>
+          <span class="badge complete">Complete</span>
+        </div>
+        <div class="phase-card">
+          <div class="label">4.2 Suggested Actions</div>
+          <p>Render report suggestions as refreshable, dismissible actions in the project view.</p>
+          <span class="badge complete">Complete</span>
+        </div>
+        <div class="phase-card">
+          <div class="label">4.3 Script Detection</div>
+          <p>Parse package, Makefile, compose, Rust, and Go sources for runnable options.</p>
+          <span class="badge complete">Complete</span>
+        </div>
+        <div class="phase-card">
+          <div class="label">4.4 Health Indicators</div>
+          <p>Show concise healthy, warning, and critical state on project cards.</p>
+          <span class="badge complete">Complete</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Core Data Contract</h2>
+      <p><span class="badge complete">Complete</span> Shared report types are now defined for the main and renderer layers.</p>
+      <p>
+        Keep the report shape small and renderer-friendly. The main process owns filesystem inspection;
+        the renderer consumes already-normalized findings.
+      </p>
+      <pre><code>interface ProjectHealthReport {
+  projectId: string
+  analyzedAt: string
+  packageManager?: 'npm' | 'yarn' | 'pnpm' | 'pip' | 'poetry' | 'cargo' | 'go'
+  hasNodeModules?: boolean
+  hasLockfile?: boolean
+  hasDockerCompose?: boolean
+  hasGit?: boolean
+  nodeVersion?: string
+  availableScripts?: string[]
+  missingDeps?: boolean
+  status: 'healthy' | 'warning' | 'critical'
+  suggestions: HealthSuggestion[]
+}
+
+interface HealthSuggestion {
+  id: string
+  type: 'warning' | 'info' | 'success'
+  message: string
+  action?: {
+    label: string
+    command?: string
+    chainId?: string
+  }
+}</code></pre>
+    </section>
+
+    <section>
+      <h2>Inspection Rules</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>Signal</th>
+            <th>Suggestion</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Package manager</td>
+            <td>Detect `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `requirements.txt`, `pyproject.toml`, `Cargo.toml`, or `go.mod`.</td>
+            <td>Prefer commands that match the detected manager.</td>
+          </tr>
+          <tr>
+            <td>Missing dependencies</td>
+            <td>Node project has lockfile but no `node_modules`; Python project has dependency file but no `.venv` signal.</td>
+            <td>Offer install command such as `npm install`, `pnpm install`, `pip install -r requirements.txt`, or `poetry install`.</td>
+          </tr>
+          <tr>
+            <td>Git awareness</td>
+            <td>`.git` directory exists in the project root or a parent inside the configured project boundary.</td>
+            <td>Show success or info only; Git workflow features already live in Phase 6.</td>
+          </tr>
+          <tr>
+            <td>Docker Compose</td>
+            <td>`docker-compose.yml`, `docker-compose.yaml`, or `compose.yaml` exists.</td>
+            <td>Offer compose-related action once Phase 7.4 exists; otherwise show informational context.</td>
+          </tr>
+          <tr>
+            <td>Runtime version</td>
+            <td>Read `.nvmrc`, `.node-version`, or `package.json.engines.node` for Node projects.</td>
+            <td>Warn when a declared version exists but no compatible local check can be confirmed.</td>
+          </tr>
+          <tr>
+            <td>Runnable scripts</td>
+            <td>Extract scripts and targets from supported project files.</td>
+            <td>Offer one-click run buttons in the Suggested Actions panel.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Files And Ownership</h2>
+      <div class="grid">
+        <div>
+          <h3>Main Process</h3>
+          <ul>
+            <li><span class="badge complete">Done</span> Add `apps/desktop/projectIntelligence/healthInspector.ts` for filesystem checks.</li>
+            <li><span class="badge complete">Done</span> Add or extend IPC registration with `project:inspect(projectId)`.</li>
+            <li><span class="badge complete">Done</span> Reuse existing project lookup before reading files.</li>
+            <li><span class="badge complete">Done</span> Keep scans shallow and bounded to project root files for the first release.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Renderer</h3>
+          <ul>
+            <li><span class="badge complete">Done</span> Add a `SuggestedActionsPanel` component in the project detail view.</li>
+            <li><span class="badge complete">Done</span> Add health state to project cards without crowding existing metadata.</li>
+            <li><span class="badge complete">Done</span> Use existing command execution IPC for action buttons.</li>
+            <li><span class="badge partial">Session only</span> Persist dismissed suggestion IDs per project if dismissal should survive reloads.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>UI Behavior</h2>
+      <div class="deliverables">
+        <div class="deliverable">
+          <h3>Suggested Actions Panel</h3>
+          <ul>
+            <li>Collapsed by default only when there are no warnings.</li>
+            <li>Shows refresh, dismiss, and run actions.</li>
+            <li>Displays last analyzed timestamp.</li>
+          </ul>
+        </div>
+        <div class="deliverable">
+          <h3>Project Card Indicator</h3>
+          <ul>
+            <li><span class="success">Healthy</span>: all core checks pass.</li>
+            <li><span class="warning">Warning</span>: setup action suggested.</li>
+            <li><span class="critical">Critical</span>: missing dependencies or inspection error.</li>
+          </ul>
+        </div>
+        <div class="deliverable">
+          <h3>Script Actions</h3>
+          <ul>
+            <li>Promote common scripts first: dev, start, build, test, lint.</li>
+            <li>Keep long script lists compact with a show-more control.</li>
+            <li>Run actions in the project root.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Acceptance Criteria</h2>
+      <ol>
+        <li><span class="badge complete">Done</span> `project:inspect(projectId)` returns a typed report for Node, Python, Rust, and Go projects without blocking the renderer.</li>
+        <li><span class="badge complete">Done</span> Missing dependency states produce clear suggestions with safe install commands.</li>
+        <li><span class="badge complete">Done</span> Detected scripts are visible and runnable from the project view.</li>
+        <li><span class="badge complete">Done</span> Project cards show a stable health indicator after inspection.</li>
+        <li><span class="badge complete">Done</span> Refresh re-runs analysis and updates the timestamp.</li>
+        <li><span class="badge complete">Done</span> Inspection errors are surfaced as non-crashing critical reports.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Risks</h2>
+      <div class="risks">
+        <div class="risk">
+          <h3>False Positives</h3>
+          <p>Keep suggestions worded as recommendations, not guarantees. Avoid marking projects critical unless a setup blocker is clear.</p>
+        </div>
+        <div class="risk">
+          <h3>Slow Scans</h3>
+          <p>Read only known root files in Phase 4. Defer recursive analysis to file indexing and future intelligence improvements.</p>
+        </div>
+        <div class="risk">
+          <h3>Command Safety</h3>
+          <p>Suggested commands should be visible before execution and reuse the existing run-history pipeline for traceability.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Definition Of Done</h2>
+      <ul>
+        <li><span class="badge complete">Done</span> Types, IPC, and preload exposure are wired end to end.</li>
+        <li><span class="badge complete">Done</span> Health panel and card indicators match the existing DevDesk UI style.</li>
+        <li><span class="badge complete">Done</span> Manual validation covers build verification for the supported inspection paths.</li>
+        <li><span class="badge complete">Done</span> Roadmap Phase 4 entries can be updated with concrete implementation status.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

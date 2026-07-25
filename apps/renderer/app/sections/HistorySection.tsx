@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Copy, FileText, Square, Trash2 } from 'lucide-react'
+import { Check, Copy, FileText, Square, Trash2, History as HistoryIcon, Terminal } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { ScrollArea } from '../components/ui/ScrollArea'
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/Card'
 import {
   Dialog,
   DialogContent,
@@ -10,17 +15,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/Dialog'
-import { Separator } from '../components/ui/Separator'
 import { SectionLayout } from '../layout/SectionLayout'
+import { cn } from '../../lib/utils'
 import type { Command, Project, RunHistoryEntry } from '../types'
 
-const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm'
-
 const statusStyles: Record<RunHistoryEntry['status'], string> = {
-  running: 'bg-emerald-500',
-  success: 'bg-sky-500',
+  running: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]',
+  success: 'bg-blue-500',
   failed: 'bg-rose-500',
   stopped: 'bg-amber-400',
+}
+
+const statusTextColors: Record<RunHistoryEntry['status'], string> = {
+  running: 'text-emerald-500',
+  success: 'text-blue-500',
+  failed: 'text-rose-500',
+  stopped: 'text-amber-500',
 }
 
 export function HistorySection({
@@ -32,6 +42,7 @@ export function HistorySection({
   onStopRun,
   onLoadOutput,
   onClearHistory,
+  onRemoveEntry,
 }: {
   history: RunHistoryEntry[]
   commands: Command[]
@@ -41,6 +52,7 @@ export function HistorySection({
   onStopRun?: (runId: string) => void
   onLoadOutput?: (runId: string) => Promise<string>
   onClearHistory?: () => Promise<void>
+  onRemoveEntry?: (runId: string) => Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(history[0]?.id ?? null)
   const [outputText, setOutputText] = useState('')
@@ -51,6 +63,9 @@ export function HistorySection({
   const [clearDialogOpen, setClearDialogOpen] = useState(false)
   const [clearError, setClearError] = useState<string | null>(null)
   const [clearing, setClearing] = useState(false)
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   useEffect(() => {
     if (!history.length) {
@@ -109,7 +124,23 @@ export function HistorySection({
     }
   }
 
+  const handleRemoveSelectedEntry = async () => {
+    if (!selectedEntryId || !onRemoveEntry || removing) return
+    setRemoveError(null)
+    setRemoving(true)
+    try {
+      await onRemoveEntry(selectedEntryId)
+      setRemoveDialogOpen(false)
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : 'Failed to remove history entry.')
+    } finally {
+      setRemoving(false)
+    }
+  }
+
   useEffect(() => {
+    let cancelled = false
+
     if (!selectedEntryId) {
       setOutputText('')
       setOutputError(null)
@@ -135,14 +166,24 @@ export function HistorySection({
     setOutputError(null)
     onLoadOutput(selectedEntryId)
       .then((output) => {
-        setOutputText(output ?? '')
+        if (!cancelled) {
+          setOutputText(output ?? '')
+        }
       })
       .catch((loadError) => {
-        setOutputError(loadError instanceof Error ? loadError.message : 'Failed to load output.')
+        if (!cancelled) {
+          setOutputError(loadError instanceof Error ? loadError.message : 'Failed to load output.')
+        }
       })
       .finally(() => {
-        setOutputLoading(false)
+        if (!cancelled) {
+          setOutputLoading(false)
+        }
       })
+
+    return () => {
+      cancelled = true
+    }
   }, [onLoadOutput, selectedEntryId, selectedEntryOutput, selectedEntryStatus])
 
   const handleCopy = async () => {
@@ -166,155 +207,225 @@ export function HistorySection({
     <>
       <SectionLayout
         list={
-          <div className={panelClass}>
-            <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
+          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+            <div className="border-b border-border/40 bg-muted/20 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">History</p>
-                  {hasRunning ? (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Stop running commands to clear history.
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</p>
+                  {hasRunning && (
+                    <p className="mt-1 text-[10px] text-muted-foreground animate-pulse">
+                      Running commands...
                     </p>
-                  ) : null}
+                  )}
                 </div>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-8 gap-1.5 px-2 text-xs"
+                  className="h-6 gap-1.5 px-2 text-[10px]"
                   onClick={() => setClearDialogOpen(true)}
                   disabled={!onClearHistory || history.length === 0 || hasRunning}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3 w-3" />
                   Clear
                 </Button>
               </div>
             </div>
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto px-2 py-2">
               {isLoading ? (
-                <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-                  Loading runs...
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground italic">
+                  Loading execution logs...
                 </div>
               ) : error ? (
-                <div className="flex h-full items-center justify-center px-6 text-sm text-destructive">
+                <div className="flex h-full items-center justify-center p-4 text-center text-sm text-destructive bg-destructive/5 rounded-lg border border-destructive/10">
                   {error}
                 </div>
               ) : history.length === 0 ? (
-                <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-                  No runs yet.
+                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50">
+                  <HistoryIcon className="h-10 w-10 mb-2 opacity-20" />
+                  <p className="text-sm">No execution history yet.</p>
                 </div>
               ) : (
-                history.map((entry) => {
-                  const isActive = selectedEntry?.id === entry.id
-                  return (
-                    <button
-                      key={entry.id}
-                      onClick={() => setSelectedId(entry.id)}
-                    aria-pressed={isActive}
-                    className={`group relative flex w-full items-start gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring last:border-b-0 ${
-                      isActive
-                        ? "bg-accent/70 text-foreground before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:bg-primary before:content-['']"
-                        : 'hover:bg-accent/60'
-                    }`}
-                  >
-                    <span className={`mt-1 h-2.5 w-2.5 rounded-full ${statusStyles[entry.status]}`} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{getCommandName(entry.commandId)}</p>
-                        <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {getProjectName(entry.projectId)} • {new Date(entry.startTime).toLocaleString()}
-                        </p>
-                      </div>
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                        {entry.status}
-                      </span>
-                    </button>
-                  )
-                })
+                <div className="space-y-1">
+                  {history.map((entry) => {
+                    const isActive = selectedEntry?.id === entry.id
+                    return (
+                      <button
+                        key={entry.id}
+                        onClick={() => setSelectedId(entry.id)}
+                        className={cn(
+                          "group flex w-full flex-col gap-1 rounded-lg px-3 py-3 text-left transition-all",
+                          isActive 
+                            ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20" 
+                            : "hover:bg-muted/50"
+                        )}
+                      >
+                        <div className="flex w-full items-center justify-between gap-2">
+                          <span className={cn(
+                            "truncate text-sm font-bold leading-none",
+                            isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                          )}>
+                            {getCommandName(entry.commandId)}
+                          </span>
+                          <span className={cn("h-2 w-2 rounded-full shrink-0", statusStyles[entry.status])} />
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground">
+                          <span className="truncate">{getProjectName(entry.projectId)}</span>
+                          <span className="shrink-0">
+                            {new Date(entry.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               )}
             </div>
-          </div>
+          </Card>
         }
         detail={
-          <div className={`${panelClass} p-5`}>
-            {selectedEntry ? (
-              <div className="flex h-full flex-col gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Run</p>
-                  <h2 className="mt-3 text-lg font-semibold">{getCommandName(selectedEntry.commandId)}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {getProjectName(selectedEntry.projectId)} • {new Date(selectedEntry.startTime).toLocaleString()}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className={`h-2.5 w-2.5 rounded-full ${statusStyles[selectedEntry.status]}`} />
-                  <span className="uppercase tracking-[0.2em] text-muted-foreground">{selectedEntry.status}</span>
-                  {selectedEntry.endTime ? (
-                    <span className="text-muted-foreground">
-                      Finished: {new Date(selectedEntry.endTime).toLocaleString()}
-                    </span>
-                  ) : null}
-                </div>
-                <Separator />
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Output
-                  </p>
-                  <div className="min-h-[160px] rounded-md border border-border/60 bg-muted/40">
-                    <ScrollArea className="h-40">
-                      <pre className="p-3 text-xs text-muted-foreground whitespace-pre-wrap break-words">
-                        {outputDisplay}
-                      </pre>
-                    </ScrollArea>
+          selectedEntry ? (
+            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+              <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded bg-muted/20 border border-border/40 text-muted-foreground">
+                        <Terminal className="h-4 w-4" />
+                      </div>
+                      <CardTitle className="text-2xl font-bold tracking-tight truncate">{getCommandName(selectedEntry.commandId)}</CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] font-mono bg-muted/20 w-fit px-2 py-0.5 rounded border border-border/20 text-muted-foreground">
+                      <span>{getProjectName(selectedEntry.projectId)}</span>
+                      <span className="opacity-30">•</span>
+                      <span>{new Date(selectedEntry.startTime).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 ml-4">
+                    <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/50 px-3 py-1 text-[10px] font-black uppercase tracking-widest">
+                      <span className={cn("h-1.5 w-1.5 rounded-full", statusStyles[selectedEntry.status])} />
+                      <span className={statusTextColors[selectedEntry.status]}>
+                        {selectedEntry.status}
+                      </span>
+                    </div>
+                    {selectedEntry.endTime && (
+                      <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-tighter">
+                        Duration: {Math.round((new Date(selectedEntry.endTime).getTime() - new Date(selectedEntry.startTime).getTime()) / 1000)}s
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="mt-auto flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => setDialogOpen(true)}
-                  >
-                    <FileText className="h-4 w-4" />
-                    View Full Output
-                  </Button>
-                  {selectedEntry.status === 'running' ? (
+              </CardHeader>
+
+              {/* Resolved Command Display */}
+              {selectedEntry.resolvedCommand && (
+                <div className="px-5 py-2.5 bg-muted/10 border-b border-border/40">
+                  <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Executed Command</div>
+                  <code className="block font-mono text-[11px] text-foreground/80 whitespace-pre-wrap break-all">
+                    {selectedEntry.resolvedCommand}
+                  </code>
+                </div>
+              )}
+
+              <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] relative group/terminal">
+                <div className="flex items-center justify-between px-5 py-2.5 bg-white/5 border-b border-white/5 backdrop-blur-md">
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1.5">
+                      <div className="h-2.5 w-2.5 rounded-full bg-rose-500/20 border border-rose-500/40" />
+                      <div className="h-2.5 w-2.5 rounded-full bg-amber-500/20 border border-amber-500/40" />
+                      <div className="h-2.5 w-2.5 rounded-full bg-emerald-500/20 border border-emerald-500/40" />
+                    </div>
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-white/30 font-medium ml-2">Standard Output</span>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-40 group-hover/terminal:opacity-100 transition-opacity">
+                     <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 gap-2 px-2.5 text-[10px] font-bold uppercase tracking-wider text-white/60 hover:text-white hover:bg-white/10"
+                      onClick={() => setDialogOpen(true)}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Full Screen
+                    </Button>
                     <Button
                       size="sm"
+                      variant="ghost"
+                      className="h-7 gap-2 px-2.5 text-[10px] font-bold uppercase tracking-wider text-white/60 hover:text-white hover:bg-white/10"
+                      onClick={handleCopy}
+                      disabled={!outputText}
+                    >
+                      {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied ? 'Copied' : 'Copy log'}
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea className="flex-1">
+                  <div className="p-6">
+                    <pre className="font-mono text-[12px] text-blue-100/80 whitespace-pre-wrap break-words leading-relaxed selection:bg-primary/30 selection:text-white">
+                      <span className="text-emerald-500/50 mr-2 select-none">$</span>
+                      {outputDisplay}
+                      {selectedEntry.status === 'running' && <span className="inline-block w-2 h-4 ml-1 bg-white/20 animate-pulse align-middle" />}
+                    </pre>
+                  </div>
+                </ScrollArea>
+              </div>
+
+              <div className="border-t border-border/40 bg-muted/5 p-5">
+                <div className="flex justify-end gap-2">
+                  {selectedEntry.status === 'running' ? (
+                    <Button
                       variant="destructive"
-                      className="gap-1.5"
+                      className="h-9 px-6 gap-2 font-bold uppercase tracking-wider text-[11px] shadow-lg shadow-destructive/10"
                       onClick={() => onStopRun?.(selectedEntry.id)}
                       disabled={!onStopRun}
                     >
                       <Square className="h-4 w-4" />
-                      Stop
+                      Terminate Run
                     </Button>
-                  ) : null}
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                      onClick={() => setRemoveDialogOpen(true)}
+                      disabled={!onRemoveEntry}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Purge entry
+                    </Button>
+                  )}
                 </div>
               </div>
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Select a run to see details.
+            </Card>
+          ) : (
+            <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center shadow-sm">
+              <div className="max-w-[240px] space-y-4 opacity-40">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/20 border-2 border-border/40 border-dashed">
+                  <HistoryIcon className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-bold uppercase tracking-widest">Run History</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">Select a completed or active run from the ledger to inspect console output and termination status.</p>
+                </div>
               </div>
-            )}
-          </div>
+            </Card>
+          )
         }
     />
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Run Output</DialogTitle>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 gap-0 overflow-hidden bg-[#0d0d0d] border-border/20">
+          <DialogHeader className="px-6 py-4 bg-muted/10 border-b border-border/10">
+            <DialogTitle className="text-foreground">Run Output</DialogTitle>
             <DialogDescription>
-              {selectedEntry ? `Full output for ${getCommandName(selectedEntry.commandId)} (${getProjectName(selectedEntry.projectId)})` : 'Full output'}
+              {selectedEntry ? `Full output for ${getCommandName(selectedEntry.commandId)}` : 'Full output'}
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border border-border bg-muted/60">
-            <ScrollArea className="h-[50vh]">
-              <pre className="p-4 text-xs text-muted-foreground whitespace-pre-wrap break-words">
+          <ScrollArea className="flex-1 p-6">
+             <pre className="font-mono text-sm text-muted-foreground/90 whitespace-pre-wrap break-words leading-relaxed">
                 {outputDisplay}
               </pre>
-            </ScrollArea>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCopy} disabled={!outputText}>
+          </ScrollArea>
+          <DialogFooter className="px-6 py-4 bg-muted/5 border-t border-border/10">
+            <Button variant="secondary" onClick={handleCopy} disabled={!outputText}>
               {copied ? (
                 <>
                   <Check className="h-4 w-4" />
@@ -327,7 +438,37 @@ export function HistorySection({
                 </>
               )}
             </Button>
-            <Button onClick={() => setDialogOpen(false)}>Done</Button>
+            <Button onClick={() => setDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={removeDialogOpen}
+        onOpenChange={(open) => {
+          setRemoveDialogOpen(open)
+          if (!open) {
+            setRemoveError(null)
+            setRemoving(false)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove selected run?</DialogTitle>
+            <DialogDescription>
+              This removes only the selected run and its captured output. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {removeError ? (
+            <p className="text-xs text-destructive">{removeError}</p>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveDialogOpen(false)} disabled={removing}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleRemoveSelectedEntry} disabled={removing || !selectedEntryId}>
+              {removing ? 'Removing...' : 'Remove Run'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Container, FolderKanban, History, Plus, StickyNote, Terminal, Folder, Globe, SearchCode } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 import { Button } from './components/ui/Button'
 import { Input } from './components/ui/Input'
 import { Label } from './components/ui/Label'
@@ -21,59 +21,91 @@ import {
   SelectValue,
 } from './components/ui/Select'
 import { AppShell } from './layout/AppShell'
-import { CommandsSection } from './sections/CommandsSection'
+import { AutomationSection } from './sections/AutomationSection'
 import { ContainersSection } from './sections/ContainersSection'
 import { HistorySection } from './sections/HistorySection'
-import { NotesSection } from './sections/NotesSection'
 import { ProjectsSection } from './sections/ProjectsSection'
 import { EngineSection } from './sections/EngineSection'
+import { TerminalSection } from './sections/TerminalSection'
 import type {
   AppPreferences,
   Command,
+  CommandChain,
+  CommandChainRunState,
+  CommandTrigger,
   Container as ContainerType,
+  CreateCommandChainInput,
+  CreateCommandTriggerInput,
+  CreateCommandInput,
+  EngineGitInsights,
+  EngineIndexCompletedPayload,
+  EngineIndexLifecyclePayload,
+  EngineIndexResult,
   EngineIndexMeta,
-  EngineSearchResult,
   EngineSearchSession,
   EngineStats,
   EngineStatus,
+  GitCommitResult,
+  GitCreatePullRequestResult,
+  GitFileDiffResult,
+  GitPushResult,
+  GitWorkflowState,
   Project,
-  ProjectNotes,
   RunHistoryEntry,
+  TerminalSessionState,
+  TriggerConfirmationRequest,
 } from './types'
-
-type TabValue = 'projects' | 'engine' | 'commands' | 'containers' | 'history' | 'notes'
-
-const navItems = [
-  { value: 'projects', label: 'Projects', icon: FolderKanban },
-  { value: 'engine', label: 'Search', icon: SearchCode },
-  { value: 'commands', label: 'Commands', icon: Terminal },
-  { value: 'containers', label: 'Containers', icon: Container },
-  { value: 'history', label: 'History', icon: History },
-  { value: 'notes', label: 'Notes', icon: StickyNote },
-] as const
-
-const actionLabels: Partial<Record<TabValue, string>> = {
-  projects: 'Add Project',
-  commands: 'New Command',
-}
-
-const GLOBAL_COMMAND_VALUE = '__global__'
+import { CommandPalette } from './components/CommandPalette'
+import { ThemeToggle } from './components/ThemeToggle'
+import { ProjectDirectorySelector } from './components/ProjectDirectorySelector'
+import { BugReportModal } from './components/BugReportModal'
+import { ExportImportDialog } from './components/ExportImportDialog'
+import {
+  GLOBAL_COMMAND_VALUE,
+  actionLabels,
+  navItems,
+  toUserContainerError,
+  type TabValue,
+  upsertHistoryEntry,
+} from './lib/appShell'
 
 function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('devdesk-theme')
+    return (saved as 'light' | 'dark') || 'dark'
+  })
+
+  useEffect(() => {
+    const root = window.document.documentElement
+    root.classList.remove('light', 'dark')
+    root.classList.add(theme)
+    localStorage.setItem('devdesk-theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+
   const [activeTab, setActiveTab] = useState<TabValue>('projects')
   const [projects, setProjects] = useState<Project[]>([])
   const [commands, setCommands] = useState<Command[]>([])
+  const [chains, setChains] = useState<CommandChain[]>([])
+  const [triggers, setTriggers] = useState<CommandTrigger[]>([])
+  const [chainRuns, setChainRuns] = useState<Record<string, CommandChainRunState>>({})
+  const [triggerConfirmations, setTriggerConfirmations] = useState<TriggerConfirmationRequest[]>([])
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [history, setHistory] = useState<RunHistoryEntry[]>([])
-  const [notes, setNotes] = useState<Record<string, ProjectNotes>>({})
   const [preferences, setPreferences] = useState<AppPreferences | null>(null)
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null)
   const [engineIndexes, setEngineIndexes] = useState<Record<string, EngineIndexMeta>>({})
   const [engineSearchSessions, setEngineSearchSessions] = useState<Record<string, EngineSearchSession>>({})
-  const [engineSelectedProjectId, setEngineSelectedProjectId] = useState<string | null>(null)
+  const [engineIndexingProjects, setEngineIndexingProjects] = useState<Record<string, boolean>>({})
+  const [engineLatestIndexResults, setEngineLatestIndexResults] = useState<Record<string, EngineIndexResult>>({})
+  const [selectedEngineProjectId, setSelectedEngineProjectId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [containerError, setContainerError] = useState<string | null>(null)
+  const [isContainersLoading, setIsContainersLoading] = useState(false)
+  const [hasLoadedContainers, setHasLoadedContainers] = useState(false)
+  const [hasAttemptedContainersLoad, setHasAttemptedContainersLoad] = useState(false)
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const [projectPath, setProjectPath] = useState('')
@@ -84,52 +116,162 @@ function App() {
   const [selectedWslDistro, setSelectedWslDistro] = useState('')
   const [wslDistroInput, setWslDistroInput] = useState('')
   const [isLoadingWslDistros, setIsLoadingWslDistros] = useState(false)
+  const [showWslOptions, setShowWslOptions] = useState(false)
 
   const [commandDialogOpen, setCommandDialogOpen] = useState(false)
+  const [bugReportModalOpen, setBugReportModalOpen] = useState(false)
+  const [bugReportPreselectedProjectId, setBugReportPreselectedProjectId] = useState<string | null>(null)
   const [commandName, setCommandName] = useState('')
   const [commandValue, setCommandValue] = useState('')
   const [commandDescription, setCommandDescription] = useState('')
   const [commandTags, setCommandTags] = useState('')
   const [commandProjectId, setCommandProjectId] = useState<string>(GLOBAL_COMMAND_VALUE)
   const [commandWorkingDirectory, setCommandWorkingDirectory] = useState<string>('')
-  const [availableDirectories, setAvailableDirectories] = useState<string[]>([])
-  const [isLoadingDirectories, setIsLoadingDirectories] = useState(false)
-  const [directorySelectKey, setDirectorySelectKey] = useState<string>('0')
   const [commandError, setCommandError] = useState<string | null>(null)
   const [isSavingCommand, setIsSavingCommand] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [terminalSessions, setTerminalSessions] = useState<TerminalSessionState[]>([])
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
+  const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
+  const [exportImportDialogOpen, setExportImportDialogOpen] = useState(false)
+
+  const currentContextProjectId = useMemo(() => {
+    if (activeTab === 'engine' && selectedEngineProjectId) {
+      return selectedEngineProjectId
+    }
+    if (activeTab === 'terminal') {
+      const session = terminalSessions.find((s) => s.id === activeTerminalId)
+      if (session?.projectId) return session.projectId
+    }
+    return null
+  }, [activeTab, selectedEngineProjectId, terminalSessions, activeTerminalId])
 
   const title = useMemo(() => navItems.find((item) => item.value === activeTab)?.label ?? '', [activeTab])
   const actionLabel = actionLabels[activeTab]
   const navItemsWithCounts = useMemo(() => {
     const counts: Record<TabValue, number> = {
       projects: projects.length,
-      engine: projects.length,
-      commands: commands.length,
+      commands: commands.length + chains.length + triggers.length,
+      engine: Object.keys(engineIndexes).length,
       containers: containers.length,
       history: history.length,
-      notes: projects.length,
+      terminal: terminalSessions.length,
     }
     return navItems.map((item) => ({
       ...item,
       count: counts[item.value],
     }))
-  }, [projects.length, commands.length, containers.length, history.length])
+  }, [projects.length, commands.length, chains.length, triggers.length, engineIndexes, containers.length, history.length, terminalSessions.length])
+
+  const nextTerminalLabel = useCallback((sessions: TerminalSessionState[], projectId?: string): string => {
+    if (projectId) {
+      const project = projects.find((p) => p.id === projectId)
+      if (project) return project.name
+    }
+    const usedIndices = new Set(
+      sessions.map((s) => {
+        const match = s.label.match(/^Terminal (\d+)$/)
+        return match ? parseInt(match[1], 10) : 0
+      })
+    )
+    let n = 1
+    while (usedIndices.has(n)) n++
+    return `Terminal ${n}`
+  }, [projects])
+
+  const handleCreateTerminalSession = useCallback(async (projectId?: string) => {
+    setLoadError(null)
+    try {
+      const { terminalId } = await window.electronAPI.createTerminal({
+        projectId,
+        cols: 80,
+        rows: 24,
+      })
+      const label = nextTerminalLabel(terminalSessions, projectId)
+      const newSession: TerminalSessionState = { id: terminalId, label, projectId }
+      setTerminalSessions((prev) => [...prev, newSession])
+      setActiveTerminalId(terminalId)
+      setActiveTab('terminal')
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Failed to create terminal session.')
+    }
+  }, [terminalSessions, nextTerminalLabel])
+
+  const handleCloseTerminalSession = useCallback(async (terminalId: string) => {
+    try {
+      await window.electronAPI.closeTerminal(terminalId)
+    } catch {
+      // pty may already be dead — ignore
+    }
+    setTerminalSessions((prev) => {
+      const next = prev.filter((s) => s.id !== terminalId)
+      if (activeTerminalId === terminalId) {
+        setActiveTerminalId(next.length > 0 ? next[next.length - 1].id : null)
+      }
+      return next
+    })
+  }, [activeTerminalId])
+
+  const handleSelectTerminalTab = useCallback((terminalId: string) => {
+    setActiveTerminalId(terminalId)
+  }, [])
+
+  const handleToggleTerminalFullscreen = useCallback(() => {
+    setIsTerminalFullscreen((prev) => !prev)
+  }, [])
+
+  const handleRenameTerminalSession = useCallback((terminalId: string, newLabel: string) => {
+    setTerminalSessions((prev) =>
+      prev.map((s) => (s.id === terminalId ? { ...s, label: newLabel } : s))
+    )
+  }, [])
+
+  useEffect(() => {
+    const unsubscribeTrayTerminal = window.electronAPI.onTrayTerminalCreated(({ terminalId, projectId }) => {
+      setTerminalSessions((prev) => {
+        if (prev.some((s) => s.id === terminalId)) {
+          return prev
+        }
+        const label = nextTerminalLabel(prev, projectId)
+        return [...prev, { id: terminalId, label, projectId }]
+      })
+      setActiveTerminalId(terminalId)
+      setActiveTab('terminal')
+    })
+
+    return () => {
+      unsubscribeTrayTerminal()
+    }
+  }, [nextTerminalLabel])
+
+  useEffect(() => {
+    if (activeTab !== 'terminal') {
+      setIsTerminalFullscreen(false)
+    }
+  }, [activeTab])
 
   const loadAll = useCallback(async () => {
     setIsLoading(true)
     setLoadError(null)
     setContainerError(null)
+    setContainers([])
+    setChainRuns({})
+    setTriggerConfirmations([])
+    setEngineLatestIndexResults({})
+    setEngineIndexingProjects({})
+    setHasLoadedContainers(false)
+    setHasAttemptedContainersLoad(false)
     try {
-      const [projectsResult, commandsResult, containersResult, historyResult, preferencesResult, engineStatusResult, engineIndexesResult, engineSearchSessionsResult] =
+      const [projectsResult, commandsResult, chainsResult, triggersResult, confirmationsResult, historyResult, preferencesResult, engineStateResult] =
         await Promise.allSettled([
           window.electronAPI.getProjects(),
           window.electronAPI.getCommands(),
-          window.electronAPI.getContainers(),
+          window.electronAPI.getChains(),
+          window.electronAPI.getTriggers(),
+          window.electronAPI.getPendingTriggerConfirmations(),
           window.electronAPI.getRunHistory(),
           window.electronAPI.getPreferences(),
-          window.electronAPI.engineStatus(),
-          window.electronAPI.engineIndexes(),
-          window.electronAPI.engineSearchSessions(),
+          window.electronAPI.getEngineState(),
         ])
 
       const errors: string[] = []
@@ -148,11 +290,24 @@ function App() {
         setCommands([])
       }
 
-      if (containersResult.status === 'fulfilled') {
-        setContainers(containersResult.value)
+      if (chainsResult.status === 'fulfilled') {
+        setChains(chainsResult.value)
       } else {
-        setContainerError(containersResult.reason instanceof Error ? containersResult.reason.message : 'Failed to load containers.')
-        setContainers([])
+        errors.push(chainsResult.reason instanceof Error ? chainsResult.reason.message : 'Failed to load chains.')
+        setChains([])
+      }
+
+      if (triggersResult.status === 'fulfilled') {
+        setTriggers(triggersResult.value)
+      } else {
+        errors.push(triggersResult.reason instanceof Error ? triggersResult.reason.message : 'Failed to load triggers.')
+        setTriggers([])
+      }
+
+      if (confirmationsResult.status === 'fulfilled') {
+        setTriggerConfirmations(confirmationsResult.value)
+      } else {
+        setTriggerConfirmations([])
       }
 
       if (historyResult.status === 'fulfilled') {
@@ -169,48 +324,18 @@ function App() {
         setPreferences(null)
       }
 
-      if (engineStatusResult.status === 'fulfilled') {
-        setEngineStatus(engineStatusResult.value)
+      if (engineStateResult.status === 'fulfilled') {
+        setEngineStatus(engineStateResult.value.status)
+        setEngineIndexes(engineStateResult.value.indexes)
+        setEngineSearchSessions(engineStateResult.value.searchSessions)
       } else {
-        errors.push(engineStatusResult.reason instanceof Error ? engineStatusResult.reason.message : 'Failed to load engine status.')
+        errors.push(engineStateResult.reason instanceof Error ? engineStateResult.reason.message : 'Failed to load engine state.')
         setEngineStatus(null)
-      }
-
-      if (engineIndexesResult.status === 'fulfilled') {
-        setEngineIndexes(engineIndexesResult.value)
-      } else {
-        errors.push(engineIndexesResult.reason instanceof Error ? engineIndexesResult.reason.message : 'Failed to load engine indexes.')
         setEngineIndexes({})
-      }
-
-      if (engineSearchSessionsResult.status === 'fulfilled') {
-        setEngineSearchSessions(engineSearchSessionsResult.value)
-      } else {
-        errors.push(
-          engineSearchSessionsResult.reason instanceof Error
-            ? engineSearchSessionsResult.reason.message
-            : 'Failed to load saved engine searches.'
-        )
         setEngineSearchSessions({})
       }
 
-      if (projectsResult.status === 'fulfilled') {
-        try {
-          const notesEntries = await Promise.all(
-            projectsResult.value.map((project) => window.electronAPI.getNotes(project.id))
-          )
-          const notesMap = notesEntries.reduce<Record<string, ProjectNotes>>((acc, entry) => {
-            acc[entry.projectId] = entry
-            return acc
-          }, {})
-          setNotes(notesMap)
-        } catch (error) {
-          errors.push(error instanceof Error ? error.message : 'Failed to load notes.')
-          setNotes({})
-        }
-      } else {
-        setNotes({})
-      }
+      setEngineIndexingProjects({})
 
       setLoadError(errors.length ? errors[0] : null)
     } catch (error) {
@@ -220,21 +345,85 @@ function App() {
     }
   }, [])
 
+  const loadContainers = useCallback(async () => {
+    setHasAttemptedContainersLoad(true)
+    setIsContainersLoading(true)
+    setContainerError(null)
+    try {
+      const nextContainers = await window.electronAPI.getContainers()
+      setContainers(nextContainers)
+      setHasLoadedContainers(true)
+    } catch (error) {
+      const message = toUserContainerError(error, 'Failed to load containers.')
+      setContainerError(message)
+      setContainers([])
+      setHasLoadedContainers(true)
+    } finally {
+      setIsContainersLoading(false)
+    }
+  }, [])
+
+  const syncEngineState = useCallback(async () => {
+    const state = await window.electronAPI.getEngineState()
+    setEngineStatus(state.status)
+    setEngineIndexes(state.indexes)
+    setEngineSearchSessions(state.searchSessions)
+    return state
+  }, [])
+
   useEffect(() => {
     loadAll()
   }, [loadAll])
 
   useEffect(() => {
-    if (!projects.length) {
-      setEngineSelectedProjectId(null)
-      return
+    const handleIndexStarted = ({ projectId }: EngineIndexLifecyclePayload) => {
+      setEngineIndexingProjects((prev) => ({ ...prev, [projectId]: true }))
     }
-    if (!engineSelectedProjectId || !projects.some((project) => project.id === engineSelectedProjectId)) {
-      setEngineSelectedProjectId(projects[0].id)
+
+    const handleIndexCompleted = ({ projectId, result }: EngineIndexCompletedPayload) => {
+      setEngineIndexingProjects((prev) => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
+      setEngineLatestIndexResults((prev) => ({ ...prev, [projectId]: result }))
+      void syncEngineState().catch((error) => {
+        setLoadError(error instanceof Error ? error.message : 'Failed to refresh engine state.')
+      })
     }
-  }, [engineSelectedProjectId, projects])
+
+    const unsubscribeStarted = window.electronAPI.onEngineIndexingStarted(handleIndexStarted)
+    const unsubscribeCompleted = window.electronAPI.onEngineIndexingCompleted(handleIndexCompleted)
+
+    return () => {
+      unsubscribeStarted()
+      unsubscribeCompleted()
+    }
+  }, [syncEngineState])
 
   useEffect(() => {
+    const needsContainers = activeTab === 'containers' || activeTab === 'projects'
+    if (!needsContainers || hasAttemptedContainersLoad || isContainersLoading) {
+      return
+    }
+    void loadContainers().catch(() => undefined)
+  }, [activeTab, hasAttemptedContainersLoad, isContainersLoading, loadContainers])
+
+  useEffect(() => {
+    const unsubscribeStarted = window.electronAPI.onRunStarted((entry) => {
+      setHistory((prev) =>
+        upsertHistoryEntry(prev, {
+          id: entry.id,
+          commandId: entry.commandId,
+          projectId: entry.projectId,
+          status: 'running',
+          startTime: entry.startTime,
+          output: entry.output ?? '',
+          resolvedCommand: entry.resolvedCommand,
+        })
+      )
+    })
+
     const unsubscribeOutput = window.electronAPI.onRunOutput(({ runId, chunk }) => {
       setHistory((prev) =>
         prev.map((entry) =>
@@ -262,9 +451,28 @@ function App() {
       )
     })
 
+    const unsubscribeChainProgress = window.electronAPI.onChainProgress((payload) => {
+      setChainRuns((prev) => ({
+        ...prev,
+        [payload.chainId]: payload,
+      }))
+    })
+
+    const unsubscribeTriggerConfirmation = window.electronAPI.onTriggerConfirmationRequested((payload) => {
+      setTriggerConfirmations((prev) => {
+        if (prev.some((entry) => entry.id === payload.id)) {
+          return prev
+        }
+        return [...prev, payload]
+      })
+    })
+
     return () => {
+      unsubscribeStarted()
       unsubscribeOutput()
       unsubscribeStatus()
+      unsubscribeChainProgress()
+      unsubscribeTriggerConfirmation()
     }
   }, [])
 
@@ -311,6 +519,73 @@ function App() {
     }
   }, [projectDialogOpen])
 
+  useEffect(() => {
+    if (!projects.length) {
+      setSelectedEngineProjectId(null)
+      return
+    }
+
+    if (!selectedEngineProjectId || !projects.some((project) => project.id === selectedEngineProjectId)) {
+      setSelectedEngineProjectId(projects[0].id)
+    }
+  }, [projects, selectedEngineProjectId])
+
+  // Keyboard shortcut: Ctrl+` to toggle/focus terminal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlBacktick = (e.ctrlKey || e.metaKey) && e.key === '`'
+      if (isCtrlBacktick) {
+        const target = e.target as HTMLElement
+        const isEditable =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable
+
+        // Don't steal backtick from terminal input (xterm textarea)
+        if (isEditable) return
+
+        e.preventDefault()
+
+        if (activeTab === 'terminal') {
+          void handleCreateTerminalSession()
+        } else {
+          if (terminalSessions.length === 0) {
+            void handleCreateTerminalSession()
+          } else {
+            setActiveTab('terminal')
+          }
+        }
+        return
+      }
+
+      const isCtrlShiftB = (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'b'
+      if (isCtrlShiftB) {
+        const target = e.target as HTMLElement
+        const isEditable =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable
+
+        if (isEditable) return
+
+        e.preventDefault()
+        setBugReportPreselectedProjectId(
+          currentContextProjectId && projects.some((p) => p.id === currentContextProjectId)
+            ? currentContextProjectId
+            : projects.length === 1
+              ? projects[0].id
+              : null
+        )
+        setBugReportModalOpen(true)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [activeTab, terminalSessions.length, handleCreateTerminalSession, projects, currentContextProjectId])
+
   const handleWslDistroSelect = (distro: string) => {
     setSelectedWslDistro(distro)
     setWslDistroInput(distro)
@@ -332,8 +607,6 @@ function App() {
         }
         return [project, ...prev]
       })
-      const projectNotes = await window.electronAPI.getNotes(project.id)
-      setNotes((prev) => ({ ...prev, [projectNotes.projectId]: projectNotes }))
       setProjectPath('')
       setProjectDialogOpen(false)
     } catch (error) {
@@ -355,17 +628,37 @@ function App() {
     }
   }
 
+  const handleSetProjectLinkedContainers = async (projectId: string, linkedContainerNames: string[]) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.setProjectLinkedContainers(projectId, linkedContainerNames)
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? updated : project)))
+      return updated
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update linked containers.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
   const handleRemoveProject = async (projectId: string) => {
     setLoadError(null)
     try {
       await window.electronAPI.removeProject(projectId)
       setProjects((prev) => prev.filter((project) => project.id !== projectId))
-      setHistory((prev) => prev.filter((entry) => entry.projectId !== projectId))
-      setNotes((prev) => {
+      setCommands((prev) => prev.filter((command) => command.projectId !== projectId))
+      setChains((prev) => prev.filter((chain) => chain.projectId !== projectId))
+      setTriggers((prev) => prev.filter((trigger) => trigger.projectId !== projectId))
+      setChainRuns((prev) => {
         const next = { ...prev }
-        delete next[projectId]
+        for (const chain of chains) {
+          if (chain.projectId === projectId) {
+            delete next[chain.id]
+          }
+        }
         return next
       })
+      setHistory((prev) => prev.filter((entry) => entry.projectId !== projectId))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to remove project.'
       setLoadError(message)
@@ -414,12 +707,6 @@ function App() {
   }
 
   const handleAddCommand = async () => {
-    const trimmedName = commandName.trim()
-    const trimmedCommand = commandValue.trim()
-    if (!trimmedName || !trimmedCommand) {
-      setCommandError('Command name and command are required.')
-      return
-    }
     setCommandError(null)
     setIsSavingCommand(true)
     try {
@@ -427,17 +714,19 @@ function App() {
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean)
-      const command = await window.electronAPI.addCommand({
-        name: trimmedName,
-        command: trimmedCommand,
-        description: commandDescription.trim() || undefined,
+
+      await handleCreateCommand({
+        name: commandName,
+        command: commandValue,
+        description: commandDescription,
         tags: tags.length ? tags : undefined,
         projectId: commandProjectId === GLOBAL_COMMAND_VALUE ? undefined : commandProjectId,
-        workingDirectory: commandWorkingDirectory === '__root__' || !commandWorkingDirectory.trim()
-          ? undefined
-          : commandWorkingDirectory.trim(),
+        workingDirectory:
+          commandWorkingDirectory === '__root__' || !commandWorkingDirectory.trim()
+            ? undefined
+            : commandWorkingDirectory,
       })
-      setCommands((prev) => [command, ...prev])
+
       // Reset form
       setCommandName('')
       setCommandValue('')
@@ -445,8 +734,6 @@ function App() {
       setCommandTags('')
       setCommandProjectId(GLOBAL_COMMAND_VALUE)
       setCommandWorkingDirectory('')
-      setAvailableDirectories([])
-      setDirectorySelectKey('0')
       setCommandDialogOpen(false)
     } catch (error) {
       setCommandError(error instanceof Error ? error.message : 'Failed to add command.')
@@ -454,6 +741,39 @@ function App() {
       setIsSavingCommand(false)
     }
   }
+
+  const handleCreateCommand = useCallback(async (input: CreateCommandInput) => {
+    const normalizedName = input.name.trim()
+    const normalizedCommand = input.command.trim()
+
+    if (!normalizedName || !normalizedCommand) {
+      throw new Error('Command name and command are required.')
+    }
+
+    const normalizedTags = input.tags
+      ?.map((tag) => tag.trim())
+      .filter(Boolean)
+
+    const payload: CreateCommandInput = {
+      name: normalizedName,
+      command: normalizedCommand,
+      description: input.description?.trim() || undefined,
+      tags: normalizedTags?.length ? normalizedTags : undefined,
+      projectId: input.projectId,
+      workingDirectory: input.workingDirectory?.trim() || undefined,
+    }
+
+    setLoadError(null)
+    try {
+      const created = await window.electronAPI.addCommand(payload)
+      setCommands((prev) => [created, ...prev])
+      return created
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to add command.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
 
   const handleUpdateCommand = async (
     commandId: string,
@@ -482,72 +802,362 @@ function App() {
     }
   }
 
-  const handleProjectChange = async (projectId: string) => {
-    setCommandProjectId(projectId)
-    setCommandWorkingDirectory('')
-    setAvailableDirectories([])
-    setDirectorySelectKey(String(Date.now())) // Force Select to re-render
-    if (projectId !== GLOBAL_COMMAND_VALUE && window.electronAPI.getProjectDirectories) {
-      setIsLoadingDirectories(true)
-      try {
-        const dirs = await window.electronAPI.getProjectDirectories(projectId)
-        setAvailableDirectories(dirs)
-      } catch (error) {
-        console.error('Failed to load directories:', error)
-        setAvailableDirectories([])
-      } finally {
-        setIsLoadingDirectories(false)
-      }
-    }
-  }
-
-  const handleWorkingDirectoryChange = async (dir: string) => {
-    // Convert __root__ to empty string for storage, but keep __root__ for UI
-    const actualDir = dir === '__root__' ? '' : dir
-    setCommandWorkingDirectory(dir) // Keep the UI value
-    // Load subdirectories if a non-empty directory is selected
-    if (commandProjectId !== GLOBAL_COMMAND_VALUE && actualDir && window.electronAPI.getProjectDirectories) {
-      setIsLoadingDirectories(true)
-      try {
-        const subdirs = await window.electronAPI.getProjectDirectories(commandProjectId, actualDir)
-        setAvailableDirectories(subdirs)
-      } catch (error) {
-        console.error('Failed to load subdirectories:', error)
-        setAvailableDirectories([])
-      } finally {
-        setIsLoadingDirectories(false)
-      }
-    } else if (commandProjectId !== GLOBAL_COMMAND_VALUE && !actualDir) {
-      // Reset to root directories when "Project root" is selected
-      setIsLoadingDirectories(true)
-      try {
-        const dirs = await window.electronAPI.getProjectDirectories(commandProjectId)
-        setAvailableDirectories(dirs)
-      } catch (error) {
-        console.error('Failed to load directories:', error)
-        setAvailableDirectories([])
-      } finally {
-        setIsLoadingDirectories(false)
-      }
-    }
-  }
-
-  const handleRunCommand = async (commandId: string, projectId: string) => {
+  const handleToggleProjectPin = async (projectId: string) => {
     setLoadError(null)
     try {
-      const run = await window.electronAPI.runCommand(commandId, projectId)
-      const startTime = new Date().toISOString()
-      setHistory((prev) => [
-        {
-          id: run.runId,
-          commandId,
-          projectId,
-          status: 'running',
-          startTime,
-          output: '',
-        },
-        ...prev,
-      ])
+      const updated = await window.electronAPI.toggleProjectPin(projectId)
+      setProjects((prev) => {
+        // Sort: pinned first, then by pinnedAt desc, then by original order
+        const updatedList = prev.map((p) => (p.id === projectId ? updated : p))
+        return updatedList.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1
+          if (!a.isPinned && b.isPinned) return 1
+          if (a.isPinned && b.isPinned) {
+            return (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '')
+          }
+          return 0
+        })
+      })
+      return updated
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to toggle project pin.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleToggleCommandPin = async (commandId: string) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.toggleCommandPin(commandId)
+      setCommands((prev) => {
+        // Sort: pinned first, then by pinnedAt desc, then by original order
+        const updatedList = prev.map((c) => (c.id === commandId ? updated : c))
+        return updatedList.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1
+          if (!a.isPinned && b.isPinned) return 1
+          if (a.isPinned && b.isPinned) {
+            return (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '')
+          }
+          return 0
+        })
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to toggle command pin.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleCreateChain = async (input: CreateCommandChainInput) => {
+    setLoadError(null)
+    try {
+      const created = await window.electronAPI.addChain(input)
+      setChains((prev) => [created, ...prev])
+      return created
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create chain.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleUpdateChain = async (chainId: string, input: CreateCommandChainInput) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.updateChain(chainId, input)
+      setChains((prev) => prev.map((chain) => (chain.id === chainId ? updated : chain)))
+      return updated
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update chain.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+  const handleRemoveChain = async (chainId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.removeChain(chainId)
+      setChains((prev) => prev.filter((chain) => chain.id !== chainId))
+      setTriggers((prev) => prev.filter((trigger) => trigger.chainId !== chainId))
+      setChainRuns((prev) => {
+        const next = { ...prev }
+        delete next[chainId]
+        return next
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove chain.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRunChain = async (chainId: string, projectId?: string) => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.runChain(chainId, projectId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to run chain.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleCreateTrigger = async (input: CreateCommandTriggerInput) => {
+    setLoadError(null)
+    try {
+      const created = await window.electronAPI.addTrigger(input)
+      setTriggers((prev) => [created, ...prev])
+      return created
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create trigger.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleUpdateTrigger = async (triggerId: string, input: CreateCommandTriggerInput) => {
+    setLoadError(null)
+    try {
+      const updated = await window.electronAPI.updateTrigger(triggerId, input)
+      setTriggers((prev) => prev.map((trigger) => (trigger.id === triggerId ? updated : trigger)))
+      return updated
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update trigger.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRemoveTrigger = async (triggerId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.removeTrigger(triggerId)
+      setTriggers((prev) => prev.filter((trigger) => trigger.id !== triggerId))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove trigger.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleProjectSelected = useCallback((projectId: string) => {
+    setSelectedEngineProjectId(projectId)
+    void window.electronAPI.notifyTriggerEvent('onProjectOpen', { projectId }).catch((error) => {
+      setLoadError(error instanceof Error ? error.message : 'Failed to run project triggers.')
+    })
+  }, [])
+
+  const handleOpenProjectEngine = useCallback((projectId: string) => {
+    setSelectedEngineProjectId(projectId)
+    setActiveTab('engine')
+  }, [])
+
+  const handleRefreshEngineState = useCallback(async () => {
+    setLoadError(null)
+    try {
+      await syncEngineState()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to refresh engine state.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [syncEngineState])
+
+  const handleIndexEngineProject = useCallback(async (projectId: string) => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.indexProject(projectId)
+      setEngineLatestIndexResults((prev) => ({ ...prev, [projectId]: result }))
+      await syncEngineState()
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to index project.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [syncEngineState])
+
+  const handleEngineSearch = useCallback(async (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.searchProjectContent(projectId, query, options)
+      await syncEngineState()
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to search indexed content.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [syncEngineState])
+
+  const handleLoadEngineStats = useCallback(async (projectId: string): Promise<EngineStats> => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.getProjectStats(projectId)
+      if (!result) {
+        throw new Error('Project is not indexed yet.')
+      }
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load engine stats.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleLoadEngineGitInsights = useCallback(async (projectId: string): Promise<EngineGitInsights> => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.getProjectGitInsights(projectId)
+      if (!result) {
+        throw new Error('Git insights are not available for this project.')
+      }
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load git insights.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleLoadGitState = useCallback(async (projectId: string): Promise<GitWorkflowState> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.getProjectGitState(projectId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load git workspace.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleLoadFileDiff = useCallback(async (projectId: string, relativePath: string): Promise<GitFileDiffResult> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.getProjectFileDiff(projectId, relativePath)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load file diff.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleCommitProjectChanges = useCallback(async (projectId: string, message: string): Promise<GitCommitResult> => {
+    setLoadError(null)
+    try {
+      const result = await window.electronAPI.commitProjectChanges(projectId, message)
+      await syncEngineState()
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to commit changes.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [syncEngineState])
+
+  const handlePushProjectBranch = useCallback(async (projectId: string): Promise<GitPushResult> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.pushProjectBranch(projectId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to push the current branch.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleCreateProjectPullRequest = useCallback(async (
+    projectId: string,
+    input: { title: string; body: string; isDraft: boolean; baseBranch?: string }
+  ): Promise<GitCreatePullRequestResult> => {
+    setLoadError(null)
+    try {
+      return await window.electronAPI.createProjectPullRequest(projectId, input)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open pull request flow.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const handleOpenExternalUrl = useCallback(async (url: string) => {
+    const result = await window.electronAPI.openExternalUrl(url)
+    if (!result.success) {
+      throw new Error('Failed to open external URL.')
+    }
+  }, [])
+
+  const handleOpenEngineResult = useCallback(async (
+    projectId: string,
+    relativePath: string,
+    location?: { line?: number; column?: number }
+  ) => {
+    const result = await window.electronAPI.openFileInEditor(projectId, relativePath, location?.line, location?.column)
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to open file.')
+    }
+  }, [])
+
+  const handleRevealEngineResult = useCallback(async (projectId: string, relativePath: string) => {
+    const result = await window.electronAPI.revealFileInFolder(projectId, relativePath)
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to reveal file.')
+    }
+  }, [])
+
+  const handleClearEngineProject = useCallback(async (projectId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.clearProjectIndex(projectId)
+      setEngineIndexingProjects((prev) => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
+      setEngineLatestIndexResults((prev) => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
+      await syncEngineState()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to clear project index.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [syncEngineState])
+
+  const handleClearEngineSearchSession = useCallback(async (projectId: string) => {
+    setLoadError(null)
+    try {
+      await window.electronAPI.clearProjectSearchSession(projectId)
+      await syncEngineState()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to clear saved search.'
+      setLoadError(message)
+      throw new Error(message)
+    }
+  }, [syncEngineState])
+
+  const handleRespondToTriggerConfirmation = async (requestId: string, approved: boolean) => {
+    try {
+      await window.electronAPI.respondToTriggerConfirmation(requestId, approved)
+    } finally {
+      setTriggerConfirmations((prev) => prev.filter((entry) => entry.id !== requestId))
+    }
+  }
+
+  const handleRunCommand = async (commandId: string, projectId: string, variables?: Record<string, string>): Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }> => {
+    setLoadError(null)
+    try {
+      const run = await window.electronAPI.runCommand(commandId, projectId, variables)
+      
+      // If needs input, return the result for the caller to handle
+      if (run.status === 'needs-input') {
+        return run as { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }
+      }
+      return run
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to run command.'
       setLoadError(message)
@@ -595,150 +1205,21 @@ function App() {
     }
   }
 
-  const handleSaveNotes = async (projectId: string, updates: Partial<ProjectNotes>) => {
+  const handleRemoveHistoryEntry = async (runId: string) => {
+    setLoadError(null)
     try {
-      await window.electronAPI.updateNotes(projectId, updates)
-      setNotes((prev) => ({
-        ...prev,
-        [projectId]: {
-          projectId,
-          setupSteps: updates.setupSteps ?? prev[projectId]?.setupSteps ?? '',
-          todos: updates.todos ?? prev[projectId]?.todos ?? '',
-          reminders: updates.reminders ?? prev[projectId]?.reminders ?? '',
-        },
-      }))
+      await window.electronAPI.removeRunHistory(runId)
+      setHistory((prev) => prev.filter((entry) => entry.id !== runId))
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Failed to update notes.')
-      throw error
+      const message = error instanceof Error ? error.message : 'Failed to remove history entry.'
+      setLoadError(message)
+      throw new Error(message)
     }
   }
 
   const handleSavePreferences = async (next: AppPreferences) => {
     await window.electronAPI.updatePreferences(next)
     setPreferences(next)
-  }
-
-  const refreshEngineState = async () => {
-    const [nextStatus, nextIndexes] = await Promise.all([
-      window.electronAPI.engineStatus(),
-      window.electronAPI.engineIndexes(),
-    ])
-    setEngineStatus(nextStatus)
-    setEngineIndexes(nextIndexes)
-  }
-
-  const handleIndexProject = async (projectId: string) => {
-    setLoadError(null)
-    try {
-      await window.electronAPI.engineIndex(projectId)
-      await refreshEngineState()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to index project.'
-      setLoadError(message)
-      throw new Error(message)
-    }
-  }
-
-  const handleEngineSearch = async (
-    projectId: string,
-    query: string,
-    options?: { regex?: boolean; limit?: number }
-  ): Promise<EngineSearchResult> => {
-    setLoadError(null)
-    try {
-      const result = await window.electronAPI.engineSearch(projectId, query, options)
-      setEngineSearchSessions((prev) => ({
-        ...prev,
-        [projectId]: {
-          projectId,
-          query,
-          regex: options?.regex ?? false,
-          updatedAt: new Date().toISOString(),
-          result,
-        },
-      }))
-      return result
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Engine search failed.'
-      setLoadError(message)
-      throw new Error(message)
-    }
-  }
-
-  const handleLoadEngineStats = async (projectId: string): Promise<EngineStats> => {
-    setLoadError(null)
-    try {
-      return await window.electronAPI.engineStats(projectId)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load engine stats.'
-      setLoadError(message)
-      throw new Error(message)
-    }
-  }
-
-  const handleOpenEngineResult = async (
-    projectId: string,
-    relativePath: string,
-    location?: { line?: number; column?: number }
-  ) => {
-    setLoadError(null)
-    try {
-      const result = await window.electronAPI.openProjectFileInEditor(projectId, relativePath, location)
-      if (!result.success) {
-        throw new Error(result.error ?? 'Failed to open search result.')
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to open search result.'
-      setLoadError(message)
-      throw new Error(message)
-    }
-  }
-
-  const handleRevealEngineResult = async (projectId: string, relativePath: string) => {
-    setLoadError(null)
-    try {
-      const result = await window.electronAPI.openProjectFileInFolder(projectId, relativePath)
-      if (!result.success) {
-        throw new Error(result.error ?? 'Failed to reveal search result.')
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to reveal search result.'
-      setLoadError(message)
-      throw new Error(message)
-    }
-  }
-
-  const handleOpenProjectTerminal = async (projectId: string) => {
-    setLoadError(null)
-    try {
-      const result = await window.electronAPI.openProjectInTerminal(projectId)
-      if (!result.success) {
-        throw new Error(result.error ?? 'Failed to open project terminal.')
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to open project terminal.'
-      setLoadError(message)
-      throw new Error(message)
-    }
-  }
-
-  const handleClearEngineSearchSession = async (projectId: string) => {
-    setLoadError(null)
-    try {
-      const result = await window.electronAPI.clearEngineSearchSession(projectId)
-      if (!result.success) {
-        throw new Error('Failed to clear saved search.')
-      }
-      setEngineSearchSessions((prev) => {
-        const next = { ...prev }
-        delete next[projectId]
-        return next
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to clear saved search.'
-      setLoadError(message)
-      throw new Error(message)
-    }
   }
 
   const handleStartContainer = async (containerId: string) => {
@@ -784,12 +1265,40 @@ function App() {
   }
 
   const handleRefreshContainers = async () => {
-    setContainerError(null)
+    await loadContainers()
+  }
+
+  const handleStartDevStack = async (projectId: string) => {
     try {
-      const nextContainers = await window.electronAPI.getContainers()
-      setContainers(nextContainers)
+      const result = await window.electronAPI.startProjectDevStack(projectId)
+      await loadContainers()
+      return result
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to refresh containers.'
+      const message = toUserContainerError(error, 'Failed to start dev stack.')
+      setContainerError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleStopDevStack = async (projectId: string) => {
+    try {
+      const result = await window.electronAPI.stopProjectDevStack(projectId)
+      await loadContainers()
+      return result
+    } catch (error) {
+      const message = toUserContainerError(error, 'Failed to stop dev stack.')
+      setContainerError(message)
+      throw new Error(message)
+    }
+  }
+
+  const handleRestartDevStack = async (projectId: string) => {
+    try {
+      const result = await window.electronAPI.restartProjectDevStack(projectId)
+      await loadContainers()
+      return result
+    } catch (error) {
+      const message = toUserContainerError(error, 'Failed to restart dev stack.')
       setContainerError(message)
       throw new Error(message)
     }
@@ -799,65 +1308,136 @@ function App() {
     setContainerError(null)
     try {
       await action()
-      const nextContainers = await window.electronAPI.getContainers()
-      setContainers(nextContainers)
+      await loadContainers()
     } catch (error) {
-      const message = error instanceof Error ? error.message : fallbackMessage
+      const message = toUserContainerError(error, fallbackMessage)
       setContainerError(message)
-      throw new Error(message)
     }
   }
+
+  const containersSectionLoading =
+    isLoading || isContainersLoading || (activeTab === 'containers' && !hasLoadedContainers && !containerError)
 
   const handleViewContainerLogs = async (containerId: string) => {
     try {
       return await window.electronAPI.getContainerLogs(containerId)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load container logs.'
+      const message = toUserContainerError(error, 'Failed to load container logs.')
       setContainerError(message)
       throw new Error(message)
     }
   }
 
+  const terminalFullscreen = activeTab === 'terminal' && isTerminalFullscreen
+
   return (
     <>
-      <AppShell
-        navItems={navItemsWithCounts}
-        activeNav={activeTab}
-        onNavChange={(value) => setActiveTab(value as TabValue)}
-        title={title}
-        action={
-          actionLabel ? (
+      <div className={terminalFullscreen ? 'hidden' : ''}>
+        <AppShell
+          navItems={navItemsWithCounts}
+          activeNav={activeTab}
+          onNavChange={(value) => setActiveTab(value as TabValue)}
+          title={title}
+          themeToggle={<ThemeToggle theme={theme} onToggle={toggleTheme} />}
+          settingsButton={
             <Button
-              size="sm"
-              className="gap-2"
-              onClick={() =>
-                activeTab === 'projects' ? setProjectDialogOpen(true) : setCommandDialogOpen(true)
-              }
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setExportImportDialogOpen(true)}
+              title="Data Backup & Restore"
             >
-              <Plus className="h-4 w-4" />
-              {actionLabel}
+              <Settings className="h-[18px] w-[18px]" />
+              <span className="sr-only">Data Backup & Restore</span>
             </Button>
-          ) : null
-        }
-      >
-        <div className="h-full">
-          {activeTab === 'projects' && (
+          }
+          action={
+            actionLabel ? (
+              <Button
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  if (activeTab === 'projects') {
+                    setProjectDialogOpen(true)
+                  } else if (activeTab === 'terminal') {
+                    void handleCreateTerminalSession()
+                  } else {
+                    setCommandDialogOpen(true)
+                  }
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                {actionLabel}
+              </Button>
+            ) : null
+          }
+        >
+          <div className="h-full">
+            {activeTab === 'projects' && (
             <ProjectsSection
               projects={projects}
+              containers={containers}
               isLoading={isLoading}
               error={loadError}
+              containersLoading={isContainersLoading && !hasLoadedContainers}
+              containersError={containerError}
               preferences={preferences}
-              onSavePreferences={handleSavePreferences}
-              onUpdateProject={handleUpdateProject}
-              onRemoveProject={handleRemoveProject}
               engineStatus={engineStatus}
               engineIndexes={engineIndexes}
-              searchSessions={engineSearchSessions}
-              onIndexProject={handleIndexProject}
-              onOpenSearch={(projectId) => {
-                setEngineSelectedProjectId(projectId)
-                setActiveTab('engine')
-              }}
+              engineSearchSessions={engineSearchSessions}
+              engineIndexingProjects={engineIndexingProjects}
+              engineLatestIndexResults={engineLatestIndexResults}
+              onSavePreferences={handleSavePreferences}
+              onUpdateProject={handleUpdateProject}
+              onToggleProjectPin={handleToggleProjectPin}
+              onSetLinkedContainers={handleSetProjectLinkedContainers}
+              onStartDevStack={handleStartDevStack}
+              onStopDevStack={handleStopDevStack}
+              onRestartDevStack={handleRestartDevStack}
+              onRefreshContainers={handleRefreshContainers}
+              onRemoveProject={handleRemoveProject}
+              onSelectProject={handleProjectSelected}
+              onIndexProject={handleIndexEngineProject}
+              onSearchProjectContent={handleEngineSearch}
+               onLoadEngineStats={handleLoadEngineStats}
+               onLoadEngineGitInsights={handleLoadEngineGitInsights}
+               onLoadGitState={handleLoadGitState}
+               onLoadFileDiff={handleLoadFileDiff}
+               onCommitProjectChanges={handleCommitProjectChanges}
+              onPushProjectBranch={handlePushProjectBranch}
+              onCreateProjectPullRequest={handleCreateProjectPullRequest}
+              onOpenEngineResult={handleOpenEngineResult}
+              onRevealEngineResult={handleRevealEngineResult}
+              onClearProjectIndex={handleClearEngineProject}
+              onClearProjectSearchSession={handleClearEngineSearchSession}
+              onOpenExternalUrl={handleOpenExternalUrl}
+              onOpenProjectEngine={handleOpenProjectEngine}
+              onCreateCommand={handleCreateCommand}
+              onRunCommand={handleRunCommand}
+            />
+          )}
+          {activeTab === 'commands' && (
+            <AutomationSection
+              commands={commands}
+              chains={chains}
+              triggers={triggers}
+              projects={projects}
+              chainRuns={chainRuns}
+              isLoading={isLoading}
+              error={loadError}
+              onRunCommand={handleRunCommand}
+              onUpdateCommand={handleUpdateCommand}
+              onToggleCommandPin={handleToggleCommandPin}
+              onRemoveCommand={handleRemoveCommand}
+              onCreatePresetCommand={handleCreateCommand}
+              onCreateChain={handleCreateChain}
+              onUpdateChain={handleUpdateChain}
+              onRemoveChain={handleRemoveChain}
+              onRunChain={handleRunChain}
+              onCreateTrigger={handleCreateTrigger}
+              onUpdateTrigger={handleUpdateTrigger}
+              onRemoveTrigger={handleRemoveTrigger}
+              onOpenCreateCommand={() => setCommandDialogOpen(true)}
             />
           )}
           {activeTab === 'engine' && (
@@ -866,35 +1446,34 @@ function App() {
               engineStatus={engineStatus}
               engineIndexes={engineIndexes}
               searchSessions={engineSearchSessions}
-              selectedProjectId={engineSelectedProjectId}
-              onSelectProject={setEngineSelectedProjectId}
+              indexingProjects={engineIndexingProjects}
+              latestIndexResults={engineLatestIndexResults}
+              selectedProjectId={selectedEngineProjectId}
+              onSelectProject={setSelectedEngineProjectId}
               isLoading={isLoading}
               error={loadError}
-              onRefreshStatus={refreshEngineState}
-              onIndexProject={handleIndexProject}
+              onRefreshStatus={handleRefreshEngineState}
+              onIndexProject={handleIndexEngineProject}
               onSearch={handleEngineSearch}
-              onLoadStats={handleLoadEngineStats}
+               onLoadStats={handleLoadEngineStats}
+               onLoadGitInsights={handleLoadEngineGitInsights}
+               onLoadGitState={handleLoadGitState}
+               onLoadFileDiff={handleLoadFileDiff}
+               onCommitChanges={handleCommitProjectChanges}
+              onPushBranch={handlePushProjectBranch}
+              onCreatePullRequest={handleCreateProjectPullRequest}
               onOpenResult={handleOpenEngineResult}
               onRevealResult={handleRevealEngineResult}
-              onOpenProjectTerminal={handleOpenProjectTerminal}
+              onClearIndex={handleClearEngineProject}
               onClearSearchSession={handleClearEngineSearchSession}
-            />
-          )}
-          {activeTab === 'commands' && (
-            <CommandsSection
-              commands={commands}
-              projects={projects}
-              isLoading={isLoading}
-              error={loadError}
-              onRunCommand={handleRunCommand}
-              onUpdateCommand={handleUpdateCommand}
-              onRemoveCommand={handleRemoveCommand}
+              onOpenExternalUrl={handleOpenExternalUrl}
             />
           )}
           {activeTab === 'containers' && (
             <ContainersSection
               containers={containers}
-              isLoading={isLoading}
+              projects={projects}
+              isLoading={containersSectionLoading}
               error={containerError}
               onStartContainer={handleStartContainer}
               onStopContainer={handleStopContainer}
@@ -916,35 +1495,107 @@ function App() {
               onStopRun={handleStopRun}
               onLoadOutput={handleLoadOutput}
               onClearHistory={handleClearHistory}
+              onRemoveEntry={handleRemoveHistoryEntry}
             />
           )}
-          {activeTab === 'notes' && (
-            <NotesSection
+          {activeTab === 'terminal' && !isTerminalFullscreen && (
+            <TerminalSection
+              sessions={terminalSessions}
+              activeId={activeTerminalId}
+              onSelectTab={handleSelectTerminalTab}
+              onCloseTab={handleCloseTerminalSession}
+              onCreateSession={handleCreateTerminalSession}
+              onRenameTab={handleRenameTerminalSession}
+              onToggleFullscreen={handleToggleTerminalFullscreen}
+              isFullscreen={isTerminalFullscreen}
               projects={projects}
-              notes={notes}
-              isLoading={isLoading}
               error={loadError}
-              onSaveNotes={handleSaveNotes}
             />
           )}
         </div>
       </AppShell>
+      </div>
 
-      <Dialog open={projectDialogOpen} onOpenChange={setProjectDialogOpen}>
+      {activeTab === 'terminal' && isTerminalFullscreen && (
+        <div className="fixed inset-0 z-[100] bg-background">
+          <TerminalSection
+            sessions={terminalSessions}
+            activeId={activeTerminalId}
+            onSelectTab={handleSelectTerminalTab}
+            onCloseTab={handleCloseTerminalSession}
+            onCreateSession={handleCreateTerminalSession}
+            onRenameTab={handleRenameTerminalSession}
+            onToggleFullscreen={handleToggleTerminalFullscreen}
+            isFullscreen={isTerminalFullscreen}
+            projects={projects}
+            error={loadError}
+          />
+        </div>
+      )}
+
+      <Dialog open={triggerConfirmations.length > 0} onOpenChange={() => undefined}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Project</DialogTitle>
-            <DialogDescription>Enter a local or WSL folder path to track.</DialogDescription>
+            <DialogTitle>Automation confirmation required</DialogTitle>
+            <DialogDescription>
+              {triggerConfirmations[0]
+                ? `${triggerConfirmations[0].triggerName} wants to run ${triggerConfirmations[0].chainName}.`
+                : 'A trigger is waiting for approval.'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          {triggerConfirmations[0] ? (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <p><span className="font-semibold">Event:</span> {triggerConfirmations[0].event}</p>
+                {triggerConfirmations[0].projectName ? (
+                  <p className="mt-1"><span className="font-semibold">Project:</span> {triggerConfirmations[0].projectName}</p>
+                ) : null}
+                {triggerConfirmations[0].containerNames?.length ? (
+                  <p className="mt-1"><span className="font-semibold">Containers:</span> {triggerConfirmations[0].containerNames.join(', ')}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                triggerConfirmations[0]
+                  ? void handleRespondToTriggerConfirmation(triggerConfirmations[0].id, false)
+                  : undefined
+              }
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={() =>
+                triggerConfirmations[0]
+                  ? void handleRespondToTriggerConfirmation(triggerConfirmations[0].id, true)
+                  : undefined
+              }
+            >
+              Run Trigger
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={projectDialogOpen} onOpenChange={setProjectDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Project</DialogTitle>
+            <DialogDescription>Track a local folder or WSL project.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="project-path">Project path</Label>
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex gap-2">
                 <Input
                   id="project-path"
                   value={projectPath}
                   onChange={(event) => setProjectPath(event.target.value)}
-                  placeholder="Select a folder (Windows or WSL)"
+                  placeholder="/path/to/project"
+                  className="flex-1"
                 />
                 <Button
                   type="button"
@@ -952,59 +1603,97 @@ function App() {
                   onClick={handlePickProject}
                   disabled={isPickingProject}
                 >
-                  {isPickingProject ? 'Opening...' : 'Browse'}
+                  Browse
                 </Button>
+              </div>
+            </div>
+
+            {!showWslOptions && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto px-0 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setShowWslOptions(true)}
+              >
+                Using WSL? Click here
+              </Button>
+            )}
+
+            {showWslOptions && (
+              <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">WSL Options</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-2 py-1 text-xs text-muted-foreground"
+                    onClick={() => setShowWslOptions(false)}
+                  >
+                    Hide
+                  </Button>
+                </div>
+
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
+                  className="w-full"
                   onClick={handlePickWslProject}
                   disabled={isPickingProject}
                 >
-                  {isPickingProject ? 'Opening...' : 'Browse WSL'}
+                  Browse WSL Folder
                 </Button>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Select
-                  value={selectedWslDistro}
-                  onValueChange={handleWslDistroSelect}
-                  disabled={isLoadingWslDistros || wslDistros.length === 0 || isPickingProject}
-                >
-                  <SelectTrigger className="w-full sm:flex-1">
-                    <SelectValue
-                      placeholder={isLoadingWslDistros ? 'Loading WSL distros...' : 'No WSL distro found'}
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Quick WSL Setup</Label>
+                  <div className="flex gap-2">
+                    <Select
+                      value={selectedWslDistro}
+                      onValueChange={handleWslDistroSelect}
+                      disabled={isLoadingWslDistros || wslDistros.length === 0}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue
+                          placeholder={isLoadingWslDistros ? 'Loading...' : 'Select distro'}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {wslDistros.length > 0 ? (
+                          wslDistros.map((distro) => (
+                            <SelectItem key={distro} value={distro} displayValue={distro}>
+                              {distro}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                            No WSL distro detected.
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={wslDistroInput}
+                      onChange={(event) => setWslDistroInput(event.target.value)}
+                      placeholder="Or type distro name..."
+                      className="flex-1"
                     />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {wslDistros.length > 0 ? (
-                      wslDistros.map((distro) => (
-                        <SelectItem key={distro} value={distro} displayValue={distro}>
-                          {distro}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">
-                        No WSL distro detected.
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
-                <Input
-                  value={wslDistroInput}
-                  onChange={(event) => setWslDistroInput(event.target.value)}
-                  placeholder="WSL distro (e.g. Ubuntu-24.04)"
-                  disabled={isPickingProject}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePrefillWslPath}
-                  disabled={isPickingProject}
-                >
-                  Prefill WSL Home
-                </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    onClick={handlePrefillWslPath}
+                    disabled={!selectedWslDistro && !wslDistroInput}
+                  >
+                    Prefill Home Directory
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">Use Prefill WSL Home to auto-fill `\\wsl.localhost\distro\home\` (manual distro entry is supported).</p>
-            </div>
+            )}
+
             {projectError ? (
               <Alert variant="destructive">
                 <AlertTitle>Could not add project</AlertTitle>
@@ -1022,6 +1711,66 @@ function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        projects={projects}
+        commands={commands}
+        containers={containers}
+        history={history}
+        engineStatus={engineStatus}
+        engineIndexes={engineIndexes}
+        engineSearchSessions={engineSearchSessions}
+        onNavigate={setActiveTab}
+        onOpenProjectInEditor={async (id) => {
+          const result = await window.electronAPI.openProjectInEditor(id)
+          if (!result.success) throw new Error(result.error || 'Failed to open editor')
+        }}
+        onOpenProjectInTerminal={async (id) => {
+          const result = await window.electronAPI.openProjectInTerminal(id)
+          if (!result.success) throw new Error(result.error || 'Failed to open terminal')
+        }}
+        onOpenProjectFolder={async (id) => {
+          const result = await window.electronAPI.openProjectFolder(id)
+          if (!result.success) throw new Error(result.error || 'Failed to open folder')
+        }}
+        onOpenProjectEngine={handleOpenProjectEngine}
+        onIndexProject={handleIndexEngineProject}
+        onSearchProjectContent={handleEngineSearch}
+        onPushProjectBranch={handlePushProjectBranch}
+        onClearProjectIndex={handleClearEngineProject}
+        onClearProjectSearchSession={handleClearEngineSearchSession}
+        onRunCommand={handleRunCommand}
+        onStartContainer={handleStartContainer}
+        onStopContainer={handleStopContainer}
+        onRestartContainer={handleRestartContainer}
+        onPauseContainer={handlePauseContainer}
+        onUnpauseContainer={handleUnpauseContainer}
+        onOpenFileInEditor={async (projectId, relativePath, line, column) => {
+          const result = await window.electronAPI.openFileInEditor(projectId, relativePath, line, column)
+          if (!result.success) throw new Error(result.error || 'Failed to open file')
+        }}
+        onError={(message) => setLoadError(message)}
+        onCreateTerminalSession={handleCreateTerminalSession}
+        onRecordBug={() => {
+          setBugReportPreselectedProjectId(
+            currentContextProjectId && projects.some((p) => p.id === currentContextProjectId)
+              ? currentContextProjectId
+              : projects.length === 1
+                ? projects[0].id
+                : null
+          )
+          setBugReportModalOpen(true)
+        }}
+      />
+
+      <BugReportModal
+        open={bugReportModalOpen}
+        onOpenChange={setBugReportModalOpen}
+        projects={projects}
+        preselectedProjectId={bugReportPreselectedProjectId}
+      />
 
       <Dialog open={commandDialogOpen} onOpenChange={setCommandDialogOpen}>
         <DialogContent>
@@ -1059,98 +1808,23 @@ function App() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="command-project">Project</Label>
-              <Select value={commandProjectId} onValueChange={handleProjectChange}>
-                <SelectTrigger id="command-project" className="w-full">
-                  <SelectValue placeholder="Global command (runs on any project)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={GLOBAL_COMMAND_VALUE} displayValue="Global command">
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-muted-foreground" />
-                      <div className="flex flex-col">
-                        <span>Global command</span>
-                        <span className="text-xs text-muted-foreground">Runs on any project</span>
-                      </div>
-                    </div>
-                  </SelectItem>
-                  {projects.length > 0 ? (
-                    projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id} displayValue={project.name}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{project.icon}</span>
-                          <div className="flex flex-col">
-                            <span>{project.name}</span>
-                            <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-                              {project.path}
-                            </span>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      No projects added yet. Add a project first.
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {commandProjectId !== GLOBAL_COMMAND_VALUE
-                  ? `Bound to ${projects.find((p) => p.id === commandProjectId)?.name ?? 'project'}`
-                  : 'Global commands can be run on any project'}
+              <Label>Target Location</Label>
+              <ProjectDirectorySelector
+                projects={projects}
+                selectedProjectId={commandProjectId}
+                selectedDirectory={commandWorkingDirectory}
+                onSelect={(projectId, directory) => {
+                  setCommandProjectId(projectId || GLOBAL_COMMAND_VALUE)
+                  setCommandWorkingDirectory(directory || '')
+                }}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {commandProjectId === GLOBAL_COMMAND_VALUE 
+                  ? "Global commands can be run on any project from the Commands section."
+                  : `This command will be bound to ${projects.find(p => p.id === commandProjectId)?.name}${commandWorkingDirectory ? ` / ${commandWorkingDirectory}` : ''}.`
+                }
               </p>
             </div>
-            {commandProjectId !== GLOBAL_COMMAND_VALUE && (
-              <div className="space-y-2">
-                <Label htmlFor="command-directory">Working Directory</Label>
-                <Select
-                  key={directorySelectKey}
-                  value={commandWorkingDirectory}
-                  onValueChange={handleWorkingDirectoryChange}
-                >
-                  <SelectTrigger id="command-directory" className="w-full">
-                    <SelectValue placeholder="Project root" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__root__" displayValue="Project root">
-                      <div className="flex items-center gap-2">
-                        <Folder className="h-4 w-4 text-muted-foreground" />
-                        <div className="flex flex-col">
-                          <span>Project root</span>
-                          <span className="text-xs text-muted-foreground">
-                            {projects.find((p) => p.id === commandProjectId)?.name}
-                          </span>
-                        </div>
-                      </div>
-                    </SelectItem>
-                    {isLoadingDirectories ? (
-                      <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
-                        <span className="h-4 w-4 animate-spin">⟳</span>
-                        Loading directories...
-                      </div>
-                    ) : availableDirectories.length > 0 ? (
-                      availableDirectories.map((dir) => (
-                        <SelectItem key={dir} value={dir} displayValue={dir}>
-                          <div className="flex items-center gap-2">
-                            <Folder className="h-4 w-4 text-muted-foreground" />
-                            <span>{dir}</span>
-                          </div>
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">
-                        No subdirectories found in project root.
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Command will run in: {projects.find((p) => p.id === commandProjectId)?.name}
-                  {commandWorkingDirectory && commandWorkingDirectory !== '__root__' ? ` / ${commandWorkingDirectory}` : ''}
-                </p>
-              </div>
-            )}
             <div className="space-y-2">
               <Label htmlFor="command-tags">Tags (comma separated)</Label>
               <Input
@@ -1177,6 +1851,12 @@ function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExportImportDialog
+        open={exportImportDialogOpen}
+        onOpenChange={setExportImportDialogOpen}
+        onImportSuccess={loadAll}
+      />
     </>
   )
 }

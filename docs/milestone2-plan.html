@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevDesk — Milestone 2 Implementation Plan</title>
+  <style>
+    :root {
+      --bg-primary: #0b0f14;
+      --bg-secondary: #111820;
+      --bg-card: #161e28;
+      --bg-card-hover: #1c2632;
+      --border: #1e2a38;
+      --border-subtle: #16202c;
+      --text-primary: #e8eef4;
+      --text-secondary: #8b9db0;
+      --text-muted: #5a6e82;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.15);
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.08);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.08);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.08);
+      --info: #06b6d4;
+      --info-bg: rgba(6, 182, 212, 0.08);
+      --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2a3a4c; }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 32px 40px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--success), var(--info));
+    }
+
+    .header-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 24px;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .logo {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 8px 32px rgba(59, 130, 246, 0.25);
+      flex-shrink: 0;
+    }
+
+    .header-content h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header-content .subtitle {
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-weight: 400;
+      max-width: 640px;
+    }
+
+    .header-meta {
+      display: flex;
+      gap: 24px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .meta-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+    }
+
+    .meta-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px;
+    }
+
+    /* Section titles */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      margin-left: 8px;
+    }
+
+    /* Goal box */
+    .goal-box {
+      background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .goal-box::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 16px;
+      bottom: 16px;
+      width: 3px;
+      background: linear-gradient(180deg, var(--accent), var(--info));
+      border-radius: 0 3px 3px 0;
+    }
+
+    .goal-box h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text-primary);
+    }
+
+    .goal-box p {
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    /* Task cards */
+    .task-grid {
+      display: grid;
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    .task-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .task-card:hover {
+      border-color: #2a3a4c;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .task-header {
+      padding: 24px 28px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .task-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      flex-shrink: 0;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .task-title-group {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .task-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--text-primary);
+    }
+
+    .task-type {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+
+    .task-type.refactor {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .task-type.feature {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .task-type.schema {
+      background: var(--info-bg);
+      color: var(--info);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .task-type.service {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .task-type.ipc {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .task-type.ui {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .task-body {
+      padding: 24px 28px;
+    }
+
+    .task-description {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+
+    /* File lists */
+    .file-section {
+      margin-bottom: 20px;
+    }
+
+    .file-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .file-section-title.create { color: var(--success); }
+    .file-section-title.modify { color: var(--warning); }
+
+    .file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-secondary);
+      transition: background 0.15s;
+    }
+
+    .file-item:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .file-badge {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .file-badge.create {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .file-badge.modify {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .file-path {
+      color: var(--text-secondary);
+      word-break: break-all;
+    }
+
+    /* Details block */
+    .details-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .details-block h4 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .details-block ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .details-block li {
+      position: relative;
+      padding-left: 18px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .details-block li::before {
+      content: '›';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .details-block code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-card);
+      color: var(--info);
+      border: 1px solid var(--border);
+    }
+
+    /* Schema table */
+    .schema-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+
+    .schema-table th,
+    .schema-table td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .schema-table th {
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      background: var(--bg-primary);
+    }
+
+    .schema-table td {
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+    }
+
+    .schema-table tr:hover td {
+      background: var(--bg-card-hover);
+    }
+
+    /* Acceptance criteria */
+    .ac-block {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 20px;
+    }
+
+    .ac-block h4 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--success);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ac-block ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ac-block li {
+      position: relative;
+      padding-left: 24px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .ac-block li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      background: var(--success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .ac-block li::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 9px;
+      width: 5px;
+      height: 3px;
+      border-left: 2px solid var(--success);
+      border-bottom: 2px solid var(--success);
+      transform: rotate(-45deg);
+    }
+
+    /* Timeline */
+    .timeline-section {
+      margin-bottom: 40px;
+    }
+
+    .timeline {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      overflow-x: auto;
+    }
+
+    .timeline-track {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      min-width: 800px;
+      position: relative;
+    }
+
+    .timeline-line {
+      position: absolute;
+      top: 20px;
+      left: 40px;
+      right: 40px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--border), var(--accent), var(--success), var(--info));
+      z-index: 0;
+    }
+
+    .timeline-node {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+      z-index: 1;
+      min-width: 120px;
+    }
+
+    .timeline-dot {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 700;
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+
+    .timeline-node.active .timeline-dot {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      color: var(--accent);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .timeline-node.completed .timeline-dot {
+      border-color: var(--success);
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .timeline-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text-muted);
+      max-width: 100px;
+      line-height: 1.4;
+    }
+
+    .timeline-node.active .timeline-label {
+      color: var(--accent);
+    }
+
+    .timeline-node.completed .timeline-label {
+      color: var(--success);
+    }
+
+    .timeline-arrows {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 16px;
+      min-width: 800px;
+    }
+
+    .arrow-pair {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .arrow-line {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      position: relative;
+    }
+
+    .arrow-line::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: -3px;
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--border);
+    }
+
+    /* Branching timeline extras */
+    .timeline-branch {
+      display: flex;
+      justify-content: center;
+      gap: 80px;
+      margin-top: 8px;
+      min-width: 800px;
+      position: relative;
+    }
+
+    .branch-connector {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      width: 2px;
+      height: 12px;
+      background: var(--border);
+    }
+
+    .branch-connector::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -40px;
+      width: 80px;
+      height: 2px;
+      background: var(--border);
+    }
+
+    .branch-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      min-width: 120px;
+    }
+
+    .branch-dot {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+    }
+
+    .branch-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text-muted);
+      max-width: 100px;
+      line-height: 1.4;
+    }
+
+    /* Dependency note */
+    .dep-note {
+      background: var(--info-bg);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--info);
+    }
+
+    .dep-note strong {
+      font-weight: 700;
+    }
+
+    /* Risk section */
+    .risk-section {
+      margin-bottom: 40px;
+    }
+
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .risk-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .risk-card:hover {
+      border-color: #2a3a4c;
+    }
+
+    .risk-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .risk-severity {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+
+    .risk-severity.low {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .risk-severity.medium {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .risk-severity.high {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .risk-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .risk-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .risk-mitigation {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .risk-mitigation strong {
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 32px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .footer-brand {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    /* Print styles */
+    @media print {
+      body {
+        background: white;
+        color: #111;
+      }
+      .header {
+        background: #f8f9fa;
+        border-bottom: 1px solid #ddd;
+      }
+      .header::before { display: none; }
+      .header-content h1 {
+        background: none;
+        -webkit-text-fill-color: #111;
+        color: #111;
+      }
+      .task-card, .goal-box, .timeline, .risk-card, .details-block {
+        background: #fff;
+        border: 1px solid #ddd;
+        break-inside: avoid;
+      }
+      .details-block, .file-item {
+        background: #f8f9fa;
+      }
+      .task-card:hover, .risk-card:hover {
+        box-shadow: none;
+      }
+      .timeline-dot, .branch-dot {
+        background: #fff;
+        border: 2px solid #ccc;
+      }
+      .timeline-line, .branch-connector, .branch-connector::before {
+        background: #ccc;
+      }
+      .meta-badge {
+        background: #f0f0f0;
+        border: 1px solid #ddd;
+      }
+      .section-title::after {
+        background: #ddd;
+      }
+      .ac-block li::before {
+        background: #e8f5e9;
+        border-color: #a5d6a7;
+      }
+      .ac-block li::after {
+        border-color: #2e7d32;
+      }
+      ::-webkit-scrollbar { display: none; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header-grid {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+      .logo {
+        margin: 0 auto;
+      }
+      .header-meta {
+        justify-content: center;
+      }
+      .container {
+        padding: 20px;
+      }
+      .task-header {
+        flex-direction: column;
+        gap: 12px;
+      }
+      .timeline {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-grid">
+      <div class="logo">D</div>
+      <div class="header-content">
+        <h1>Milestone 2 — Bug Recorder</h1>
+        <p class="subtitle">Ship the complete Bug Recorder with quick capture, attachments, context snapshots, and per-project bug tracking for the DevDesk desktop app.</p>
+        <div class="header-meta">
+          <span class="meta-badge"><span class="dot"></span> 7 Tasks</span>
+          <span class="meta-badge">Electron + Vite + TS</span>
+          <span class="meta-badge">SQLite / better-sqlite3</span>
+          <span class="meta-badge">React + shadcn/ui</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Goal -->
+    <div class="goal-box">
+      <h2>Milestone Goal</h2>
+      <p>Build and integrate the Bug Recorder as a vertical slice first: persist basic bug reports, expose them through IPC, show them in the existing Bugs tab, then layer in context capture, quick capture, attachments, search, and detail polish. The first internal target is a bug report that can be created against a project, listed, updated, persisted across app restarts, and viewed in the Bugs tab.</p>
+    </div>
+
+    <!-- Tasks -->
+    <div class="section-title">Implementation Tasks</div>
+
+    <div class="task-grid">
+
+      <!-- Task 1 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">1</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Bug Recorder — Schema &amp; Store</h3>
+            <span class="task-type schema">Schema</span>
+            <span class="task-type feature">Complete</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Add the core bug report persistence table and store helpers needed for the first end-to-end flow. Attachment and context tables can be sketched here if useful, but their file handling and snapshot behavior are implemented in later tasks.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/data/store/core.ts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/desktop/data/store/bugs.ts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <h4>Schema Additions</h4>
+            <table class="schema-table">
+              <thead>
+                <tr>
+                  <th>Table</th>
+                  <th>Column</th>
+                  <th>Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td rowspan="12">bug_reports</td><td>id</td><td>TEXT PRIMARY KEY</td></tr>
+                <tr><td>project_id</td><td>TEXT NOT NULL</td></tr>
+                <tr><td>title</td><td>TEXT NOT NULL</td></tr>
+                <tr><td>severity</td><td>TEXT (low/medium/high/critical)</td></tr>
+                <tr><td>status</td><td>TEXT (open/in_progress/resolved/closed)</td></tr>
+                <tr><td>expected_result</td><td>TEXT</td></tr>
+                <tr><td>actual_result</td><td>TEXT</td></tr>
+                <tr><td>reproduction_steps</td><td>TEXT</td></tr>
+                <tr><td>notes</td><td>TEXT</td></tr>
+                <tr><td>resolution_notes</td><td>TEXT</td></tr>
+                <tr><td>created_at</td><td>TEXT NOT NULL</td></tr>
+                <tr><td>updated_at</td><td>TEXT NOT NULL</td></tr>
+                <tr><td>resolved_at</td><td>TEXT</td></tr>
+                <tr><td rowspan="5">bug_attachments</td><td>id</td><td>TEXT PRIMARY KEY</td></tr>
+                <tr><td>bug_report_id</td><td>TEXT NOT NULL (FK)</td></tr>
+                <tr><td>kind</td><td>TEXT (screenshot/log/file/env_snapshot)</td></tr>
+                <tr><td>path_or_blob_ref</td><td>TEXT</td></tr>
+                <tr><td>metadata_json</td><td>TEXT</td></tr>
+                <tr><td rowspan="6">bug_context_snapshots</td><td>id</td><td>TEXT PRIMARY KEY</td></tr>
+                <tr><td>bug_report_id</td><td>TEXT NOT NULL (FK)</td></tr>
+                <tr><td>command_history_json</td><td>TEXT</td></tr>
+                <tr><td>run_history_json</td><td>TEXT</td></tr>
+                <tr><td>logs_json</td><td>TEXT</td></tr>
+                <tr><td>environment_snapshot_json</td><td>TEXT</td></tr>
+                <tr><td></td><td>active_container_state_json</td><td>TEXT</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="details-block">
+            <h4>Store Helpers</h4>
+            <ul>
+              <li><code>createBugReport(data)</code> — insert a new bug report.</li>
+              <li><code>getBugReportById(id)</code> — fetch a single report.</li>
+              <li><code>updateBugReport(id, data)</code> — update fields and bump <code>updated_at</code>.</li>
+              <li><code>deleteBugReport(id)</code> — delete the report and any owned rows.</li>
+              <li><code>listBugReports(filters)</code> — filter by project, status, and severity.</li>
+              <li>Defer keyword search until the polish task.</li>
+              <li>Defer attachment and context helper behavior until their dedicated tasks.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Tables are created automatically on DB initialization.</li>
+              <li>Store supports core CRUD and filtering by project, status, and severity.</li>
+              <li>Basic bug reports persist across app restarts.</li>
+              <li>Attachment and context rows, if created in this task, remain optional and do not block the basic flow.</li>
+              <li>Delete behavior leaves no orphaned bug-owned rows.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- Task 2 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">2</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Bug Recorder — IPC, Preload &amp; Types</h3>
+            <span class="task-type ipc">IPC</span>
+            <span class="task-type feature">Complete</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Wire the basic bug report APIs through the Electron stack before adding richer context and attachment behavior.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/ipc/registerIpc.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/preload.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/types.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/types/electron.d.ts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <h4>Basic IPC Channels</h4>
+            <ul>
+              <li><code>bugs:create</code> — create a basic bug report.</li>
+              <li><code>bugs:update</code> — update status, severity, title, and report fields.</li>
+              <li><code>bugs:delete</code> — delete a bug report.</li>
+              <li><code>bugs:get</code> — fetch a single bug report by ID.</li>
+              <li><code>bugs:list</code> — list bug reports with project/status/severity filters.</li>
+            </ul>
+          </div>
+
+          <div class="details-block">
+            <h4>Bridge &amp; Type Additions</h4>
+            <ul>
+              <li>Expose the basic channels through <code>apps/desktop/preload.ts</code>.</li>
+              <li>Add shared renderer-facing bug types in <code>apps/renderer/app/types.ts</code>.</li>
+              <li>Update <code>apps/renderer/app/types/electron.d.ts</code> so <code>window.electronAPI</code> is typed.</li>
+              <li>Leave <code>bugs:search</code>, <code>bugs:attach</code>, and <code>bugs:capture-context</code> for later tasks.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Renderer can create, list, fetch, update, and delete bugs through the preload bridge.</li>
+              <li>All basic bug types are shared consistently between main and renderer.</li>
+              <li>IPC handlers validate inputs and return structured error responses.</li>
+              <li>No type errors across the basic bug flow.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- Task 3 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">3</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Bug Recorder — Simple Bugs Tab Flow</h3>
+            <span class="task-type ui">UI</span>
+            <span class="task-type feature">Complete</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Replace the Bugs tab placeholder with the first working vertical slice: list project bugs, create a basic report, view core fields, and update status.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/renderer/app/components/BugRecorderPanel.tsx</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/sections/ProjectsSection.tsx</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <h4>Initial Panel Scope</h4>
+            <ul>
+              <li>List bugs for the selected project.</li>
+              <li>Create a bug with title, severity, expected result, actual result, reproduction steps, and notes.</li>
+              <li>Show status and severity badges.</li>
+              <li>Allow inline status changes.</li>
+              <li>Show an empty state with a create action.</li>
+            </ul>
+          </div>
+
+          <div class="details-block">
+            <h4>Deliberately Deferred</h4>
+            <ul>
+              <li>No attachments in the first panel pass.</li>
+              <li>No context snapshot viewer yet.</li>
+              <li>No global quick-capture shortcut yet.</li>
+              <li>Search and grouping come after the basic flow is proven.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Bugs tab lists bugs for the selected project.</li>
+              <li>User can create a basic bug report and see it immediately.</li>
+              <li>Status changes persist and survive app restart.</li>
+              <li>The panel fits the existing project detail layout without visual regressions.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- Task 4 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">4</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Bug Recorder — Context Snapshot Service</h3>
+            <span class="task-type service">Service</span>
+            <span class="task-type feature">Complete</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Add optional context capture after the core bug flow works. Given a <code>projectId</code>, assemble a snapshot of the developer environment that can be attached to a bug report.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/desktop/bugs/contextSnapshot.ts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/ipc/registerIpc.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/desktop/preload.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/types.ts</span>
+              </div>
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/types/electron.d.ts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <h4>Context Sources</h4>
+            <ul>
+              <li>Last 20 run history entries for the project.</li>
+              <li>Recent terminal / command interactions where available.</li>
+              <li>Active container states from existing Docker container logic.</li>
+              <li>Environment snapshot: Node version, OS, DevDesk version, and latest health check if available.</li>
+              <li>Optional active project notes snippet.</li>
+            </ul>
+          </div>
+
+          <div class="details-block">
+            <h4>Result Format</h4>
+            <ul>
+              <li>Returns a <code>BugContextSnapshot</code> object matching the DB schema.</li>
+              <li>All JSON fields are serialized arrays/objects, not raw strings.</li>
+              <li>Gracefully handles missing data with empty arrays/objects instead of failures.</li>
+              <li>Service is pure: it returns data and does not write to the DB directly.</li>
+            </ul>
+          </div>
+
+          <div class="details-block">
+            <h4>IPC Addition</h4>
+            <ul>
+              <li>Add <code>bugs:capture-context</code> only after the service is tested.</li>
+              <li>Let <code>bugs:create</code> optionally persist the returned snapshot when requested.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Given a project ID, service assembles context into a <code>BugContextSnapshot</code> object.</li>
+              <li>Snapshot includes run history, container state, and environment data.</li>
+              <li>Missing or empty sources do not cause capture failures.</li>
+              <li>Snapshot persistence is optional and tied to user-selected toggles.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- Task 5 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">5</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Bug Recorder — Quick Capture Modal</h3>
+            <span class="task-type ui">UI</span>
+            <span class="task-type feature">Complete</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Add the global fast-capture workflow after the per-project Bugs tab works. Triggered from the keyboard or Command Palette, it reuses the same create API and optionally includes context.
+          </p>
+
+          <div class="file-section">
+            <div class="file-section-title create">
+              <span>Files to Create</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge create">Create</span>
+                <span class="file-path">apps/renderer/app/components/BugReportModal.tsx</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <div class="file-section-title modify">
+              <span>Files to Modify</span>
+            </div>
+            <div class="file-list">
+              <div class="file-item">
+                <span class="file-badge modify">Modify</span>
+                <span class="file-path">apps/renderer/app/App.tsx</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-block">
+            <h4>Modal Fields</h4>
+            <ul>
+              <li><strong>Title</strong> — short, required bug summary.</li>
+              <li><strong>Severity</strong> — low / medium / high / critical selector.</li>
+              <li><strong>Expected Result</strong> — what should have happened.</li>
+              <li><strong>Actual Result</strong> — what actually happened.</li>
+              <li><strong>Reproduction Steps</strong> — numbered steps to reproduce.</li>
+              <li><strong>Notes</strong> — free-form additional notes.</li>
+            </ul>
+          </div>
+
+          <div class="details-block">
+            <h4>Triggers &amp; Context Toggles</h4>
+            <ul>
+              <li>Keyboard shortcut: <code>Ctrl+Shift+B</code> within the app.</li>
+              <li>Command Palette integration: "Record Bug" action.</li>
+              <li>Project is pre-selected when launched from a project view.</li>
+              <li>Toggles control whether run history, logs, environment, and container state are included.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Modal opens from Command Palette and <code>Ctrl+Shift+B</code>.</li>
+              <li>Saves bug report with optional context snapshot based on toggles.</li>
+              <li>Project is pre-selected when triggered from project context.</li>
+              <li>Form validates required fields and shows clear error states.</li>
+              <li>Modal closes and resets form after successful save.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- Task 6 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">6</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Bug Recorder — Attachments</h3>
+            <span class="task-type feature">Feature</span>
+            <span class="task-type feature">Complete</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Add screenshot, log, and file attachments after the basic bug and context flows are stable. Store attachment files on disk and keep only metadata in SQLite.
+          </p>
+
+          <div class="details-block">
+            <h4>Storage Strategy</h4>
+            <ul>
+              <li>Store files under <code>userData/attachments/</code> with UUID filenames.</li>
+              <li>Persist relative paths, kind, size, MIME type, and timestamps in <code>bug_attachments</code>.</li>
+              <li>Add <code>bugs:attach</code> and <code>bugs:remove-attachment</code> after cleanup behavior is defined.</li>
+              <li>Implement orphan cleanup so deleted bug reports do not leave files behind.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Attachments can be added and removed independently.</li>
+              <li>SQLite stores metadata only, not large file blobs.</li>
+              <li>Deleting a bug report removes or schedules cleanup for owned attachment files.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- Task 7 -->
+      <article class="task-card">
+        <div class="task-header">
+          <div class="task-number">7</div>
+          <div class="task-title-group">
+            <h3 class="task-title">Bug Recorder — Search, Detail &amp; Polish</h3>
+            <span class="task-type ui">UI</span>
+            <span class="task-type feature">Complete</span>
+          </div>
+        </div>
+        <div class="task-body">
+          <p class="task-description">
+            Finish the rich Bugs tab experience after the core flow, context capture, quick capture, and attachments are working.
+          </p>
+
+          <div class="details-block">
+            <h4>Panel &amp; Detail Scope</h4>
+            <ul>
+              <li>Search and filter by project, status, severity, keyword, and date.</li>
+              <li>Group by status: <strong>Open</strong>, <strong>In Progress</strong>, <strong>Resolved</strong>, <strong>Closed</strong>.</li>
+              <li>Create <code>BugReportDetail.tsx</code> with full report fields, attachment previews, and read-only context sections.</li>
+              <li>Add collapsible context sections for run history, commands, containers, and environment.</li>
+              <li>Keep scroll behavior and spacing consistent with the existing project detail layout.</li>
+            </ul>
+          </div>
+
+          <div class="ac-block">
+            <h4>Acceptance Criteria</h4>
+            <ul>
+              <li>Bugs tab shows searchable, grouped bug lists.</li>
+              <li>Detail view shows report fields, attachments, and context snapshot.</li>
+              <li>Status changes persist and reflect immediately in the list.</li>
+              <li>No visual regressions in the overall project detail layout.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- Timeline -->
+    <div class="section-title">Task Flow &amp; Dependencies</div>
+    <div class="timeline-section">
+      <div class="timeline">
+        <div class="timeline-track">
+          <div class="timeline-line"></div>
+
+          <div class="timeline-node completed">
+            <div class="timeline-dot">1</div>
+            <div class="timeline-label">Schema &amp; Store</div>
+          </div>
+
+          <div class="timeline-node active">
+            <div class="timeline-dot">2</div>
+            <div class="timeline-label">IPC &amp; Types</div>
+          </div>
+
+          <div class="timeline-node">
+            <div class="timeline-dot">3</div>
+            <div class="timeline-label">Simple Bugs Tab</div>
+          </div>
+
+          <div class="timeline-node completed">
+            <div class="timeline-dot">4</div>
+            <div class="timeline-label">Context Service</div>
+          </div>
+
+          <div class="timeline-node">
+            <div class="timeline-dot">5</div>
+            <div class="timeline-label">Quick Capture</div>
+          </div>
+
+          <div class="timeline-node completed">
+            <div class="timeline-dot">6</div>
+            <div class="timeline-label">Attachments</div>
+          </div>
+
+          <div class="timeline-node completed">
+            <div class="timeline-dot">7</div>
+            <div class="timeline-label">Search &amp; Polish</div>
+          </div>
+        </div>
+
+        <div class="timeline-arrows">
+          <div class="arrow-pair" style="visibility:hidden;"><div class="arrow-line"></div></div>
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>API consumes store</span>
+          </div>
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>UI proves flow</span>
+          </div>
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>context layers in</span>
+          </div>
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>global capture</span>
+          </div>
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>files after flow</span>
+          </div>
+          <div class="arrow-pair">
+            <div class="arrow-line"></div>
+            <span>polish last</span>
+          </div>
+        </div>
+
+        <div class="dep-note">
+          <strong>Dependency Note:</strong> Task 1 establishes the store contract. Task 2 exposes the basic bug APIs. Task 3 proves the end-to-end flow in the Bugs tab before richer features are added. Task 4 layers in optional context capture, Task 5 adds global quick capture, Task 6 adds attachment storage, and Task 7 finishes search, grouping, detail views, and visual polish.
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk Summary -->
+    <div class="section-title">Risk Summary</div>
+    <div class="risk-section">
+      <div class="risk-grid">
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity high">High</span>
+            <span class="risk-title">Attachment Storage Strategy</span>
+          </div>
+          <p class="risk-desc">
+            Screenshots and logs may accumulate quickly. Storing large blobs in SQLite can bloat the DB and slow backups. Storing on disk requires path management and cleanup logic.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Store attachments on disk under <code>userData/attachments/</code> with UUID filenames; keep only metadata and relative paths in SQLite. Implement a cleanup routine for orphaned files.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">Context Snapshot Size</span>
+          </div>
+          <p class="risk-desc">
+            Auto-gathering run history, logs, and container state can produce large JSON payloads. Serializing and storing this for every bug report may impact DB performance.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Cap history entries (last 20). Compress or truncate verbose logs. Store snapshot in a dedicated table with lazy loading in the UI.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">Global Modal State &amp; Shortcuts</span>
+          </div>
+          <p class="risk-desc">
+            A global modal triggered by <code>Ctrl+Shift+B</code> and the Command Palette must coexist cleanly with other modals and shortcuts without focus traps or double triggers.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Manage modal open state centrally in <code>App.tsx</code>. Use a single keyboard listener and Command Palette action that both toggle the same state. Ensure only one modal is open at a time.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity medium">Medium</span>
+            <span class="risk-title">Renderer-to-Main Context Gaps</span>
+          </div>
+          <p class="risk-desc">
+            Some context data (e.g., latest terminal commands) lives in the renderer. The snapshot service runs in the main process and may not have direct access to renderer state.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Pass renderer state explicitly via IPC when capturing context, or persist recent terminal history to SQLite so the main process can read it. Prefer the SQLite approach for consistency.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity low">Low</span>
+            <span class="risk-title">Bugs Tab Layout Regression</span>
+          </div>
+          <p class="risk-desc">
+            Replacing the placeholder Bugs tab with full panels may affect scroll behavior, padding, or nested layout contexts inside the tabbed project detail pane.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Keep panel components self-contained. Use CSS containment and test scroll areas inside the tab. Verify on smaller viewports.
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-header">
+            <span class="risk-severity low">Low</span>
+            <span class="risk-title">Type Drift Across Processes</span>
+          </div>
+          <p class="risk-desc">
+            Adding new types to both renderer and main without a shared package can lead to desync between <code>types.ts</code> and <code>electron.d.ts</code>.
+          </p>
+          <div class="risk-mitigation">
+            <strong>Mitigation:</strong> Define bug types in <code>apps/renderer/app/types.ts</code> first, then mirror exactly in <code>electron.d.ts</code>. Run <code>npm run typecheck</code> after every IPC change.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-brand">DevDesk</div>
+    <div>Local-first developer workspace &mdash; Milestone 2 Implementation Plan</div>
+    <div style="margin-top:4px; opacity:0.7;">Electron + Vite + TypeScript + React + SQLite</div>
+  </footer>
+
+</body>
+</html>

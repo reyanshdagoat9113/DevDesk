@@ -1,7 +1,7 @@
-import test from 'node:test'
-import assert from 'node:assert/strict'
 import path from 'node:path'
+import { describe, expect, it } from 'vitest'
 import {
+  buildEngineGitArgs,
   buildEngineIndexArgs,
   buildEngineSearchArgs,
   buildEngineStatsArgs,
@@ -9,54 +9,47 @@ import {
   resolveEngineBinaryPath,
 } from './runtime'
 
-test('resolveEngineBinaryPath prefers existing dev candidate when unpackaged', () => {
-  const appPath = '/workspace/DevDesk'
-  const moduleDirname = '/workspace/DevDesk/dist/main/engine'
-  const existingPath = path.join(appPath, '..', 'devdesk-addons', 'devdesk-engine', 'dist', 'cli.js')
+const appPath = '/workspace/DevDesk'
+const resourcesPath = '/workspace/DevDesk/resources'
 
-  const resolved = resolveEngineBinaryPath({
-    appPath,
-    moduleDirname,
-    resourcesPath: '/workspace/DevDesk/dist/linux-unpacked/resources',
-    isPackaged: false,
-    existsSync: (targetPath) => targetPath === existingPath,
+describe('engine runtime helpers', () => {
+  it('resolves a dev engine binary from the workspace package', () => {
+    const target = path.join(appPath, 'node_modules', 'devdesk-engine', 'dist', 'cli.js')
+    const resolved = resolveEngineBinaryPath({
+      appPath,
+      moduleDirname: '/workspace/DevDesk/dist/main/engine',
+      resourcesPath,
+      isPackaged: false,
+      existsSync: (candidate) => candidate === target,
+    })
+
+    expect(resolved).toBe(target)
   })
 
-  assert.equal(resolved, existingPath)
-})
+  it('falls back to packaged engine resources', () => {
+    const resolved = resolveEngineBinaryPath({
+      appPath,
+      moduleDirname: '/workspace/DevDesk/dist/main/engine',
+      resourcesPath,
+      isPackaged: true,
+      existsSync: () => false,
+    })
 
-test('resolveEngineBinaryPath uses packaged resource path when packaged', () => {
-  const resolved = resolveEngineBinaryPath({
-    appPath: '/workspace/DevDesk',
-    moduleDirname: '/workspace/DevDesk/dist/main/engine',
-    resourcesPath: '/workspace/DevDesk/dist/linux-unpacked/resources',
-    isPackaged: true,
-    existsSync: () => false,
+    expect(resolved).toBe(path.join(resourcesPath, 'engine', 'cli.js'))
   })
 
-  assert.equal(resolved, '/workspace/DevDesk/dist/linux-unpacked/resources/engine/cli.js')
-})
+  it('builds engine command arguments consistently', () => {
+    const tmpUserData = '/tmp/user-data'
+    const tmpIndex = '/tmp/index.sqlite'
 
-test('getEngineDbPathFromUserData keeps dbs under the app user data directory', () => {
-  assert.equal(
-    getEngineDbPathFromUserData('/tmp/devdesk-user', 'project-123'),
-    '/tmp/devdesk-user/engine/project-123.sqlite'
-  )
-})
-
-test('engine command builders keep db paths explicit and consistent', () => {
-  const dbPath = '/tmp/devdesk-user/engine/project-123.sqlite'
-
-  assert.deepEqual(buildEngineIndexArgs('/repos/acme', dbPath), ['index', '/repos/acme', '--db', dbPath])
-  assert.deepEqual(buildEngineSearchArgs('router', dbPath), ['search', 'router', '--db', dbPath])
-  assert.deepEqual(buildEngineSearchArgs('router', dbPath, { regex: true, limit: 25 }), [
-    'search',
-    'router',
-    '--db',
-    dbPath,
-    '--regex',
-    '--limit',
-    '25',
-  ])
-  assert.deepEqual(buildEngineStatsArgs(dbPath), ['stats', '--db', dbPath])
+    expect(getEngineDbPathFromUserData(tmpUserData, 'proj-1')).toBe(
+      path.join(tmpUserData, 'engine', 'proj-1.sqlite')
+    )
+    expect(buildEngineIndexArgs('/repo', tmpIndex)).toEqual(['index', '/repo', '--db', tmpIndex])
+    expect(buildEngineSearchArgs('needle', tmpIndex, { regex: true, limit: 5 })).toEqual([
+      'search', 'needle', '--db', tmpIndex, '--regex', '--limit', '5',
+    ])
+    expect(buildEngineStatsArgs(tmpIndex)).toEqual(['stats', '--db', tmpIndex])
+    expect(buildEngineGitArgs('/repo')).toEqual(['git', '/repo'])
+  })
 })

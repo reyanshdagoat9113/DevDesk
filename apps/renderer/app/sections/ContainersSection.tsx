@@ -12,18 +12,22 @@ import {
   Square,
   Trash2,
   X,
-  Filter,
   ArrowUpDown,
   Activity,
   Box,
-  Hash,
-  Clock,
   Terminal as TerminalIcon,
   Layers,
   Network
 } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
+} from '../components/ui/Card'
 import {
   Dialog,
   DialogContent,
@@ -39,9 +43,7 @@ import { Separator } from '../components/ui/Separator'
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/Tabs'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
-import type { Container } from '../types'
-
-const panelClass = 'flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm'
+import type { Container, Project } from '../types'
 
 const statusStyles: Record<Container['state'], string> = {
   running: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]',
@@ -72,6 +74,7 @@ const getCreatedTimestamp = (value?: string) => {
 
 export function ContainersSection({
   containers,
+  projects,
   isLoading,
   error,
   onStartContainer,
@@ -84,6 +87,7 @@ export function ContainersSection({
   onRefreshContainers,
 }: {
   containers: Container[]
+  projects: Project[]
   isLoading?: boolean
   error?: string | null
   onStartContainer?: (containerId: string) => Promise<void>
@@ -171,6 +175,22 @@ export function ContainersSection({
     if (!sortedContainers.length) return null
     return sortedContainers.find((container) => container.id === selectedId) ?? sortedContainers[0]
   }, [sortedContainers, selectedId])
+
+  const linkedProjectsByContainerName = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const project of projects) {
+      const uniqueNames = new Set((project.linkedContainerNames ?? []).map((name) => name.trim().toLowerCase()).filter(Boolean))
+      for (const name of uniqueNames) {
+        const current = map.get(name)
+        if (current) {
+          current.push(project.name)
+        } else {
+          map.set(name, [project.name])
+        }
+      }
+    }
+    return map
+  }, [projects])
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const visibleIds = useMemo(() => sortedContainers.map((container) => container.id), [sortedContainers])
@@ -357,6 +377,9 @@ export function ContainersSection({
 
   const composeProject = labelMap.get('com.docker.compose.project')
   const composeService = labelMap.get('com.docker.compose.service')
+  const selectedLinkedProjects = selectedContainer
+    ? linkedProjectsByContainerName.get(selectedContainer.name.trim().toLowerCase()) ?? []
+    : []
 
   const removePreview = removeTargets.slice(0, 4)
   const removeOverflow = Math.max(0, removeTargets.length - removePreview.length)
@@ -365,11 +388,11 @@ export function ContainersSection({
     <>
       <SectionLayout
         list={
-          <div className={panelClass}>
-            <div className="flex flex-col border-b border-border/60 bg-muted/30">
+          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+            <div className="flex flex-col border-b border-border/40 bg-muted/20">
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Containers</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Containers</p>
                   <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-medium opacity-70">
                     {containers.length}
                   </Badge>
@@ -393,7 +416,7 @@ export function ContainersSection({
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search containers..."
-                    className="h-8 pl-9 text-xs focus-visible:ring-1"
+                    className="h-8 pl-9 text-xs focus-visible:ring-1 bg-background/50"
                   />
                 </div>
 
@@ -428,7 +451,7 @@ export function ContainersSection({
                         type="checkbox"
                         checked={allVisibleSelected}
                         onChange={(event) => handleSelectAll(event.target.checked)}
-                        className="h-3 w-3 rounded border-muted-foreground/30 bg-background text-primary transition-colors focus:ring-primary/20"
+                        className="h-3.5 w-3.5 rounded border-muted-foreground/30 bg-background text-primary transition-colors focus:ring-primary/20"
                       />
                       Select all
                     </label>
@@ -437,10 +460,10 @@ export function ContainersSection({
               </div>
             </div>
             {selectedIds.length > 0 && (
-              <div className="border-b border-border/60 bg-primary/5 px-4 py-2">
+              <div className="border-b border-border/40 bg-primary/5 px-4 py-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-[11px] font-semibold text-primary">
-                    <Check className="h-3 w-3" />
+                    <Check className="h-3.5 w-3.5" />
                     {selectedIds.length} SELECTED
                   </div>
                   <div className="flex items-center gap-1">
@@ -451,6 +474,7 @@ export function ContainersSection({
                         className="h-7 w-7 text-primary hover:bg-primary/10 hover:text-primary"
                         onClick={() => runBulkAction('start')}
                         disabled={bulkActionLoading}
+                        aria-label="Start selected containers"
                         title="Start selected"
                       >
                         <Power className="h-3.5 w-3.5" />
@@ -463,6 +487,7 @@ export function ContainersSection({
                         className="h-7 w-7 text-primary hover:bg-primary/10 hover:text-primary"
                         onClick={() => runBulkAction('restart')}
                         disabled={bulkActionLoading}
+                        aria-label="Restart selected containers"
                         title="Restart selected"
                       >
                         <RotateCw className="h-3.5 w-3.5" />
@@ -475,6 +500,7 @@ export function ContainersSection({
                         className="h-7 w-7 text-primary hover:bg-primary/10 hover:text-primary"
                         onClick={() => runBulkAction(canPauseBulk ? 'pause' : 'unpause')}
                         disabled={bulkActionLoading}
+                        aria-label={canPauseBulk ? "Pause selected containers" : "Unpause selected containers"}
                         title={canPauseBulk ? "Pause selected" : "Unpause selected"}
                       >
                         {canPauseBulk ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
@@ -487,6 +513,7 @@ export function ContainersSection({
                         className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => runBulkAction('stop')}
                         disabled={bulkActionLoading}
+                        aria-label="Stop selected containers"
                         title="Stop selected"
                       >
                         <Square className="h-3.5 w-3.5" />
@@ -498,6 +525,7 @@ export function ContainersSection({
                       className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => openRemoveDialog(selectedIds)}
                       disabled={bulkActionLoading}
+                      aria-label="Remove selected containers"
                       title="Remove selected"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -508,6 +536,7 @@ export function ContainersSection({
                       variant="ghost"
                       className="h-7 w-7 text-muted-foreground hover:text-foreground"
                       onClick={() => setSelectedIds([])}
+                      aria-label="Clear selection"
                       title="Clear selection"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -516,354 +545,401 @@ export function ContainersSection({
                 </div>
               </div>
             )}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto px-2 py-2">
               {isLoading ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-muted-foreground/60">
-                  <RefreshCw className="h-5 w-5 animate-spin" />
-                  <span className="text-xs font-medium">Scanning Docker...</span>
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground/60 italic">
+                  <RefreshCw className="h-5 w-5 animate-spin opacity-20" />
+                  <span className="text-xs font-medium">Scanning Docker host...</span>
                 </div>
               ) : error ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-                  <div className="rounded-full bg-destructive/10 p-3 text-destructive">
-                    <Activity className="h-6 w-6" />
-                  </div>
-                  <p className="text-xs font-medium text-destructive">{error}</p>
-                  <Button variant="outline" size="sm" onClick={handleRefresh} className="mt-2 h-8 text-[11px]">
-                    Try again
+                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-destructive bg-destructive/5 rounded-lg border border-destructive/10">
+                  <Activity className="h-8 w-8 mb-2 opacity-20" />
+                  <p className="font-semibold">{error}</p>
+                  <Button variant="outline" size="sm" onClick={handleRefresh} className="mt-4 h-8 text-[10px] font-bold uppercase">
+                    Reconnect
                   </Button>
                 </div>
               ) : containers.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center opacity-40">
-                  <Box className="h-10 w-10" />
-                  <p className="text-xs font-medium">No containers found</p>
+                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50">
+                  <Box className="h-10 w-10 mb-2 opacity-20" />
+                  <p className="text-sm">No containers detected.</p>
                 </div>
               ) : sortedContainers.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center opacity-40">
-                  <Filter className="h-8 w-8" />
-                  <p className="text-xs font-medium">No matches for your filters</p>
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground italic opacity-50">
+                  No matches for filter.
                 </div>
               ) : (
-                <div className="divide-y divide-border/40">
+                <div className="space-y-1">
                   {sortedContainers.map((container) => {
                     const isActive = selectedId === container.id
                     const isSelected = selectedIdSet.has(container.id)
                     const isBusy = actionLoading?.endsWith(`:${container.id}`)
                     const statusText = container.status || container.state
+                    const linkedProjectNames = linkedProjectsByContainerName.get(container.name.trim().toLowerCase()) ?? []
 
                     return (
                       <div
                         key={container.id}
+                        onClick={() => setSelectedId(container.id)}
                         className={cn(
-                          "group relative flex w-full flex-col transition-colors",
-                          isActive ? "bg-accent/40" : "hover:bg-accent/20"
+                          "group relative flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-all",
+                          isActive 
+                            ? "bg-primary/10 shadow-sm ring-1 ring-primary/20" 
+                            : "hover:bg-muted/50"
                         )}
                       >
-                        <div
-                          className="flex cursor-pointer items-center gap-3 px-4 py-3"
-                          onClick={() => setSelectedId(container.id)}
-                        >
-                          <div className="relative flex items-center" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleSelected(container.id)}
-                              className="h-3.5 w-3.5 rounded border-muted-foreground/30 bg-background text-primary transition-colors focus:ring-primary/20"
-                            />
+                        <div className="relative flex items-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelected(container.id)}
+                            className="h-3.5 w-3.5 rounded border-muted-foreground/30 bg-background text-primary transition-colors focus:ring-primary/20 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", statusStyles[container.state])} />
+                            <span className={cn("truncate text-sm font-bold leading-none", isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")}>
+                              {container.name}
+                            </span>
                           </div>
-
-                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <div className="flex items-center gap-2">
-                              <span className={cn("h-1.5 w-1.5 rounded-full", statusStyles[container.state])} />
-                              <span className="truncate text-sm font-semibold tracking-tight">{container.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2 truncate text-[11px] text-muted-foreground/70">
-                              <span className="truncate">{container.image}</span>
-                              {statusText && (
-                                <>
-                                  <span className="text-muted-foreground/30">•</span>
-                                  <span className="truncate italic">{statusText}</span>
-                                </>
-                              )}
-                            </div>
+                          <div className="flex items-center gap-2 truncate text-[10px] text-muted-foreground/60 font-mono tracking-tighter">
+                            <span className="truncate max-w-[100px]">{container.image}</span>
+                            {statusText && (
+                              <>
+                                <span className="opacity-30">•</span>
+                                <span className="truncate italic opacity-80">{statusText}</span>
+                              </>
+                            )}
                           </div>
-
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant={stateBadgeVariants[container.state]}
-                              className="h-5 px-1.5 text-[10px] font-bold uppercase tracking-tighter"
-                            >
-                              {container.state}
-                            </Badge>
-
-                            <div className="hidden group-hover:flex">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                onClick={(e) => { e.stopPropagation(); handleViewLogsFor(container.id); }}
-                                disabled={isBusy}
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {linkedProjectNames.length > 0 ? (
+                              linkedProjectNames.slice(0, 2).map((projectName) => (
+                                <Badge
+                                  key={`${container.id}:${projectName}`}
+                                  variant="outline"
+                                  className="h-4 px-1 text-[8px] font-bold uppercase tracking-tighter"
+                                >
+                                  {projectName}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="h-4 px-1 text-[8px] uppercase tracking-tighter text-muted-foreground/70"
                               >
-                                <Logs className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  runContainerAction('restart', onRestartContainer, container.id)
-                                }}
-                                disabled={isBusy}
+                                unlinked
+                              </Badge>
+                            )}
+                            {linkedProjectNames.length > 2 ? (
+                              <Badge
+                                variant="outline"
+                                className="h-4 px-1 text-[8px] uppercase tracking-tighter text-muted-foreground/70"
                               >
-                                <RotateCw className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
+                                +{linkedProjectNames.length - 2}
+                              </Badge>
+                            ) : null}
                           </div>
                         </div>
-                        {isActive && (
-                          <div className="absolute left-0 top-0 h-full w-0.5 bg-primary" />
-                        )}
+
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={stateBadgeVariants[container.state]}
+                            className="h-4 px-1.5 text-[8px] font-black uppercase tracking-tighter"
+                          >
+                            {container.state}
+                          </Badge>
+
+                          <div className={cn("flex items-center gap-0.5 opacity-0 transition-opacity", (isActive || isBusy) ? "opacity-100" : "group-hover:opacity-100")}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-background/50 rounded-md"
+                              onClick={(e) => { e.stopPropagation(); handleViewLogsFor(container.id); }}
+                              disabled={isBusy}
+                              aria-label={`View logs for ${container.name}`}
+                            >
+                              <Logs className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-background/50 rounded-md"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                runContainerAction('restart', onRestartContainer, container.id)
+                              }}
+                              disabled={isBusy}
+                              aria-label={`Restart ${container.name}`}
+                            >
+                              <RotateCw className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     )
                   })}
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         }
         detail={
-          <div className={cn(panelClass, "bg-card/40")}>
-            {selectedContainer ? (
-              <div className="flex h-full flex-col">
-                <div className="border-b border-border/60 bg-muted/30 px-6 py-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h2 className="truncate text-lg font-bold tracking-tight">{selectedContainer.name}</h2>
-                        <Badge variant={stateBadgeVariants[selectedContainer.state]} className="h-5 px-1.5 text-[10px] font-bold uppercase">
-                          {selectedContainer.state}
-                        </Badge>
+          selectedContainer ? (
+            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+              <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                        <Box className="h-4 w-4" />
                       </div>
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground/80">{selectedContainer.image}</p>
+                      <CardTitle className="text-2xl font-bold tracking-tight truncate">{selectedContainer.name}</CardTitle>
+                      <Badge variant={stateBadgeVariants[selectedContainer.state]} className="h-5 text-[10px] font-bold uppercase tracking-widest ml-1">
+                        {selectedContainer.state}
+                      </Badge>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1.5 text-[11px] font-semibold"
-                        onClick={handleViewLogs}
-                        disabled={!onViewLogs || detailActionBusy}
-                      >
-                        <Logs className="h-3.5 w-3.5" />
-                        LOGS
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 w-8 p-0"
-                        onClick={() => void runContainerAction('restart', onRestartContainer, selectedContainer.id)}
-                        disabled={!onRestartContainer || detailActionBusy}
-                        title="Restart"
-                      >
-                        <RotateCw className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    <CardDescription className="flex items-center gap-2 font-mono text-[11px] bg-muted/20 w-fit px-2 py-0.5 rounded border border-border/20">
+                      {selectedContainer.image}
+                    </CardDescription>
                   </div>
-                </div>
-
-                <ScrollArea className="flex-1">
-                  <div className="space-y-8 p-6">
-                    <section className="space-y-4">
-                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                        <Activity className="h-3.5 w-3.5" />
-                        General Information
-                      </div>
-                      <div className="grid grid-cols-2 gap-6 rounded-xl border border-border/40 bg-muted/20 p-4">
-                        <div className="space-y-1">
-                          <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-                            <Hash className="h-3 w-3" /> Container ID
-                          </p>
-                          <p className="break-all font-mono text-[11px] font-medium text-muted-foreground">
-                            {selectedContainer.id.slice(0, 12)}...
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-                            <Clock className="h-3 w-3" /> Created
-                          </p>
-                          <p className="text-[11px] font-medium text-muted-foreground">
-                            {selectedContainer.createdAt || 'Unknown'}
-                          </p>
-                        </div>
-                        <div className="col-span-2 space-y-1">
-                          <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-                            <Activity className="h-3 w-3" /> Status
-                          </p>
-                          <p className="text-[11px] font-medium text-muted-foreground">
-                            {selectedContainer.status || selectedContainer.state}
-                          </p>
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="space-y-4">
-                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                        <TerminalIcon className="h-3.5 w-3.5" />
-                        Execution Details
-                      </div>
-                      <div className="rounded-xl border border-border/40 bg-muted/20 p-4">
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">Command</p>
-                          <div className="rounded-md bg-background/50 p-2.5 font-mono text-[11px] text-muted-foreground/90 border border-border/20 break-all leading-relaxed">
-                            {selectedContainer.command || 'No entrypoint specified'}
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-
-                    {(composeProject || composeService) && (
-                      <section className="space-y-4">
-                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                          <Layers className="h-3.5 w-3.5" />
-                          Docker Compose
-                        </div>
-                        <div className="flex flex-wrap gap-2 rounded-xl border border-border/40 bg-muted/20 p-4">
-                          {composeProject && (
-                            <div className="flex flex-col gap-1.5 rounded-lg border border-border/40 bg-background/40 px-3 py-2">
-                              <span className="text-[9px] font-bold uppercase tracking-tighter text-muted-foreground/50">Project</span>
-                              <span className="text-xs font-semibold">{composeProject}</span>
-                            </div>
-                          )}
-                          {composeService && (
-                            <div className="flex flex-col gap-1.5 rounded-lg border border-border/40 bg-background/40 px-3 py-2">
-                              <span className="text-[9px] font-bold uppercase tracking-tighter text-muted-foreground/50">Service</span>
-                              <span className="text-xs font-semibold">{composeService}</span>
-                            </div>
-                          )}
-                        </div>
-                      </section>
-                    )}
-
-                    <section className="space-y-4">
-                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                        <Network className="h-3.5 w-3.5" />
-                        Networking & Labels
-                      </div>
-                      <div className="space-y-4 rounded-xl border border-border/40 bg-muted/20 p-4">
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">Exposed Ports</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {selectedContainer.ports.length > 0 ? (
-                              selectedContainer.ports.map((port) => (
-                                <Badge key={port} variant="secondary" className="h-6 px-2 text-[10px] font-mono border-border/40">
-                                  {port}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-[11px] italic text-muted-foreground/50">No ports exposed</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {selectedContainer.labels && selectedContainer.labels.length > 0 && (
-                          <div className="space-y-2 pt-2 border-t border-border/20">
-                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">Labels</p>
-                            <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-auto pr-1">
-                              {selectedContainer.labels.map((label) => (
-                                <Badge key={label} variant="outline" className="h-5 px-1.5 text-[9px] font-medium text-muted-foreground/70 bg-background/30">
-                                  {label}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  </div>
-                </ScrollArea>
-
-                <div className="mt-auto border-t border-border/60 bg-muted/30 px-6 py-4">
-                  <div className="flex flex-wrap gap-2">
-                    {selectedContainer.state === 'running' ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 gap-1.5 h-9 text-[11px] font-bold"
-                          onClick={() => void runContainerAction('pause', onPauseContainer, selectedContainer.id)}
-                          disabled={!onPauseContainer || detailActionBusy}
-                        >
-                          <Pause className="h-3.5 w-3.5" />
-                          PAUSE
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="flex-1 gap-1.5 h-9 text-[11px] font-bold bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/20"
-                          onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
-                          disabled={!onStopContainer || detailActionBusy}
-                        >
-                          <Square className="h-3.5 w-3.5" />
-                          STOP
-                        </Button>
-                      </>
-                    ) : selectedContainer.state === 'paused' ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 gap-1.5 h-9 text-[11px] font-bold"
-                          onClick={() => void runContainerAction('unpause', onUnpauseContainer, selectedContainer.id)}
-                          disabled={!onUnpauseContainer || detailActionBusy}
-                        >
-                          <Play className="h-3.5 w-3.5" />
-                          RESUME
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="flex-1 gap-1.5 h-9 text-[11px] font-bold bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/20"
-                          onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
-                          disabled={!onStopContainer || detailActionBusy}
-                        >
-                          <Square className="h-3.5 w-3.5" />
-                          STOP
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        size="sm"
-                        className="flex-1 gap-1.5 h-9 text-[11px] font-bold shadow-lg shadow-primary/20"
-                        onClick={() => void runContainerAction('start', onStartContainer, selectedContainer.id)}
-                        disabled={!onStartContainer || detailActionBusy}
-                      >
-                        <Power className="h-3.5 w-3.5" />
-                        START CONTAINER
-                      </Button>
-                    )}
+                  <div className="flex items-center gap-2 ml-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-2 text-[11px] font-bold uppercase tracking-wider border-border/40 bg-background/50"
+                      onClick={handleViewLogs}
+                      disabled={!onViewLogs || detailActionBusy}
+                    >
+                      <Logs className="h-3.5 w-3.5" />
+                      Console Logs
+                    </Button>
                     <Button
                       size="icon"
-                      variant="destructive"
-                      className="h-9 w-9 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/20"
-                      onClick={() => openRemoveDialog([selectedContainer.id])}
-                      disabled={!onRemoveContainer || detailActionBusy}
-                      title="Remove container"
+                      variant="outline"
+                      className="h-8 w-8 border-border/40 bg-background/50"
+                      onClick={() => void runContainerAction('restart', onRestartContainer, selectedContainer.id)}
+                      disabled={!onRestartContainer || detailActionBusy}
+                      aria-label="Restart container"
+                      title="Restart"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <RotateCw className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center opacity-30">
-                <Box className="h-12 w-12" />
-                <div className="space-y-1">
-                  <p className="text-sm font-bold uppercase tracking-widest">No Selection</p>
-                  <p className="text-xs">Select a container to view deep inspection</p>
+              </CardHeader>
+              
+              <CardContent className="flex-1 overflow-auto p-8 pt-6 space-y-10">
+                {/* Information Grid */}
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <h3 className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                      <Activity className="h-3.5 w-3.5" />
+                      Status & Timeline
+                    </h3>
+                    <div className="space-y-4 p-5 rounded-xl border border-border/40 bg-muted/5">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Runtime State</p>
+                        <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          <span className={cn("h-2 w-2 rounded-full", statusStyles[selectedContainer.state])} />
+                          {selectedContainer.status || selectedContainer.state}
+                        </p>
+                      </div>
+                      <div className="space-y-1 pt-2 border-t border-border/10">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Created Date</p>
+                        <p className="text-[13px] font-medium text-foreground/80">{selectedContainer.createdAt || 'Unknown execution date'}</p>
+                      </div>
+                      <div className="space-y-1 pt-2 border-t border-border/10">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Unique ID</p>
+                        <p className="font-mono text-[11px] text-muted-foreground break-all">{selectedContainer.id}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                      <Network className="h-3.5 w-3.5" />
+                      Environment Context
+                    </h3>
+                    <div className="space-y-4 p-5 rounded-xl border border-border/40 bg-muted/5 h-full">
+                      {(composeProject || composeService) ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1">
+                            <Layers className="h-3 w-3" /> Docker Compose
+                          </div>
+                          {composeProject && (
+                            <div className="flex justify-between items-center text-[13px]">
+                              <span className="text-muted-foreground">Project:</span>
+                              <span className="font-bold">{composeProject}</span>
+                            </div>
+                          )}
+                          {composeService && (
+                            <div className="flex justify-between items-center text-[13px]">
+                              <span className="text-muted-foreground">Service:</span>
+                              <span className="font-bold text-primary">{composeService}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-12 text-[11px] text-muted-foreground/50 italic font-medium">
+                          Standalone Container
+                        </div>
+                      )}
+
+                      <div className="pt-3 border-t border-border/10">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">
+                          Linked Projects
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedLinkedProjects.length > 0 ? (
+                            selectedLinkedProjects.map((projectName) => (
+                              <Badge
+                                key={`linked-project-${selectedContainer.id}-${projectName}`}
+                                variant="outline"
+                                className="text-[10px] font-semibold"
+                              >
+                                {projectName}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-[11px] italic text-muted-foreground/40 font-medium">
+                              No linked projects
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="pt-3 border-t border-border/10">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">Mapped Ports</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedContainer.ports.length > 0 ? (
+                            selectedContainer.ports.map((port) => (
+                              <Badge key={port} variant="secondary" className="font-mono text-[10px] bg-background border-border/40">
+                                {port}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-[11px] italic text-muted-foreground/40 font-medium">No external bindings</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Execution Details */}
+                <div className="space-y-3">
+                  <h3 className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <TerminalIcon className="h-3.5 w-3.5" />
+                    Runtime Execution Instruction
+                  </h3>
+                  <div className="rounded-xl border border-border/40 bg-[#0d0d0d] p-5 font-mono text-[13px] text-blue-400/90 shadow-inner overflow-hidden relative">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/30" />
+                    <span className="opacity-40 mr-3 select-none">$</span>
+                    {selectedContainer.command || 'No explicit entrypoint instruction'}
+                  </div>
+                </div>
+
+                {/* Metadata Labels */}
+                {selectedContainer.labels && selectedContainer.labels.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Metadata Labels</h3>
+                    <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-auto pr-2 custom-scrollbar">
+                      {selectedContainer.labels.map((label) => {
+                        const [k, v] = label.split('=')
+                        return (
+                          <div key={label} className="flex flex-col p-2 rounded-lg border border-border/20 bg-muted/5 overflow-hidden">
+                            <span className="text-[9px] font-bold text-muted-foreground/60 truncate uppercase tracking-tighter mb-0.5">{k}</span>
+                            <span className="text-[11px] font-mono truncate text-foreground/80">{v || 'true'}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+
+              <div className="border-t border-border/40 bg-muted/5 p-6">
+                <div className="flex gap-4">
+                  {selectedContainer.state === 'running' ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        className="flex-1 h-10 gap-2 font-bold uppercase tracking-wider text-[11px] bg-background border-border/40"
+                        onClick={() => void runContainerAction('pause', onPauseContainer, selectedContainer.id)}
+                        disabled={!onPauseContainer || detailActionBusy}
+                      >
+                        <Pause className="h-4 w-4" />
+                        Pause execution
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        className="flex-1 h-10 gap-2 font-bold uppercase tracking-wider text-[11px] bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive hover:text-white transition-all"
+                        onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
+                        disabled={!onStopContainer || detailActionBusy}
+                      >
+                        <Square className="h-4 w-4" />
+                        Terminate process
+                      </Button>
+                    </>
+                  ) : selectedContainer.state === 'paused' ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        className="flex-1 h-10 gap-2 font-bold uppercase tracking-wider text-[11px] bg-background border-border/40"
+                        onClick={() => void runContainerAction('unpause', onUnpauseContainer, selectedContainer.id)}
+                        disabled={!onUnpauseContainer || detailActionBusy}
+                      >
+                        <Play className="h-4 w-4" />
+                        Resume service
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        className="flex-1 h-10 gap-2 font-bold uppercase tracking-wider text-[11px] bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive hover:text-white transition-all"
+                        onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
+                        disabled={!onStopContainer || detailActionBusy}
+                      >
+                        <Square className="h-4 w-4" />
+                        Terminate
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      className="flex-1 h-10 gap-2 font-bold uppercase tracking-wider text-[11px] shadow-lg shadow-primary/10"
+                      onClick={() => void runContainerAction('start', onStartContainer, selectedContainer.id)}
+                      disabled={!onStartContainer || detailActionBusy}
+                    >
+                      <Power className="h-4 w-4" />
+                      Instantiate Container
+                    </Button>
+                  )}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/10 border border-border/40 transition-colors"
+                    onClick={() => openRemoveDialog([selectedContainer.id])}
+                    disabled={!onRemoveContainer || detailActionBusy}
+                    aria-label="Remove container"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            )}
-          </div>
+            </Card>
+          ) : (
+            <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center">
+              <div className="max-w-[240px] space-y-4 opacity-40">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/20 border-2 border-border/40 border-dashed">
+                  <Box className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-bold uppercase tracking-widest">Docker Engine</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">Select a container instance to inspect runtime metadata, manage lifecycle, or review console logs.</p>
+                </div>
+              </div>
+            </Card>
+          )
         }
       />
       <Dialog
