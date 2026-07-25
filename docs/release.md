@@ -34,13 +34,21 @@ npm run release:gate
 typecheck
 lint
 lint:architecture
+test:rust             # cargo test --locked (packages/engine/rust)
 test:run              # includes migration, native load, terminal unit tests
 test:renderer:run
+test:engine
 test:engine-ipc
 smoke:engine-packaged
 ```
 
-Platform package smokes (CI per OS):
+Coverage (V8; per-suite non-decreasing thresholds active in vitest configs):
+
+```bash
+npm run test:coverage
+```
+
+Platform package smokes (CI per OS, Node 22 packaging lane):
 
 ```bash
 npm run verify:win-package    # Windows
@@ -56,7 +64,16 @@ npm run qa:clean-install:win
 
 The command creates a fresh Windows package before testing it. It does not drive the renderer UI; interactive Windows and Linux sign-off remains tracked in `manual-qa.md`.
 
-CI workflow: `.github/workflows/release-gate.yml` on `windows-latest` and `ubuntu-latest`.
+### CI topology (`.github/workflows/release-gate.yml`)
+
+| Lane | Matrix | Purpose |
+|------|--------|---------|
+| Static and coverage | Ubuntu, Node 22 | typecheck, lint, architecture, V8 coverage reports |
+| Native and integration | Windows + Ubuntu × Node 22 + 24 | clean install, Node-native rebuild, desktop/renderer/engine/engine-ipc tests |
+| Rust | Windows + Ubuntu | `cargo test --locked` (+ locked build) |
+| Package verification | Windows + Ubuntu, Node 22 | packaged engine smoke + unpacked package verify |
+
+Supported host Node for development and packaging: **22.12–24** (default **22**, see `.nvmrc`). Review ledger: [test-review-ledger.md](./test-review-ledger.md).
 
 ## Clean-checkout packaging
 

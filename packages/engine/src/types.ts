@@ -60,6 +60,7 @@ export interface SearchResult {
   results: FileSearchResult[];
   totalMatches: number;
   durationMs: number;
+  error?: string;
 }
 
 // Stats result

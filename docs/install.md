@@ -47,7 +47,7 @@ npm run dev
 
 | Tool | Windows | Linux | Why |
 |------|---------|-------|-----|
-| Node.js 18+ (20 LTS recommended) | Yes | Yes | App and tests |
+| Node.js 22.12–24 (22 default; see `.nvmrc`) | Yes | Yes | App, tests, packaging |
 | Visual Studio Build Tools (C++) | Yes | — | Native modules |
 | `build-essential` + python3 | — | Yes | Native modules |
 | Git | Yes | Yes | Some native package scripts |

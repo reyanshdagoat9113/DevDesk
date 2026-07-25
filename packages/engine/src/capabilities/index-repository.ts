@@ -36,8 +36,8 @@ export async function indexRepositoryCapability(
   const warnings: string[] = [];
 
   try {
-    const existingHashMap = incremental ? db.getHashMap() : new Map<string, string>();
-    const existingPaths = incremental ? db.getAllPaths() : new Set<string>();
+    const existingPathHashMap = incremental ? db.getPathHashMap() : new Map<string, string | null>();
+    const existingPaths = incremental ? new Set(existingPathHashMap.keys()) : new Set<string>();
 
     if (!incremental) {
       db.deleteAllFiles();
@@ -64,10 +64,6 @@ export async function indexRepositoryCapability(
 
       if (file.is_binary) {
         skipped++;
-        continue;
-      }
-
-      if (incremental && file.content_hash && existingHashMap.has(file.content_hash)) {
         existingPaths.delete(canonicalPath);
         continue;
       }
@@ -75,7 +71,22 @@ export async function indexRepositoryCapability(
       const language = detectLanguage(file.filename, file.extension);
       if (!shouldIndex(language)) {
         skipped++;
+        existingPaths.delete(canonicalPath);
         continue;
+      }
+
+      // Path-primary identity: skip only when this path still exists with the same content hash.
+      // Renames and duplicate-content copies must still be indexed.
+      if (incremental) {
+        existingPaths.delete(canonicalPath);
+        const previousHash = existingPathHashMap.get(canonicalPath);
+        if (
+          previousHash != null &&
+          file.content_hash != null &&
+          previousHash === file.content_hash
+        ) {
+          continue;
+        }
       }
 
       toIndex.push({

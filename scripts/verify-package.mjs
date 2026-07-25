@@ -118,7 +118,36 @@ async function main() {
     const parsedStats = JSON.parse(statsResult.stdout)
     assert.equal(parsedStats.stats.totalFiles, 1)
 
+    // Functional Electron-native SQLite open/query (not layout-only).
+    const sqliteProbe = path.join(tempRoot, 'sqlite-probe.cjs')
+    await writeFile(
+      sqliteProbe,
+      `
+const Database = require('better-sqlite3');
+const db = new Database(':memory:');
+const row = db.prepare('select 1 as value').get();
+if (!row || row.value !== 1) {
+  console.error('sqlite probe failed');
+  process.exit(2);
+}
+db.close();
+console.log('sqlite-ok');
+`,
+    )
+    const sqliteResult = await execFileAsync(electronBinaryPath, [sqliteProbe], {
+      env: childEnv,
+      shell: process.platform === 'win32' && electronBinaryPath.endsWith('.cmd'),
+    })
+    assert.match(sqliteResult.stdout, /sqlite-ok/)
+
+    // PTY: require native binary presence under asarUnpack (functional spawn varies by CI headless).
+    // Label: layout+native artifact evidence for node-pty; interactive terminal QA remains manual.
+    assert.ok(existsSync(asarUnpackedPty), 'node-pty asarUnpack missing')
+    const ptyPackageJson = path.join(asarUnpackedPty, 'package.json')
+    assert.ok(existsSync(ptyPackageJson), 'node-pty package.json missing in package')
+
     console.log(`${platform} package verification passed.`)
+    console.log(`  evidence: actual-package + engine-process + electron-native-sqlite`)
     console.log(`  unpacked: ${unpackedDir}`)
     console.log(`  engine: ${engineCliPath}`)
   } finally {

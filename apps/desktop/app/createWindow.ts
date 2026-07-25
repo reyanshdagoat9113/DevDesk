@@ -1,6 +1,7 @@
 import { BrowserWindow, Menu } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import { registerTrustedWebContents, unregisterTrustedWebContents } from '../ipc/trustedIpc'
 
 function resolveWindowIcon(): string | undefined {
   // Windows renders the crisp multi-resolution .ico for the taskbar/title bar;
@@ -72,6 +73,23 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
+  })
+
+  registerTrustedWebContents(mainWindow.webContents.id)
+  mainWindow.on('closed', () => {
+    unregisterTrustedWebContents(mainWindow.webContents.id)
+  })
+
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isDev) {
+      if (url.startsWith('http://127.0.0.1:5180') || url.startsWith('http://localhost:5180')) {
+        return
+      }
+    } else if (url.startsWith('file:')) {
+      return
+    }
+    event.preventDefault()
   })
 
   return mainWindow

@@ -3,6 +3,10 @@ dist/
 release/
 *.tsbuildinfo
 
+# Test coverage (collected; thresholds not enforced yet)
+coverage/
+packages/engine/coverage/
+
 # Dependencies
 node_modules/
 

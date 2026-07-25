@@ -3,7 +3,7 @@
  * Handles locating and spawning the devdesk-engine binary
  */
 
-import { fork, spawn } from 'node:child_process'
+import { fork, spawn, type ChildProcess } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { app } from 'electron'
@@ -23,10 +23,14 @@ import {
   resolveEngineBinaryPath,
 } from './runtime'
 
+const DEFAULT_ENGINE_TIMEOUT_MS = 120_000
+const MAX_ENGINE_OUTPUT_BYTES = 8 * 1024 * 1024
+
 function buildEngineNodePath(enginePath: string): string {
+  const resourcesPath = typeof process.resourcesPath === 'string' ? process.resourcesPath : ''
   const nodePathEntries = [
     path.join(app.getAppPath(), 'node_modules'),
-    path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules'),
+    resourcesPath ? path.join(resourcesPath, 'app.asar.unpacked', 'node_modules') : '',
     path.join(path.dirname(enginePath), 'node_modules'),
   ]
 
@@ -38,7 +42,6 @@ function buildEngineNodePath(enginePath: string): string {
     .join(path.delimiter)
 }
 
-// Get the path to the engine CLI (Node.js script that calls Rust binary)
 function getEngineBinaryPath(): string {
   return resolveEngineBinaryPath({
     appPath: app.getAppPath(),
@@ -49,9 +52,6 @@ function getEngineBinaryPath(): string {
   })
 }
 
-/**
- * Check if the engine is available
- */
 export async function getEngineStatus(): Promise<EngineStatus> {
   const enginePath = getEngineBinaryPath()
 
@@ -63,7 +63,7 @@ export async function getEngineStatus(): Promise<EngineStatus> {
   }
 
   try {
-    const result = await runEngineCommand(['--version'])
+    const result = await runEngineCommand(['--version'], { timeoutMs: 15_000 })
     return {
       available: true,
       version: result.trim(),
@@ -76,103 +76,185 @@ export async function getEngineStatus(): Promise<EngineStatus> {
   }
 }
 
-/**
- * Get database path for a project
- */
 export function getEngineDbPath(projectId: string): string {
   return getEngineDbPathFromUserData(app.getPath('userData'), projectId)
 }
 
+export type RunEngineCommandOptions = {
+  timeoutMs?: number
+  maxOutputBytes?: number
+  signal?: AbortSignal
+}
+
+function appendBounded(current: string, chunk: string, maxBytes: number, label: string): string {
+  const next = current + chunk
+  if (Buffer.byteLength(next, 'utf8') > maxBytes) {
+    throw new Error(`Engine ${label} exceeded ${maxBytes} bytes`)
+  }
+  return next
+}
+
+function parseEngineJson<T>(stdout: string): T {
+  const trimmed = stdout.trim()
+  if (!trimmed) {
+    throw new Error('Engine produced empty output')
+  }
+  try {
+    return JSON.parse(trimmed) as T
+  } catch (error) {
+    throw new Error(
+      `Malformed engine JSON output: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
 /**
- * Run an engine command and return the parsed JSON result
+ * Run an engine command and return stdout (string). Bounded timeout/output; kill on hang.
  */
-async function runEngineCommand(args: string[]): Promise<string> {
+export async function runEngineCommand(
+  args: string[],
+  options: RunEngineCommandOptions = {},
+): Promise<string> {
   const enginePath = getEngineBinaryPath()
+  const timeoutMs = options.timeoutMs ?? DEFAULT_ENGINE_TIMEOUT_MS
+  const maxOutputBytes = options.maxOutputBytes ?? MAX_ENGINE_OUTPUT_BYTES
 
   return new Promise((resolve, reject) => {
-    const childEnv = {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: '1',
-      NODE_PATH: buildEngineNodePath(enginePath),
-    }
-
-    const child =
-      path.extname(enginePath).toLowerCase() === '.js'
-        ? fork(enginePath, args, {
-            execPath: process.execPath,
-            silent: true,
-            env: childEnv,
-          })
-        : spawn(enginePath, args, {
-            windowsHide: true,
-            env: childEnv,
-          })
-
+    let settled = false
     let stdout = ''
     let stderr = ''
+    let child: ChildProcess
+
+    const settle = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      options.signal?.removeEventListener('abort', onAbort)
+      fn()
+    }
+
+    const killChild = (signal: NodeJS.Signals = 'SIGTERM') => {
+      try {
+        child.kill(signal)
+      } catch {
+        // ignore
+      }
+      if (process.platform === 'win32' && child.pid) {
+        try {
+          spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore' })
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    const onAbort = () => {
+      killChild()
+      settle(() => reject(new Error('Engine command aborted')))
+    }
+
+    const timer = setTimeout(() => {
+      killChild()
+      settle(() => reject(new Error(`Engine command timed out after ${timeoutMs}ms`)))
+    }, timeoutMs)
+
+    try {
+      const childEnv = {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        NODE_PATH: buildEngineNodePath(enginePath),
+      }
+
+      child =
+        path.extname(enginePath).toLowerCase() === '.js'
+          ? fork(enginePath, args, {
+              execPath: process.execPath,
+              silent: true,
+              env: childEnv,
+            })
+          : spawn(enginePath, args, {
+              windowsHide: true,
+              env: childEnv,
+            })
+    } catch (error) {
+      settle(() => reject(error instanceof Error ? error : new Error(String(error))))
+      return
+    }
+
+    options.signal?.addEventListener('abort', onAbort, { once: true })
+    if (options.signal?.aborted) {
+      onAbort()
+      return
+    }
 
     child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString()
+      try {
+        stdout = appendBounded(stdout, chunk.toString(), maxOutputBytes, 'stdout')
+      } catch (error) {
+        killChild()
+        settle(() => reject(error instanceof Error ? error : new Error(String(error))))
+      }
     })
 
     child.stderr?.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString()
+      try {
+        stderr = appendBounded(stderr, chunk.toString(), maxOutputBytes, 'stderr')
+      } catch (error) {
+        killChild()
+        settle(() => reject(error instanceof Error ? error : new Error(String(error))))
+      }
     })
 
     child.on('error', (err: Error) => {
-      reject(err)
+      settle(() => reject(err))
     })
 
-    child.on('close', (code: number) => {
+    child.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
       if (code === 0) {
-        resolve(stdout)
-      } else {
-        reject(new Error(stderr || `Engine exited with code ${code}`))
+        settle(() => resolve(stdout))
+        return
       }
+      const detail = stderr.trim() || `Engine exited with code ${code}${signal ? ` signal ${signal}` : ''}`
+      settle(() => reject(new Error(detail)))
     })
   })
 }
 
-/**
- * Index a project
- */
 export async function engineIndex(
   projectPath: string,
-  projectId: string
+  projectId: string,
 ): Promise<EngineIndexResult> {
   const dbPath = getEngineDbPath(projectId)
-  const result = await runEngineCommand(buildEngineIndexArgs(projectPath, dbPath))
-  return JSON.parse(result) as EngineIndexResult
+  const result = await runEngineCommand(buildEngineIndexArgs(projectPath, dbPath), {
+    timeoutMs: 300_000,
+  })
+  return parseEngineJson<EngineIndexResult>(result)
 }
 
-/**
- * Search a project
- */
 export async function engineSearch(
   projectId: string,
   query: string,
   options?: {
     regex?: boolean
     limit?: number
-  }
+  },
 ): Promise<EngineSearchResult> {
   const dbPath = getEngineDbPath(projectId)
-  const result = await runEngineCommand(buildEngineSearchArgs(query, dbPath, options))
-  return JSON.parse(result) as EngineSearchResult
+  const result = await runEngineCommand(buildEngineSearchArgs(query, dbPath, options), {
+    timeoutMs: 60_000,
+  })
+  return parseEngineJson<EngineSearchResult>(result)
 }
 
-/**
- * Get project stats
- */
 export async function engineStats(projectId: string): Promise<EngineStats> {
   const dbPath = getEngineDbPath(projectId)
-  const result = await runEngineCommand(buildEngineStatsArgs(dbPath))
-  return JSON.parse(result) as EngineStats
+  const result = await runEngineCommand(buildEngineStatsArgs(dbPath), { timeoutMs: 60_000 })
+  return parseEngineJson<EngineStats>(result)
 }
 
 export async function engineGit(projectPath: string): Promise<EngineGitInsights> {
-  const result = await runEngineCommand(buildEngineGitArgs(projectPath))
-  const parsed = JSON.parse(result) as EngineGitInsights & { ok?: boolean; error?: string }
+  const result = await runEngineCommand(buildEngineGitArgs(projectPath), { timeoutMs: 60_000 })
+  const parsed = parseEngineJson<EngineGitInsights & { ok?: boolean; error?: string }>(result)
 
   if ('ok' in parsed && parsed.ok === false) {
     throw new Error(parsed.error || 'Failed to load git insights.')

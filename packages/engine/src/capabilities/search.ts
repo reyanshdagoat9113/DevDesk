@@ -86,13 +86,29 @@ export async function searchIndexCapability(
       .sort((a, b) => b.score - a.score);
 
     if (regex) {
-      const filePaths = boostedFiles.map((file) => toNativePath(file.path));
-      const rustResults = await deps.worker.searchRegex(query, filePaths);
-      const fileMap = new Map(boostedFiles.map((file) => [file.path, file]));
+      // Validate pattern in TypeScript before spawning the worker.
+      try {
+        // eslint-disable-next-line no-new
+        new RegExp(query);
+      } catch (error) {
+        return {
+          ok: false,
+          query,
+          results: [],
+          totalMatches: 0,
+          durationMs: Date.now() - startedAt,
+          error: `Invalid regex: ${error instanceof Error ? error.message : String(error)}`,
+        };
+      }
+
+      // Regex must not depend on FTS prefilter — search all indexed non-binary paths.
+      const allPaths = [...db.getAllPaths()].map((filePath) => toNativePath(filePath));
+      const rustResults = await deps.worker.searchRegex(query, allPaths);
+      const fileMeta = new Map(boostedFiles.map((file) => [file.path, file]));
 
       const results: FileSearchResult[] = rustResults.slice(0, limit).map((result) => {
         const normalizedPath = normalizePath(result.path);
-        const file = fileMap.get(normalizedPath);
+        const file = fileMeta.get(normalizedPath);
 
         return {
           path: normalizedPath,

@@ -19,8 +19,10 @@
 - `npm run dev`: rebuilds natives for Electron, builds main/preload, starts Vite, then launches Electron.
 - `npm run build`: builds engine (prebuild), main/preload, and Vite renderer bundle.
 - `npm run lint`, `npm run lint:architecture`, `npm run typecheck`.
-- Tests: `npm run test:run` (desktop), `npm run test:renderer:run`, `npm run test:engine`, `npm run test:engine-ipc` (all vitest).
-- `npm run release:gate`: full gate (typecheck + lint + all test suites + packaged-engine smoke). Run before PRs.
+- Tests: `npm run test:run` (desktop), `npm run test:renderer:run`, `npm run test:engine`, `npm run test:engine-ipc` (vitest); `npm run test:rust` (cargo).
+- Coverage: `npm run test:coverage` (V8; per-suite thresholds active and non-decreasing). Ledger: `docs/test-review-ledger.md`.
+- `npm run release:gate`: full gate (typecheck + lint + rust + all test suites + packaged-engine smoke). Run before PRs.
+- Node: `>=22.12.0 <25` (default 22 via `.nvmrc`); one `better-sqlite3` v12 across root and engine.
 - Packaging: `npm run package:win` / `package:linux`; verification: `npm run verify:win-package` / `verify:linux-package`.
 - Native ABI: `npm run rebuild:native:node` before Node tests, `npm run rebuild:native:electron` before running/packaging the app (see `docs/native-modules.md`).
 

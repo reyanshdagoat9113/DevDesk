@@ -223,20 +223,20 @@ export async function importAllData(
         }
 
         database.pragma('foreign_keys = ON')
+
+        if (rowErrors.length > 0) {
+          throw new Error(`${rowErrors.length} row(s) failed to import. First: ${rowErrors[0]}`)
+        }
+
+        const fkViolations = database.pragma('foreign_key_check') as Array<Record<string, unknown>>
+        if (fkViolations.length > 0) {
+          throw new Error(
+            `${fkViolations.length} foreign key violation(s) detected after import. Import rolled back.`,
+          )
+        }
       })
 
       importTransaction()
-
-      const fkViolations = database.pragma('foreign_key_check') as Array<Record<string, unknown>>
-      if (fkViolations.length > 0) {
-        warnings.push(
-          `${fkViolations.length} foreign key violation(s) detected after import. Some records may have broken references.`
-        )
-      }
-
-      if (rowErrors.length > 0) {
-        warnings.push(`${rowErrors.length} row(s) failed to import.`)
-      }
 
       return { success: true, recordCounts, backupPath, warnings }
     } catch (err) {
