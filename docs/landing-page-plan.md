@@ -1,6 +1,6 @@
 # DevDesk Landing Page Plan
 
-Status: in progress — Phase 0 implemented, Phase 1 scaffold landed
+Status: in progress — Phases 0–3 done; Phase 2 screenshots + Phase 4 polish remaining
 Owner: repo maintainer (`reyanshdagoat9113`)
 Target: public install page for the v0.1.0 private beta
 
@@ -81,7 +81,8 @@ Decision 3 — Railway:
   build command `npm run build`, start command `npm start`.
 - `packages/landing/server.mjs` is a zero-dependency static server that binds
   `process.env.PORT` (default 4173) on `0.0.0.0`, serves `dist/`, sets long-lived immutable caching for
-  `/assets/*` and `must-revalidate` for everything else, falls back to `index.html` for unknown paths,
+  `/assets/*` and `must-revalidate` for everything else, falls back to `index.html` for unknown *routes*
+  (but returns a real 404 for missing files with an extension, so broken images fire `onError`),
   refuses path traversal, and exposes `/healthz`.
 - `packages/landing/railway.json` pins the Nixpacks builder, both commands, the `/healthz` healthcheck,
   and an `ON_FAILURE` restart policy.
@@ -116,8 +117,15 @@ the static-server checks above.
 - [x] Add a site-only `--accent-brand` (and `--accent-brand-foreground`) token per decision 4, used only
       by CTAs, links, and focus rings, in a separate block so parity stays auditable.
 - [x] Reuse `lucide-react` icons and the `cn()` helper copied to `packages/landing/src/lib/utils.ts`.
-- [ ] Install only the shadcn primitives the page needs: Button, Card, Badge, Tabs, Accordion
-      (deferred to Phase 3, when the sections that consume them are built).
+- [x] Install only the shadcn primitives the page needs: Button, Card, Badge, Tabs, Accordion, in
+      `src/components/ui` with a barrel `index.ts`. Card, Badge, and Tabs are copied from
+      `apps/renderer/app/components/ui` verbatim; Button adds a site-only `brand` variant (and an `xl`
+      size) and points `link` at the accent; Accordion is new (the app has none) and follows the same
+      shadcn shape, with `accordion-up` / `accordion-down` keyframes added to the site's Tailwind config
+      since `tailwindcss-animate` is not used. `@radix-ui/react-accordion` was added as the one new
+      dependency; slot and tabs were already present at the root.
+      `eslint.config.js` now also exempts `src/components/ui/**/*.tsx` from `react-refresh`, matching the
+      existing exemption for the app's generated wrappers.
 - [x] Wire root scripts: `landing:dev`, `landing:build`, `landing:start`, `landing:lint`,
       `landing:typecheck`, `landing:verify-downloads`.
 - [x] Integration scope decided: the site is linted and typechecked through its own `landing:*` scripts
@@ -130,39 +138,86 @@ the static-server checks above.
 
 ## 4. Phase 2 — Assets
 
-- Trace an **SVG logo** from `devdesk-logo-top-left-transparent.png`: mark-only and wordmark variants,
-  light and dark.
-- Capture **5–7 product screenshots** at a fixed 1600x1000 window size: Projects, Command Vault,
-  Terminal, Containers, Engine search, Git workspace. Store under
-  `packages/landing/public/screenshots/` (directory committed; the `.gitignore` negation is already in
-  place, so avoid filenames matching `*Screenshot*.png` only outside that directory).
-- Optional but high value for a desktop tool: a 20–30s screen-recorded hero loop (mp4 + webm).
-- Generate favicons and a 1200x630 OG image from `build/icon.png`; consider extending
-  `scripts/generate-app-icons.mjs`.
+- [x] **SVG logo traced** from `devdesk-logo-top-left-transparent.png` / `build/icon.png`: the "D" built
+      from a top bar, a bottom bar with a corner stub, and a right curve, plus the terminal prompt
+      chevron and the green cursor block (`#33d02b`, sampled from the icon).
+      - `src/components/Logo.tsx` exports `LogoMark` (strokes use `currentColor`, so **one file covers
+        light and dark**) and `Wordmark` (mark plus "DevDesk" set in the site's own type, optionally in
+        the product icon tile). Setting the wordmark in live text instead of baked letterform outlines
+        keeps it selectable, accessible, and theme-aware.
+      - `public/logo-mark.svg` mirrors the component for `<img>`/favicon use;
+        `public/logo-mark-tile.svg` is the app-icon-parity tile (mark on `#0b1128`, with the
+        white → steel-blue gradient sampled from the raster icon).
+      - `viewBox` is `26 24 208 208` so the mark is optically centred rather than sitting in the corner
+        of a 0–256 box. Verified in a browser at both 32 px and full size, and in both themes.
+- [x] **Favicons and a 1200x630 OG image** generated from `build/icon.png` by
+      `packages/landing/scripts/generate-assets.mjs` (`npm run landing:assets`), which reuses the jimp +
+      png-to-ico toolchain already in `scripts/generate-app-icons.mjs` rather than extending it — the app
+      icon script writes app/runtime copies, this one writes web collateral.
+      Outputs: `favicon.ico` (16/32/48 multi-size, 15 kB), `favicon-32/192/512.png`,
+      `apple-touch-icon.png` (180), `og-image.png` (1200x630, icon plus title, tagline, and trust line).
+      `public/site.webmanifest` and the `<head>` links in `index.html` are wired to them.
+- [x] **Asset verification**: `npm run landing:verify-assets` checks that every generated file and both
+      logo SVGs exist, that `og-image.png` is exactly 1200x630, and that each screenshot in the manifest
+      exists at exactly 1600x1000. It reports and exits 0 by default; `-- --strict` exits 1 (use it in the
+      pre-ship check once screenshots exist).
+- [ ] **Capture 5–7 product screenshots** at a fixed 1600x1000 window size: Projects, Command Vault,
+      Terminal, Containers, Engine search, Git workspace. **Blocked on a human**: this needs the app
+      running with real, presentable data (no private paths, tokens, or repo names), which is a judgement
+      call, not something to synthesise. Everything around it is ready:
+      - `src/config/screenshots.ts` is the manifest — id, file name, `src`, required alt text, and the
+        exact view to capture for each of the seven shots (six app tabs + git), with `projects`
+        flagged as the hero image.
+      - `scripts/capture-screenshot.ps1` does the mechanical part on Windows: finds the DevDesk window
+        (matching process name *and* title, so an editor with "DevDesk" in its title cannot be captured by
+        mistake), resizes it so the **client** area is exactly 1600x1000, focuses it, waits for the UI to
+        settle, and writes `public/screenshots/<id>.png`.
+      - Procedure: `npm run dev`, open the target tab, then
+        `powershell -File packages/landing/scripts/capture-screenshot.ps1 -Id projects` (repeat per id),
+        then `npm run landing:verify-assets`. Requires 100% display scaling and a screen larger than
+        1600x1000; the script warns if the window was clamped.
+- [ ] Optional but high value for a desktop tool: a 20–30s screen-recorded hero loop (mp4 + webm), stored
+      under `public/media/` (already allowed by the `.gitignore` negation).
 
-## 5. Phase 3 — Page structure
+## 5. Phase 3 — Page structure (implemented)
 
-Single scrolling page.
+Single scrolling page composed in `src/App.tsx`. Section components live under `src/sections/`;
+copy and feature lists live under `src/config/content.ts` so the page cannot claim something the
+app does not do. Copy is derived from `Readme.md`, `apps/renderer/app/lib/appShell.ts`, and
+`docs/install.md`.
 
-1. **Nav** — logo, Features, Download, Docs, GitHub, theme toggle.
-2. **Hero** — headline from the Readme one-liner; sub-line on local-first and no-account; dual CTA
-   (Download for Windows / View on GitHub); Windows and Linux badges; hero screenshot or video.
-3. **Trust strip** — "Local-first. No account. No telemetry. No background daemons." (from
-   `AGENTS.md`) plus the MIT badge.
-4. **Feature sections** — mirror the app's own navigation
-   (`apps/renderer/app/lib/appShell.ts:7-14`): Projects, Commands, Engine, Containers, Terminal,
-   History. Alternating text/screenshot rows, each using the same lucide icon as the app.
-5. **Secondary feature grid** — Health checks, Bugs with context snapshots, Export/Import, Tray,
-   LLM context export, Cmd/Ctrl+K command palette.
-6. **How it works** — three steps: install, add projects, run commands.
-7. **Download** — per-platform cards with the exact artifact names
-   (`DevDesk-0.1.0-win-x64.exe`, `DevDesk-0.1.0-linux-x64.AppImage`, `.deb`), system requirements, and
-   the honest caveats from `docs/install.md:82-85`: Windows builds are unsigned (SmartScreen warning
-   expected), no auto-update channel, no macOS build, Docker installed separately.
-8. **Non-goals and FAQ** — reuse `Readme.md:109-111` (no cloud sync, no team collaboration, not an IDE
-   replacement) as an honesty section. FAQ covers privacy, Docker/WSL, where data lives
-   (`userData/devdesk.db`), and the macOS timeline.
-9. **Footer** — GitHub, licence, support contact path.
+1. [x] **Nav** (`sections/Nav.tsx`) — sticky glass header: `Wordmark`, Features / Download / Docs
+      anchors, GitHub icon, theme toggle. Docs opens the install guide on GitHub.
+2. [x] **Hero** (`sections/Hero.tsx`) — version + platform + MIT badges; headline and local-first
+      sub-line; dual CTA (primary download when any artifact is `available`, otherwise scroll-to-
+      download); hero screenshot via `Screenshot` (eager).
+3. [x] **Trust strip** (`sections/TrustStrip.tsx`) — Local-first / No account / No telemetry /
+      MIT licensed, each with a one-line detail.
+4. [x] **Feature sections** (`sections/Features.tsx`) — seven alternating text/screenshot rows
+      mirroring the app nav (Projects, Commands, Engine, Containers, Terminal, History) plus the
+      git workspace, each using the same lucide icon as the app.
+5. [x] **Secondary feature grid** (`sections/SecondaryFeatures.tsx`) — Health checks, Bugs with
+      context snapshots, Export/Import, Tray, LLM context export, Cmd/Ctrl+K command palette.
+6. [x] **How it works** (`sections/HowItWorks.tsx`) — three steps: install, add projects, run
+      commands.
+7. [x] **Download** (`sections/Download.tsx`) — per-platform cards with the exact artifact names,
+      system requirements, and the honest caveats from `docs/install.md:80-85`. Availability is
+      **per-artifact** (`available` on each entry in `src/config/site.ts`) so Windows can ship
+      while Linux is still building. Banner only shows when nothing is live.
+8. [x] **Non-goals and FAQ** (`sections/Honesty.tsx`) — non-goals from `Readme.md:109-111` as an
+      honesty list; FAQ accordion covers privacy, data location, Docker/WSL, unsigned Windows
+      installer, macOS timeline, and no auto-update.
+9. [x] **Footer** (`sections/Footer.tsx`) — product / project / support columns, licence, support
+      contact path (`siteMeta.supportUrl` → GitHub issues).
+
+Supporting pieces for the page:
+
+- `src/components/Screenshot.tsx` — 16:10 frame with labelled fallback when the PNG is missing
+  (so layout is identical before and after capture). Server returns a real 404 for missing files
+  with extensions (not SPA HTML), so `onError` fires reliably.
+- `src/hooks/useTheme.ts` — dark default, persisted toggle.
+- Desktop-first styling with basic `md:` breakpoints already applied; the full 390/768/1440 pass
+  is Phase 4.
 
 ## 6. Phase 4 — Polish and ship
 
@@ -189,24 +244,24 @@ Single scrolling page.
 | Step | Output | Status |
 | ---- | ------ | ------ |
 | 0 | Phase 0 decisions answered and their follow-on work implemented | done |
-| 1 | Scaffold builds; tokens match the app | done (shadcn primitives deferred to Phase 3) |
-| 2 | SVG logo and screenshots committed | pending (directory + gitignore negation ready) |
-| 3 | Full page, desktop-only styling | pending |
-| 4 | Responsive, SEO, accessibility, Railway deploy | pending (Railway config + server ready) |
+| 1 | Scaffold builds; tokens match the app | done |
+| 2 | SVG logo and screenshots committed | logo, favicons, and OG image done; screenshot capture pending (needs the app running with real data) |
+| 3 | Full page, desktop-only styling | done |
+| 4 | Responsive, SEO, accessibility, Railway deploy | pending (Railway config + server ready; dark default + reduced-motion already in) |
 
 ## 8. Risks
 
-- **Screenshots are the critical path.** Roughly 60% of the page is imagery, so capture them early; the
-  layout cannot be finalised without real dimensions. *Mitigated:* `.gitignore` now negates
-  `packages/landing/public/screenshots/**` and `.../public/media/**`, and the directory is committed with
-  the expected filenames documented.
-- **GitHub Release must exist before the download section is truthful.** *Partly mitigated:* every URL
-  derives from `packages/landing/src/config/site.ts`, gated by `releasePublished`, and
-  `npm run landing:verify-downloads` fails until all three assets resolve. **Open:** the `v0.1.0`
-  release has the Windows installer but neither Linux artifact, and `releasePublished` is a single
-  all-or-nothing flag — so the working Windows download is currently suppressed too. Before Phase 3,
-  either upload `DevDesk-0.1.0-linux-x64.AppImage` and `.deb` to the existing release, or change the
-  gate to per-artifact availability so Windows can ship first and Linux renders a "coming soon" state.
+- **Screenshots are the critical path** and the only Phase 2 item still open. Roughly 60% of the page is
+  imagery, and Phase 3 layout cannot be finalised without real images. *Partly mitigated:* dimensions are
+  fixed at 1600x1000 in `src/config/screenshots.ts`, `.gitignore` negates
+  `packages/landing/public/screenshots/**` and `.../public/media/**`, capture is scripted
+  (`scripts/capture-screenshot.ps1`), and `landing:verify-assets` enforces presence and size. What remains
+  is a human running the app with presentable data.
+- **GitHub Release must exist before the download section is truthful.** *Mitigated:* every URL
+  derives from `packages/landing/src/config/site.ts` with a **per-artifact** `available` flag, so
+  Windows can ship while Linux still shows "Not published yet". `npm run landing:verify-downloads`
+  fails only when a claimed-available asset is missing, and reminds you to flip the flag when a
+  previously-unavailable asset comes online.
 - **Railway serves static output via a running process**, unlike Pages/Vercel. *Mitigated:*
   `server.mjs` binds `process.env.PORT` on `0.0.0.0`, `railway.json` pins the build/start commands and a
   `/healthz` check, and both were verified locally.

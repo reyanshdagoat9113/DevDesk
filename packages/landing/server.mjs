@@ -73,8 +73,18 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // Single-page site: unknown paths fall back to index.html.
-  const file = (await resolveFile(req.url ?? '/')) ?? path.join(distDir, 'index.html')
+  const requested = await resolveFile(req.url ?? '/')
+
+  // Single-page site: unknown *routes* fall back to index.html, but a request that names a
+  // file (anything with an extension) must 404 honestly — otherwise missing images and OG
+  // assets silently return HTML.
+  const looksLikeFile = /\.[a-z0-9]+$/i.test((req.url ?? '/').split('?')[0])
+  if (!requested && looksLikeFile) {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Not Found')
+    return
+  }
+
+  const file = requested ?? path.join(distDir, 'index.html')
   const ext = path.extname(file).toLowerCase()
 
   try {

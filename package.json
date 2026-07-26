@@ -65,7 +65,9 @@
     "landing:start": "npm --workspace @devdesk/landing run start",
     "landing:lint": "npm --workspace @devdesk/landing run lint",
     "landing:typecheck": "npm --workspace @devdesk/landing run typecheck",
-    "landing:verify-downloads": "npm --workspace @devdesk/landing run verify-downloads"
+    "landing:verify-downloads": "npm --workspace @devdesk/landing run verify-downloads",
+    "landing:assets": "npm --workspace @devdesk/landing run assets",
+    "landing:verify-assets": "npm --workspace @devdesk/landing run verify-assets"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

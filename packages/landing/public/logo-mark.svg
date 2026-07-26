@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="26 24 208 208" width="256" height="256" role="img" aria-label="DevDesk">
+  <title>DevDesk</title>
+  <!--
+    Vector trace of apps/renderer/assets/devdesk-logo-top-left-transparent.png:
+    a "D" built from a top bar, a bottom bar with a corner stub, and a right curve,
+    with a terminal prompt chevron and a green cursor block inside.
+    The strokes use currentColor so one file serves both themes; the cursor keeps
+    the fixed brand green (#33d02b) sampled from build/icon.png.
+  -->
+  <g fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M48 44h92" />
+    <path d="M140 44c48 0 72 38 72 84s-24 84-72 84H48" />
+    <path d="M48 212v-34" />
+    <path d="M48 78l46 38-46 38" />
+  </g>
+  <rect x="96" y="131" width="44" height="22" rx="7" fill="#33d02b" />
+</svg>

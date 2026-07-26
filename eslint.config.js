@@ -26,7 +26,7 @@ module.exports = [
     },
   },
   {
-    files: ['apps/renderer/app/components/ui/**/*.tsx'],
+    files: ['apps/renderer/app/components/ui/**/*.tsx', 'src/components/ui/**/*.tsx'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

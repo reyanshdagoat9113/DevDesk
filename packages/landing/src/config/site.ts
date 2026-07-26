@@ -2,9 +2,9 @@
  * Single source of truth for outbound links and download artifacts.
  *
  * Decision 1 of docs/landing-page-plan.md: the primary CTA is a real download served
- * from GitHub Releases. Until the 0.1.0 release assets are uploaded, keep
- * `releasePublished` false — download UI must render an unavailable state rather than
- * link to a 404.
+ * from GitHub Releases. Availability is per-artifact so Windows can ship while Linux
+ * is still building. Flip each `available` only after that URL returns 200 —
+ * verify with: npm run landing:verify-downloads
  */
 
 export const GITHUB_OWNER = 'reyanshdagoat9113'
@@ -18,12 +18,6 @@ export const APP_VERSION = '0.1.0'
 export const RELEASE_TAG = `v${APP_VERSION}`
 export const RELEASE_URL = `${GITHUB_URL}/releases/tag/${RELEASE_TAG}`
 
-/**
- * Flip to true only once the release exists and every asset below resolves.
- * Verify with: npm run landing:verify-downloads
- */
-export const releasePublished = false
-
 const assetUrl = (fileName: string) =>
   `${GITHUB_URL}/releases/download/${RELEASE_TAG}/${fileName}`
 
@@ -36,6 +30,11 @@ export type DownloadArtifact = {
   /** Exact electron-builder artifact name (see build.artifactName in root package.json). */
   fileName: string
   url: string
+  /**
+   * True only when this specific asset is live on the release. Independent of the other
+   * artifacts so platforms can land one at a time.
+   */
+  available: boolean
   /** Honest caveats from docs/install.md:80-85. */
   notes: string[]
 }
@@ -47,6 +46,7 @@ export const downloads: DownloadArtifact[] = [
     label: 'Windows 10/11 (x64) installer',
     fileName: `DevDesk-${APP_VERSION}-win-x64.exe`,
     url: assetUrl(`DevDesk-${APP_VERSION}-win-x64.exe`),
+    available: false,
     notes: [
       'Unsigned build — Windows SmartScreen will warn; choose More info → Run anyway.',
       'No auto-update channel in the beta.',
@@ -58,6 +58,7 @@ export const downloads: DownloadArtifact[] = [
     label: 'Linux (x64) AppImage',
     fileName: `DevDesk-${APP_VERSION}-linux-x64.AppImage`,
     url: assetUrl(`DevDesk-${APP_VERSION}-linux-x64.AppImage`),
+    available: false,
     notes: ['Run chmod +x on the file before launching.'],
   },
   {
@@ -66,9 +67,19 @@ export const downloads: DownloadArtifact[] = [
     label: 'Linux (x64) .deb',
     fileName: `DevDesk-${APP_VERSION}-linux-x64.deb`,
     url: assetUrl(`DevDesk-${APP_VERSION}-linux-x64.deb`),
+    available: false,
     notes: ['Install with sudo dpkg -i <file>.'],
   },
 ]
+
+/** True when at least one installer is live — drives the hero CTA and the banner. */
+export const anyDownloadAvailable = downloads.some((item) => item.available)
+
+/** Preferred hero CTA target (Windows first, then any available artifact). */
+export const primaryDownload =
+  downloads.find((item) => item.platform === 'windows' && item.available) ??
+  downloads.find((item) => item.available) ??
+  null
 
 /** No macOS build in this beta (build.mac.target is empty). */
 export const macAvailable = false
