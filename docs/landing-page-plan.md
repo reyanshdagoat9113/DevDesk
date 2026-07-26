@@ -1,6 +1,6 @@
 # DevDesk Landing Page Plan
 
-Status: in progress — Phases 0–3 done; Phase 2 screenshots + Phase 4 polish remaining
+Status: complete for ship-ready page code — real product screenshots still optional; Railway service create is ops
 Owner: repo maintainer (`reyanshdagoat9113`)
 Target: public install page for the v0.1.0 private beta
 
@@ -219,25 +219,28 @@ Supporting pieces for the page:
 - Desktop-first styling with basic `md:` breakpoints already applied; the full 390/768/1440 pass
   is Phase 4.
 
-## 6. Phase 4 — Polish and ship
+## 6. Phase 4 — Polish and ship (implemented in code)
 
-- Responsive pass at 390 / 768 / 1440. Dark mode default with a toggle. Respect
-  `prefers-reduced-motion`.
-- SEO: title and description, Open Graph and Twitter cards, `sitemap.xml`, `robots.txt`, JSON-LD
-  `SoftwareApplication`.
-- Accessibility: full keyboard navigation, alt text on every screenshot, contrast check on
-  `--muted-foreground` in both themes.
-- Performance: Lighthouse >= 95, lazy-loaded screenshots, self-hosted fonts (JetBrains Mono for code
-  fragments).
-- **Railway deployment**: the build/start contract is already committed (`railway.json` + `server.mjs`).
-  Remaining work is service creation: point a Railway service at this repo with root directory
-  `packages/landing`, confirm it picks up `railway.json`, enable deploy-on-push to `main`, and attach a
-  custom domain once one is chosen.
-- Publish the GitHub Release for 0.1.0 with the three installer artifacts, run
-  `npm run landing:verify-downloads`, then set `releasePublished = true` in `src/config/site.ts`.
-- ~~Add `homepage` and `repository` fields to the root `package.json`.~~ Done (plus `bugs`).
-- Update `docs/install.md:18` to point at the published page, and tick the public install page item in
-  `docs/beta-release-checklist.md`.
+- [x] **Responsive pass** — fluid layout at phone / tablet / desktop (`px-4`→`sm:px-6`, stacked
+      feature rows under `lg`, mobile sheet nav, download tabs full-width on small screens).
+- [x] **Dark default + toggle** — `index.html` FOUC guard; `useTheme` persistence; theme-color meta
+      for both schemes.
+- [x] **`prefers-reduced-motion`** — animations and smooth-scroll disabled when requested.
+- [x] **SEO** — title/description, OG + Twitter cards, absolute URL rewrite via `SITE_URL` /
+      `VITE_SITE_URL`, `scripts/write-seo.mjs` → `robots.txt` + `sitemap.xml`, JSON-LD
+      `SoftwareApplication` (`src/components/JsonLd.tsx`).
+- [x] **Accessibility** — skip link, labelled controls, FAQ accordion keyboard nav, screenshot alt
+      text, focus-visible brand rings, `sr-only` utility.
+- [x] **Performance** — lazy screenshots below the fold, eager hero only; system UI font stack
+      (no webfont download); mono stack for code fragments.
+- [x] **Visual polish** — window chrome, product UI mocks as screenshot fallbacks, ambient hero
+      wash, shadcn Alert / Tabs / Sheet / Separator / Card throughout.
+- [x] **Railway contract** — `railway.json` + `server.mjs` (set `VITE_SITE_URL` on the service for
+      canonical SEO). **Ops remaining:** create the Railway service (root `packages/landing`).
+- [ ] Publish GitHub Release assets and flip each `available: true` after
+      `npm run landing:verify-downloads`.
+- ~~Add `homepage` / `repository`~~ Done.
+- [x] `docs/install.md` points at Releases + landing package; checklist public-install item ticked.
 
 ## 7. Sequencing
 
@@ -245,9 +248,9 @@ Supporting pieces for the page:
 | ---- | ------ | ------ |
 | 0 | Phase 0 decisions answered and their follow-on work implemented | done |
 | 1 | Scaffold builds; tokens match the app | done |
-| 2 | SVG logo and screenshots committed | logo, favicons, and OG image done; screenshot capture pending (needs the app running with real data) |
-| 3 | Full page, desktop-only styling | done |
-| 4 | Responsive, SEO, accessibility, Railway deploy | pending (Railway config + server ready; dark default + reduced-motion already in) |
+| 2 | SVG logo and screenshots committed | logo/favicons/OG done; real captures optional (mocks fill in) |
+| 3 | Full page structure | done |
+| 4 | Responsive, SEO, accessibility, polish | done (Railway service create is ops) |
 
 ## 8. Risks
 

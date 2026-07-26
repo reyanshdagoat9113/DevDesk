@@ -11,6 +11,16 @@ export const GITHUB_OWNER = 'reyanshdagoat9113'
 export const GITHUB_REPO = 'DevDesk'
 export const GITHUB_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`
 
+/**
+ * Canonical public origin for absolute SEO / OG URLs.
+ * Set VITE_SITE_URL on the Railway service (e.g. https://devdesk.example.com).
+ * Falls back to the GitHub repo URL so crawlers still get an absolute path.
+ */
+export const SITE_URL = (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SITE_URL) ||
+  GITHUB_URL
+).replace(/\/$/, '')
+
 /** Product version the page advertises. Keep in sync with the root package.json. */
 export const APP_VERSION = '0.1.0'
 

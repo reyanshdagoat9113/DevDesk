@@ -15,7 +15,7 @@
 
 ### Windows
 
-1. Download `DevDesk-<version>-win-x64.exe` from the release channel used by your team.
+1. Download `DevDesk-<version>-win-x64.exe` from [GitHub Releases](https://github.com/reyanshdagoat9113/DevDesk/releases) (or the public install page once the `packages/landing` site is deployed).
 2. Run the installer. You may see a **SmartScreen** warning because beta builds are **unsigned** — use “More info” → “Run anyway” only if you trust the build source.
 3. Launch **DevDesk** from the Start Menu or desktop shortcut.
 4. Optional portable-style test without installing: run `DevDesk.exe` from an unpacked `win-unpacked` directory.

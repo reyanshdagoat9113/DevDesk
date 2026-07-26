@@ -1,3 +1,4 @@
+import { JsonLd } from './components/JsonLd'
 import { Download } from './sections/Download'
 import { Features } from './sections/Features'
 import { Footer } from './sections/Footer'
@@ -12,8 +13,9 @@ import { TrustStrip } from './sections/TrustStrip'
 export function App() {
   return (
     <>
+      <JsonLd />
       <Nav />
-      <main>
+      <main id="main">
         <Hero />
         <TrustStrip />
         <Features />

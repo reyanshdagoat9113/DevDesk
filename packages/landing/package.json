@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/write-seo.mjs && vite build",
     "preview": "vite preview",
     "start": "node server.mjs",
     "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" --config ../../eslint.config.js",
@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "class-variance-authority": "^0.7.1",
