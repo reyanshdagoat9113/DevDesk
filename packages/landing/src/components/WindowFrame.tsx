@@ -7,22 +7,31 @@ type WindowFrameProps = {
   className?: string
   /** Optional title shown in the chrome bar. */
   title?: string
+  /** Classes applied to the content body (below the caption bar). */
+  bodyClassName?: string
 }
 
 /**
  * Desktop-app chrome around product imagery / mocks.
  * Windows-style caption controls (not macOS traffic lights) — DevDesk ships Win + Linux only.
  */
-export function WindowFrame({ children, className, title = 'DevDesk' }: WindowFrameProps) {
+export function WindowFrame({
+  children,
+  className,
+  title = 'DevDesk',
+  bodyClassName,
+}: WindowFrameProps) {
   return (
     <div
       className={cn(
-        'group relative overflow-hidden rounded-lg border border-border/60 bg-card shadow-2xl shadow-black/20',
-        'ring-1 ring-black/5 dark:shadow-black/60 dark:ring-white/5',
+        'group relative overflow-hidden rounded-lg border border-border/70 bg-card',
+        // Ring must invert per theme: a white ring on the light card is invisible.
+        'shadow-2xl shadow-black/25 ring-1 ring-black/5',
+        'dark:shadow-black/70 dark:ring-white/10',
         className,
       )}
     >
-      <div className="flex h-9 items-center border-b border-border/50 bg-muted/40 pl-3">
+      <div className="flex h-9 shrink-0 items-center border-b border-border/50 bg-muted/40 pl-3">
         <div className="min-w-0 flex-1">
           <span className="truncate text-[11px] font-medium text-muted-foreground">{title}</span>
         </div>
@@ -41,7 +50,7 @@ export function WindowFrame({ children, className, title = 'DevDesk' }: WindowFr
           </span>
         </div>
       </div>
-      <div className="aspect-[16/10]">{children}</div>
+      <div className={cn('aspect-[16/10]', bodyClassName)}>{children}</div>
     </div>
   )
 }

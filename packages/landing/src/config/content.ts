@@ -11,6 +11,7 @@ import {
   PanelTop,
   Search,
   Sparkles,
+  StickyNote,
   Terminal,
   type LucideIcon,
 } from 'lucide-react'
@@ -30,12 +31,16 @@ export type FeatureRow = {
   body: string
   bullets: string[]
   icon: LucideIcon
+  /**
+   * When false, render copy only (no screenshot). Used when the hero already
+   * shows the same capture (Projects).
+   */
+  showScreenshot?: boolean
 }
 
 /**
- * Primary feature rows mirror the app's own navigation (Projects, Commands, Engine,
- * Containers, Terminal, History) and use the same lucide icon for each, plus the git
- * workspace, which lives inside the Projects area rather than the tab bar.
+ * Primary feature rows mirror the app's own navigation. Git lives in SecondaryFeatures
+ * (commodity UI). Projects is copy-only because the hero already uses that shot.
  */
 export const featureRows: FeatureRow[] = [
   {
@@ -49,6 +54,7 @@ export const featureRows: FeatureRow[] = [
       'Project type detection and per-project health checks',
     ],
     icon: FolderKanban,
+    showScreenshot: false,
   },
   {
     id: 'commands',
@@ -110,18 +116,6 @@ export const featureRows: FeatureRow[] = [
     ],
     icon: History,
   },
-  {
-    id: 'git',
-    eyebrow: 'Git workspace',
-    title: 'See the state of the tree at a glance',
-    body: 'Branch, staged and unstaged changes, and per-file diffs for the selected project — enough to know where you left off before you open an editor.',
-    bullets: [
-      'Current branch and working-tree status',
-      'Staged and unstaged changes side by side',
-      'Per-file diff view',
-    ],
-    icon: GitBranch,
-  },
 ]
 
 export const featureScreenshot = (id: ScreenshotId) => {
@@ -138,6 +132,11 @@ export type SecondaryFeature = {
 
 export const secondaryFeatures: SecondaryFeature[] = [
   {
+    title: 'Git workspace',
+    body: 'Branch, staged and unstaged changes, and per-file diffs for the selected project — enough to know where you left off.',
+    icon: GitBranch,
+  },
+  {
     title: 'Health checks',
     body: 'Project and environment checks with history, so you can see when something started failing.',
     icon: Heart,
@@ -146,6 +145,11 @@ export const secondaryFeatures: SecondaryFeature[] = [
     title: 'Bugs with context snapshots',
     body: 'Capture a bug together with the surrounding context and attachments instead of a bare note.',
     icon: Bug,
+  },
+  {
+    title: 'Project notes',
+    body: 'Keep the scratch notes for a project attached to the project, not lost in another app.',
+    icon: StickyNote,
   },
   {
     title: 'Export and import',

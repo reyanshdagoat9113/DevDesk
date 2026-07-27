@@ -32,8 +32,10 @@ export function Hero() {
 
           <h1 className="text-balance text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
             One workspace for the{' '}
-            <span className="text-gradient">projects, commands, and containers</span> you already
-            have
+            <span className="bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
+              projects, commands, and containers
+            </span>{' '}
+            you already have
           </h1>
 
           <p className="max-w-2xl text-pretty text-base text-muted-foreground sm:text-lg">

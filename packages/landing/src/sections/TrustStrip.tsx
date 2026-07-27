@@ -11,7 +11,7 @@ const claims = [
 
 export function TrustStrip() {
   return (
-    <section aria-label="What DevDesk does not do" className="border-y border-border/40 bg-muted/20">
+    <section aria-label="How DevDesk handles your data" className="border-y border-border/40 bg-muted/20">
       <ul className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-0 px-4 sm:px-6 lg:grid-cols-4">
         {claims.map(({ icon: Icon, label, detail }, index) => (
           <li key={label} className="relative flex items-start gap-3 px-2 py-6 sm:px-4 sm:py-8">

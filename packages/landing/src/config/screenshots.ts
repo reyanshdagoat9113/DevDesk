@@ -26,6 +26,8 @@ export type ScreenshotId =
 
 export type Screenshot = {
   id: ScreenshotId
+  /** Short label for window chrome / lightbox title. */
+  label: string
   /** File name inside public/screenshots/. */
   file: string
   src: string
@@ -39,11 +41,13 @@ export type Screenshot = {
 
 const shot = (
   id: ScreenshotId,
+  label: string,
   alt: string,
   capture: string,
   hero = false,
 ): Screenshot => ({
   id,
+  label,
   file: `${id}.png`,
   src: `${SCREENSHOT_DIR}/${id}.png`,
   alt,
@@ -54,37 +58,44 @@ const shot = (
 export const screenshots: Screenshot[] = [
   shot(
     'projects',
+    'Projects',
     'DevDesk Projects view listing local repositories with their git branch, health status, and quick actions.',
     'Projects tab with 4-6 projects added, one selected.',
     true,
   ),
   shot(
     'commands',
+    'Command Vault',
     'DevDesk Command Vault showing saved commands with variables, presets, and a chain ready to run.',
     'Commands tab with a preset expanded and a chain visible.',
   ),
   shot(
     'terminal',
+    'Terminal',
     'An embedded DevDesk terminal running a project command with live output.',
     'Terminal tab with one session running a build command.',
   ),
   shot(
     'containers',
+    'Containers',
     'DevDesk Containers view listing Docker containers with status, ports, and start/stop controls.',
     'Containers tab with at least two containers, one running.',
   ),
   shot(
     'engine',
+    'Engine',
     'DevDesk local code search returning ranked matches across a project with file paths and line previews.',
     'Engine tab after a search that returns several ranked results.',
   ),
   shot(
     'history',
+    'History',
     'DevDesk run history listing past command runs with exit status, duration, and captured output.',
     'History tab with several past runs, one expanded to show its output.',
   ),
   shot(
     'git',
+    'Git workspace',
     'DevDesk git workspace showing branch, staged and unstaged changes, and a diff for the selected file.',
     'Git workspace panel with staged and unstaged changes present.',
   ),

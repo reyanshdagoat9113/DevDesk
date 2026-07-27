@@ -20,7 +20,7 @@ export function SecondaryFeatures() {
           </h2>
         </div>
 
-        <ul className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {secondaryFeatures.map(({ title, body, icon: Icon }) => (
             <li key={title}>
               <Card className="h-full border-border/50 bg-card/80 transition-colors hover:border-brand/30 hover:bg-card">

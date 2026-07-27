@@ -13,9 +13,9 @@ import { faq, nonGoals } from '@/config/content'
 
 export function Honesty() {
   return (
-    <section aria-labelledby="honesty" className="border-t border-border/40">
+    <section aria-label="Scope and questions" className="border-t border-border/40">
       <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 py-16 sm:gap-16 sm:px-6 sm:py-24 lg:grid-cols-2">
-        <div>
+        <div role="region" aria-labelledby="honesty">
           <Badge variant="outline" className="mb-4">
             Honest about scope
           </Badge>
@@ -46,11 +46,14 @@ export function Honesty() {
           </ul>
         </div>
 
-        <div>
+        <div role="region" aria-labelledby="faq-heading">
           <Badge variant="outline" className="mb-4">
             FAQ
           </Badge>
-          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h2
+            id="faq-heading"
+            className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl"
+          >
             Questions
           </h2>
 
