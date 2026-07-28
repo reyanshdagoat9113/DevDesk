@@ -56,7 +56,7 @@ export const downloads: DownloadArtifact[] = [
     label: 'Windows 10/11 (x64) installer',
     fileName: `DevDesk-${APP_VERSION}-win-x64.exe`,
     url: assetUrl(`DevDesk-${APP_VERSION}-win-x64.exe`),
-    available: false,
+    available: true,
     notes: [
       'Unsigned build — Windows SmartScreen will warn; choose More info → Run anyway.',
       'No auto-update channel in the beta.',
