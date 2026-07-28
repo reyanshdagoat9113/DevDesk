@@ -20,7 +20,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('projects', 'commands', 'engine', 'containers', 'terminal', 'history', 'git')]
+  [ValidateSet('projects', 'commands', 'engine', 'containers', 'terminal', 'history')]
   [string]$Id,
 
   # Seconds to wait after focusing the window, so hover states and animations settle.

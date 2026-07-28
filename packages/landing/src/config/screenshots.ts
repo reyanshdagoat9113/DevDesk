@@ -6,9 +6,14 @@
  *   - Real but presentable data; no personal paths, tokens, or private repo names.
  *   - PNG, stored in packages/landing/public/screenshots/ under the `file` name below.
  *
+ * Regenerate every shot with `npm run landing:shots`, which renders the real renderer
+ * bundle against fixtures (packages/landing/scripts/screenshots/). Do not hand-edit or
+ * composite these PNGs: earlier versions were assembled by hand and shipped with
+ * overlapping panels and half-clipped chrome.
+ *
  * `npm run landing:verify-assets` checks presence and dimensions.
- * `section` maps each shot to the feature row that consumes it, mirroring the app's own
- * navigation in apps/renderer/app/lib/appShell.ts.
+ * Each id maps to the feature row that consumes it, mirroring the app's own navigation
+ * in apps/renderer/app/lib/appShell.ts.
  */
 
 export const SCREENSHOT_WIDTH = 1600
@@ -22,7 +27,6 @@ export type ScreenshotId =
   | 'containers'
   | 'terminal'
   | 'history'
-  | 'git'
 
 export type Screenshot = {
   id: ScreenshotId
@@ -92,12 +96,6 @@ export const screenshots: Screenshot[] = [
     'History',
     'DevDesk run history listing past command runs with exit status, duration, and captured output.',
     'History tab with several past runs, one expanded to show its output.',
-  ),
-  shot(
-    'git',
-    'Git workspace',
-    'DevDesk git workspace showing branch, staged and unstaged changes, and a diff for the selected file.',
-    'Git workspace panel with staged and unstaged changes present.',
   ),
 ]
 

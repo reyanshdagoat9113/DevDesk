@@ -1,7 +1,6 @@
 import {
   Container,
   FolderKanban,
-  GitBranch,
   History,
   Monitor,
   Search,
@@ -33,7 +32,7 @@ const nav = [
  * Layout mirrors the product shell; data is illustrative demo content only.
  */
 export function ProductMock({ id, className, label }: ProductMockProps) {
-  const active = id === 'git' ? 'projects' : id
+  const active = id
 
   return (
     <div
@@ -74,7 +73,7 @@ export function ProductMock({ id, className, label }: ProductMockProps) {
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex h-10 items-center justify-between border-b border-border/60 px-3 sm:px-4">
           <span className="truncate text-xs font-medium capitalize text-muted-foreground">
-            {id === 'git' ? 'Git workspace' : id}
+            {id}
           </span>
           <div className="flex items-center gap-1.5" aria-hidden="true">
             <span className="hidden size-1.5 rounded-full bg-muted-foreground/40 sm:block" />
@@ -102,8 +101,6 @@ function renderPane(id: ScreenshotId) {
       return <TerminalPane />
     case 'history':
       return <HistoryPane />
-    case 'git':
-      return <GitPane />
   }
 }
 
@@ -301,33 +298,5 @@ function HistoryPane() {
         </li>
       ))}
     </ul>
-  )
-}
-
-function GitPane() {
-  return (
-    <div className="grid h-full gap-2 sm:grid-cols-2">
-      <div className="flex flex-col gap-2 rounded-lg border border-border/50 bg-card/50 p-3">
-        <div className="flex items-center gap-1.5 text-xs font-medium">
-          <GitBranch className="size-3.5 text-brand" aria-hidden="true" />
-          feat/landing
-        </div>
-        <p className="text-[10px] text-muted-foreground">Staged</p>
-        <ul className="space-y-1 font-mono text-[10px] text-emerald-400/90">
-          <li>M packages/landing/src/App.tsx</li>
-          <li>A packages/landing/src/sections/Hero.tsx</li>
-        </ul>
-        <p className="text-[10px] text-muted-foreground">Unstaged</p>
-        <ul className="space-y-1 font-mono text-[10px] text-amber-300/90">
-          <li>M docs/landing-page-plan.md</li>
-        </ul>
-      </div>
-      <div className="hidden flex-col overflow-hidden rounded-lg border border-border/50 bg-[#0a0a0a] p-3 font-mono text-[10px] leading-relaxed text-white/70 sm:flex">
-        <p className="text-white/40">{'@@ -12,6 +12,18 @@'}</p>
-        <p className="text-emerald-400/90">{'+ export function Hero() {'}</p>
-        <p className="text-emerald-400/90">{'+   return <section>…</section>'}</p>
-        <p className="text-emerald-400/90">{'+ }'}</p>
-      </div>
-    </div>
   )
 }
