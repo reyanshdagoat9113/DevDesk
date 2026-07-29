@@ -29,16 +29,18 @@ const MAX_ENGINE_OUTPUT_BYTES = 8 * 1024 * 1024
 function buildEngineNodePath(enginePath: string): string {
   const resourcesPath = typeof process.resourcesPath === 'string' ? process.resourcesPath : ''
   const nodePathEntries = [
+    // The packaged engine has its own dependency tree, including the native
+    // SQLite binding built for Electron. Prefer it over app-level or inherited
+    // module paths so a user's global NODE_PATH cannot select an incompatible
+    // better-sqlite3 binary.
+    path.join(path.dirname(enginePath), 'node_modules'),
     path.join(app.getAppPath(), 'node_modules'),
     resourcesPath ? path.join(resourcesPath, 'app.asar.unpacked', 'node_modules') : '',
-    path.join(path.dirname(enginePath), 'node_modules'),
   ]
 
-  return [
-    ...nodePathEntries,
-    process.env.NODE_PATH,
-  ]
+  return nodePathEntries
     .filter((entry): entry is string => Boolean(entry))
+    .filter((entry, index, entries) => entries.indexOf(entry) === index)
     .join(path.delimiter)
 }
 

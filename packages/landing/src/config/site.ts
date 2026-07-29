@@ -22,7 +22,7 @@ export const SITE_URL = (
 ).replace(/\/$/, '')
 
 /** Product version the page advertises. Keep in sync with the root package.json. */
-export const APP_VERSION = '0.1.0'
+export const APP_VERSION = '0.1.1'
 
 /** Git tag holding the installer assets. */
 export const RELEASE_TAG = `v${APP_VERSION}`

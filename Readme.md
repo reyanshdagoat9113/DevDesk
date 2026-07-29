@@ -1,7 +1,7 @@
 # DevDesk
 
 [![Release gate](https://github.com/reyanshdagoat9113/DevDesk/actions/workflows/release-gate.yml/badge.svg?branch=main)](https://github.com/reyanshdagoat9113/DevDesk/actions/workflows/release-gate.yml)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](docs/RELEASE-NOTES-0.1.0.md)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue)](docs/RELEASE-NOTES-0.1.1.md)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-lightgrey)](docs/install.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -31,7 +31,7 @@ Manual QA: [docs/manual-qa.md](docs/manual-qa.md).
 
 ### Release notes
 
-- [docs/RELEASE-NOTES-0.1.0.md](docs/RELEASE-NOTES-0.1.0.md)
+- [docs/RELEASE-NOTES-0.1.1.md](docs/RELEASE-NOTES-0.1.1.md)
 
 ### Docs map
 

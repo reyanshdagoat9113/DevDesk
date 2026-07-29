@@ -1,6 +1,6 @@
 # DevDesk release packaging
 
-Also see: [install.md](./install.md) · [RELEASE-NOTES-0.1.0.md](./RELEASE-NOTES-0.1.0.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [data-locations.md](./data-locations.md)
+Also see: [install.md](./install.md) · [RELEASE-NOTES-0.1.1.md](./RELEASE-NOTES-0.1.1.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [data-locations.md](./data-locations.md)
 
 ## Supported platforms (private beta)
 
