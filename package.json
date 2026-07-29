@@ -1,11 +1,22 @@
 {
   "name": "devdesk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A local-first Electron desktop app for developers",
+  "homepage": "https://github.com/reyanshdagoat9113/DevDesk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reyanshdagoat9113/DevDesk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/reyanshdagoat9113/DevDesk/issues"
+  },
   "main": "dist/main/index.js",
   "author": "DevDesk",
   "license": "MIT",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0 <25"
+  },
   "workspaces": [
     "packages/*"
   ],
@@ -16,8 +27,10 @@
     "pretest:run": "npm run rebuild:native:node",
     "dev": "npm run rebuild:native:electron && npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5180 && electron --enable-logging=false .\"",
     "dev:renderer": "vite",
+    "build:ipc-contracts": "npm --workspace @devdesk/ipc-contracts run build",
     "build:engine": "npm --workspace devdesk-engine run build:all",
-    "prebuild": "npm run build:engine",
+    "prebuild": "npm run build:ipc-contracts && npm run build:engine",
+    "pretypecheck": "npm run build:ipc-contracts",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "smoke:engine-packaged": "npm run rebuild:native && npm run build:main && node scripts/smoke-packaged-engine.mjs",
     "test": "vitest --config ./vitest.desktop.config.ts",
@@ -26,6 +39,11 @@
     "test:renderer:run": "vitest --config ./vitest.renderer.config.ts run",
     "test:engine": "npm run rebuild:native:node && npm --workspace devdesk-engine run test:run",
     "test:engine-ipc": "npm run rebuild:native:node && npm run build:engine && npx vitest --config ./vitest.engine.config.ts run",
+    "test:rust": "cargo test --locked --manifest-path packages/engine/rust/Cargo.toml",
+    "test:coverage:desktop": "vitest --config ./vitest.desktop.config.ts run --coverage",
+    "test:coverage:renderer": "vitest --config ./vitest.renderer.config.ts run --coverage",
+    "test:coverage:engine": "npm run rebuild:native:node && npm --workspace devdesk-engine run test:coverage",
+    "test:coverage": "npm run test:coverage:desktop && npm run test:coverage:renderer && npm run test:coverage:engine",
     "release:gate": "node scripts/release-gate.mjs",
     "icons:generate": "node scripts/generate-app-icons.mjs",
     "package:win:dir": "npm run rebuild:native:electron && npm run build && electron-builder --win dir",
@@ -41,7 +59,16 @@
     "lint:architecture": "node scripts/check-architecture.mjs",
     "test:production": "electron .",
     "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "landing:dev": "npm --workspace @devdesk/landing run dev",
+    "landing:build": "npm --workspace @devdesk/landing run build",
+    "landing:start": "npm --workspace @devdesk/landing run start",
+    "landing:lint": "npm --workspace @devdesk/landing run lint",
+    "landing:typecheck": "npm --workspace @devdesk/landing run typecheck",
+    "landing:verify-downloads": "npm --workspace @devdesk/landing run verify-downloads",
+    "landing:assets": "npm --workspace @devdesk/landing run assets",
+    "landing:verify-assets": "npm --workspace @devdesk/landing run verify-assets --",
+    "landing:shots": "npm run build:renderer && node packages/landing/scripts/capture-screenshots.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -62,6 +89,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "@devdesk/ipc-contracts": "workspace:*",
     "devdesk-engine": "workspace:*",
     "fast-glob": "^3.3.3",
     "fuse.js": "^7.3.0",
@@ -87,6 +115,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@typescript-eslint/parser": "^8.59.4",
     "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^1.6.1",
     "autoprefixer": "^10.5.0",
     "concurrently": "^9.2.1",
     "electron": "^33.4.11",
@@ -124,6 +153,9 @@
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "files": [
       "dist/**/*",
+      "!dist/**/*.test.js",
+      "!dist/**/*.test.d.ts",
+      "!dist/**/*.test.js.map",
       "node_modules/**/*",
       "package.json",
       "build/icon.png",
@@ -139,8 +171,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-      "signAndEditExecutable": false
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

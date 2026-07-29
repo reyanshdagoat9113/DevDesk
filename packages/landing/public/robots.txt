@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://github.com/reyanshdagoat9113/DevDesk/sitemap.xml

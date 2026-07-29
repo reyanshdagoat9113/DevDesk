@@ -268,7 +268,7 @@ export function HistorySection({
                           </span>
                           <span className={cn("h-2 w-2 rounded-full shrink-0", statusStyles[entry.status])} />
                         </div>
-                        <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground">
+                        <div className="flex w-full items-center justify-between gap-2 text-[11px] font-mono text-muted-foreground">
                           <span className="truncate">{getProjectName(entry.projectId)}</span>
                           <span className="shrink-0">
                             {new Date(entry.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -296,7 +296,7 @@ export function HistorySection({
                     </div>
                     <div className="flex items-center gap-2 text-[11px] font-mono bg-muted/20 w-fit px-2 py-0.5 rounded border border-border/20 text-muted-foreground">
                       <span>{getProjectName(selectedEntry.projectId)}</span>
-                      <span className="opacity-30">•</span>
+                      <span className="opacity-30" aria-hidden="true">·</span>
                       <span>{new Date(selectedEntry.startTime).toLocaleString()}</span>
                     </div>
                   </div>

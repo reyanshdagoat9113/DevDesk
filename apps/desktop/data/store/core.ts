@@ -542,3 +542,16 @@ export async function ensureDbInitialized(): Promise<void> {
 
   await initPromise
 }
+
+/** Test-only: install an isolated database handle as the process singleton. */
+export function __setDbForTests(database: Database.Database): void {
+  db = database
+  initPromise = Promise.resolve()
+}
+
+/** Test-only: clear the process singleton without closing the caller-owned handle. */
+export function __resetDbForTests(): void {
+  db = null
+  initPromise = null
+  writeQueue = Promise.resolve()
+}

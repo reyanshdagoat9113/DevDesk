@@ -3,6 +3,10 @@ dist/
 release/
 *.tsbuildinfo
 
+# Test coverage (collected; thresholds not enforced yet)
+coverage/
+packages/engine/coverage/
+
 # Dependencies
 node_modules/
 
@@ -23,6 +27,10 @@ Screenshot*.png
 *Screenshot*.png
 *.screenshot.png
 ChatGPT Image*.png
+
+# Landing-page media is product collateral and must be committed
+!packages/landing/public/screenshots/**
+!packages/landing/public/media/**
 
 # Claude Code local settings
 .claude/

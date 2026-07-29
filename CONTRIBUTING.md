@@ -6,6 +6,8 @@ Thanks for helping improve DevDesk.
 
 Clone this repository only. The performance engine is at `packages/engine` and is linked via the root npm workspace.
 
+Requires **Node.js 22.12–24** (default **22**; `.nvmrc`). Root and engine share one `better-sqlite3` v12 dependency.
+
 ```bash
 npm install
 npm run rebuild:native:electron

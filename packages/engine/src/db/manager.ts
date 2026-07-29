@@ -384,11 +384,12 @@ export class DatabaseManager {
   searchLike(query: string, limit: number = 100): FileRecord[] {
     const stmt = this.db.prepare(`
       SELECT * FROM files
-      WHERE content LIKE ? OR path LIKE ?
+      WHERE content LIKE ? ESCAPE '\\' OR path LIKE ? ESCAPE '\\'
       LIMIT ?
     `);
 
-    const pattern = `%${query}%`;
+    const escaped = query.replace(/([\\%_])/g, '\\$1')
+    const pattern = `%${escaped}%`;
     return stmt.all(pattern, pattern, limit) as FileRecord[];
   }
 
@@ -457,6 +458,7 @@ export class DatabaseManager {
     return new Set(rows.map((r) => normalizePath(r.path)));
   }
 
+  /** content_hash → path (last write wins). Prefer getPathHashMap for incremental identity. */
   getHashMap(): Map<string, string> {
     const rows = this.db.prepare('SELECT path, content_hash FROM files WHERE content_hash IS NOT NULL').all() as {
       path: string;
@@ -464,6 +466,16 @@ export class DatabaseManager {
     }[];
 
     return new Map(rows.map((r) => [r.content_hash, normalizePath(r.path)]));
+  }
+
+  /** path → content_hash — authoritative identity for incremental indexing. */
+  getPathHashMap(): Map<string, string | null> {
+    const rows = this.db.prepare('SELECT path, content_hash FROM files').all() as {
+      path: string;
+      content_hash: string | null;
+    }[];
+
+    return new Map(rows.map((r) => [normalizePath(r.path), r.content_hash]));
   }
 
   getPathsOlderThan(mtimeMs: number): string[] {

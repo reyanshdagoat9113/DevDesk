@@ -118,7 +118,93 @@ async function main() {
     const parsedStats = JSON.parse(statsResult.stdout)
     assert.equal(parsedStats.stats.totalFiles, 1)
 
+    // Functional Electron-native SQLite open/query (not layout-only). Resolve the
+    // module from the packaged engine explicitly: a temp probe's normal Node
+    // lookup can otherwise walk into a developer's parent-level node_modules
+    // and validate an unrelated native binary.
+    const sqliteProbe = path.join(tempRoot, 'sqlite-probe.cjs')
+    await writeFile(
+      sqliteProbe,
+      `
+const Database = require(${JSON.stringify(path.join(resourcesDir, 'engine', 'node_modules', 'better-sqlite3'))});
+const db = new Database(':memory:');
+const row = db.prepare('select 1 as value').get();
+if (!row || row.value !== 1) {
+  console.error('sqlite probe failed');
+  process.exit(2);
+}
+db.close();
+console.log('sqlite-ok');
+`,
+    )
+    const sqliteResult = await execFileAsync(electronBinaryPath, [sqliteProbe], {
+      env: childEnv,
+      shell: process.platform === 'win32' && electronBinaryPath.endsWith('.cmd'),
+    })
+    assert.match(sqliteResult.stdout, /sqlite-ok/)
+
+    // The desktop process uses child_process.fork() with the packaged Electron
+    // executable. Exercise that exact launch mode instead of only invoking the
+    // CLI directly; this catches an engine that is present but unavailable to
+    // the renderer through the main-process IPC bridge.
+    const launcherProbe = path.join(tempRoot, 'engine-launcher-probe.cjs')
+    await writeFile(
+      launcherProbe,
+      `
+const { fork } = require('node:child_process');
+const path = require('node:path');
+
+const enginePath = process.argv[2];
+const dbPath = process.argv[3];
+const resourcesPath = path.dirname(path.dirname(enginePath));
+const child = fork(enginePath, ['stats', '--db', dbPath], {
+  execPath: process.execPath,
+  silent: true,
+  env: {
+    ...process.env,
+    ELECTRON_RUN_AS_NODE: '1',
+    NODE_PATH: [
+      path.join(resourcesPath, 'app.asar', 'node_modules'),
+      path.join(resourcesPath, 'app.asar.unpacked', 'node_modules'),
+      path.join(resourcesPath, 'engine', 'node_modules'),
+    ].join(path.delimiter),
+  },
+});
+
+let stdout = '';
+let stderr = '';
+child.stdout.on('data', (chunk) => { stdout += chunk; });
+child.stderr.on('data', (chunk) => { stderr += chunk; });
+child.on('error', (error) => {
+  console.error(error.stack || error.message);
+  process.exitCode = 1;
+});
+child.on('close', (code) => {
+  if (code === 0) {
+    process.stdout.write(stdout);
+  } else {
+    console.error(stderr || 'engine launcher exited with code ' + code);
+    process.exitCode = 1;
+  }
+});
+`,
+    )
+    const launcherResult = await execFileAsync(electronBinaryPath, [launcherProbe, engineCliPath, dbPath], {
+      env: childEnv,
+      shell: process.platform === 'win32' && electronBinaryPath.endsWith('.cmd'),
+    })
+    const launcherStats = JSON.parse(launcherResult.stdout)
+    assert.equal(launcherStats.ok, true)
+    assert.equal(launcherStats.stats.totalFiles, 1)
+
+    // PTY: require native binary presence under asarUnpack (functional spawn varies by CI headless).
+    // Label: layout+native artifact evidence for node-pty; interactive terminal QA remains manual.
+    assert.ok(existsSync(asarUnpackedPty), 'node-pty asarUnpack missing')
+    const ptyPackageJson = path.join(asarUnpackedPty, 'package.json')
+    assert.ok(existsSync(ptyPackageJson), 'node-pty package.json missing in package')
+
     console.log(`${platform} package verification passed.`)
+    console.log(`  evidence: actual-package + engine-process + engine-fork + electron-native-sqlite`)
     console.log(`  unpacked: ${unpackedDir}`)
     console.log(`  engine: ${engineCliPath}`)
   } finally {

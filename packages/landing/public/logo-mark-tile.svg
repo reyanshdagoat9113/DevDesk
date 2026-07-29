@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="DevDesk">
+  <title>DevDesk</title>
+  <!-- App-icon parity tile: same mark as logo-mark.svg on the product icon background. -->
+  <defs>
+    <linearGradient id="devdesk-mark" x1="0.15" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#fefefe" />
+      <stop offset="0.5" stop-color="#e1ebf4" />
+      <stop offset="1" stop-color="#8db2d1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="56" fill="#0b1128" />
+  <g transform="translate(80 80) scale(1.375)">
+    <g fill="none" stroke="url(#devdesk-mark)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M48 44h92" />
+      <path d="M140 44c48 0 72 38 72 84s-24 84-72 84H48" />
+      <path d="M48 212v-34" />
+      <path d="M48 78l46 38-46 38" />
+    </g>
+    <rect x="96" y="131" width="44" height="22" rx="7" fill="#33d02b" />
+  </g>
+</svg>

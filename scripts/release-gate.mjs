@@ -17,6 +17,7 @@ const steps = [
   { name: 'typecheck', args: ['run', 'typecheck'] },
   { name: 'lint', args: ['run', 'lint'] },
   { name: 'lint:architecture', args: ['run', 'lint:architecture'] },
+  { name: 'test:rust', args: ['run', 'test:rust'] },
   { name: 'test:run', args: ['run', 'test:run'] },
   { name: 'test:renderer:run', args: ['run', 'test:renderer:run'] },
   { name: 'test:engine', args: ['run', 'test:engine'] },

@@ -1,0 +1,40 @@
+{
+  "name": "@devdesk/landing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/write-seo.mjs && vite build",
+    "preview": "vite preview",
+    "start": "node server.mjs",
+    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" --config ../../eslint.config.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify-downloads": "node scripts/verify-downloads.mjs",
+    "assets": "node scripts/generate-assets.mjs",
+    "verify-assets": "node scripts/verify-assets.mjs"
+  },
+  "dependencies": {
+    "@radix-ui/react-accordion": "^1.2.12",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.563.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.7.3",
+    "vite": "^6.4.2"
+  }
+}

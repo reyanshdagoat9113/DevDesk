@@ -1,0 +1,228 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Token parity with the app.
+ * The :root / .dark blocks below are copied verbatim from apps/renderer/index.css
+ * so the site and the product read as the same brand. Do not drift them by hand;
+ * re-copy when the app tokens change.
+ * The only site-only additions are --accent-brand / --accent-brand-foreground,
+ * kept in their own block so parity stays auditable.
+ */
+@layer base {
+  :root {
+    /* Classic Light Theme - Warm off-white with subtle warmth */
+    --background: 40 20% 97%;                   /* Warm off-white #f8f7f5 */
+    --foreground: 220 20% 11%;                  /* Deep slate #1c1d21 */
+
+    --card: 40 15% 99%;                         /* Pure warm white #fdfcfb */
+    --card-foreground: 220 20% 11%;
+
+    --popover: 40 15% 99%;
+    --popover-foreground: 220 20% 11%;
+
+    --primary: 220 15% 18%;                     /* Deep charcoal */
+    --primary-foreground: 40 20% 97%;
+
+    --secondary: 40 10% 94%;                    /* Light warm gray #f1f0ee */
+    --secondary-foreground: 220 15% 18%;
+
+    --muted: 40 10% 94%;
+    --muted-foreground: 220 8% 45%;             /* Medium gray - good contrast */
+
+    --accent: 40 10% 90%;                       /* Slightly darker gray #e8e7e5 */
+    --accent-foreground: 220 15% 18%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 40 10% 87%;                       /* Warm gray border */
+    --input: 40 10% 91%;
+    --ring: 220 15% 18%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Premium Pure Black Dark Theme */
+    --background: 0 0% 0%;                    /* Pure black #000000 */
+    --foreground: 0 0% 95%;                   /* Almost white */
+
+    --card: 0 0% 6%;                          /* Slightly lighter black #0f0f0f */
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 3%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 0 0% 94%;                      /* White-ish primary */
+    --primary-foreground: 0 0% 5%;
+
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 95%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 16%;
+    --input: 0 0% 14%;
+    --ring: 0 0% 90%;
+
+    --radius: 0.75rem;
+  }
+
+  /* Site-only accent (landing-page-plan decision 4).
+   * Single restrained hue, reserved for CTAs, links, and focus rings.
+   * Light: #1636CE-family on warm off-white (>= 7:1 for text, white text on fill).
+   * Dark:  brighter blue on pure black, with near-black text on the fill. */
+  :root {
+    --accent-brand: 224 76% 45%;
+    --accent-brand-foreground: 0 0% 100%;
+  }
+
+  .dark {
+    --accent-brand: 217 91% 62%;
+    --accent-brand-foreground: 222 47% 8%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      'Helvetica Neue',
+      Arial,
+      sans-serif;
+  }
+
+  ::selection {
+    background: hsl(var(--accent-brand) / 0.25);
+  }
+
+  pre,
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  }
+
+  /* Visually hidden but available to screen readers / keyboard focus */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .focus\:not-sr-only:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: inherit;
+    margin: inherit;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
+
+@layer utilities {
+  /* Glass effects - theme aware (parity with apps/renderer/index.css) */
+  .glass {
+    @apply bg-card/80 backdrop-blur-xl border-border/50;
+  }
+
+  .glass-card {
+    @apply bg-card/90 backdrop-blur-xl border-border/50;
+  }
+
+  /* Subtle gradient text */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-foreground/90 via-foreground to-foreground/50;
+  }
+
+  /* Glow effects - subtle for light mode */
+  .glow {
+    box-shadow: 0 1px 3px -1px hsl(var(--primary) / 0.1), 0 1px 2px -1px hsl(var(--primary) / 0.06);
+  }
+
+  .glow-sm {
+    box-shadow: 0 1px 2px -1px hsl(var(--primary) / 0.08);
+  }
+
+  .hover-glow {
+    @apply transition-all duration-300;
+  }
+
+  .hover-glow:hover {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.15);
+  }
+
+  /* Site-only: brand-tinted focus ring for CTAs and links. */
+  .focus-brand {
+    @apply outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2;
+  }
+}
+
+/* Animation utilities (parity with apps/renderer/index.css) */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.delay-75 { animation-delay: 75ms; }
+.delay-100 { animation-delay: 100ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+
+/* Phase 4 requirement: respect reduced-motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

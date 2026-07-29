@@ -1,4 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
+import { IpcChannels, isSafeExternalUrl } from '@devdesk/ipc-contracts'
+import { assertSafeExternalUrl, assertTrustedSender } from './trustedIpc'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
@@ -2744,12 +2746,15 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('shell:open-external', async (_event, url: string) => {
+  ipcMain.handle(IpcChannels.ShellOpenExternal, async (event, url: string) => {
+    assertTrustedSender(event)
     if (!url?.trim()) {
       return { success: false }
     }
-
-    await shell.openExternal(url)
+    if (!isSafeExternalUrl(url)) {
+      return { success: false, error: 'External URL scheme is not allowed.' }
+    }
+    await shell.openExternal(assertSafeExternalUrl(url))
     return { success: true }
   })
 

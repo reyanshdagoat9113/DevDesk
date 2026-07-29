@@ -43,7 +43,7 @@ npm run dev                    # or package:* / smoke:engine-packaged
 
 ## Windows prerequisites
 
-- **Node.js** 18+ (LTS recommended)
+- **Node.js** 22.12–24 (default development/packaging line: Node 22; see root `engines` and `.nvmrc`)
 - **Visual Studio Build Tools** with workload **Desktop development with C++**
   (includes MSVC, Windows SDK)
 - **Python 3** on `PATH` (node-gyp)
@@ -67,3 +67,6 @@ If rebuild fails, the scripts print an actionable error. Common fixes:
 - Run Node-targeted ensures before Vitest that loads `better-sqlite3` under Node.
 - Run Electron-targeted rebuilds before packaged smoke or Electron launch.
 - Prefer `-o better-sqlite3` (via `rebuild:native`) in jobs that do not exercise terminals, so `node-pty` compile failures do not block engine smoke.
+- Native/integration CI runs on Windows and Linux for both Node 22 and Node 24; packaging jobs use Node 22 only.
+- Root and `devdesk-engine` share one `better-sqlite3` v12 contract (lockfile must not nest a second major).
+- Rust tests: `npm run test:rust` (`cargo test --locked` in `packages/engine/rust`).

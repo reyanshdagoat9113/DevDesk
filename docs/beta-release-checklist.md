@@ -28,7 +28,7 @@ Use this short list before tagging a release or calling the product launch-ready
 
 - [ ] All private beta items complete on **every** supported platform  
 - [ ] Signed Windows installer (and macOS notarization if mac is claimed)  
-- [ ] Public install page + support contact path  
+- [x] Public install page + support contact path (`packages/landing`; support via GitHub issues)  
 - [ ] Security review of IPC surface and shell execution paths  
 - [ ] Backup/export attachment story improved or clearly documented for users  
 - [ ] Auto-update strategy decided (or explicitly “manual updates only”)  
