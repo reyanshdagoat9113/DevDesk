@@ -35,7 +35,7 @@
     "prebuild": "npm run build:ipc-contracts && npm run build:engine",
     "pretypecheck": "npm run build:ipc-contracts",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
-    "smoke:engine-packaged": "npm run rebuild:native && npm run build:main && node scripts/smoke-packaged-engine.mjs",
+    "smoke:engine-packaged": "npm run rebuild:native && npm run build:ipc-contracts && npm run build:engine && npm run build:main && node scripts/smoke-packaged-engine.mjs",
     "test": "vitest --config ./vitest.desktop.config.ts",
     "test:run": "vitest --config ./vitest.desktop.config.ts run",
     "test:renderer": "vitest --config ./vitest.renderer.config.ts",
