@@ -32,7 +32,7 @@ Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is o
 
 ### Linux
 
-1. Build AppImage/deb via `npm run package:linux` on a Linux host.
+1. Build the deb via `npm run package:linux` on a Linux host.
 2. Run `npm run verify:linux-package`.
 3. Execute the interactive workflow table using the packaged application.
 4. Record results in the Linux section below.
@@ -100,7 +100,7 @@ Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is o
 | Field | Value |
 |-------|--------|
 | Host | Not available in this session (Windows primary machine) |
-| Artifact | Targets configured: AppImage + deb (`package:linux`) |
+| Artifact | Debian package target: `DevDesk-0.1.1-linux-x64.deb` (`package:linux`) |
 | Status | **Execution pending on Linux host** |
 
 The Linux interactive workflow uses the same 11 manual actions listed in the Windows table. All rows remain pending until executed on a representative Linux desktop.

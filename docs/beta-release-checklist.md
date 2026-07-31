@@ -8,7 +8,7 @@ Use this short list before tagging a release or calling the product launch-ready
 - [ ] `npm run release:gate` green on a clean checkout (or CI green on the release commit)
 - [ ] Platform package smoke for each **claimed** OS:
   - [ ] Windows: `npm run verify:win-package` and/or install `DevDesk-*-win-x64.exe`
-  - [ ] Linux: `npm run verify:linux-package` and AppImage/deb smoke
+  - [ ] Linux: `npm run verify:linux-package` and deb install smoke
 - [ ] [manual-qa.md](./manual-qa.md) updated for this version (fill Pass/Fail; no silent skips)
 - [ ] Known limitations still accurate in [RELEASE-NOTES](./RELEASE-NOTES-0.1.0.md) / install docs
 - [ ] No secrets in the repo or packaged artifact

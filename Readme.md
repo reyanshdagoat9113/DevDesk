@@ -16,7 +16,7 @@ A local-first Electron desktop app for developers that combines a Project Manage
 | Core product features | Implemented |
 | Automated release gate + CI | Implemented (`npm run release:gate`) |
 | Windows x64 installer | Implemented (unsigned) |
-| Linux x64 AppImage/deb | Targets configured |
+| Linux x64 deb | Supported |
 | macOS | Deferred |
 | Manual QA | See [docs/manual-qa.md](docs/manual-qa.md) (Windows session + Linux template; interactive rows pending) |
 
@@ -77,7 +77,7 @@ Windows native builds need Visual Studio C++ Build Tools, Python 3, and Git. See
 See [docs/install.md](docs/install.md). Short version:
 
 - **Windows:** run `DevDesk-<version>-win-x64.exe` (SmartScreen may warn — unsigned beta).
-- **Linux:** AppImage or deb from a Linux build host.
+- **Linux:** `.deb` from GitHub Releases.
 - **macOS:** not shipped in this beta.
 
 ## Features
