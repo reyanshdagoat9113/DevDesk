@@ -63,15 +63,6 @@ export const downloads: DownloadArtifact[] = [
     ],
   },
   {
-    id: 'linux-appimage',
-    platform: 'linux',
-    label: 'Linux (x64) AppImage',
-    fileName: `DevDesk-${APP_VERSION}-linux-x64.AppImage`,
-    url: assetUrl(`DevDesk-${APP_VERSION}-linux-x64.AppImage`),
-    available: false,
-    notes: ['Run chmod +x on the file before launching.'],
-  },
-  {
     id: 'linux-deb',
     platform: 'linux',
     label: 'Linux (x64) .deb',

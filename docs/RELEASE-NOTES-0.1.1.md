@@ -19,7 +19,7 @@
 | Platform | Artifact | Notes |
 |----------|----------|-------|
 | Windows x64 | `DevDesk-0.1.1-win-x64.exe` (NSIS) | Primary; unsigned private-beta build |
-| Linux x64 | Not republished in this release | Existing targets remain configured |
+| Linux x64 | `DevDesk-0.1.1-linux-x64.deb` | Debian package; unsigned private-beta build |
 | macOS | Not shipped | Deferred |
 
 ## Known limitations

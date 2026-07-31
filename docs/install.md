@@ -1,14 +1,14 @@
 # Installation and platform support
 
-**Product version:** `0.1.0` (private beta)  
+**Product version:** `0.1.1` (private beta)
 **Related:** [release.md](./release.md) · [native-modules.md](./native-modules.md) · [manual-qa.md](./manual-qa.md)
 
 ## Supported platforms
 
 | Platform | Installer / package | Arch | Status |
 |----------|---------------------|------|--------|
-| Windows 10/11 | NSIS `.exe` (`DevDesk-0.1.0-win-x64.exe`) | x64 | Primary beta target |
-| Linux | AppImage + `.deb` | x64 | Supported (package targets ready) |
+| Windows 10/11 | NSIS `.exe` (`DevDesk-0.1.1-win-x64.exe`) | x64 | Primary beta target |
+| Linux | `.deb` (`DevDesk-0.1.1-linux-x64.deb`) | x64 | Supported |
 | macOS | — | — | **Not available** in this beta |
 
 ## End-user install (binary)
@@ -22,9 +22,9 @@
 
 ### Linux
 
-1. **AppImage:** `chmod +x DevDesk-*-linux-x64.AppImage` then execute it.
-2. **deb:** `sudo dpkg -i DevDesk-*-linux-x64.deb` (or open with your package installer).
-3. If the AppImage fails to start, install FUSE/AppImage runtime packages for your distro.
+1. Download `DevDesk-*-linux-x64.deb` from [GitHub Releases](https://github.com/reyanshdagoat9113/DevDesk/releases).
+2. Install it with `sudo dpkg -i DevDesk-*-linux-x64.deb` (or open it with your package installer).
+3. If dependencies are reported as missing, run `sudo apt-get -f install` and retry the install.
 
 ### First launch
 
@@ -60,7 +60,7 @@ Details and troubleshooting: [native-modules.md](./native-modules.md).
 ```bash
 npm run rebuild:native:electron
 npm run package:win      # on Windows → release/*.exe
-npm run package:linux    # on Linux → AppImage + deb
+npm run package:linux    # on Linux → .deb
 ```
 
 Verify:
@@ -75,7 +75,6 @@ npm run release:gate          # full automated baseline
 
 - **Windows:** Settings → Apps → DevDesk, or the installer uninstaller. User data under `%APPDATA%\DevDesk` is **not** always removed; delete it manually if you want a clean slate.
 - **Linux deb:** `sudo apt remove devdesk` (package name may vary by artifact metadata). Remove user data under `~/.config/DevDesk` if present.
-- **AppImage:** delete the AppImage file; remove user data directory manually.
 
 ## Known install limitations (beta)
 
