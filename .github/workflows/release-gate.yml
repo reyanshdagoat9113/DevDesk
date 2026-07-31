@@ -93,6 +93,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build IPC contracts
+        run: npm run build:ipc-contracts
+
       - name: Ensure Node natives
         run: npm run rebuild:native:node
 
@@ -159,6 +162,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build IPC contracts
+        run: npm run build:ipc-contracts
 
       - name: Packaged engine smoke
         run: npm run smoke:engine-packaged
