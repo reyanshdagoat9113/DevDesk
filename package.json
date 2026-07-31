@@ -49,7 +49,7 @@
     "package:win:dir": "npm run rebuild:native:electron && npm run build && electron-builder --win dir",
     "package:win": "npm run rebuild:native:electron && npm run build && electron-builder --win nsis",
     "package:linux:dir": "npm run rebuild:native:electron && npm run build && electron-builder --linux dir",
-    "package:linux": "npm run rebuild:native:electron && npm run build && electron-builder --linux AppImage deb",
+    "package:linux": "npm run rebuild:native:electron && npm run build && electron-builder --linux deb",
     "verify:win-package": "npm run package:win:dir && node scripts/verify-package.mjs --platform win",
     "verify:linux-package": "npm run package:linux:dir && node scripts/verify-package.mjs --platform linux",
     "qa:clean-install:win": "npm run package:win && npm run rebuild:native:node && npm run build:main && node scripts/clean-install-qa-windows.mjs --out release/clean-install-qa-report.json",
@@ -183,12 +183,6 @@
     },
     "linux": {
       "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        },
         {
           "target": "deb",
           "arch": [

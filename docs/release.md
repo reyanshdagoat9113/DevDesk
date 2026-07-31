@@ -7,7 +7,7 @@ Also see: [install.md](./install.md) · [RELEASE-NOTES-0.1.1.md](./RELEASE-NOTES
 | Platform | Artifacts | Status |
 |----------|-----------|--------|
 | **Windows x64** | NSIS installer (`.exe`), unpacked dir for smoke | Primary |
-| **Linux x64** | AppImage, deb, unpacked dir for smoke | Supported |
+| **Linux x64** | deb, unpacked dir for smoke | Supported |
 | **macOS** | — | Deferred (no target/signing/notarization yet) |
 
 Version and artifact names come from `package.json`:
@@ -16,7 +16,7 @@ Version and artifact names come from `package.json`:
 DevDesk-${version}-${os}-${arch}.${ext}
 ```
 
-Example: `DevDesk-0.1.0-win-x64.exe`, `DevDesk-0.1.0-linux-x64.AppImage`.
+Example: `DevDesk-0.1.1-win-x64.exe`, `DevDesk-0.1.1-linux-x64.deb`.
 
 ## Release gate (automated)
 
@@ -122,7 +122,7 @@ Private beta builds are **unsigned**:
 
 - **Windows:** SmartScreen may warn on first launch. Authenticode signing is deferred until a release certificate is available (`CSC_LINK` / `CSC_KEY_PASSWORD` with electron-builder).
 - **macOS:** Not a first-release target; Developer ID + notarization deferred.
-- **Linux:** No code signing required for AppImage/deb distribution in beta.
+- **Linux:** No code signing is required for deb distribution in beta.
 
 Do not claim “signed installers” until signing secrets and CI are configured.
 
@@ -145,7 +145,7 @@ After installing or running the unpacked binary:
 
 ### Platforms
 - Windows x64 installer
-- Linux x64 AppImage and deb
+- Linux x64 deb
 
 ### Known limitations
 - Installers are unsigned (Windows SmartScreen may warn)
