@@ -68,7 +68,7 @@ export const downloads: DownloadArtifact[] = [
     label: 'Linux (x64) .deb',
     fileName: `DevDesk-${APP_VERSION}-linux-x64.deb`,
     url: assetUrl(`DevDesk-${APP_VERSION}-linux-x64.deb`),
-    available: false,
+    available: true,
     notes: ['Install with sudo dpkg -i <file>.'],
   },
 ]
