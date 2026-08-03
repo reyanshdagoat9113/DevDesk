@@ -1264,9 +1264,9 @@ function App() {
     )
   }
 
-  const handleRefreshContainers = async () => {
+  const handleRefreshContainers = useCallback(async () => {
     await loadContainers()
-  }
+  }, [loadContainers])
 
   const handleStartDevStack = async (projectId: string) => {
     try {

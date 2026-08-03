@@ -25,6 +25,7 @@ import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
 import { ProjectGitSummary } from '../components/ProjectGitSummary'
 import { ProjectHealthPanel } from '../components/ProjectHealthPanel'
 import { ProjectNotesPanel } from '../components/ProjectNotesPanel'
+import { ProjectOverviewHighlights } from '../components/ProjectOverviewHighlights'
 import { BugRecorderPanel } from '../components/BugRecorderPanel'
 import { LlmContextExporter } from '../components/LlmContextExporter'
 import { ProjectDetailTabs } from '../components/ProjectDetailTabs'
@@ -875,6 +876,10 @@ export function ProjectsSection({
                   bugsPanel={<BugRecorderPanel projectId={selectedProject.id} />}
                   overviewPanel={
                     <div className="space-y-10">
+                  <ProjectOverviewHighlights
+                    projectId={selectedProject.id}
+                    onLoadGitInsights={onLoadEngineGitInsights}
+                  />
                   {/* Quick Actions */}
                   <div className="space-y-4">
                     <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
