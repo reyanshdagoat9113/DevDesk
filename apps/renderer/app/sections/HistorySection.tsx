@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Check, Copy, FileText, Square, Trash2, History as HistoryIcon, Terminal } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Copy, FileText, Square, Trash2, History as HistoryIcon, Terminal, Search, X } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import {
@@ -18,19 +18,34 @@ import {
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import type { Command, Project, RunHistoryEntry } from '../types'
+import { ErrorState } from '../components/ui/ErrorState'
+import { LoadingState } from '../components/ui/LoadingState'
+import { StatusNotice } from '../components/ui/StatusNotice'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Input } from '../components/ui/Input'
+import { selectClass } from './projectsSectionConfig'
+import {
+  filterAndSortHistory,
+  formatRunDuration,
+  formatRunExitCode,
+  getFailureSummary,
+  getRunDurationMs,
+  type HistoryDateFilter,
+  type HistorySort,
+} from './historyUtils'
 
 const statusStyles: Record<RunHistoryEntry['status'], string> = {
-  running: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]',
-  success: 'bg-blue-500',
-  failed: 'bg-rose-500',
-  stopped: 'bg-amber-400',
+  running: 'bg-status-success',
+  success: 'bg-status-info',
+  failed: 'bg-status-error',
+  stopped: 'bg-status-warning',
 }
 
 const statusTextColors: Record<RunHistoryEntry['status'], string> = {
-  running: 'text-emerald-500',
-  success: 'text-blue-500',
-  failed: 'text-rose-500',
-  stopped: 'text-amber-500',
+  running: 'text-status-success',
+  success: 'text-status-info',
+  failed: 'text-status-error',
+  stopped: 'text-status-warning',
 }
 
 export function HistorySection({
@@ -43,16 +58,20 @@ export function HistorySection({
   onLoadOutput,
   onClearHistory,
   onRemoveEntry,
+  initialRunId,
+  onOpenCommands,
 }: {
   history: RunHistoryEntry[]
   commands: Command[]
   projects: Project[]
   isLoading?: boolean
   error?: string | null
-  onStopRun?: (runId: string) => void
+  onStopRun?: (runId: string) => Promise<void> | void
   onLoadOutput?: (runId: string) => Promise<string>
   onClearHistory?: () => Promise<void>
   onRemoveEntry?: (runId: string) => Promise<void>
+  initialRunId?: string | null
+  onOpenCommands?: () => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(history[0]?.id ?? null)
   const [outputText, setOutputText] = useState('')
@@ -66,6 +85,25 @@ export function HistorySection({
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
   const [removeError, setRemoveError] = useState<string | null>(null)
   const [removing, setRemoving] = useState(false)
+  const [stopError, setStopError] = useState<string | null>(null)
+  const [stopMessage, setStopMessage] = useState<string | null>(null)
+  const [stopping, setStopping] = useState(false)
+  const [clearMessage, setClearMessage] = useState<string | null>(null)
+  const [removeMessage, setRemoveMessage] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [projectFilter, setProjectFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<RunHistoryEntry['status'] | 'all'>('all')
+  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('all')
+  const [sort, setSort] = useState<HistorySort>('newest')
+  const appliedInitialRunId = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (initialRunId && initialRunId !== appliedInitialRunId.current && history.some((entry) => entry.id === initialRunId)) {
+      setSelectedId(initialRunId)
+      appliedInitialRunId.current = initialRunId
+    }
+    if (!initialRunId) appliedInitialRunId.current = null
+  }, [history, initialRunId])
 
   useEffect(() => {
     if (!history.length) {
@@ -91,10 +129,29 @@ export function HistorySection({
     }, {})
   }, [projects])
 
+  const visibleHistory = useMemo(
+    () => filterAndSortHistory(history, {
+      query,
+      projectId: projectFilter,
+      status: statusFilter,
+      date: dateFilter,
+      sort,
+      commandsById: commandById,
+      projectsById: projectById,
+    }),
+    [commandById, dateFilter, history, projectById, projectFilter, query, sort, statusFilter],
+  )
+
+  useEffect(() => {
+    if (visibleHistory.length > 0 && (!selectedId || !visibleHistory.some((entry) => entry.id === selectedId))) {
+      setSelectedId(visibleHistory[0].id)
+    }
+  }, [selectedId, visibleHistory])
+
   const selectedEntry = useMemo(() => {
-    if (!history.length) return null
-    return history.find((entry) => entry.id === selectedId) ?? history[0]
-  }, [history, selectedId])
+    if (!visibleHistory.length) return null
+    return visibleHistory.find((entry) => entry.id === selectedId) ?? visibleHistory[0]
+  }, [selectedId, visibleHistory])
 
   const getCommandName = (commandId: string): string => {
     return commandById[commandId]?.name ?? 'Removed command'
@@ -117,6 +174,7 @@ export function HistorySection({
     try {
       await onClearHistory()
       setClearDialogOpen(false)
+      setClearMessage(`Cleared ${history.length} saved run${history.length === 1 ? '' : 's'} and captured output.`)
     } catch (error) {
       setClearError(error instanceof Error ? error.message : 'Failed to clear history.')
     } finally {
@@ -131,6 +189,7 @@ export function HistorySection({
     try {
       await onRemoveEntry(selectedEntryId)
       setRemoveDialogOpen(false)
+      setRemoveMessage(`Removed the ${getCommandName(selectedEntry?.commandId ?? '')} run.`)
     } catch (error) {
       setRemoveError(error instanceof Error ? error.message : 'Failed to remove history entry.')
     } finally {
@@ -138,9 +197,21 @@ export function HistorySection({
     }
   }
 
-  useEffect(() => {
-    let cancelled = false
+  const loadOutput = useCallback(async (runId: string) => {
+    if (!onLoadOutput) return
+    setOutputLoading(true)
+    setOutputError(null)
+    try {
+      const output = await onLoadOutput(runId)
+      setOutputText(output ?? '')
+    } catch (loadError) {
+      setOutputError(loadError instanceof Error ? loadError.message : 'Failed to load output.')
+    } finally {
+      setOutputLoading(false)
+    }
+  }, [onLoadOutput])
 
+  useEffect(() => {
     if (!selectedEntryId) {
       setOutputText('')
       setOutputError(null)
@@ -162,29 +233,24 @@ export function HistorySection({
       return
     }
 
-    setOutputLoading(true)
-    setOutputError(null)
-    onLoadOutput(selectedEntryId)
-      .then((output) => {
-        if (!cancelled) {
-          setOutputText(output ?? '')
-        }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setOutputError(loadError instanceof Error ? loadError.message : 'Failed to load output.')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setOutputLoading(false)
-        }
-      })
+    void loadOutput(selectedEntryId)
 
-    return () => {
-      cancelled = true
+  }, [loadOutput, onLoadOutput, selectedEntryId, selectedEntryOutput, selectedEntryStatus])
+
+  const handleStopSelected = async () => {
+    if (!selectedEntryId || !onStopRun || stopping) return
+    setStopping(true)
+    setStopError(null)
+    setStopMessage(null)
+    try {
+      await onStopRun(selectedEntryId)
+      setStopMessage(`Termination requested for ${getCommandName(selectedEntry?.commandId ?? '')}.`)
+    } catch (stopFailure) {
+      setStopError(stopFailure instanceof Error ? stopFailure.message : 'Failed to terminate the run.')
+    } finally {
+      setStopping(false)
     }
-  }, [onLoadOutput, selectedEntryId, selectedEntryOutput, selectedEntryStatus])
+  }
 
   const handleCopy = async () => {
     if (!outputText) return
@@ -207,11 +273,14 @@ export function HistorySection({
     <>
       <SectionLayout
         list={
-          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+          <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
             <div className="border-b border-border/40 bg-muted/20 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {visibleHistory.length} of {history.length} runs
+                  </p>
                   {hasRunning && (
                     <p className="mt-1 text-[10px] text-muted-foreground animate-pulse">
                       Running commands...
@@ -229,24 +298,107 @@ export function HistorySection({
                   Clear
                 </Button>
               </div>
-            </div>
-            <div className="flex-1 overflow-auto px-2 py-2">
+              <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                <div className="relative min-w-0">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
+                  <Input
+                    aria-label="Search history"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search command, project, or failure..."
+                    className="h-8 pl-8 text-xs bg-background/50"
+                  />
+                </div>
+                <select
+                  aria-label="Filter history by status"
+                  className={cn(selectClass, 'h-8 min-w-[120px] text-xs')}
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="running">Running</option>
+                  <option value="success">Succeeded</option>
+                  <option value="failed">Failed</option>
+                  <option value="stopped">Stopped</option>
+                </select>
+                <select
+                  aria-label="Sort history"
+                  className={cn(selectClass, 'h-8 min-w-[132px] text-xs')}
+                  value={sort}
+                  onChange={(event) => setSort(event.target.value as HistorySort)}
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="duration">Longest first</option>
+                  <option value="status">Status</option>
+                </select>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <select
+                  aria-label="Filter history by project"
+                  className={cn(selectClass, 'h-7 min-w-[150px] text-[11px]')}
+                  value={projectFilter}
+                  onChange={(event) => setProjectFilter(event.target.value)}
+                >
+                  <option value="all">All projects</option>
+                  {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                </select>
+                <select
+                  aria-label="Filter history by date"
+                  className={cn(selectClass, 'h-7 min-w-[120px] text-[11px]')}
+                  value={dateFilter}
+                  onChange={(event) => setDateFilter(event.target.value as HistoryDateFilter)}
+                >
+                  <option value="all">Any date</option>
+                  <option value="today">Today</option>
+                  <option value="7d">Last 7 days</option>
+                  <option value="30d">Last 30 days</option>
+                </select>
+                {(query || projectFilter !== 'all' || statusFilter !== 'all' || dateFilter !== 'all' || sort !== 'newest') ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 gap-1 px-2 text-[11px]"
+                    onClick={() => {
+                      setQuery('')
+                      setProjectFilter('all')
+                      setStatusFilter('all')
+                      setDateFilter('all')
+                      setSort('newest')
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                    Clear filters
+                  </Button>
+                ) : null}
+              </div>
+             </div>
+             {clearMessage ? <StatusNotice tone="success" title="History cleared" className="mx-2 mt-2">{clearMessage} Copy any output you need before clearing future runs.</StatusNotice> : null}
+             {removeMessage ? <StatusNotice tone="success" title="Run removed" className="mx-2 mt-2">{removeMessage}</StatusNotice> : null}
+             <div className="flex-1 overflow-auto px-2 py-2">
               {isLoading ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground italic">
-                  Loading execution logs...
-                </div>
+                <LoadingState label="Loading execution history" description="Loading execution logs…" className="h-full" />
               ) : error ? (
-                <div className="flex h-full items-center justify-center p-4 text-center text-sm text-destructive bg-destructive/5 rounded-lg border border-destructive/10">
-                  {error}
-                </div>
+                <ErrorState title="Could not load history" description={error} className="h-full" />
               ) : history.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50">
-                  <HistoryIcon className="h-10 w-10 mb-2 opacity-20" />
-                  <p className="text-sm">No execution history yet.</p>
-                </div>
+                <EmptyState
+                  className="h-full"
+                  icon={<HistoryIcon className="h-5 w-5" />}
+                  title="No execution history yet"
+                  description="Run a saved command to see its output, duration, and result here."
+                  action={onOpenCommands ? <Button size="sm" onClick={onOpenCommands}>Go to Commands</Button> : undefined}
+                />
+              ) : visibleHistory.length === 0 ? (
+                <EmptyState
+                  className="h-full"
+                  icon={<Search className="h-5 w-5" />}
+                  title="No runs match these filters"
+                  description="Try a broader command, project, date, or status filter."
+                  action={<Button size="sm" variant="outline" onClick={() => { setQuery(''); setProjectFilter('all'); setStatusFilter('all'); setDateFilter('all'); setSort('newest') }}>Clear filters</Button>}
+                />
               ) : (
                 <div className="space-y-1">
-                  {history.map((entry) => {
+                  {visibleHistory.map((entry) => {
                     const isActive = selectedEntry?.id === entry.id
                     return (
                       <button
@@ -270,10 +422,14 @@ export function HistorySection({
                         </div>
                         <div className="flex w-full items-center justify-between gap-2 text-[11px] font-mono text-muted-foreground">
                           <span className="truncate">{getProjectName(entry.projectId)}</span>
-                          <span className="shrink-0">
-                            {new Date(entry.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <span className="flex shrink-0 items-center gap-2">
+                            <span>{formatRunDuration(getRunDurationMs(entry))}</span>
+                            <span>{new Date(entry.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           </span>
                         </div>
+                        <p className={cn('truncate text-[10px]', entry.status === 'failed' ? 'text-status-error/90' : 'text-muted-foreground/70')}>
+                          {getFailureSummary(entry)}
+                        </p>
                       </button>
                     )
                   })}
@@ -284,7 +440,7 @@ export function HistorySection({
         }
         detail={
           selectedEntry ? (
-            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+          <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
               <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1.5 min-w-0">
@@ -307,14 +463,21 @@ export function HistorySection({
                         {selectedEntry.status}
                       </span>
                     </div>
-                    {selectedEntry.endTime && (
-                      <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-tighter">
-                        Duration: {Math.round((new Date(selectedEntry.endTime).getTime() - new Date(selectedEntry.startTime).getTime()) / 1000)}s
-                      </span>
-                    )}
+                    <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-[10px] font-medium text-muted-foreground">
+                      <span>Duration: {formatRunDuration(getRunDurationMs(selectedEntry))}</span>
+                      <span>Exit code: {formatRunExitCode(selectedEntry)}</span>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
+
+              <div className={cn(
+                'border-b border-border/40 px-5 py-3 text-xs',
+                selectedEntry.status === 'failed' ? 'bg-status-error/5 text-status-error' : 'bg-muted/10 text-muted-foreground',
+              )}>
+                <span className="mr-2 font-semibold">Summary</span>
+                {getFailureSummary(selectedEntry)}
+              </div>
 
               {/* Resolved Command Display */}
               {selectedEntry.resolvedCommand && (
@@ -326,21 +489,21 @@ export function HistorySection({
                 </div>
               )}
 
-              <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a] relative group/terminal">
-                <div className="flex items-center justify-between px-5 py-2.5 bg-white/5 border-b border-white/5 backdrop-blur-md">
+              <div className="relative flex min-h-0 flex-1 flex-col bg-code group/terminal">
+                <div className="flex items-center justify-between border-b border-code-border bg-code-foreground/5 px-5 py-2.5 backdrop-blur-md">
                   <div className="flex items-center gap-3">
                     <div className="flex gap-1.5">
-                      <div className="h-2.5 w-2.5 rounded-full bg-rose-500/20 border border-rose-500/40" />
-                      <div className="h-2.5 w-2.5 rounded-full bg-amber-500/20 border border-amber-500/40" />
-                      <div className="h-2.5 w-2.5 rounded-full bg-emerald-500/20 border border-emerald-500/40" />
+                      <div className="h-2.5 w-2.5 rounded-full border border-status-error/40 bg-status-error/20" />
+                      <div className="h-2.5 w-2.5 rounded-full border border-status-warning/40 bg-status-warning/20" />
+                      <div className="h-2.5 w-2.5 rounded-full border border-status-success/40 bg-status-success/20" />
                     </div>
-                    <span className="text-[11px] font-mono uppercase tracking-wider text-white/30 font-medium ml-2">Standard Output</span>
+                    <span className="ml-2 font-mono text-[11px] font-medium uppercase tracking-wider text-code-foreground/50">Standard Output</span>
                   </div>
                   <div className="flex items-center gap-1 opacity-40 group-hover/terminal:opacity-100 transition-opacity">
                      <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 gap-2 px-2.5 text-[10px] font-bold uppercase tracking-wider text-white/60 hover:text-white hover:bg-white/10"
+                      className="h-7 gap-2 px-2.5 text-[10px] font-bold uppercase tracking-wider text-code-foreground/70 hover:bg-code-foreground/10 hover:text-code-foreground"
                       onClick={() => setDialogOpen(true)}
                     >
                       <FileText className="h-3.5 w-3.5" />
@@ -349,19 +512,19 @@ export function HistorySection({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 gap-2 px-2.5 text-[10px] font-bold uppercase tracking-wider text-white/60 hover:text-white hover:bg-white/10"
+                      className="h-7 gap-2 px-2.5 text-[10px] font-bold uppercase tracking-wider text-code-foreground/70 hover:bg-code-foreground/10 hover:text-code-foreground"
                       onClick={handleCopy}
                       disabled={!outputText}
                     >
-                      {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied ? <Check className="h-3.5 w-3.5 text-status-success" /> : <Copy className="h-3.5 w-3.5" />}
                       {copied ? 'Copied' : 'Copy log'}
                     </Button>
                   </div>
                 </div>
                 <ScrollArea className="flex-1">
                   <div className="p-6">
-                    <pre className="font-mono text-[12px] text-blue-100/80 whitespace-pre-wrap break-words leading-relaxed selection:bg-primary/30 selection:text-white">
-                      <span className="text-emerald-500/50 mr-2 select-none">$</span>
+                    <pre className="whitespace-pre-wrap break-words font-mono text-ui-code leading-relaxed text-code-foreground selection:bg-primary/30 selection:text-foreground">
+                      <span className="mr-2 select-none text-status-success/60">$</span>
                       {outputDisplay}
                       {selectedEntry.status === 'running' && <span className="inline-block w-2 h-4 ml-1 bg-white/20 animate-pulse align-middle" />}
                     </pre>
@@ -375,11 +538,11 @@ export function HistorySection({
                     <Button
                       variant="destructive"
                       className="h-9 px-6 gap-2 font-bold uppercase tracking-wider text-[11px] shadow-lg shadow-destructive/10"
-                      onClick={() => onStopRun?.(selectedEntry.id)}
-                      disabled={!onStopRun}
+                      onClick={() => void handleStopSelected()}
+                      disabled={!onStopRun || stopping}
                     >
                       <Square className="h-4 w-4" />
-                      Terminate Run
+                      {stopping ? 'Terminating…' : 'Terminate Run'}
                     </Button>
                   ) : (
                     <Button
@@ -394,6 +557,18 @@ export function HistorySection({
                     </Button>
                   )}
                 </div>
+                {outputLoading ? <StatusNotice tone="info" title="Loading output">Retrieving captured output…</StatusNotice> : null}
+                {outputError ? (
+                  <StatusNotice
+                    tone="error"
+                    title="Output could not be loaded"
+                    action={<Button size="sm" variant="outline" onClick={() => selectedEntryId && void loadOutput(selectedEntryId)}>Retry</Button>}
+                  >
+                    {outputError}
+                  </StatusNotice>
+                ) : null}
+                {stopError ? <StatusNotice tone="error" title="Run was not terminated">{stopError}</StatusNotice> : null}
+                {stopMessage ? <StatusNotice tone="success" title="Termination requested">{stopMessage}</StatusNotice> : null}
               </div>
             </Card>
           ) : (
@@ -412,7 +587,7 @@ export function HistorySection({
         }
     />
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 gap-0 overflow-hidden bg-[#0d0d0d] border-border/20">
+        <DialogContent className="flex h-[80vh] max-w-4xl flex-col gap-0 overflow-hidden bg-code p-0">
           <DialogHeader className="px-6 py-4 bg-muted/10 border-b border-border/10">
             <DialogTitle className="text-foreground">Run Output</DialogTitle>
             <DialogDescription>
@@ -486,7 +661,7 @@ export function HistorySection({
           <DialogHeader>
             <DialogTitle>Clear command history?</DialogTitle>
             <DialogDescription>
-              This removes all saved runs and output. This action cannot be undone.
+              This permanently removes all {history.length} saved run{history.length === 1 ? '' : 's'} and their captured output. Running commands are not included and must finish first. Copy any output you need before continuing.
             </DialogDescription>
           </DialogHeader>
           {clearError ? (

@@ -268,7 +268,7 @@ export function CommandPresetPickerDialog({
                           ) : null}
                         </div>
 
-                        <div className="mt-5 rounded-2xl border border-border/60 bg-[#0d0d0d]/90 px-4 py-3.5 font-mono text-[13px] text-blue-400/90 shadow-inner overflow-hidden relative group">
+                        <div className="relative mt-5 overflow-hidden rounded-lg border border-code-border bg-code px-4 py-3.5 font-mono text-ui-code text-code-foreground shadow-inner group">
                           <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary/40 rounded-l-2xl"></div>
                           <code className="break-all">{preset.command}</code>
                         </div>

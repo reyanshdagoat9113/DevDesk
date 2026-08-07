@@ -33,6 +33,31 @@
     --input: 40 10% 91%;
     --ring: 220 15% 18%;
 
+    /* Shared semantic UI foundation. Keep feature components on these names
+       instead of inventing one-off surface and status colors. */
+    --surface: 40 15% 99%;
+    --surface-muted: 40 10% 94%;
+    --surface-subtle: 40 20% 97%;
+    --surface-elevated: 40 15% 99%;
+    --surface-border: 40 10% 87%;
+    --code-surface: 220 20% 10%;
+    --code-foreground: 210 20% 92%;
+    --code-border: 220 12% 26%;
+    --terminal-surface: 40 15% 99%;
+    --terminal-foreground: 220 20% 11%;
+    --terminal-cursor: 191 65% 37%;
+    --terminal-selection: 191 65% 37%;
+    --status-success: 142 52% 36%;
+    --status-success-foreground: 142 65% 22%;
+    --status-warning: 38 92% 40%;
+    --status-warning-foreground: 31 80% 20%;
+    --status-error: 0 72% 51%;
+    --status-error-foreground: 0 65% 30%;
+    --status-info: 191 65% 37%;
+    --status-info-foreground: 193 70% 23%;
+    --status-inactive: 220 8% 45%;
+    --status-inactive-foreground: 220 10% 24%;
+
     --radius: 0.75rem;
   }
 
@@ -65,6 +90,29 @@
     --border: 0 0% 16%;
     --input: 0 0% 14%;
     --ring: 0 0% 90%;
+
+    --surface: 0 0% 6%;
+    --surface-muted: 0 0% 10%;
+    --surface-subtle: 0 0% 3%;
+    --surface-elevated: 0 0% 8%;
+    --surface-border: 0 0% 16%;
+    --code-surface: 0 0% 3%;
+    --code-foreground: 0 0% 92%;
+    --code-border: 0 0% 18%;
+    --terminal-surface: 0 0% 3%;
+    --terminal-foreground: 0 0% 92%;
+    --terminal-cursor: 188 66% 70%;
+    --terminal-selection: 188 66% 70%;
+    --status-success: 142 60% 62%;
+    --status-success-foreground: 142 60% 12%;
+    --status-warning: 43 96% 63%;
+    --status-warning-foreground: 38 80% 18%;
+    --status-error: 0 80% 72%;
+    --status-error-foreground: 0 70% 16%;
+    --status-info: 188 66% 70%;
+    --status-info-foreground: 190 65% 14%;
+    --status-inactive: 0 0% 55%;
+    --status-inactive-foreground: 0 0% 12%;
 
     --radius: 0.75rem;
   }

@@ -40,18 +40,18 @@ import type {
 const GLOBAL_PROJECT_VALUE = '__global__'
 
 const statusStyles: Record<CommandChainRunState['status'], string> = {
-  running: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600',
-  success: 'border-blue-500/20 bg-blue-500/10 text-blue-600',
-  failed: 'border-rose-500/20 bg-rose-500/10 text-rose-600',
-  stopped: 'border-amber-500/20 bg-amber-500/10 text-amber-600',
+  running: 'border-status-success/20 bg-status-success/10 text-status-success',
+  success: 'border-status-info/20 bg-status-info/10 text-status-info',
+  failed: 'border-status-error/20 bg-status-error/10 text-status-error',
+  stopped: 'border-status-warning/20 bg-status-warning/10 text-status-warning',
 }
 
 const stepStatusStyles = {
   pending: 'border-border/50 bg-background/70 text-muted-foreground',
-  running: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600',
-  success: 'border-blue-500/20 bg-blue-500/10 text-blue-600',
-  failed: 'border-rose-500/20 bg-rose-500/10 text-rose-600',
-  stopped: 'border-amber-500/20 bg-amber-500/10 text-amber-600',
+  running: 'border-status-success/20 bg-status-success/10 text-status-success',
+  success: 'border-status-info/20 bg-status-info/10 text-status-info',
+  failed: 'border-status-error/20 bg-status-error/10 text-status-error',
+  stopped: 'border-status-warning/20 bg-status-warning/10 text-status-warning',
   skipped: 'border-border/50 bg-muted/30 text-muted-foreground',
 } as const
 
