@@ -5,13 +5,13 @@ import type { RunStatus } from '../types'
 export function getStatusIcon(status: RunStatus) {
   switch (status) {
     case 'running':
-      return <PlayCircle className="h-4 w-4 text-blue-500" />
+      return <PlayCircle className="h-4 w-4 text-status-info" />
     case 'success':
-      return <CornerDownLeft className="h-4 w-4 text-green-500" />
+      return <CornerDownLeft className="h-4 w-4 text-status-success" />
     case 'failed':
-      return <CornerDownLeft className="h-4 w-4 text-red-500" />
+      return <CornerDownLeft className="h-4 w-4 text-status-error" />
     case 'stopped':
-      return <Square className="h-4 w-4 text-yellow-500" />
+      return <Square className="h-4 w-4 text-status-warning" />
     default:
       return <History className="h-4 w-4" />
   }

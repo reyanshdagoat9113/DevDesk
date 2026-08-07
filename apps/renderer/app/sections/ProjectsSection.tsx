@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Code2, Pencil, Terminal, Trash2, FolderGit2, Monitor, Link2, RefreshCw, Activity, Trash, Star } from 'lucide-react'
+import { Code2, Pencil, Terminal, Trash2, FolderGit2, Monitor, Link2, RefreshCw, Activity, Trash, Star, GitBranch } from 'lucide-react'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import {
@@ -9,7 +9,10 @@ import {
   CardHeader,
   CardTitle,
 } from '../components/ui/Card'
-import { Skeleton } from '../components/ui/Skeleton'
+import { ErrorState } from '../components/ui/ErrorState'
+import { LoadingState } from '../components/ui/LoadingState'
+import { StatusNotice } from '../components/ui/StatusNotice'
+import { EmptyState } from '../components/ui/EmptyState'
 import {
   Dialog,
   DialogContent,
@@ -25,6 +28,7 @@ import { ProjectEnginePanel } from '../components/ProjectEnginePanel'
 import { ProjectGitSummary } from '../components/ProjectGitSummary'
 import { ProjectHealthPanel } from '../components/ProjectHealthPanel'
 import { ProjectNotesPanel } from '../components/ProjectNotesPanel'
+import { ProjectOverviewHighlights } from '../components/ProjectOverviewHighlights'
 import { BugRecorderPanel } from '../components/BugRecorderPanel'
 import { LlmContextExporter } from '../components/LlmContextExporter'
 import { ProjectDetailTabs } from '../components/ProjectDetailTabs'
@@ -130,6 +134,7 @@ export function ProjectsSection({
   onRefreshContainers,
   onRemoveProject,
   onToggleProjectPin,
+  selectedProjectId,
   onSelectProject,
   onIndexProject,
   onSearchProjectContent,
@@ -148,6 +153,7 @@ export function ProjectsSection({
   onOpenProjectEngine,
   onCreateCommand,
   onRunCommand,
+  onOpenCreateProject,
 }: {
   projects: Project[]
   containers: Container[]
@@ -171,6 +177,7 @@ export function ProjectsSection({
   onRefreshContainers?: () => Promise<void>
   onRemoveProject?: (projectId: string) => Promise<void>
   onSelectProject?: (projectId: string) => void
+  selectedProjectId?: string | null
   onIndexProject?: (projectId: string) => Promise<unknown>
   onSearchProjectContent?: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
   onLoadEngineStats?: (projectId: string) => Promise<EngineStats>
@@ -191,13 +198,17 @@ export function ProjectsSection({
   onOpenProjectEngine?: (projectId: string) => void
   onCreateCommand?: (command: CreateCommandInput) => Promise<Command>
   onRunCommand?: (commandId: string, projectId: string) => Promise<unknown>
+  onOpenCreateProject?: () => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(projects[0]?.id ?? null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [lastOpenAction, setLastOpenAction] = useState<'folder' | 'editor' | 'terminal' | null>(null)
   const [actionLoading, setActionLoading] = useState<'folder' | 'editor' | 'terminal' | null>(null)
   const [prefsDraft, setPrefsDraft] = useState<AppPreferences | null>(preferences ?? null)
   const [prefsError, setPrefsError] = useState<string | null>(null)
   const [prefsSaving, setPrefsSaving] = useState(false)
+  const [prefsSavedAt, setPrefsSavedAt] = useState<Date | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [editName, setEditName] = useState('')
@@ -207,6 +218,7 @@ export function ProjectsSection({
   const [isDeleting, setIsDeleting] = useState(false)
   const [linkedContainerToAdd, setLinkedContainerToAdd] = useState('')
   const [linkingError, setLinkingError] = useState<string | null>(null)
+  const [linkingLoading, setLinkingLoading] = useState(false)
   const [stackActionLoading, setStackActionLoading] = useState<'start' | 'stop' | 'restart' | null>(null)
   const [stackActionError, setStackActionError] = useState<string | null>(null)
   const [stackActionMessage, setStackActionMessage] = useState<string | null>(null)
@@ -218,6 +230,7 @@ export function ProjectsSection({
   const [liveLogsConnecting, setLiveLogsConnecting] = useState(false)
   const [liveLogsClosed, setLiveLogsClosed] = useState(false)
   const [projectHealthReports, setProjectHealthReports] = useState<Record<string, ProjectHealthReport>>({})
+  const [projectGitState, setProjectGitState] = useState<Pick<GitWorkflowState, 'available' | 'branch'> | null>(null)
   const liveLogsSubscriptionIdRef = useRef<string | null>(null)
 
   // Sort projects: pinned first, then by name
@@ -245,13 +258,13 @@ export function ProjectsSection({
 
   useEffect(() => {
     if (!projects.length) {
-      setSelectedId(null)
+      if (selectedProjectId === undefined) setSelectedId(null)
       return
     }
-    if (!selectedId || !projects.some((project) => project.id === selectedId)) {
+    if (selectedProjectId === undefined && (!selectedId || !projects.some((project) => project.id === selectedId))) {
       setSelectedId(projects[0].id)
     }
-  }, [projects, selectedId])
+  }, [projects, selectedId, selectedProjectId])
 
   useEffect(() => {
     setActionError(null)
@@ -262,10 +275,12 @@ export function ProjectsSection({
     setPrefsDraft(preferences ?? null)
   }, [preferences])
 
+  const activeSelectedId = selectedProjectId ?? selectedId
+
   const selectedProject = useMemo(() => {
     if (!projects.length) return null
-    return projects.find((project) => project.id === selectedId) ?? projects[0]
-  }, [projects, selectedId])
+    return projects.find((project) => project.id === activeSelectedId) ?? projects[0]
+  }, [activeSelectedId, projects])
 
   useEffect(() => {
     let cancelled = false
@@ -320,6 +335,38 @@ export function ProjectsSection({
 
     onSelectProject?.(selectedProject.id)
   }, [onSelectProject, selectedProject?.id])
+
+  useEffect(() => {
+    let cancelled = false
+    setProjectGitState(null)
+
+    if (!selectedProject?.id || !onLoadGitState) {
+      return
+    }
+
+    void onLoadGitState(selectedProject.id)
+      .then((state) => {
+        if (!cancelled) {
+          setProjectGitState({ available: state.available, branch: state.branch })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectGitState({ available: false, branch: null })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [onLoadGitState, selectedProject?.id])
+
+  const handleSelectProject = (projectId: string) => {
+    if (selectedProjectId === undefined) {
+      setSelectedId(projectId)
+    }
+    onSelectProject?.(projectId)
+  }
 
   useEffect(() => {
     setEditName(selectedProject?.name ?? '')
@@ -437,7 +484,12 @@ export function ProjectsSection({
         return
       }
       setLinkingError(null)
-      await onSetLinkedContainers(selectedProject.id, nextLinkedNames)
+      setLinkingLoading(true)
+      try {
+        await onSetLinkedContainers(selectedProject.id, nextLinkedNames)
+      } finally {
+        setLinkingLoading(false)
+      }
     },
     [onSetLinkedContainers, selectedProject]
   )
@@ -610,7 +662,9 @@ export function ProjectsSection({
   const handleOpen = async (action: 'folder' | 'editor' | 'terminal') => {
     if (!selectedProject || actionLoading) return
     setActionError(null)
+    setActionMessage(null)
     setActionLoading(action)
+    setLastOpenAction(action)
     try {
       const result =
         action === 'folder'
@@ -620,6 +674,8 @@ export function ProjectsSection({
             : await window.electronAPI.openProjectInTerminal(selectedProject.id)
       if (!result.success) {
         setActionError(result.error ?? 'Unable to open project.')
+      } else {
+        setActionMessage(`Opened ${action === 'folder' ? 'project folder' : action === 'editor' ? 'project in editor' : 'project terminal'}.`)
       }
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Unable to open project.')
@@ -634,11 +690,16 @@ export function ProjectsSection({
     setPrefsSaving(true)
     try {
       await onSavePreferences(next)
+      setPrefsSavedAt(new Date())
     } catch (error) {
       setPrefsError(error instanceof Error ? error.message : 'Failed to update preferences.')
     } finally {
       setPrefsSaving(false)
     }
+  }
+
+  const retryOpenAction = () => {
+    if (lastOpenAction) void handleOpen(lastOpenAction)
   }
 
   const updatePreference = (partial: Partial<AppPreferences>, commit = true) => {
@@ -704,7 +765,7 @@ export function ProjectsSection({
     <>
       <SectionLayout
         list={
-          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+          <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
             <div className="border-b border-border/30 px-4 py-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-muted-foreground">Projects</p>
@@ -713,26 +774,23 @@ export function ProjectsSection({
             </div>
             <div className="flex-1 overflow-auto px-2 py-2">
               {isLoading ? (
-                <div className="flex h-full flex-col gap-3 p-3">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-4/5" />
-                </div>
+                <LoadingState label="Loading projects" className="h-full" />
               ) : error ? (
-                <div className="flex h-full items-center justify-center p-4 text-center text-sm text-destructive bg-destructive/5 rounded-lg border border-destructive/10">
-                  {error}
-                </div>
+                <ErrorState title="Could not load projects" description={error} className="h-full" />
               ) : projects.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50 animate-fade-in">
-                  <FolderGit2 className="h-10 w-10 mb-2 opacity-20 animate-pulse-subtle" />
-                  <p className="text-sm">No projects added yet.</p>
-                </div>
+                <EmptyState
+                  className="h-full"
+                  icon={<FolderGit2 className="h-5 w-5" />}
+                  title="No projects connected yet"
+                  description="Connect a local folder to keep its commands, terminal, Git state, and notes together."
+                  action={onOpenCreateProject ? <Button size="sm" onClick={onOpenCreateProject}>Add project</Button> : undefined}
+                />
               ) : (
                 <div className="space-y-1">
                   {pinnedProjects.length > 0 && (
                     <>
                       <div className="px-2 py-1">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-500/80">Pinned</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-status-warning/90">Pinned</p>
                       </div>
                       {pinnedProjects.map((project) => {
                         const isActive = selectedProject?.id === project.id
@@ -741,7 +799,7 @@ export function ProjectsSection({
                         return (
                           <button
                             key={project.id}
-                            onClick={() => setSelectedId(project.id)}
+                            onClick={() => handleSelectProject(project.id)}
                             className={cn(
                               "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150",
                               isActive
@@ -763,7 +821,7 @@ export function ProjectsSection({
                             </div>
                             <div className="flex items-center gap-1.5">
                               <ProjectHealthBadge report={healthReport} />
-                              <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
+                              <Star className="h-3.5 w-3.5 fill-status-warning text-status-warning" />
                               {isWslProject && (
                                 <Badge variant="outline" className="h-4 px-1 text-[8px] font-bold border-blue-500/20 text-blue-500 bg-blue-500/5">
                                   WSL
@@ -790,7 +848,7 @@ export function ProjectsSection({
                         return (
                           <button
                             key={project.id}
-                            onClick={() => setSelectedId(project.id)}
+                            onClick={() => handleSelectProject(project.id)}
                             style={{ animationDelay: `${(index + pinnedProjects.length) * 50}ms` }}
                             className={cn(
                               "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150 animate-slide-up opacity-0",
@@ -834,7 +892,7 @@ export function ProjectsSection({
         }
         detail={
           selectedProject ? (
-            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+            <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
               <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1.5 min-w-0">
@@ -847,6 +905,21 @@ export function ProjectsSection({
                     <CardDescription className="flex items-center gap-2 font-mono text-[11px] bg-muted/20 w-fit px-2 py-0.5 rounded border border-border/20">
                       {selectedProject.path}
                     </CardDescription>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-muted-foreground" aria-label="Project status">
+                      <span className="inline-flex items-center gap-1" title={projectGitState?.available ? 'Current Git branch' : 'Git is unavailable for this project'}>
+                        <GitBranch className="h-3 w-3" aria-hidden="true" />
+                        {projectGitState?.available ? (projectGitState.branch ?? 'Detached HEAD') : 'Git unavailable'}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className={cn('h-1.5 w-1.5 rounded-full', engineIndexingProjects?.[selectedProject.id] ? 'animate-pulse bg-primary' : engineIndexes?.[selectedProject.id] ? 'bg-status-success' : 'bg-muted-foreground/50')} aria-hidden="true" />
+                        {engineIndexingProjects?.[selectedProject.id] ? 'Indexing' : engineIndexes?.[selectedProject.id] ? 'Indexed' : 'Not indexed'}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" aria-hidden="true" />
+                        {linkedContainers.filter(({ container }) => container?.state === 'running').length} active processes
+                      </span>
+                      <ProjectHealthBadge report={projectHealthReports[selectedProject.id]} />
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -875,6 +948,10 @@ export function ProjectsSection({
                   bugsPanel={<BugRecorderPanel projectId={selectedProject.id} />}
                   overviewPanel={
                     <div className="space-y-10">
+                  <ProjectOverviewHighlights
+                    projectId={selectedProject.id}
+                    onLoadGitInsights={onLoadEngineGitInsights}
+                  />
                   {/* Quick Actions */}
                   <div className="space-y-4">
                     <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
@@ -910,11 +987,11 @@ export function ProjectsSection({
                       </Button>
                     </div>
                     {actionError && (
-                      <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+                      <StatusNotice tone="error" title="Project action failed" action={<Button size="sm" variant="outline" onClick={retryOpenAction}>Retry</Button>}>
                         {actionError}
-                      </div>
+                      </StatusNotice>
                     )}
+                    {actionMessage ? <StatusNotice tone="success" title="Project action complete">{actionMessage}</StatusNotice> : null}
                   </div>
 
                   {/* Dev Stack */}
@@ -938,11 +1015,11 @@ export function ProjectsSection({
                     <div className="rounded-lg border border-border/40 bg-card p-5 space-y-4">
                       <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
                         <div className="flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                          <span className="h-2 w-2 rounded-full bg-status-success" />
                           <span>{linkedContainers.filter(({ container }) => container?.state === 'running').length} running</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-amber-500" />
+                          <span className="h-2 w-2 rounded-full bg-status-warning" />
                           <span>{linkedContainers.filter(({ container }) => container?.state === 'paused').length} paused</span>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -1013,7 +1090,7 @@ export function ProjectsSection({
                             size="sm"
                             className="h-9 gap-2 text-[11px] font-semibold"
                             onClick={() => void handleAddLinkedContainer()}
-                            disabled={!onSetLinkedContainers || !linkedContainerToAdd.trim() || linkableContainers.length === 0}
+                            disabled={!onSetLinkedContainers || !linkedContainerToAdd.trim() || linkableContainers.length === 0 || linkingLoading}
                           >
                             <Link2 className="h-3.5 w-3.5" />
                             Link
@@ -1022,24 +1099,24 @@ export function ProjectsSection({
                       </div>
 
                       {containersError ? (
-                        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
+                        <StatusNotice tone="error" title="Docker containers unavailable" action={<Button size="sm" variant="outline" onClick={() => void handleRefreshLinkedContainers()}>Retry</Button>}>
                           {containersError}
-                        </div>
+                        </StatusNotice>
                       ) : null}
                       {linkingError ? (
-                        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
+                        <StatusNotice tone="error" title="Container link was not saved" action={<Button size="sm" variant="outline" onClick={() => void handleAddLinkedContainer()}>Retry</Button>}>
                           {linkingError}
-                        </div>
+                        </StatusNotice>
                       ) : null}
                       {stackActionError ? (
-                        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
+                        <StatusNotice tone="error" title="Dev stack action failed">
                           {stackActionError}
-                        </div>
+                        </StatusNotice>
                       ) : null}
                       {stackActionMessage ? (
-                        <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-[11px] text-primary/90">
+                        <StatusNotice tone="success" title="Dev stack updated">
                           {stackActionMessage}
-                        </div>
+                        </StatusNotice>
                       ) : null}
 
                       <div className="space-y-2">
@@ -1097,12 +1174,9 @@ export function ProjectsSection({
                       <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                         Launch Configuration
                       </h3>
-                      {prefsSaving && (
-                        <div className="flex items-center gap-2 text-[10px] text-primary/70 font-semibold uppercase tracking-wider">
-                          <div className="h-2 w-2 animate-spin rounded-full border border-primary border-r-transparent" />
-                          Auto-saving
-                        </div>
-                      )}
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {prefsSaving ? 'Saving…' : prefsSavedAt ? `Saved ${prefsSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : null}
+                      </div>
                     </div>
 
                     <div className="grid gap-8 md:grid-cols-2 p-5 rounded-lg border border-border/40 bg-card">
@@ -1388,8 +1462,8 @@ export function ProjectsSection({
                 Log stream ended.
               </div>
             ) : null}
-            <div className="rounded-lg border border-border/40 bg-black text-green-300">
-              <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 text-[10px] uppercase tracking-widest text-white/60">
+            <div className="rounded-lg border border-code-border bg-code text-code-foreground">
+              <div className="flex items-center justify-between border-b border-code-border px-3 py-2 text-[10px] uppercase tracking-widest text-code-foreground/60">
                 <span>{liveLogsTarget ?? 'No container selected'}</span>
                 <span>{liveLogsConnecting ? 'Connecting...' : 'Streaming'}</span>
               </div>
@@ -1463,7 +1537,7 @@ export function ProjectsSection({
           <DialogHeader>
             <DialogTitle>Remove project?</DialogTitle>
             <DialogDescription>
-              This removes the project, its notes, and run history from DevDesk. This cannot be undone.
+              This permanently removes “{selectedProject?.name ?? 'this project'}”, its commands, chains, automations, notes, run history, engine indexes, bug reports, and saved context from DevDesk. Linked Docker containers and files on disk are not removed. Export or copy anything you need before continuing; there is no undo.
             </DialogDescription>
           </DialogHeader>
           {deleteError ? <p className="text-xs text-destructive">{deleteError}</p> : null}

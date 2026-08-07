@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
-import { GitBranch, Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { GitBranch } from 'lucide-react'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
+import { ErrorState } from './ui/ErrorState'
+import { LoadingState } from './ui/LoadingState'
+import { StatusNotice } from './ui/StatusNotice'
 import type { EngineGitInsights, Project } from '../types'
 
 export function ProjectGitSummary({
@@ -15,32 +18,33 @@ export function ProjectGitSummary({
 }) {
   const [gitInsights, setGitInsights] = useState<EngineGitInsights | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
+  const loadInsights = useCallback(() => {
     setIsLoading(true)
-
-    onLoadGitInsights(project.id)
+    setLoadError(null)
+    return onLoadGitInsights(project.id)
       .then((result) => {
-        if (!cancelled) {
-          setGitInsights(result)
-        }
+        setGitInsights(result)
       })
-      .catch(() => {
-        if (!cancelled) {
-          setGitInsights(null)
-        }
+      .catch((error: unknown) => {
+        setGitInsights(null)
+        setLoadError(error instanceof Error ? error.message : 'Git insights could not be loaded.')
       })
       .finally(() => {
-        if (!cancelled) {
-          setIsLoading(false)
-        }
+        setIsLoading(false)
       })
-
-    return () => {
-      cancelled = true
-    }
   }, [onLoadGitInsights, project.id])
+
+  useEffect(() => {
+    void loadInsights()
+  }, [loadInsights])
+
+  const unavailableReason = loadError?.toLowerCase().includes('not a git repository') || loadError?.toLowerCase().includes('no repository') || loadError?.toLowerCase().includes('no repo')
+    ? 'No Git repository was found at this project path. Initialize Git or open the project folder to inspect it.'
+    : loadError?.toLowerCase().includes('git') && (loadError.toLowerCase().includes('not found') || loadError.toLowerCase().includes('enoent'))
+      ? 'The Git executable is unavailable on this machine. Install Git or add it to PATH, then retry.'
+      : loadError
 
   const workingTree = gitInsights?.workingTree ?? null
 
@@ -73,8 +77,8 @@ export function ProjectGitSummary({
             <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
               Git Snapshot
             </p>
-            <Badge variant={workingTree?.isClean ? 'success' : 'secondary'} className="h-5 px-2 text-[9px] uppercase tracking-wider">
-              {workingTree ? (workingTree.isClean ? 'Clean' : 'Dirty') : 'Unavailable'}
+            <Badge variant={workingTree?.isClean ? 'success' : loadError ? 'warning' : 'secondary'} className="h-5 px-2 text-[9px] uppercase tracking-wider">
+              {workingTree ? (workingTree.isClean ? 'Clean' : 'Dirty') : loadError ? 'Unavailable' : 'Loading'}
             </Badge>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[10px]">
@@ -103,10 +107,7 @@ export function ProjectGitSummary({
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {isLoading ? (
-          <Badge variant="outline" className="col-span-2 h-8 justify-start gap-1.5 px-2 text-[10px] uppercase tracking-wider sm:col-span-4">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Loading
-          </Badge>
+          <LoadingState label="Loading Git insights" className="col-span-2 py-2 sm:col-span-4" />
         ) : workingTree ? (
           statItems.map((item) => (
             <div key={item.label} className="rounded-lg border border-border/30 bg-background/70 px-3 py-2">
@@ -119,10 +120,17 @@ export function ProjectGitSummary({
               </div>
             </div>
           ))
+        ) : loadError ? (
+          <StatusNotice
+            tone={unavailableReason === loadError ? 'error' : 'warning'}
+            title={unavailableReason === loadError ? 'Git insights failed' : 'Git is unavailable for this project'}
+            action={<Button size="sm" variant="outline" onClick={() => void loadInsights()}>Retry</Button>}
+            className="col-span-2 sm:col-span-4"
+          >
+            {unavailableReason}
+          </StatusNotice>
         ) : (
-          <p className="col-span-2 text-[11px] text-muted-foreground sm:col-span-4">
-            Git details will appear here when repository insights are available.
-          </p>
+          <ErrorState title="Git insights unavailable" description="No repository details were returned." onRetry={() => void loadInsights()} className="col-span-2 py-2 sm:col-span-4" />
         )}
       </div>
     </div>

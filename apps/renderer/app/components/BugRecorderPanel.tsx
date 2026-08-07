@@ -25,6 +25,9 @@ import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { Textarea } from './ui/Textarea'
 import { ScrollArea } from './ui/ScrollArea'
+import { ErrorState } from './ui/ErrorState'
+import { LoadingState } from './ui/LoadingState'
+import { StatusNotice } from './ui/StatusNotice'
 import {
   Select,
   SelectContent,
@@ -54,6 +57,12 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<BugReport | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [updatingBugId, setUpdatingBugId] = useState<string | null>(null)
   const [attachmentsByBug, setAttachmentsByBug] = useState<Record<string, BugAttachment[]>>({})
   const [addingAttachmentForBug, setAddingAttachmentForBug] = useState<string | null>(null)
 
@@ -168,6 +177,7 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
         setDialogOpen(false)
         resetForm()
         await loadBugs()
+        setSuccessMessage('Bug report saved.')
       } else {
         setFormError(result.error.message)
       }
@@ -179,6 +189,8 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
   }, [projectId, title, severity, expectedResult, actualResult, reproductionSteps, notes, resetForm, loadBugs])
 
   const handleStatusChange = useCallback(async (bugId: string, nextStatus: BugStatus) => {
+    setUpdatingBugId(bugId)
+    setError(null)
     try {
       const result = await window.electronAPI.updateBug(bugId, { status: nextStatus })
       if (result.ok) {
@@ -189,15 +201,28 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
               : bug
           )
         )
+        setSuccessMessage('Bug status updated.')
       } else {
         setError(result.error.message)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status.')
+    } finally {
+      setUpdatingBugId(null)
     }
   }, [])
 
-  const handleDelete = useCallback(async (bugId: string) => {
+  const openDeleteDialog = useCallback((bug: BugReport) => {
+    setDeleteTarget(bug)
+    setDeleteError(null)
+    setDeleteDialogOpen(true)
+  }, [])
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget || deleting) return
+    const bugId = deleteTarget.id
+    setDeleting(true)
+    setDeleteError(null)
     try {
       const result = await window.electronAPI.deleteBug(bugId)
       if (result.ok) {
@@ -206,13 +231,18 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
           setDetailOpen(false)
         }
         await loadBugs()
+        setDeleteDialogOpen(false)
+        setDeleteTarget(null)
+        setSuccessMessage(`Deleted “${deleteTarget.title}”.`)
       } else {
-        setError(result.error.message)
+        setDeleteError(result.error.message)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete bug report.')
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete bug report.')
+    } finally {
+      setDeleting(false)
     }
-  }, [detailBugId, loadBugs])
+  }, [deleteTarget, deleting, detailBugId, loadBugs])
 
   const handleAddAttachment = useCallback(async (bugId: string) => {
     setAddingAttachmentForBug(bugId)
@@ -436,20 +466,15 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive flex items-center gap-2">
-          <AlertCircle className="h-3.5 w-3.5" />
-          {error}
-        </div>
-      )}
+      {successMessage ? (
+        <StatusNotice tone="success" title="Bug recorder updated" className="mb-3" onClick={() => setSuccessMessage(null)}>
+          {successMessage}
+        </StatusNotice>
+      ) : null}
+      {error ? <ErrorState title="Bug recorder action failed" description={error} onRetry={() => void loadBugs()} retryLabel="Retry loading bugs" className="min-h-0 py-4" /> : null}
 
       {loading ? (
-        <div className="rounded-xl border border-border/40 bg-muted/5 p-5">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading bug reports...
-          </div>
-        </div>
+        <LoadingState label="Loading bug reports" description="Loading bug reports…" className="rounded-xl border border-border/40 bg-muted/5" />
       ) : filteredBugs.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/40 bg-muted/5 p-10 gap-3 text-muted-foreground">
           <Bug className="h-8 w-8 opacity-50" />
@@ -530,6 +555,7 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
                           <Select
                             value={bug.status}
                             onValueChange={(value) => void handleStatusChange(bug.id, value as BugStatus)}
+                            disabled={updatingBugId === bug.id}
                           >
                             <SelectTrigger className={cn(selectBaseClass, 'w-[120px] cursor-pointer')}>
                               <SelectValue />
@@ -545,7 +571,7 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
                             size="sm"
                             variant="ghost"
                             className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => void handleDelete(bug.id)}
+                          onClick={() => openDeleteDialog(bug)}
                             aria-label="Delete bug report"
                             title="Delete bug report"
                           >
@@ -752,6 +778,33 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
             </Button>
             <Button onClick={() => void handleCreate()} disabled={saving}>
               {saving ? 'Saving...' : 'Save Bug Report'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open)
+          if (!open) {
+            setDeleteTarget(null)
+            setDeleteError(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete bug report?</DialogTitle>
+            <DialogDescription>
+              This permanently removes “{deleteTarget?.title ?? 'this bug report'}” from the current project, including its stored attachments and captured context. Copy anything you need before deleting; there is no undo.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError ? <StatusNotice tone="error" title="Bug report was not deleted">{deleteError}</StatusNotice> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={() => void handleDelete()} disabled={deleting || !deleteTarget}>
+              {deleting ? 'Deleting…' : 'Delete bug report'}
             </Button>
           </DialogFooter>
         </DialogContent>

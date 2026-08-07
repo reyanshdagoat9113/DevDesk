@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevDesk UI Improvement Plan</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --panel: #151b24;
+      --panel-2: #1b2430;
+      --panel-3: #10161e;
+      --text: #edf3f8;
+      --muted: #a5b2c0;
+      --subtle: #718094;
+      --line: #2b3848;
+      --accent: #61b8ff;
+      --accent-soft: rgba(97, 184, 255, .12);
+      --success: #73d69a;
+      --warning: #ffd166;
+      --danger: #ff7b84;
+      --info: #7ed6e8;
+      --code: #0a0e13;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.6 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: var(--accent); }
+    main { width: min(1220px, calc(100% - 40px)); margin: auto; padding: 42px 0 72px; }
+    header { border-bottom: 1px solid var(--line); padding-bottom: 30px; }
+    h1, h2, h3 { line-height: 1.2; margin: 0; }
+    h1 { font-size: clamp(2.1rem, 5vw, 4.2rem); letter-spacing: -.04em; max-width: 900px; }
+    h2 { font-size: 1.45rem; margin-bottom: 14px; }
+    h3 { font-size: 1.02rem; margin-bottom: 8px; }
+    p { color: var(--muted); margin: 0 0 13px; }
+    .eyebrow, .section-label { color: var(--accent); font-size: .76rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .eyebrow { margin-bottom: 12px; }
+    .subtitle { font-size: 1.08rem; max-width: 790px; margin-top: 16px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px; }
+    .pill, .status { border: 1px solid var(--line); border-radius: 999px; display: inline-flex; font-size: .78rem; font-weight: 700; padding: 5px 10px; }
+    .status { color: var(--warning); border-color: rgba(255, 209, 102, .4); }
+    .layout { display: grid; gap: 22px; grid-template-columns: 220px minmax(0, 1fr); margin-top: 28px; }
+    nav { position: sticky; top: 18px; align-self: start; }
+    nav a { border-left: 1px solid var(--line); color: var(--muted); display: block; padding: 6px 12px; text-decoration: none; }
+    nav a:hover { background: var(--accent-soft); color: var(--text); }
+    .content > section, .callout, .card, .phase, .risk { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+    .content > section { margin-bottom: 20px; padding: 24px; }
+    .callout { border-left: 3px solid var(--accent); padding: 17px 19px; }
+    .callout.warning { border-left-color: var(--warning); }
+    .callout strong { color: var(--text); }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card, .phase, .risk { padding: 17px; }
+    .card h3, .phase h3 { color: var(--text); }
+    .card p, .phase p, .risk p { font-size: .92rem; }
+    .phase { background: var(--panel-2); }
+    .phase .number { color: var(--accent); font-weight: 800; }
+    .phase .owner { color: var(--subtle); font-size: .82rem; }
+    ul, ol { color: var(--muted); margin: 9px 0 0; padding-left: 21px; }
+    li { margin: 6px 0; }
+    code { background: var(--code); border: 1px solid var(--line); border-radius: 4px; color: #d7e8f6; padding: 1px 5px; }
+    pre { background: var(--code); border: 1px solid var(--line); border-radius: 8px; color: #d7e8f6; overflow-x: auto; padding: 14px; }
+    table { border-collapse: collapse; color: var(--muted); margin-top: 12px; width: 100%; }
+    th, td { border: 1px solid var(--line); padding: 10px 11px; text-align: left; vertical-align: top; }
+    th { background: var(--panel-2); color: var(--text); font-size: .86rem; }
+    .priority { font-weight: 800; white-space: nowrap; }
+    .p0 { color: var(--danger); }
+    .p1 { color: var(--warning); }
+    .p2 { color: var(--info); }
+    .done { color: var(--success); }
+    .muted { color: var(--subtle); }
+    .task-list { list-style: none; padding-left: 0; }
+    .task-list li { border-bottom: 1px solid var(--line); padding: 10px 0 10px 28px; position: relative; }
+    .task-list li::before { border: 1px solid var(--subtle); border-radius: 4px; content: ""; height: 14px; left: 2px; position: absolute; top: 14px; width: 14px; }
+    .small { font-size: .87rem; }
+    footer { border-top: 1px solid var(--line); color: var(--subtle); margin-top: 28px; padding-top: 18px; }
+    @media (max-width: 850px) {
+      main { width: min(100% - 24px, 720px); padding-top: 26px; }
+      .layout { display: block; }
+      nav { position: static; display: flex; gap: 4px; overflow-x: auto; margin-bottom: 18px; padding-bottom: 4px; }
+      nav a { border-left: 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      .grid, .grid.three { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">DevDesk / Product UI</div>
+      <h1>UI improvement plan</h1>
+      <p class="subtitle">A prioritized implementation plan for making the DevDesk desktop app clearer, more consistent, more accessible, and faster to use without expanding product scope.</p>
+      <div class="meta">
+        <span class="status">Status: Ready for implementation</span>
+        <span class="pill">Scope: Renderer UI</span>
+        <span class="pill">Priority: P0 → P2</span>
+        <span class="pill">Source: Four read-only UI audits</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav aria-label="Plan sections">
+        <a href="#outcomes">Outcomes</a>
+        <a href="#priorities">Priorities</a>
+        <a href="#phases">Phases</a>
+        <a href="#acceptance">Acceptance</a>
+        <a href="#validation">Validation</a>
+        <a href="#risks">Risks</a>
+      </nav>
+
+      <div class="content">
+        <section id="outcomes">
+          <div class="section-label">01 / Direction</div>
+          <h2>Desired outcomes</h2>
+          <div class="grid three">
+            <article class="card"><h3>Scan faster</h3><p>Use a smaller, predictable typography and spacing scale so project, command, history, and status information is easy to parse.</p></article>
+            <article class="card"><h3>Know what happened</h3><p>Give every asynchronous action a visible loading, success, failure, and retry path.</p></article>
+            <article class="card"><h3>Stay in context</h3><p>Keep project-aware actions and state visible while moving between terminals, history, Git, health, notes, and automation.</p></article>
+          </div>
+          <div class="callout" style="margin-top:16px"><strong>Guiding principle:</strong> improve clarity and confidence before adding new features. Prefer shared primitives and semantic tokens over one-off Tailwind overrides.</div>
+        </section>
+
+        <section id="priorities">
+          <div class="section-label">02 / Backlog</div>
+          <h2>Prioritized improvements</h2>
+          <table>
+            <thead><tr><th>ID</th><th>Priority</th><th>Improvement</th><th>Primary evidence</th><th>Outcome</th></tr></thead>
+            <tbody>
+              <tr><td>UI-01</td><td class="priority p0">P0</td><td>Introduce shared <code>Panel</code>, <code>EmptyState</code>, <code>LoadingState</code>, <code>ErrorState</code>, and <code>StatusNotice</code> patterns.</td><td><code>apps/renderer/app/components/ui</code>; repeated feature-level panel/error styles</td><td>Consistent surfaces and feedback across the app.</td></tr>
+              <tr><td>UI-02</td><td class="priority p0">P0</td><td>Standardize semantic status tokens and typography.</td><td><code>apps/renderer/index.css</code>; Projects, Containers, History, Git panels</td><td>Success, warning, failure, info, and inactive states mean the same thing everywhere.</td></tr>
+              <tr><td>UI-03</td><td class="priority p0">P0</td><td>Add confirmation, scope, and recovery for destructive actions.</td><td>Projects, History, Containers, <code>BugRecorderPanel.tsx</code></td><td>No accidental data loss; destructive dialogs explain consequences.</td></tr>
+              <tr><td>UI-04</td><td class="priority p1">P1</td><td>Improve project context and navigation terminology.</td><td><code>AppShell.tsx</code>, <code>appShell.ts</code>, <code>ProjectDetailTabs.tsx</code></td><td>Users understand where they are and what “Engine,” “LLM,” Automation, and Git contain.</td></tr>
+              <tr><td>UI-05</td><td class="priority p1">P1</td><td>Make command execution and history a connected workflow.</td><td><code>CommandsSection.tsx</code>, <code>HistorySection.tsx</code></td><td>Run results expose output, status, duration, exit code, and a direct history link.</td></tr>
+              <tr><td>UI-06</td><td class="priority p1">P1</td><td>Make split-pane layouts responsive.</td><td><code>SectionLayout.tsx</code>; large dialogs and detail screens</td><td>Narrow windows use stacked or drill-in layouts without clipped content.</td></tr>
+              <tr><td>UI-07</td><td class="priority p1">P1</td><td>Fix terminal keyboard and assistive-technology interactions.</td><td><code>TerminalTabs.tsx</code>, <code>Terminal.tsx</code>, <code>TerminalExitOverlay.tsx</code></td><td>Valid interactive structure, named controls, focus management, and safe close behavior.</td></tr>
+              <tr><td>UI-08</td><td class="priority p2">P2</td><td>Improve History filtering and failure scanning.</td><td><code>HistorySection.tsx</code></td><td>Users can find failed or running work by command, project, date, and status.</td></tr>
+              <tr><td>UI-09</td><td class="priority p2">P2</td><td>Refine command readability and Git/terminal affordances.</td><td><code>CommandsSection.tsx</code>, Git panels, terminal tabs</td><td>Primary actions are visible, theme-aware, and project-aware.</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="phases">
+          <div class="section-label">03 / Delivery sequence</div>
+          <h2>Implementation phases</h2>
+          <div class="grid">
+            <article class="phase"><h3><span class="number">Phase 0</span> — Foundation</h3><p class="owner">Dependencies: none · Target: shared UI layer</p><ul class="task-list"><li>Add semantic surface, status, code-surface, and typography tokens.</li><li>Create shared Panel, EmptyState, LoadingState, ErrorState, and StatusNotice components using shadcn/Radix conventions.</li><li>Add IconButton/ToolbarButton where raw buttons repeat the same interaction pattern.</li><li>Complete the <code>components/ui/index.ts</code> barrel exports.</li><li>Correct Badge semantics and document when primitives should be used.</li></ul></article>
+            <article class="phase"><h3><span class="number">Phase 1</span> — Shell and context</h3><p class="owner">Dependencies: Phase 0 · Target: orientation and navigation</p><ul class="task-list"><li>Clarify “Engine,” “Commands,” and terse project-tab labels with names or subtitles.</li><li>Expose a persistent project-context switcher where project-scoped actions are available.</li><li>Make the sidebar’s default/collapsed behavior understandable and keyboard-safe.</li><li>Add visible shortcut/help discovery for Quick Launcher and fullscreen.</li><li>Standardize project header state: path, branch, health, indexing, and active processes.</li></ul></article>
+            <article class="phase"><h3><span class="number">Phase 2</span> — Feedback and safety</h3><p class="owner">Dependencies: Phase 0 · Target: confidence in operations</p><ul class="task-list"><li>Give async actions consistent loading, success, failure, retry, and saved states.</li><li>Replace silent Git “Unavailable” fallbacks with actionable state distinctions.</li><li>Confirm project deletion, history clearing, container stop, and bug deletion with explicit scope.</li><li>Add undo/export/recovery guidance where technically feasible.</li><li>Show autosave status and last-saved information for notes.</li></ul></article>
+            <article class="phase"><h3><span class="number">Phase 3</span> — Responsive and accessible UI</h3><p class="owner">Dependencies: Phase 0 · Target: constrained windows and keyboard users</p><ul class="task-list"><li>Stack, drill into, or drawer-enable fixed list/detail layouts below the desktop breakpoint.</li><li>Remove nested interactive elements from terminal tabs and provide named icon buttons.</li><li>Add menu/dialog semantics, Escape handling, focus transfer, and focus restoration to terminal overlays/menus.</li><li>Test dialogs at narrow widths and increased text size; preserve scroll access.</li><li>Raise critical metadata from 9–10px and verify contrast in both themes.</li></ul></article>
+            <article class="phase"><h3><span class="number">Phase 4</span> — Workflow acceleration</h3><p class="owner">Dependencies: Phases 1–3 · Target: high-frequency tasks</p><ul class="task-list"><li>Add “Run and view output” and “Open in History” actions to command execution.</li><li>Preselect the active project for project-scoped command, terminal, and Git actions.</li><li>Expose common Git actions directly in the project Git tab.</li><li>Add search/filter/sort to History with duration, exit code, and failure summaries.</li><li>Make terminal tabs show project and working-directory context; warn before closing active work.</li></ul></article>
+            <article class="phase"><h3><span class="number">Phase 5</span> — Visual polish and QA</h3><p class="owner">Dependencies: all prior phases · Target: release confidence</p><ul class="task-list"><li>Reduce card/border noise and normalize page padding and vertical rhythm.</li><li>Improve empty states with a clear explanation, primary CTA, and helpful next step.</li><li>Replace hard-coded command/terminal colors with theme tokens.</li><li>Run renderer tests, typecheck, lint, and packaged manual QA.</li><li>Capture before/after screenshots for the main shell, Projects, Commands, History, and Terminal screens.</li></ul></article>
+          </div>
+        </section>
+
+        <section id="acceptance">
+          <div class="section-label">04 / Definition of done</div>
+          <h2>Acceptance criteria</h2>
+          <div class="grid">
+            <article class="card"><h3>Visual system</h3><ul><li>Feature screens use shared semantic surfaces and feedback components.</li><li>No new arbitrary typography or status colors are introduced without a documented reason.</li><li>Spacing and metadata sizing are readable at normal desktop density.</li></ul></article>
+            <article class="card"><h3>Interaction</h3><ul><li>Every async action visibly communicates loading, success, failure, and retry where applicable.</li><li>Destructive actions state what will be removed/stopped and require an intentional confirmation.</li><li>Common project workflows preserve project context and minimize unnecessary navigation.</li></ul></article>
+            <article class="card"><h3>Accessibility</h3><ul><li>All icon-only controls have accessible names.</li><li>No nested interactive controls remain.</li><li>Dialogs, menus, overlays, focus order, Escape behavior, and focus restoration work with keyboard input.</li></ul></article>
+            <article class="card"><h3>Responsive behavior</h3><ul><li>Projects, Commands, History, and detail views remain usable in a narrow window.</li><li>Dialogs retain reachable headers, actions, and scroll regions at constrained sizes.</li><li>Critical content remains readable with increased text size and dark/light theme changes.</li></ul></article>
+          </div>
+        </section>
+
+        <section id="validation">
+          <div class="section-label">05 / Verification</div>
+          <h2>Validation plan</h2>
+          <ol>
+            <li>After each phase, run the smallest relevant renderer test suite and perform a manual smoke pass of affected workflows.</li>
+            <li>Use viewport checks at approximately 1280px, 900px, 700px, and 400px widths. Test keyboard-only navigation and focus visibility.</li>
+            <li>Test both themes, long project names/paths, empty data, slow loading, failed IPC calls, and active terminal processes.</li>
+            <li>Run repository gates before merging: <code>npm run typecheck</code>, <code>npm run lint</code>, and relevant renderer tests.</li>
+            <li>Before release, run <code>npm run release:gate</code> and update the interactive workflows in <a href="../manual-qa.md">manual QA</a>.</li>
+          </ol>
+          <pre>npm run typecheck
+npm run lint
+npm run test:renderer:run
+npm run release:gate</pre>
+          <p class="small muted">Automated checks do not replace packaged-app interaction testing. Record manual results separately for Windows and Linux, following the repository’s QA evidence rules.</p>
+        </section>
+
+        <section id="risks">
+          <div class="section-label">06 / Guardrails</div>
+          <h2>Risks and non-goals</h2>
+          <div class="grid">
+            <article class="risk"><h3 class="warning">Risks</h3><ul><li>Large shared-component changes can create broad visual regressions.</li><li>Changing project context may affect IPC assumptions and persisted selection state.</li><li>Responsive terminal work needs real packaged testing, not source inspection alone.</li></ul></article>
+            <article class="risk"><h3 class="done">Non-goals</h3><ul><li>No new cloud services, analytics, or background daemons.</li><li>No wholesale navigation rewrite before the existing workflows are made clear.</li><li>No feature expansion unrelated to usability, accessibility, consistency, or feedback.</li></ul></article>
+          </div>
+          <div class="callout warning" style="margin-top:16px"><strong>Recommended first slice:</strong> implement Phase 0 plus the highest-risk items in Phase 2 and Phase 3. This creates reusable UI foundations while addressing destructive actions, terminal semantics, and narrow-window usability.</div>
+        </section>
+      </div>
+    </div>
+
+    <footer>Prepared from the DevDesk renderer audit covering visual design, workflow UX, accessibility/responsiveness, and design-system consistency. This document is a planning artifact; task completion should be tracked in the repository issue or milestone system.</footer>
+  </main>
+</body>
+</html>

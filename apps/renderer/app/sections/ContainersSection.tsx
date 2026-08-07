@@ -44,11 +44,15 @@ import { Tabs, TabsList, TabsTrigger } from '../components/ui/Tabs'
 import { SectionLayout } from '../layout/SectionLayout'
 import { cn } from '../../lib/utils'
 import type { Container, Project } from '../types'
+import { ErrorState } from '../components/ui/ErrorState'
+import { LoadingState } from '../components/ui/LoadingState'
+import { StatusNotice } from '../components/ui/StatusNotice'
+import { EmptyState } from '../components/ui/EmptyState'
 
 const statusStyles: Record<Container['state'], string> = {
-  running: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]',
+  running: 'bg-status-success',
   stopped: 'bg-muted-foreground/40',
-  paused: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]',
+  paused: 'bg-status-warning',
 }
 
 const stateBadgeVariants: Record<Container['state'], 'success' | 'warning' | 'outline'> = {
@@ -110,6 +114,13 @@ export function ContainersSection({
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
   const [removeTargetIds, setRemoveTargetIds] = useState<string[]>([])
   const [removeLoading, setRemoveLoading] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+  const [removeMessage, setRemoveMessage] = useState<string | null>(null)
+  const [stopDialogOpen, setStopDialogOpen] = useState(false)
+  const [stopTargetIds, setStopTargetIds] = useState<string[]>([])
+  const [stopLoading, setStopLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
 
   const [logsOpen, setLogsOpen] = useState(false)
@@ -224,15 +235,29 @@ export function ContainersSection({
       .filter((container): container is Container => Boolean(container))
   }, [removeTargetIds, containers])
 
+  const stopTargets = useMemo(
+    () => containers.filter((container) => stopTargetIds.includes(container.id) && container.state !== 'stopped'),
+    [containers, stopTargetIds]
+  )
+
   const openRemoveDialog = (ids: string[]) => {
     if (!onRemoveContainer || !ids.length) return
     setRemoveTargetIds(ids)
+    setRemoveError(null)
     setRemoveDialogOpen(true)
+  }
+
+  const openStopDialog = (ids: string[]) => {
+    if (!onStopContainer || !ids.length) return
+    setStopTargetIds(ids)
+    setActionError(null)
+    setStopDialogOpen(true)
   }
 
   const handleConfirmRemove = async (force: boolean) => {
     if (!onRemoveContainer || !removeTargetIds.length || removeLoading) return
     setRemoveLoading(true)
+    setRemoveError(null)
     try {
       for (const id of removeTargetIds) {
         await onRemoveContainer(id, force)
@@ -240,6 +265,9 @@ export function ContainersSection({
       setSelectedIds((prev) => prev.filter((id) => !removeTargetIds.includes(id)))
       setRemoveDialogOpen(false)
       setRemoveTargetIds([])
+      setRemoveMessage(`Removed ${removeTargets.length} container${removeTargets.length === 1 ? '' : 's'} from Docker.`)
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : 'Failed to remove containers.')
     } finally {
       setRemoveLoading(false)
     }
@@ -258,8 +286,12 @@ export function ContainersSection({
   const handleRefresh = async () => {
     if (!onRefreshContainers || refreshing) return
     setRefreshing(true)
+    setActionError(null)
     try {
       await onRefreshContainers()
+      setActionMessage('Container list refreshed.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to refresh containers.')
     } finally {
       setRefreshing(false)
     }
@@ -272,14 +304,19 @@ export function ContainersSection({
   ) => {
     if (!handler) return
     setActionLoading(`${action}:${containerId}`)
+    setActionError(null)
+    setActionMessage(null)
     try {
       await handler(containerId)
+      setActionMessage(`${action[0].toUpperCase()}${action.slice(1)} completed for ${containers.find((container) => container.id === containerId)?.name ?? 'container'}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : `Failed to ${action} container.`)
     } finally {
       setActionLoading(null)
     }
   }
 
-  const runBulkAction = async (action: 'start' | 'stop' | 'restart' | 'pause' | 'unpause') => {
+  const runBulkAction = async (action: 'start' | 'stop' | 'restart' | 'pause' | 'unpause', requestedIds = selectedIds) => {
     if (bulkActionLoading) return
     const handlers = {
       start: onStartContainer,
@@ -290,25 +327,49 @@ export function ContainersSection({
     }
     const handler = handlers[action]
     if (!handler) return
-    const targetIds = selectedContainers
+    const targetIds = containers.filter((container) => {
+      if (!requestedIds.includes(container.id)) return false
+      if (action === 'start') return container.state === 'stopped'
+      if (action === 'stop') return container.state !== 'stopped'
+      if (action === 'pause') return container.state === 'running'
+      if (action === 'unpause') return container.state === 'paused'
+      return true
+    })
       .filter((container) => {
         if (action === 'start') return container.state === 'stopped'
         if (action === 'stop') return container.state !== 'stopped'
         if (action === 'pause') return container.state === 'running'
         if (action === 'unpause') return container.state === 'paused'
-        return true
-      })
-      .map((container) => container.id)
-    if (!targetIds.length) return
+      return true
+    })
+    if (!targetIds.length) return false
     setBulkActionLoading(true)
+    setActionError(null)
+    setActionMessage(null)
     try {
-      for (const id of targetIds) {
-        await handler(id)
+      for (const container of targetIds) {
+        await handler(container.id)
       }
       setSelectedIds([])
+      setActionMessage(`${action[0].toUpperCase()}${action.slice(1)} completed for ${targetIds.length} selected container${targetIds.length === 1 ? '' : 's'}.`)
+      return true
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : `Failed to ${action} selected containers.`)
+      return false
     } finally {
       setBulkActionLoading(false)
     }
+  }
+
+  const handleConfirmStop = async () => {
+    if (stopLoading || !stopTargetIds.length) return
+    setStopLoading(true)
+    const completed = await runBulkAction('stop', stopTargetIds)
+    if (completed) {
+      setStopDialogOpen(false)
+      setStopTargetIds([])
+    }
+    setStopLoading(false)
   }
 
   const handleViewLogs = async () => {
@@ -388,7 +449,7 @@ export function ContainersSection({
     <>
       <SectionLayout
         list={
-          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+          <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
             <div className="flex flex-col border-b border-border/40 bg-muted/20">
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
@@ -511,7 +572,7 @@ export function ContainersSection({
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => runBulkAction('stop')}
+                        onClick={() => openStopDialog(selectedIds)}
                         disabled={bulkActionLoading}
                         aria-label="Stop selected containers"
                         title="Stop selected"
@@ -547,27 +608,23 @@ export function ContainersSection({
             )}
             <div className="flex-1 overflow-auto px-2 py-2">
               {isLoading ? (
-                <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground/60 italic">
-                  <RefreshCw className="h-5 w-5 animate-spin opacity-20" />
-                  <span className="text-xs font-medium">Scanning Docker host...</span>
-                </div>
+                <LoadingState label="Loading containers" description="Scanning Docker host…" className="h-full" />
               ) : error ? (
-                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-destructive bg-destructive/5 rounded-lg border border-destructive/10">
-                  <Activity className="h-8 w-8 mb-2 opacity-20" />
-                  <p className="font-semibold">{error}</p>
-                  <Button variant="outline" size="sm" onClick={handleRefresh} className="mt-4 h-8 text-[10px] font-bold uppercase">
-                    Reconnect
-                  </Button>
-                </div>
+                <ErrorState title="Docker containers unavailable" description={error} onRetry={() => void handleRefresh()} retryLabel="Retry connection" className="h-full" />
               ) : containers.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50">
-                  <Box className="h-10 w-10 mb-2 opacity-20" />
-                  <p className="text-sm">No containers detected.</p>
-                </div>
+                <EmptyState
+                  className="h-full"
+                  icon={<Box className="h-5 w-5" />}
+                  title="No containers detected"
+                  description="Start Docker or connect a project with containers, then refresh this list."
+                  action={onRefreshContainers ? <Button size="sm" onClick={() => void handleRefresh()} disabled={refreshing}>Refresh containers</Button> : undefined}
+                />
               ) : sortedContainers.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground italic opacity-50">
-                  No matches for filter.
-                </div>
+                <EmptyState
+                  className="h-full"
+                  title="No matching containers"
+                  description="Try a different name, state, or sort selection."
+                />
               ) : (
                 <div className="space-y-1">
                   {sortedContainers.map((container) => {
@@ -687,12 +744,12 @@ export function ContainersSection({
         }
         detail={
           selectedContainer ? (
-            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+            <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
               <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1.5 min-w-0">
                     <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                      <div className="rounded bg-status-info/10 p-1.5 text-status-info">
                         <Box className="h-4 w-4" />
                       </div>
                       <CardTitle className="text-2xl font-bold tracking-tight truncate">{selectedContainer.name}</CardTitle>
@@ -834,8 +891,8 @@ export function ContainersSection({
                     <TerminalIcon className="h-3.5 w-3.5" />
                     Runtime Execution Instruction
                   </h3>
-                  <div className="rounded-xl border border-border/40 bg-[#0d0d0d] p-5 font-mono text-[13px] text-blue-400/90 shadow-inner overflow-hidden relative">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/30" />
+                  <div className="relative overflow-hidden rounded-lg border border-code-border bg-code p-4 font-mono text-ui-code text-code-foreground shadow-inner">
+                    <div className="absolute left-0 top-0 h-full w-1 bg-status-info/40" />
                     <span className="opacity-40 mr-3 select-none">$</span>
                     {selectedContainer.command || 'No explicit entrypoint instruction'}
                   </div>
@@ -876,7 +933,7 @@ export function ContainersSection({
                       <Button
                         variant="destructive"
                         className="flex-1 h-10 gap-2 font-bold uppercase tracking-wider text-[11px] bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive hover:text-white transition-all"
-                        onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
+                        onClick={() => openStopDialog([selectedContainer.id])}
                         disabled={!onStopContainer || detailActionBusy}
                       >
                         <Square className="h-4 w-4" />
@@ -897,7 +954,7 @@ export function ContainersSection({
                       <Button
                         variant="destructive"
                         className="flex-1 h-10 gap-2 font-bold uppercase tracking-wider text-[11px] bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive hover:text-white transition-all"
-                        onClick={() => void runContainerAction('stop', onStopContainer, selectedContainer.id)}
+                        onClick={() => openStopDialog([selectedContainer.id])}
                         disabled={!onStopContainer || detailActionBusy}
                       >
                         <Square className="h-4 w-4" />
@@ -925,6 +982,9 @@ export function ContainersSection({
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
+                {actionError ? <StatusNotice tone="error" title="Container action failed">{actionError}</StatusNotice> : null}
+                {actionMessage ? <StatusNotice tone="success" title="Container action complete">{actionMessage}</StatusNotice> : null}
+                {removeMessage ? <StatusNotice tone="success" title="Container removed">{removeMessage}</StatusNotice> : null}
               </div>
             </Card>
           ) : (
@@ -984,12 +1044,44 @@ export function ContainersSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+      <Dialog
+        open={stopDialogOpen}
+        onOpenChange={(open) => {
+          setStopDialogOpen(open)
+          if (!open) setStopTargetIds([])
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Stop container{stopTargets.length === 1 ? '' : 's'}?</DialogTitle>
+            <DialogDescription>
+              This stops the selected running or paused Docker container{stopTargets.length === 1 ? '' : 's'} and interrupts active processes. It does not remove the container or its data.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+            {stopTargets.map((container) => <div key={container.id} className="font-medium">{container.name}</div>)}
+          </div>
+          {actionError ? <StatusNotice tone="error" title="Stop failed">{actionError}</StatusNotice> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStopDialogOpen(false)} disabled={stopLoading}>Cancel</Button>
+            <Button variant="destructive" onClick={() => void handleConfirmStop()} disabled={stopLoading || !stopTargets.length}>
+              {stopLoading ? 'Stopping…' : `Stop ${stopTargets.length || ''} container${stopTargets.length === 1 ? '' : 's'}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={removeDialogOpen}
+        onOpenChange={(open) => {
+          setRemoveDialogOpen(open)
+          if (!open) setRemoveError(null)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Remove Containers</DialogTitle>
             <DialogDescription>
-              This will remove the selected container{removeTargets.length === 1 ? '' : 's'} from Docker.
+              This permanently removes the selected container{removeTargets.length === 1 ? '' : 's'} from Docker. Stopped containers can be recreated only if their image or compose definition is still available.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 text-sm">
@@ -1012,6 +1104,7 @@ export function ContainersSection({
               </div>
             ) : null}
           </div>
+          {removeError ? <StatusNotice tone="error" title="Container removal failed">{removeError}</StatusNotice> : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setRemoveDialogOpen(false)} disabled={removeLoading}>
               Cancel

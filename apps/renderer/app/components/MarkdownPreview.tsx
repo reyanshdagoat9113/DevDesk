@@ -81,7 +81,7 @@ export const MarkdownPreview = React.memo(function MarkdownPreview({ source, pro
         'prose-td:p-2 prose-td:text-foreground/90 prose-td:border-b prose-td:border-border/20',
         'prose-tr:hover:prose-td:bg-muted/20',
         'prose-img:rounded-md prose-img:my-2',
-        '[&_pre]:my-3 [&_pre]:rounded-lg [&_pre]:overflow-auto [&_pre]:bg-[#1e1e1e]',
+        '[&_pre]:my-3 [&_pre]:overflow-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-code-border [&_pre]:bg-code [&_pre]:text-code-foreground',
         '[&_code]:font-mono [&_code]:text-xs',
         '[&_p>code]:bg-muted [&_p>code]:px-1 [&_p>code]:py-0.5 [&_p>code]:rounded [&_p>code]:text-[11px]',
         className

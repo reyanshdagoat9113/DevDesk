@@ -19,13 +19,13 @@ describe('ProjectDetailTabs', () => {
       />
     )
 
-    expect(screen.getByRole('tab', { name: 'Overview' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Health' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Bugs' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Notes' })).toBeTruthy()
-    expect(screen.queryByRole('tab', { name: 'LLM' })).toBeNull()
-    expect(screen.queryByRole('tab', { name: 'Engine' })).toBeNull()
-    expect(screen.queryByRole('tab', { name: 'Git' })).toBeNull()
+    expect(screen.getByRole('tab', { name: /Overview/ })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /Health checks/ })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /Bug reports/ })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /Notes/ })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: /LLM context/ })).toBeNull()
+    expect(screen.queryByRole('tab', { name: /Search & indexing/ })).toBeNull()
+    expect(screen.queryByRole('tab', { name: /Git workflow/ })).toBeNull()
 
     expect(screen.getByTestId('panel-overview')).toBeTruthy()
   })
@@ -42,9 +42,9 @@ describe('ProjectDetailTabs', () => {
       />
     )
 
-    expect(screen.getByRole('tab', { name: 'LLM' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Engine' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Git' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /LLM context/ })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /Search & indexing/ })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /Git workflow/ })).toBeTruthy()
   })
 
   it('switches to health tab on click', async () => {
@@ -58,7 +58,7 @@ describe('ProjectDetailTabs', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Health' }))
+    await userEvent.click(screen.getByRole('tab', { name: /Health checks/ }))
 
     expect(screen.getByTestId('panel-health')).toBeTruthy()
   })
@@ -74,7 +74,7 @@ describe('ProjectDetailTabs', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Notes' }))
+    await userEvent.click(screen.getByRole('tab', { name: /Notes/ }))
 
     expect(screen.getByTestId('panel-notes')).toBeTruthy()
   })
@@ -90,7 +90,7 @@ describe('ProjectDetailTabs', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Bugs' }))
+    await userEvent.click(screen.getByRole('tab', { name: /Bug reports/ }))
 
     expect(screen.getByText(/Bug tracking integration/)).toBeTruthy()
   })
@@ -107,7 +107,7 @@ describe('ProjectDetailTabs', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Bugs' }))
+    await userEvent.click(screen.getByRole('tab', { name: /Bug reports/ }))
 
     expect(screen.getByTestId('panel-custom-bugs')).toBeTruthy()
   })
@@ -139,7 +139,7 @@ describe('ProjectDetailTabs', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'LLM' }))
+    await userEvent.click(screen.getByRole('tab', { name: /LLM context/ }))
 
     expect(screen.getByTestId('panel-llm')).toBeTruthy()
   })
@@ -155,7 +155,7 @@ describe('ProjectDetailTabs', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Engine' }))
+    await userEvent.click(screen.getByRole('tab', { name: /Search & indexing/ }))
 
     expect(screen.getByTestId('panel-engine')).toBeTruthy()
   })
@@ -171,7 +171,7 @@ describe('ProjectDetailTabs', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Git' }))
+    await userEvent.click(screen.getByRole('tab', { name: /Git workflow/ }))
 
     expect(screen.getByTestId('panel-git')).toBeTruthy()
   })
