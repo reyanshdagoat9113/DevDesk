@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors',
   {
     variants: {
       variant: {
@@ -11,8 +11,10 @@ const badgeVariants = cva(
         secondary: 'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
         destructive: 'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
         outline: 'text-foreground border-border/60 bg-background/50',
-        success: 'border-transparent bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30',
-        warning: 'border-transparent bg-amber-500/20 text-amber-400 hover:bg-amber-500/30',
+        success: 'border-transparent bg-status-success/15 text-status-success',
+        warning: 'border-transparent bg-status-warning/15 text-status-warning',
+        info: 'border-transparent bg-status-info/15 text-status-info',
+        inactive: 'border-transparent bg-status-inactive/15 text-status-inactive',
       },
     },
     defaultVariants: {
@@ -21,13 +23,18 @@ const badgeVariants = cva(
   }
 )
 
+/**
+ * A non-interactive status label for metadata such as state, type, or count.
+ * Use Button for actions; Badge intentionally renders a span and has no
+ * interactive focus styling.
+ */
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <span className={cn(badgeVariants({ variant }), className)} {...props} />
   )
 }
 

@@ -67,7 +67,7 @@ export function RunnableBlock({ code, language, projectId, runnable }: RunnableB
   }, [projectId, trimmedCode])
 
   return (
-    <div className="not-prose my-3 overflow-hidden rounded-lg border border-border/50 bg-[#1e1e1e]">
+    <div className="not-prose my-3 overflow-hidden rounded-lg border border-code-border bg-code text-code-foreground">
       <div className="flex min-h-9 items-center justify-between gap-3 border-b border-border/30 bg-muted/20 px-3 py-2">
         <span className="min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           {language || 'text'}
@@ -108,7 +108,7 @@ export function RunnableBlock({ code, language, projectId, runnable }: RunnableB
         PreTag="div"
         language={language || 'text'}
         style={vscDarkPlus}
-        customStyle={{ margin: 0, borderRadius: 0, background: '#1e1e1e' }}
+            customStyle={{ margin: 0, borderRadius: 0, background: 'hsl(var(--code-surface))' }}
       >
         {code.replace(/\n$/, '')}
       </SyntaxHighlighter>

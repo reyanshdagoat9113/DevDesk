@@ -93,6 +93,7 @@ function App() {
   const [triggerConfirmations, setTriggerConfirmations] = useState<TriggerConfirmationRequest[]>([])
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [history, setHistory] = useState<RunHistoryEntry[]>([])
+  const [historyFocusRunId, setHistoryFocusRunId] = useState<string | null>(null)
   const [preferences, setPreferences] = useState<AppPreferences | null>(null)
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null)
   const [engineIndexes, setEngineIndexes] = useState<Record<string, EngineIndexMeta>>({})
@@ -143,10 +144,11 @@ function App() {
       const session = terminalSessions.find((s) => s.id === activeTerminalId)
       if (session?.projectId) return session.projectId
     }
-    return null
+    return selectedEngineProjectId
   }, [activeTab, selectedEngineProjectId, terminalSessions, activeTerminalId])
 
-  const title = useMemo(() => navItems.find((item) => item.value === activeTab)?.label ?? '', [activeTab])
+  const currentNavItem = useMemo(() => navItems.find((item) => item.value === activeTab), [activeTab])
+  const title = currentNavItem?.label ?? ''
   const actionLabel = actionLabels[activeTab]
   const navItemsWithCounts = useMemo(() => {
     const counts: Record<TabValue, number> = {
@@ -1328,6 +1330,11 @@ function App() {
     }
   }
 
+  const handleOpenHistory = useCallback((runId?: string) => {
+    setHistoryFocusRunId(runId ?? null)
+    setActiveTab('history')
+  }, [])
+
   const terminalFullscreen = activeTab === 'terminal' && isTerminalFullscreen
 
   return (
@@ -1338,6 +1345,10 @@ function App() {
           activeNav={activeTab}
           onNavChange={(value) => setActiveTab(value as TabValue)}
           title={title}
+          titleDescription={currentNavItem?.description}
+          projects={projects}
+          activeProjectId={selectedEngineProjectId}
+          onProjectChange={setSelectedEngineProjectId}
           themeToggle={<ThemeToggle theme={theme} onToggle={toggleTheme} />}
           settingsButton={
             <Button
@@ -1396,6 +1407,7 @@ function App() {
               onRestartDevStack={handleRestartDevStack}
               onRefreshContainers={handleRefreshContainers}
               onRemoveProject={handleRemoveProject}
+              selectedProjectId={selectedEngineProjectId}
               onSelectProject={handleProjectSelected}
               onIndexProject={handleIndexEngineProject}
               onSearchProjectContent={handleEngineSearch}
@@ -1414,6 +1426,7 @@ function App() {
               onOpenProjectEngine={handleOpenProjectEngine}
               onCreateCommand={handleCreateCommand}
               onRunCommand={handleRunCommand}
+              onOpenCreateProject={() => setProjectDialogOpen(true)}
             />
           )}
           {activeTab === 'commands' && (
@@ -1438,6 +1451,7 @@ function App() {
               onUpdateTrigger={handleUpdateTrigger}
               onRemoveTrigger={handleRemoveTrigger}
               onOpenCreateCommand={() => setCommandDialogOpen(true)}
+              onOpenHistory={handleOpenHistory}
             />
           )}
           {activeTab === 'engine' && (
@@ -1496,6 +1510,8 @@ function App() {
               onLoadOutput={handleLoadOutput}
               onClearHistory={handleClearHistory}
               onRemoveEntry={handleRemoveHistoryEntry}
+              initialRunId={historyFocusRunId}
+              onOpenCommands={() => setActiveTab('commands')}
             />
           )}
           {activeTab === 'terminal' && !isTerminalFullscreen && (

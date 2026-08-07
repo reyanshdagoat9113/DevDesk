@@ -39,6 +39,7 @@ type AutomationSectionProps = {
   onUpdateTrigger: (triggerId: string, input: CreateCommandTriggerInput) => Promise<CommandTrigger>
   onRemoveTrigger: (triggerId: string) => Promise<void>
   onOpenCreateCommand?: () => void
+  onOpenHistory?: (runId?: string) => void
 }
 
 export function AutomationSection(props: AutomationSectionProps) {
@@ -46,9 +47,9 @@ export function AutomationSection(props: AutomationSectionProps) {
   const [seedCommand, setSeedCommand] = useState<Command | null>(null)
 
   return (
-    <Tabs value={activeView} onValueChange={(value) => setActiveView(value as 'commands' | 'chains' | 'triggers')} className="flex h-full flex-col gap-4">
-      <div className="flex items-center justify-between gap-4 pt-2 pb-4">
-        <TabsList className="bg-muted/30 p-1 gap-1 ml-4">
+    <Tabs value={activeView} onValueChange={(value) => setActiveView(value as 'commands' | 'chains' | 'triggers')} className="flex h-full flex-col gap-3">
+      <div className="flex items-center justify-between gap-4 px-4 pt-1 pb-3 lg:px-6">
+        <TabsList className="gap-1 bg-muted/30 p-1">
           <TabsTrigger value="commands" className="rounded-md px-4 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold">
             Commands
             <span className="ml-2 text-xs text-muted-foreground tabular-nums">({props.commands.length})</span>
@@ -81,6 +82,8 @@ export function AutomationSection(props: AutomationSectionProps) {
           onRemoveCommand={props.onRemoveCommand}
           onToggleCommandPin={props.onToggleCommandPin}
           onCreatePresetCommand={props.onCreatePresetCommand}
+          onOpenHistory={props.onOpenHistory}
+          onOpenCreateCommand={props.onOpenCreateCommand}
           onAddToChain={(command) => {
             setSeedCommand(command)
             setActiveView('chains')

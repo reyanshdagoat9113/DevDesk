@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star, Sparkles, PlusCircle } from 'lucide-react'
+import { Pencil, Trash2, Search, Terminal, Hash, PlayCircle, Folder, Globe, Loader2, Variable, Star, Sparkles, PlusCircle, ExternalLink } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import {
   Card,
@@ -19,6 +19,7 @@ import {
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { Badge } from '../components/ui/Badge'
+import { EmptyState } from '../components/ui/EmptyState'
 import { Textarea } from '../components/ui/Textarea'
 import { SectionLayout } from '../layout/SectionLayout'
 import { VariablePromptModal } from '../components/VariablePromptModal'
@@ -45,6 +46,8 @@ export function CommandsSection({
   onRemoveCommand,
   onCreatePresetCommand,
   onAddToChain,
+  onOpenHistory,
+  onOpenCreateCommand,
 }: {
   commands: Command[]
   projects: Project[]
@@ -56,10 +59,15 @@ export function CommandsSection({
   onRemoveCommand?: (commandId: string) => Promise<void>
   onCreatePresetCommand?: (command: CreateCommandInput) => Promise<Command>
   onAddToChain?: (command: Command) => void
+  onOpenHistory?: (runId?: string) => void
+  onOpenCreateCommand?: () => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(commands[0]?.id ?? null)
   const [runError, setRunError] = useState<string | null>(null)
   const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'started'>('idle')
+  const [lastRunId, setLastRunId] = useState<string | null>(null)
+  const [lastRunCommandId, setLastRunCommandId] = useState<string | null>(null)
+  const [lastRunProjectId, setLastRunProjectId] = useState<string | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -356,6 +364,8 @@ export function CommandsSection({
       return
     }
     setRunError(null)
+    setLastRunId(null)
+    setLastRunCommandId(null)
     setRunStatus('running')
     try {
       // Try to run - may return needs-input status
@@ -373,6 +383,11 @@ export function CommandsSection({
       }
 
       // Normal execution
+      if ('runId' in result) {
+        setLastRunId(result.runId)
+        setLastRunCommandId(selectedCommand.id)
+        setLastRunProjectId(selectedProject.id)
+      }
       setRunStatus('started')
       setTimeout(() => setRunStatus('idle'), 1500)
     } catch (error) {
@@ -387,7 +402,12 @@ export function CommandsSection({
 
       setRunStatus('running')
       try {
-        await onRunCommand(pendingRun.commandId, pendingRun.projectId, values)
+        const result = await onRunCommand(pendingRun.commandId, pendingRun.projectId, values)
+        if ('runId' in result) {
+          setLastRunId(result.runId)
+          setLastRunCommandId(pendingRun.commandId)
+          setLastRunProjectId(pendingRun.projectId)
+        }
         setRunStatus('started')
         setTimeout(() => setRunStatus('idle'), 1500)
       } catch (error) {
@@ -457,7 +477,7 @@ export function CommandsSection({
     <>
       <SectionLayout
       list={
-        <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+        <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
           <div className="border-b border-border/40 bg-muted/20 px-4 py-3 space-y-3">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
@@ -562,21 +582,27 @@ export function CommandsSection({
                 {error}
               </div>
             ) : commands.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center p-6 text-center text-muted-foreground opacity-50">
-                <Terminal className="h-10 w-10 mb-2 opacity-20" />
-                <p className="text-sm">No commands saved yet.</p>
-              </div>
+              <EmptyState
+                className="h-full"
+                icon={<Terminal className="h-5 w-5" />}
+                title="No commands saved yet"
+                description="Save the commands you run often so they stay project-aware and available from one place."
+                action={onOpenCreateCommand ? <Button size="sm" onClick={onOpenCreateCommand}>Create command</Button> : undefined}
+              />
             ) : filteredCommands.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground opacity-50 italic">
-                No matches found.
-              </div>
+              <EmptyState
+                className="h-full"
+                title="No matching commands"
+                description="Try a broader search or clear the active tag filters to see more commands."
+                action={<Button size="sm" variant="outline" onClick={() => { setSelectedTags([]); setQuery('') }}>Clear filters</Button>}
+              />
             ) : (
               <div className="space-y-1">
 
                 {pinnedCommands.length > 0 && (
                   <>
                     <div className="px-2 py-1">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-600/80">Pinned</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-status-warning/90">Pinned</p>
                     </div>
                     {pinnedCommands.map((command) => {
                       const isActive = selectedCommand?.id === command.id
@@ -595,7 +621,7 @@ export function CommandsSection({
                           <div className="flex w-full items-center justify-between gap-2">
                             <span className="truncate text-sm font-bold leading-none">{command.name}</span>
                             <div className="flex items-center gap-1">
-                              <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
+                              <Star className="h-3.5 w-3.5 fill-status-warning text-status-warning" />
                               {command.variables && command.variables.length > 0 && (
                                 <Badge variant="outline" className={cn(
                                   "h-4 px-1 text-[8px] border-border/40 font-bold text-primary",
@@ -682,7 +708,7 @@ export function CommandsSection({
       }
       detail={
         selectedCommand ? (
-          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+          <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
             <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
               <div className="flex items-start justify-between">
                 <div className="space-y-1.5 min-w-0">
@@ -704,8 +730,8 @@ export function CommandsSection({
                     className={cn(
                       "h-8 w-8 transition-colors",
                       selectedCommand.isPinned
-                        ? "text-yellow-500 hover:bg-yellow-500/10"
-                        : "text-muted-foreground hover:text-yellow-500 hover:bg-muted/50"
+                        ? "text-status-warning hover:bg-status-warning/10"
+                        : "text-muted-foreground hover:text-status-warning hover:bg-muted/50"
                     )}
                     onClick={() => onToggleCommandPin?.(selectedCommand.id)}
                     disabled={!onToggleCommandPin}
@@ -777,9 +803,9 @@ export function CommandsSection({
                   <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Instruction String</Label>
                   <Badge variant="outline" className="text-[9px] font-mono opacity-50">SH / BASH</Badge>
                 </div>
-                <div className="relative group rounded-xl border border-border/40 bg-[#0d0d0d] p-5 font-mono text-sm shadow-inner overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-primary/30" />
-                  <code className="break-all text-blue-400/90 leading-relaxed">{selectedCommand.command}</code>
+                <div className="relative group overflow-hidden rounded-lg border border-code-border bg-code p-4 font-mono text-ui-code shadow-inner">
+                  <div className="absolute left-0 top-0 h-full w-1 bg-status-info/40" />
+                  <code className="break-all leading-relaxed text-code-foreground">{selectedCommand.command}</code>
                 </div>
               </div>
 
@@ -911,6 +937,16 @@ export function CommandsSection({
                           )}
                           {runStatus === 'running' ? 'Deploying...' : 'Execute Script'}
                         </Button>
+                        {lastRunId && lastRunCommandId === selectedCommand.id && onOpenHistory ? (
+                          <Button
+                            variant="outline"
+                            className="h-10 px-4 gap-2 text-[11px] font-bold uppercase tracking-wider"
+                            onClick={() => onOpenHistory(lastRunId)}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            View output
+                          </Button>
+                        ) : null}
                         <Button
                           variant="outline"
                           className="h-10 px-4 gap-2 text-[11px] font-bold uppercase tracking-wider"
@@ -932,9 +968,20 @@ export function CommandsSection({
                 )}
                 
                 {runStatus === 'started' && (
-                  <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/10 p-3 text-[11px] text-emerald-500 flex items-center gap-2 font-bold uppercase tracking-wider">
-                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Automation started successfully
+                  <div className="flex items-center gap-2 rounded-lg border border-status-success/10 bg-status-success/5 p-3 text-[11px] font-bold uppercase tracking-wider text-status-success">
+                    <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-status-success" />
+                    <span className="min-w-0 flex-1">
+                      Automation started in {projects.find((project) => project.id === lastRunProjectId)?.name ?? selectedProject?.name ?? 'the selected project'}.
+                    </span>
+                    {lastRunId && lastRunCommandId === selectedCommand.id && onOpenHistory ? (
+                      <button
+                        type="button"
+                        className="shrink-0 underline underline-offset-2 hover:text-status-success"
+                        onClick={() => onOpenHistory(lastRunId)}
+                      >
+                        Open in History
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </div>

@@ -4,6 +4,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/Tabs'
 
 type TabValue = 'overview' | 'health' | 'bugs' | 'notes' | 'llm' | 'engine' | 'git'
 
+const tabItems: ReadonlyArray<{ value: TabValue; label: string; description: string }> = [
+  { value: 'overview', label: 'Overview', description: 'Project summary and actions' },
+  { value: 'health', label: 'Health checks', description: 'Dependencies and setup diagnostics' },
+  { value: 'bugs', label: 'Bug reports', description: 'Capture and review project bugs' },
+  { value: 'notes', label: 'Notes', description: 'Project notes and context' },
+  { value: 'llm', label: 'LLM context', description: 'Export context for AI-assisted work' },
+  { value: 'engine', label: 'Search & indexing', description: 'Index files, search code, and inspect Git insights' },
+  { value: 'git', label: 'Git workflow', description: 'Review branch state and changes' },
+]
+
 interface ProjectDetailTabsProps {
   overviewPanel: ReactNode
   healthPanel: ReactNode
@@ -35,41 +45,55 @@ export function ProjectDetailTabs({
 
   return (
     <Tabs defaultValue={safeDefault} className="flex flex-col h-full">
-      <div className="shrink-0 px-8 pt-6 pb-2">
+      <div className="shrink-0 px-6 pt-5 pb-2">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="health">Health</TabsTrigger>
-          <TabsTrigger value="bugs">Bugs</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
-          {llmPanel != null && <TabsTrigger value="llm">LLM</TabsTrigger>}
-          {enginePanel !== null && <TabsTrigger value="engine">Engine</TabsTrigger>}
-          {gitPanel !== null && <TabsTrigger value="git">Git</TabsTrigger>}
+          {tabItems.map((tab) => {
+            const isOptional = tab.value === 'llm' || tab.value === 'engine' || tab.value === 'git'
+            const isAvailable = tab.value === 'llm'
+              ? llmPanel != null
+              : tab.value === 'engine'
+                ? enginePanel !== null
+                : tab.value === 'git'
+                  ? gitPanel !== null
+                  : !isOptional
+
+            return isAvailable ? (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                aria-label={`${tab.label}: ${tab.description}`}
+                title={tab.description}
+              >
+                {tab.label}
+              </TabsTrigger>
+            ) : null
+          })}
         </TabsList>
       </div>
-      <TabsContent value="overview" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
+      <TabsContent value="overview" className="flex-1 overflow-auto p-6 pt-5 focus-visible:outline-none">
         {overviewPanel}
       </TabsContent>
-      <TabsContent value="health" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
+      <TabsContent value="health" className="flex-1 overflow-auto p-6 pt-5 focus-visible:outline-none">
         {healthPanel}
       </TabsContent>
-      <TabsContent value="bugs" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
+      <TabsContent value="bugs" className="flex-1 overflow-auto p-6 pt-5 focus-visible:outline-none">
         {bugsPanel ?? <BugsPlaceholder />}
       </TabsContent>
-      <TabsContent value="notes" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
+      <TabsContent value="notes" className="flex-1 overflow-auto p-6 pt-5 focus-visible:outline-none">
         {notesPanel}
       </TabsContent>
       {llmPanel != null && (
-        <TabsContent value="llm" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
+        <TabsContent value="llm" className="flex-1 overflow-auto p-6 pt-5 focus-visible:outline-none">
           {llmPanel}
         </TabsContent>
       )}
       {enginePanel !== null && (
-        <TabsContent value="engine" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
+        <TabsContent value="engine" className="flex-1 overflow-auto p-6 pt-5 focus-visible:outline-none">
           {enginePanel}
         </TabsContent>
       )}
       {gitPanel !== null && (
-        <TabsContent value="git" className="flex-1 overflow-auto p-8 pt-6 focus-visible:outline-none">
+        <TabsContent value="git" className="flex-1 overflow-auto p-6 pt-5 focus-visible:outline-none">
           {gitPanel}
         </TabsContent>
       )}

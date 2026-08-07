@@ -23,34 +23,20 @@ interface TerminalProps {
   isVisible?: boolean
 }
 
-const DARK_THEME = {
-  background: '#111318',
-  foreground: '#eef1f5',
-  cursor: '#4fb3ff',
-  selectionBackground: 'rgba(79, 179, 255, 0.3)',
+function getThemeColor(variable: string, alpha?: number) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim()
+  return value ? `hsl(${value}${alpha === undefined ? '' : ` / ${alpha}`})` : `hsl(var(${variable})${alpha === undefined ? '' : ` / ${alpha}`})`
 }
 
-const LIGHT_THEME = {
-  background: '#ffffff',
-  foreground: '#1a1a2e',
-  cursor: '#4fb3ff',
-  selectionBackground: 'rgba(79, 179, 255, 0.3)',
-}
-
-function getThemeOptions(isDark: boolean) {
-  const theme = isDark ? DARK_THEME : LIGHT_THEME
+function getThemeOptions() {
   return {
     theme: {
-      background: theme.background,
-      foreground: theme.foreground,
-      cursor: theme.cursor,
-      selectionBackground: theme.selectionBackground,
+      background: getThemeColor('--terminal-surface'),
+      foreground: getThemeColor('--terminal-foreground'),
+      cursor: getThemeColor('--terminal-cursor'),
+      selectionBackground: getThemeColor('--terminal-selection', 0.3),
     },
   }
-}
-
-function detectTheme(): boolean {
-  return document.documentElement.classList.contains('dark')
 }
 
 function getZoomPercent(zoomDelta: number) {
@@ -58,6 +44,7 @@ function getZoomPercent(zoomDelta: number) {
 }
 
 export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, className, isVisible = true }: TerminalProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -80,6 +67,8 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const menuItemsRef = useRef<Array<HTMLButtonElement | null>>([])
+  const restoreMenuFocusRef = useRef<HTMLElement | null>(null)
 
   const updateZoomDisplay = useCallback(() => {
     setZoomDisplay(getZoomPercent(zoomRef.current))
@@ -133,29 +122,70 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
     }
   }, [])
 
-  // Close context menu on outside click
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null)
+    const target = restoreMenuFocusRef.current
+    if (target?.isConnected) {
+      target.focus()
+    } else {
+      rootRef.current?.focus()
+    }
+  }, [])
+
+  // Move focus into the menu when it opens and restore it to the terminal when it closes.
   useEffect(() => {
     if (!contextMenu) return
+    menuItemsRef.current.find((item) => item && !item.disabled)?.focus()
+
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setContextMenu(null)
+        closeContextMenu()
+      }
+    }
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeContextMenu()
       }
     }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [contextMenu])
+    document.addEventListener('keydown', keyHandler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('keydown', keyHandler)
+    }
+  }, [closeContextMenu, contextMenu])
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
+      restoreMenuFocusRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+        ? document.activeElement
+        : rootRef.current
       const rect = containerRef.current?.getBoundingClientRect()
       if (!rect) return
-      const x = Math.min(e.clientX - rect.left, rect.width - 180)
-      const y = Math.min(e.clientY - rect.top, rect.height - 200)
+      const x = Math.max(8, Math.min(e.clientX - rect.left, Math.max(8, rect.width - 196)))
+      const y = Math.max(8, Math.min(e.clientY - rect.top, Math.max(8, rect.height - 240)))
       setContextMenu({ x, y })
     },
     [],
   )
+
+  const handleMenuKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const enabledIndexes = menuItemsRef.current
+      .map((item, index) => (item && !item.disabled ? index : null))
+      .filter((index): index is number => index !== null)
+    const currentPosition = enabledIndexes.findIndex((index) => menuItemsRef.current[index] === document.activeElement)
+    let nextPosition: number | null = null
+    if (e.key === 'ArrowDown') nextPosition = currentPosition < enabledIndexes.length - 1 ? currentPosition + 1 : 0
+    if (e.key === 'ArrowUp') nextPosition = currentPosition > 0 ? currentPosition - 1 : enabledIndexes.length - 1
+    if (e.key === 'Home') nextPosition = 0
+    if (e.key === 'End') nextPosition = enabledIndexes.length - 1
+    if (nextPosition !== null && enabledIndexes.length > 0) {
+      e.preventDefault()
+      menuItemsRef.current[enabledIndexes[nextPosition]]?.focus()
+    }
+  }, [])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -182,7 +212,6 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
   useEffect(() => {
     if (!containerRef.current) return
 
-    const isDark = detectTheme()
     const xterm = new XTerm({
       cursorBlink: true,
       cursorStyle: 'bar',
@@ -192,7 +221,7 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
       allowProposedApi: true,
       scrollback: 5000,
       minimumContrastRatio: 4.5,
-      ...getThemeOptions(isDark),
+      ...getThemeOptions(),
     })
 
     xterm.attachCustomKeyEventHandler((e: KeyboardEvent) => {
@@ -302,8 +331,7 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
     xterm.onResize(observerCallback)
 
     const mutationObserver = new MutationObserver(() => {
-      const currentDark = detectTheme()
-      xterm.options = { ...xterm.options, ...getThemeOptions(currentDark).theme }
+      xterm.options.theme = getThemeOptions().theme
     })
 
     mutationObserver.observe(document.documentElement, {
@@ -351,10 +379,12 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
 
   return (
     <div
+      ref={rootRef}
       className={cn('relative flex h-full w-full flex-col overflow-hidden rounded-md border border-border/50', className)}
       onContextMenu={handleContextMenu}
       onKeyDown={handleKeyDown}
       tabIndex={0}
+      aria-label={`Terminal ${terminalId}`}
     >
       <div ref={containerRef} className="flex-1 overflow-hidden" />
 
@@ -369,14 +399,20 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
       {contextMenu && (
         <div
           ref={menuRef}
-          className="absolute z-50 min-w-[180px] rounded-md border border-border/50 bg-card p-1 shadow-lg"
+          role="menu"
+          aria-label="Terminal actions"
+          tabIndex={-1}
+          onKeyDown={handleMenuKeyDown}
+          className="absolute z-50 max-h-[calc(100%-1rem)] min-w-[180px] max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border/50 bg-card p-1 shadow-lg"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
           <button
+            role="menuitem"
+            ref={(element) => { menuItemsRef.current[0] = element }}
             disabled={!hasSelection}
             onClick={() => {
               void handleCopy()
-              setContextMenu(null)
+              closeContextMenu()
             }}
             className={cn(
               'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground transition-colors',
@@ -387,9 +423,11 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
             Copy
           </button>
           <button
+            role="menuitem"
+            ref={(element) => { menuItemsRef.current[1] = element }}
             onClick={() => {
               void handlePaste()
-              setContextMenu(null)
+              closeContextMenu()
             }}
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
           >
@@ -400,9 +438,11 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
           <div className="my-1 h-px bg-border/50" />
 
           <button
+            role="menuitem"
+            ref={(element) => { menuItemsRef.current[2] = element }}
             onClick={() => {
               onNewTab?.()
-              setContextMenu(null)
+              closeContextMenu()
             }}
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
           >
@@ -410,9 +450,11 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
             New Tab
           </button>
           <button
+            role="menuitem"
+            ref={(element) => { menuItemsRef.current[3] = element }}
             onClick={() => {
               onClose?.()
-              setContextMenu(null)
+              closeContextMenu()
             }}
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
           >
@@ -420,9 +462,11 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
             Close Tab
           </button>
           <button
+            role="menuitem"
+            ref={(element) => { menuItemsRef.current[4] = element }}
             onClick={() => {
               onRequestRename?.()
-              setContextMenu(null)
+              closeContextMenu()
             }}
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
           >
@@ -433,9 +477,11 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
           <div className="my-1 h-px bg-border/50" />
 
           <button
+            role="menuitem"
+            ref={(element) => { menuItemsRef.current[5] = element }}
             onClick={() => {
               applyZoom(1)
-              setContextMenu(null)
+              closeContextMenu()
             }}
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
           >
@@ -443,9 +489,11 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
             Zoom In
           </button>
           <button
+            role="menuitem"
+            ref={(element) => { menuItemsRef.current[6] = element }}
             onClick={() => {
               applyZoom(-1)
-              setContextMenu(null)
+              closeContextMenu()
             }}
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
           >
@@ -453,10 +501,12 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
             Zoom Out
           </button>
           <button
+            role="menuitem"
+            ref={(element) => { menuItemsRef.current[7] = element }}
             onClick={() => {
               zoomRef.current = 0
               applyZoom(0)
-              setContextMenu(null)
+              closeContextMenu()
             }}
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
           >

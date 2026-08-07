@@ -80,6 +80,7 @@ describe('ProjectGitSummary', () => {
     })
 
     expect(screen.getByText('No repo')).toBeTruthy()
-    expect(await screen.findByText(/Git details will appear here/)).toBeTruthy()
+    expect(await screen.findByText(/No Git repository was found/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
   })
 })

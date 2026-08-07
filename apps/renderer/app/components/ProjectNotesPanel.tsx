@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Eye, FileText, Loader2 } from 'lucide-react'
+import { Eye, FileText } from 'lucide-react'
 import { Button } from './ui/Button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs'
 import { Textarea } from './ui/Textarea'
 import { MarkdownPreview } from './MarkdownPreview'
+import { ErrorState } from './ui/ErrorState'
+import { LoadingState } from './ui/LoadingState'
+import { StatusNotice } from './ui/StatusNotice'
 import type { ProjectNotes } from '../types'
 import { getTaskProgress, toggleTaskAtIndex } from '../lib/markdownUtils'
 
@@ -14,6 +17,7 @@ interface ProjectNotesPanelProps {
 }
 
 type NoteTab = 'setup' | 'todos' | 'reminders'
+type SaveState = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error'
 
 const tabConfig: { id: NoteTab; label: string; value: keyof ProjectNotes }[] = [
   { id: 'setup', label: 'Setup', value: 'setupSteps' },
@@ -37,8 +41,12 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
     reminders: false,
   })
   const [saving, setSaving] = useState(false)
+  const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingSaveRef = useRef<ProjectNotes | null>(null)
+  const saveInFlightRef = useRef(false)
 
   const loadNotes = useCallback(async () => {
     setLoading(true)
@@ -46,6 +54,8 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
     try {
       const result = await window.electronAPI.getProjectNotes(projectId)
       setNotes(result)
+      setSaveState('idle')
+      setSaveError(null)
       onLoadNotes?.(result)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load project notes.'
@@ -66,8 +76,14 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
   }, [loadNotes])
 
   const saveNotes = useCallback(
-    async (nextNotes: ProjectNotes) => {
+    async () => {
+      if (saveInFlightRef.current || !pendingSaveRef.current) return
+      const nextNotes = pendingSaveRef.current
+      pendingSaveRef.current = null
+      saveInFlightRef.current = true
       setSaving(true)
+      setSaveState('saving')
+      setSaveError(null)
       try {
         await window.electronAPI.updateProjectNotes(projectId, {
           setupSteps: nextNotes.setupSteps,
@@ -75,10 +91,23 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
           reminders: nextNotes.reminders,
         })
         onUpdateNotes?.(nextNotes)
+        setLastSavedAt(new Date())
       } catch (err) {
+        pendingSaveRef.current ??= nextNotes
         const message = err instanceof Error ? err.message : 'Failed to save notes.'
-        setError(message)
+        setSaveError(message)
+        setSaveState('error')
+        setSaving(false)
+        saveInFlightRef.current = false
+        return
       } finally {
+        saveInFlightRef.current = false
+      }
+
+      if (pendingSaveRef.current) {
+        void saveNotes()
+      } else {
+        setSaveState('saved')
         setSaving(false)
       }
     },
@@ -88,6 +117,8 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
   const handleChange = useCallback(
     (tab: NoteTab, value: string) => {
       setError(null)
+      setSaveError(null)
+      setSaveState('unsaved')
       setNotes((prev) => {
         const next = { ...prev, [tab === 'setup' ? 'setupSteps' : tab]: value }
         pendingSaveRef.current = next
@@ -99,8 +130,7 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
       }
       debounceRef.current = setTimeout(() => {
         if (pendingSaveRef.current) {
-          void saveNotes(pendingSaveRef.current)
-          pendingSaveRef.current = null
+          void saveNotes()
         }
       }, 300)
     },
@@ -124,14 +154,23 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
     [handleChange, notes]
   )
 
+  const retrySave = useCallback(() => {
+    pendingSaveRef.current ??= notes
+    void saveNotes()
+  }, [notes, saveNotes])
+
   if (loading) {
+    return <LoadingState label="Loading project notes" description="Loading project notes…" className="rounded-xl border border-border/40 bg-muted/5" />
+  }
+
+  if (error) {
     return (
-      <div className="rounded-xl border border-border/40 bg-muted/5 p-5">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading project notes...
-        </div>
-      </div>
+      <ErrorState
+        title="Could not load project notes"
+        description={error}
+        onRetry={() => void loadNotes()}
+        retryLabel="Retry loading notes"
+      />
     )
   }
 
@@ -141,21 +180,31 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
         <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
           Project Notes
         </h3>
-        {saving && (
-          <div className="flex items-center gap-2 text-[10px] text-primary/70 font-semibold uppercase tracking-wider">
-            <div className="h-2 w-2 animate-spin rounded-full border border-primary border-r-transparent" />
-            Saving
-          </div>
-        )}
+        <div className="text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {saveState === 'saving' ? 'Saving…' : null}
+          {saveState === 'unsaved' ? 'Unsaved changes' : null}
+          {saveState === 'saved' && lastSavedAt
+            ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : null}
+        </div>
       </div>
 
       <div className="rounded-xl border border-border/40 bg-muted/5 p-5">
-        {error ? (
-          <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
-            {error}
-          </div>
-        ) : (
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as NoteTab)}>
+        {saveState === 'error' && saveError ? (
+          <StatusNotice
+            tone="error"
+            title="Notes were not saved"
+            action={
+              <Button size="sm" variant="outline" onClick={retrySave} disabled={saving}>
+                Retry save
+              </Button>
+            }
+            className="mb-4"
+          >
+            {saveError} Your changes are still in the editor.
+          </StatusNotice>
+        ) : null}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as NoteTab)}>
             <TabsList className="mb-4">
               {tabConfig.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id} className="text-xs">
@@ -227,8 +276,7 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
                 </TabsContent>
               )
             })}
-          </Tabs>
-        )}
+        </Tabs>
       </div>
     </div>
   )

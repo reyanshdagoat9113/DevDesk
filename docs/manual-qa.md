@@ -83,9 +83,9 @@ Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is o
 |---|----------------------------|--------|
 | 1 | First launch and renderer interaction | Pending |
 | 2 | Project CRUD and pinning | Pending |
-| 3 | Command creation, variables, success, and failure | Pending |
+| 3 | Command creation, variables, success, and failure; run output and **Open in History** with project context | Pending |
 | 4 | Terminal tabs, resize, search, and close | Pending |
-| 5 | Health check and history inspection | Pending |
+| 5 | Health check and history inspection, including search/filter/sort and focused run output | Pending |
 | 6 | Engine index, search, open result, and Git insights | Pending |
 | 7 | Bug context and attachment picker | Pending |
 | 8 | Export/import merge and replace dialogs | Pending |

@@ -32,7 +32,7 @@
     "prebuild": "npm run build:ipc-contracts && npm run build:engine",
     "pretypecheck": "npm run build:ipc-contracts",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
-    "smoke:engine-packaged": "npm run rebuild:native && npm run build:main && node scripts/smoke-packaged-engine.mjs",
+    "smoke:engine-packaged": "npm run rebuild:native && npm run build:ipc-contracts && npm run build:engine && npm run build:main && node scripts/smoke-packaged-engine.mjs",
     "test": "vitest --config ./vitest.desktop.config.ts",
     "test:run": "vitest --config ./vitest.desktop.config.ts run",
     "test:renderer": "vitest --config ./vitest.renderer.config.ts",
@@ -46,10 +46,10 @@
     "test:coverage": "npm run test:coverage:desktop && npm run test:coverage:renderer && npm run test:coverage:engine",
     "release:gate": "node scripts/release-gate.mjs",
     "icons:generate": "node scripts/generate-app-icons.mjs",
-    "package:win:dir": "npm run rebuild:native:electron && npm run build && electron-builder --win dir",
-    "package:win": "npm run rebuild:native:electron && npm run build && electron-builder --win nsis",
-    "package:linux:dir": "npm run rebuild:native:electron && npm run build && electron-builder --linux dir",
-    "package:linux": "npm run rebuild:native:electron && npm run build && electron-builder --linux deb",
+    "package:win:dir": "npm run rebuild:native:electron && npm run build && electron-builder --win dir --publish never",
+    "package:win": "npm run rebuild:native:electron && npm run build && electron-builder --win nsis --publish never",
+    "package:linux:dir": "npm run rebuild:native:electron && npm run build && electron-builder --linux dir --publish never",
+    "package:linux": "npm run rebuild:native:electron && npm run build && electron-builder --linux deb --publish never",
     "verify:win-package": "npm run package:win:dir && node scripts/verify-package.mjs --platform win",
     "verify:linux-package": "npm run package:linux:dir && node scripts/verify-package.mjs --platform linux",
     "qa:clean-install:win": "npm run package:win && npm run rebuild:native:node && npm run build:main && node scripts/clean-install-qa-windows.mjs --out release/clean-install-qa-report.json",
@@ -182,6 +182,7 @@
       "uninstallDisplayName": "DevDesk"
     },
     "linux": {
+      "artifactName": "${productName}-${version}-linux-x64.${ext}",
       "target": [
         {
           "target": "deb",
@@ -192,7 +193,6 @@
       ],
       "category": "Development",
       "icon": "build/icon.png",
-      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
       "synopsis": "Local-first developer workspace",
       "description": "Project manager, command vault, terminals, and Docker controls for local development."
     },

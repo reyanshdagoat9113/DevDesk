@@ -5,12 +5,12 @@ import type { RunHistoryEntry } from '../types'
 export type TabValue = 'projects' | 'commands' | 'engine' | 'containers' | 'history' | 'terminal'
 
 export const navItems = [
-  { value: 'projects', label: 'Projects', icon: FolderKanban },
-  { value: 'commands', label: 'Commands', icon: Terminal },
-  { value: 'engine', label: 'Engine', icon: Search },
-  { value: 'containers', label: 'Containers', icon: Container },
-  { value: 'history', label: 'History', icon: History },
-  { value: 'terminal', label: 'Terminal', icon: Monitor },
+  { value: 'projects', label: 'Projects', description: 'Project folders and status', icon: FolderKanban },
+  { value: 'commands', label: 'Commands', description: 'Saved commands and automation', icon: Terminal },
+  { value: 'engine', label: 'Engine', description: 'Search, indexing, and Git insights', icon: Search },
+  { value: 'containers', label: 'Containers', description: 'Manage Docker services', icon: Container },
+  { value: 'history', label: 'History', description: 'Review running and completed work', icon: History },
+  { value: 'terminal', label: 'Terminal', description: 'Interactive shell sessions', icon: Monitor },
 ] as const
 
 export const actionLabels: Partial<Record<TabValue, string>> = {
