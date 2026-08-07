@@ -57,7 +57,7 @@ describe('historyUtils', () => {
   it('formats duration, exit code, and a useful failure summary', () => {
     expect(getRunDurationMs(history[0])).toBe(2500)
     expect(formatRunDuration(2500)).toBe('2.5s')
-    expect(formatRunExitCode(history[0])).toBe('1')
+    expect(formatRunExitCode(history[0])).toBe('Unavailable')
     expect(getFailureSummary(history[0])).toBe('Error: TypeScript compilation failed')
   })
 })

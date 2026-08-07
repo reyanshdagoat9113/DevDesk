@@ -112,8 +112,7 @@ export function TerminalTabs({ sessions, activeId, onSelectTab, onCloseTab, onCr
           return (
             <div
               key={session.id}
-              role="group"
-              aria-label={`${session.label} terminal actions`}
+              role="presentation"
               className={cn('flex h-8 items-center rounded-md text-xs font-medium transition-colors', isActive && 'bg-primary/10 text-primary ring-1 ring-primary/20')}
             >
               {isEditing ? (

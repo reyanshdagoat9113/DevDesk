@@ -66,6 +66,7 @@ export function CommandsSection({
   const [runError, setRunError] = useState<string | null>(null)
   const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'started'>('idle')
   const [lastRunId, setLastRunId] = useState<string | null>(null)
+  const [lastRunCommandId, setLastRunCommandId] = useState<string | null>(null)
   const [lastRunProjectId, setLastRunProjectId] = useState<string | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -363,6 +364,8 @@ export function CommandsSection({
       return
     }
     setRunError(null)
+    setLastRunId(null)
+    setLastRunCommandId(null)
     setRunStatus('running')
     try {
       // Try to run - may return needs-input status
@@ -382,6 +385,7 @@ export function CommandsSection({
       // Normal execution
       if ('runId' in result) {
         setLastRunId(result.runId)
+        setLastRunCommandId(selectedCommand.id)
         setLastRunProjectId(selectedProject.id)
       }
       setRunStatus('started')
@@ -401,6 +405,7 @@ export function CommandsSection({
         const result = await onRunCommand(pendingRun.commandId, pendingRun.projectId, values)
         if ('runId' in result) {
           setLastRunId(result.runId)
+          setLastRunCommandId(pendingRun.commandId)
           setLastRunProjectId(pendingRun.projectId)
         }
         setRunStatus('started')
@@ -932,7 +937,7 @@ export function CommandsSection({
                           )}
                           {runStatus === 'running' ? 'Deploying...' : 'Execute Script'}
                         </Button>
-                        {lastRunId && onOpenHistory ? (
+                        {lastRunId && lastRunCommandId === selectedCommand.id && onOpenHistory ? (
                           <Button
                             variant="outline"
                             className="h-10 px-4 gap-2 text-[11px] font-bold uppercase tracking-wider"
@@ -968,7 +973,7 @@ export function CommandsSection({
                     <span className="min-w-0 flex-1">
                       Automation started in {projects.find((project) => project.id === lastRunProjectId)?.name ?? selectedProject?.name ?? 'the selected project'}.
                     </span>
-                    {lastRunId && onOpenHistory ? (
+                    {lastRunId && lastRunCommandId === selectedCommand.id && onOpenHistory ? (
                       <button
                         type="button"
                         className="shrink-0 underline underline-offset-2 hover:text-status-success"

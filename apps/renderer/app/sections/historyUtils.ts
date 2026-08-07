@@ -24,7 +24,6 @@ export function getRunExitCode(entry: RunHistoryEntry): number | null {
   const explicitCode = entry.output?.match(/(?:exit\s+)?code\s*[:=]\s*(-?\d+)/i)?.[1]
   if (explicitCode) return Number(explicitCode)
   if (entry.status === 'success') return 0
-  if (entry.status === 'failed') return 1
   return null
 }
 

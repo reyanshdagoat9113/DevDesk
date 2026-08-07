@@ -56,6 +56,13 @@ describe('AppShell sidebar density modes', () => {
     expect(dialog.textContent).toContain('56px icon rail')
   })
 
+  it('opens keyboard help with the advertised question-mark shortcut', () => {
+    render(<AppShell sidebarMode="rail" navItems={navItems} activeNav="projects" onNavChange={vi.fn()} title="Projects"><div>content</div></AppShell>)
+
+    fireEvent.keyDown(document, { key: '?' })
+    expect(screen.getByRole('dialog').textContent).toContain('Quick Launcher')
+  })
+
   it('keeps the active project context visible and switchable', async () => {
     const onProjectChange = vi.fn()
     render(

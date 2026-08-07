@@ -46,6 +46,7 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingSaveRef = useRef<ProjectNotes | null>(null)
+  const saveInFlightRef = useRef(false)
 
   const loadNotes = useCallback(async () => {
     setLoading(true)
@@ -75,7 +76,11 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
   }, [loadNotes])
 
   const saveNotes = useCallback(
-    async (nextNotes: ProjectNotes) => {
+    async () => {
+      if (saveInFlightRef.current || !pendingSaveRef.current) return
+      const nextNotes = pendingSaveRef.current
+      pendingSaveRef.current = null
+      saveInFlightRef.current = true
       setSaving(true)
       setSaveState('saving')
       setSaveError(null)
@@ -86,16 +91,23 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
           reminders: nextNotes.reminders,
         })
         onUpdateNotes?.(nextNotes)
-        setSaveState('saved')
         setLastSavedAt(new Date())
-        if (pendingSaveRef.current === nextNotes) {
-          pendingSaveRef.current = null
-        }
       } catch (err) {
+        pendingSaveRef.current ??= nextNotes
         const message = err instanceof Error ? err.message : 'Failed to save notes.'
         setSaveError(message)
         setSaveState('error')
+        setSaving(false)
+        saveInFlightRef.current = false
+        return
       } finally {
+        saveInFlightRef.current = false
+      }
+
+      if (pendingSaveRef.current) {
+        void saveNotes()
+      } else {
+        setSaveState('saved')
         setSaving(false)
       }
     },
@@ -118,7 +130,7 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
       }
       debounceRef.current = setTimeout(() => {
         if (pendingSaveRef.current) {
-          void saveNotes(pendingSaveRef.current)
+          void saveNotes()
         }
       }, 300)
     },
@@ -143,8 +155,8 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
   )
 
   const retrySave = useCallback(() => {
-    const nextNotes = pendingSaveRef.current ?? notes
-    void saveNotes(nextNotes)
+    pendingSaveRef.current ??= notes
+    void saveNotes()
   }, [notes, saveNotes])
 
   if (loading) {

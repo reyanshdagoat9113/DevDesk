@@ -95,6 +95,17 @@ export function AppShell({
     []
   )
 
+  useEffect(() => {
+    const handleKeyboardHelp = (event: KeyboardEvent) => {
+      const target = event.target
+      if (event.key !== '?' || (target instanceof HTMLElement && target.matches('input, textarea, select, [contenteditable="true"]'))) return
+      event.preventDefault()
+      setKeyboardHelpOpen(true)
+    }
+    document.addEventListener('keydown', handleKeyboardHelp)
+    return () => document.removeEventListener('keydown', handleKeyboardHelp)
+  }, [])
+
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground selection:bg-primary/15 selection:text-foreground">
       <aside

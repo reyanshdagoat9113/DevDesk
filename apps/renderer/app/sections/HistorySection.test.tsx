@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { HistorySection } from './HistorySection'
@@ -66,9 +66,25 @@ describe('HistorySection', () => {
 
     expect(screen.getByText('1 of 2 runs')).toBeTruthy()
     expect(screen.getByText('Duration: 2.5s')).toBeTruthy()
-    expect(screen.getByText('Exit code: 1')).toBeTruthy()
+    expect(screen.getByText('Exit code: Unavailable')).toBeTruthy()
     expect(screen.getAllByText('Error: TypeScript compilation failed').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /Test.*Docs/ })).toBeNull()
+  })
+
+  it('ignores output that resolves after another run is selected', async () => {
+    let resolveBuild: ((value: string) => void) | undefined
+    const onLoadOutput = vi.fn((runId: string) => runId === 'failed-build'
+      ? new Promise<string>((resolve) => { resolveBuild = resolve })
+      : Promise.resolve('Current test output'))
+
+    render(<HistorySection history={history.map((entry) => ({ ...entry, output: '' }))} commands={commands} projects={projects} onLoadOutput={onLoadOutput} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /Test/i }))
+    await screen.findByText(/Current test output/)
+    resolveBuild?.('Stale build output')
+
+    await waitFor(() => expect(screen.queryByText(/Stale build output/)).toBeNull())
+    expect(screen.getByText(/Current test output/)).toBeTruthy()
   })
 
   it('filters by project and status and can reset the view', async () => {

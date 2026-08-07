@@ -96,6 +96,7 @@ export function HistorySection({
   const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('all')
   const [sort, setSort] = useState<HistorySort>('newest')
   const appliedInitialRunId = useRef<string | null>(null)
+  const outputRequestRef = useRef(0)
 
   useEffect(() => {
     if (initialRunId && initialRunId !== appliedInitialRunId.current && history.some((entry) => entry.id === initialRunId)) {
@@ -199,19 +200,23 @@ export function HistorySection({
 
   const loadOutput = useCallback(async (runId: string) => {
     if (!onLoadOutput) return
+    const requestId = ++outputRequestRef.current
     setOutputLoading(true)
     setOutputError(null)
     try {
       const output = await onLoadOutput(runId)
+      if (requestId !== outputRequestRef.current) return
       setOutputText(output ?? '')
     } catch (loadError) {
+      if (requestId !== outputRequestRef.current) return
       setOutputError(loadError instanceof Error ? loadError.message : 'Failed to load output.')
     } finally {
-      setOutputLoading(false)
+      if (requestId === outputRequestRef.current) setOutputLoading(false)
     }
   }, [onLoadOutput])
 
   useEffect(() => {
+    outputRequestRef.current += 1
     if (!selectedEntryId) {
       setOutputText('')
       setOutputError(null)

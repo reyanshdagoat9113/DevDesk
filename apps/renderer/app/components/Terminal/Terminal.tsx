@@ -331,7 +331,7 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
     xterm.onResize(observerCallback)
 
     const mutationObserver = new MutationObserver(() => {
-      xterm.options = { ...xterm.options, ...getThemeOptions().theme }
+      xterm.options.theme = getThemeOptions().theme
     })
 
     mutationObserver.observe(document.documentElement, {
