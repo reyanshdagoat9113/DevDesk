@@ -48,7 +48,7 @@ export function AutomationSection(props: AutomationSectionProps) {
 
   return (
     <Tabs value={activeView} onValueChange={(value) => setActiveView(value as 'commands' | 'chains' | 'triggers')} className="flex h-full flex-col gap-3">
-      <div className="flex items-center justify-between gap-4 px-4 pt-1 pb-3 lg:px-6">
+      <div className="flex items-center justify-between gap-4 px-8 pt-5 pb-3 lg:px-12">
         <TabsList className="gap-1 bg-muted/30 p-1">
           <TabsTrigger value="commands" className="rounded-md px-4 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold">
             Commands
