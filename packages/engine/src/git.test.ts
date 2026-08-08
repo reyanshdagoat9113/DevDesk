@@ -73,6 +73,10 @@ describe('git insights', () => {
     expect(recent[0].files).toContain('src/tracked.ts');
     expect(churn[0].path).toBe('src/tracked.ts');
     expect(churn[0].commits).toBeGreaterThanOrEqual(2);
+    expect(churn[0].authors).toContain('DevDesk Tests <devdesk-tests@example.com>');
+    expect(churn[0].lastModified).toBeTruthy();
+    expect(churn[0].linesAdded).toBeGreaterThan(0);
+    expect(churn[0].linesDeleted).toBeGreaterThan(0);
     expect(hotspots[0].path).toBe('src/tracked.ts');
     expect(['low', 'medium', 'high']).toContain(hotspots[0].risk);
   });

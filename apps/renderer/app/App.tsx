@@ -977,6 +977,14 @@ function App() {
       const message = error instanceof Error ? error.message : 'Failed to index project.'
       setLoadError(message)
       throw new Error(message)
+    } finally {
+      // The main process only emits the completed event for successful commands.
+      // Clear local lifecycle state as well so timeouts/errors cannot leave the UI stuck on Indexing.
+      setEngineIndexingProjects((prev) => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
     }
   }, [syncEngineState])
 

@@ -18,6 +18,7 @@ const enginePackageJsonPath = path.join(engineRootDir, 'package.json')
 const appNodeModulesDir = path.join(repoRoot, 'node_modules')
 const electronBinaryPath = require('electron')
 const builtRuntimePath = path.join(repoRoot, 'dist', 'main', 'engine', 'runtime.js')
+const utilityProbePath = path.join(repoRoot, 'scripts', 'engine-utility-probe.cjs')
 const engineRequire = createRequire(enginePackageJsonPath)
 
 function resolvePackageRoot(packageName) {
@@ -108,6 +109,7 @@ async function main() {
       path.normalize(resolvedBinary),
       path.join(resourcesPath, 'engine', 'cli.js')
     )
+    assert.ok(existsSync(path.join(packagedEngineDir, 'runner.js')))
 
     const childEnv = {
       ...process.env,
@@ -119,6 +121,18 @@ async function main() {
     })
 
     assert.match(versionResult.stdout.trim(), /^\d+\.\d+\.\d+/)
+
+    const utilityEnv = {
+      ...process.env,
+      NODE_PATH: path.join(packagedEngineDir, 'node_modules'),
+    }
+    delete utilityEnv.ELECTRON_RUN_AS_NODE
+    const utilityPingResult = await execFileAsync(
+      electronBinaryPath,
+      [utilityProbePath, path.join(packagedEngineDir, 'runner.js'), 'ping'],
+      { env: utilityEnv, timeout: 30_000 },
+    )
+    assert.deepEqual(JSON.parse(utilityPingResult.stdout), { ok: true, version: '0.1.0' })
 
     const indexResult = await execFileAsync(electronBinaryPath, [
       resolvedBinary,
@@ -132,6 +146,13 @@ async function main() {
 
     const parsedIndex = JSON.parse(indexResult.stdout)
     assert.equal(parsedIndex.ok, true)
+
+    const utilityStatsResult = await execFileAsync(
+      electronBinaryPath,
+      [utilityProbePath, path.join(packagedEngineDir, 'runner.js'), 'stats', '--db', dbPath],
+      { env: utilityEnv, timeout: 30_000 },
+    )
+    assert.equal(JSON.parse(utilityStatsResult.stdout).stats.totalFiles, 1)
 
     const searchResult = await execFileAsync(electronBinaryPath, [
       resolvedBinary,

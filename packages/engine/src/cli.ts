@@ -7,14 +7,25 @@ import { Engine } from './engine.js';
 import { getDefaultDbPath, resolvePath } from './utils.js';
 
 const VERSION = '0.1.0';
+type OutputWriter = (value: string) => void;
 
-export function createProgram(engine: Engine = new Engine()): Command {
+export function createProgram(
+  engine: Engine = new Engine(),
+  write: OutputWriter = (value) => console.log(value),
+): Command {
   const program = new Command();
 
   program
     .name('engine')
     .description('Fast local code intelligence engine')
     .version(VERSION);
+
+  program
+    .command('ping')
+    .description('Verify that the engine worker is available')
+    .action(() => {
+      write(JSON.stringify({ ok: true, version: VERSION }));
+    });
 
   program
     .command('index <path>')
@@ -28,7 +39,7 @@ export function createProgram(engine: Engine = new Engine()): Command {
         db: dbPath,
         incremental: !options.full,
       });
-      console.log(JSON.stringify(result, null, 2));
+      write(JSON.stringify(result, null, 2));
     });
 
   program
@@ -45,7 +56,7 @@ export function createProgram(engine: Engine = new Engine()): Command {
         regex: options.regex,
         limit: parseInt(options.limit, 10),
       });
-      console.log(JSON.stringify(result, null, 2));
+      write(JSON.stringify(result, null, 2));
     });
 
   program
@@ -55,7 +66,7 @@ export function createProgram(engine: Engine = new Engine()): Command {
     .action((repoPath, options) => {
       const dbPath = options.db ? resolvePath(options.db) : getDefaultDbPath(repoPath || '.');
       const result = engine.getStats(dbPath);
-      console.log(JSON.stringify(result, null, 2));
+      write(JSON.stringify(result, null, 2));
     });
 
   program
@@ -68,7 +79,7 @@ export function createProgram(engine: Engine = new Engine()): Command {
           limit: parseInt(options.limit, 10),
         });
 
-        console.log(
+        write(
           JSON.stringify(
             {
               ok: true,
@@ -79,7 +90,7 @@ export function createProgram(engine: Engine = new Engine()): Command {
           )
         );
       } catch (error) {
-        console.log(
+        write(
           JSON.stringify(
             {
               ok: false,
@@ -96,8 +107,11 @@ export function createProgram(engine: Engine = new Engine()): Command {
   return program;
 }
 
-export async function runCli(argv: string[] = process.argv): Promise<void> {
-  await createProgram().parseAsync(argv, { from: 'node' });
+export async function runCli(
+  argv: string[] = process.argv,
+  write: OutputWriter = (value) => console.log(value),
+): Promise<void> {
+  await createProgram(new Engine(), write).parseAsync(argv, { from: 'node' });
 }
 
 const isMainModule = path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url);

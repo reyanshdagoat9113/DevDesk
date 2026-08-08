@@ -181,16 +181,23 @@ export function GitWorkspacePanel({
     setIsLoadingState(true)
     setError(null)
     try {
-      const nextState = await onLoadGitState(project.id)
+      const [stateResult, insightsResult] = await Promise.allSettled([
+        onLoadGitState(project.id),
+        onLoadGitInsights(project.id),
+      ])
+      if (stateResult.status === 'rejected') {
+        throw stateResult.reason
+      }
+
+      const nextState = stateResult.value
       setGitState(nextState)
 
       if (nextState.available) {
-        try {
-          const nextInsights = await onLoadGitInsights(project.id)
-          setGitInsights(nextInsights)
-        } catch (loadError) {
+        if (insightsResult.status === 'fulfilled') {
+          setGitInsights(insightsResult.value)
+        } else {
           setGitInsights(null)
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load git activity.')
+          setError(insightsResult.reason instanceof Error ? insightsResult.reason.message : 'Failed to load git activity.')
         }
       } else {
         setGitInsights(null)

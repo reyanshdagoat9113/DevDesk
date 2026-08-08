@@ -3,10 +3,9 @@
  * Handles locating and spawning the devdesk-engine binary
  */
 
-import { fork, spawn, type ChildProcess } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { app } from 'electron'
+import { app, utilityProcess, type UtilityProcess } from 'electron'
 import type {
   EngineGitInsights,
   EngineIndexResult,
@@ -54,10 +53,15 @@ function getEngineBinaryPath(): string {
   })
 }
 
+function getEngineRunnerPath(enginePath: string): string {
+  return path.join(path.dirname(enginePath), 'runner.js')
+}
+
 export async function getEngineStatus(): Promise<EngineStatus> {
   const enginePath = getEngineBinaryPath()
+  const runnerPath = getEngineRunnerPath(enginePath)
 
-  if (!fs.existsSync(enginePath)) {
+  if (!fs.existsSync(enginePath) || !fs.existsSync(runnerPath)) {
     return {
       available: false,
       error: 'Engine binary not found',
@@ -65,10 +69,11 @@ export async function getEngineStatus(): Promise<EngineStatus> {
   }
 
   try {
-    const result = await runEngineCommand(['--version'], { timeoutMs: 15_000 })
+    const result = await runEngineCommand(['ping'], { timeoutMs: 15_000 })
+    const ping = parseEngineJson<{ ok: boolean; version: string }>(result)
     return {
-      available: true,
-      version: result.trim(),
+      available: ping.ok,
+      version: ping.version,
     }
   } catch (error) {
     return {
@@ -118,6 +123,7 @@ export async function runEngineCommand(
   options: RunEngineCommandOptions = {},
 ): Promise<string> {
   const enginePath = getEngineBinaryPath()
+  const runnerPath = getEngineRunnerPath(enginePath)
   const timeoutMs = options.timeoutMs ?? DEFAULT_ENGINE_TIMEOUT_MS
   const maxOutputBytes = options.maxOutputBytes ?? MAX_ENGINE_OUTPUT_BYTES
 
@@ -125,7 +131,7 @@ export async function runEngineCommand(
     let settled = false
     let stdout = ''
     let stderr = ''
-    let child: ChildProcess
+    let child: UtilityProcess
 
     const settle = (fn: () => void) => {
       if (settled) return
@@ -135,18 +141,11 @@ export async function runEngineCommand(
       fn()
     }
 
-    const killChild = (signal: NodeJS.Signals = 'SIGTERM') => {
+    const killChild = () => {
       try {
-        child.kill(signal)
+        child.kill()
       } catch {
         // ignore
-      }
-      if (process.platform === 'win32' && child.pid) {
-        try {
-          spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore' })
-        } catch {
-          // ignore
-        }
       }
     }
 
@@ -163,21 +162,14 @@ export async function runEngineCommand(
     try {
       const childEnv = {
         ...process.env,
-        ELECTRON_RUN_AS_NODE: '1',
         NODE_PATH: buildEngineNodePath(enginePath),
       }
 
-      child =
-        path.extname(enginePath).toLowerCase() === '.js'
-          ? fork(enginePath, args, {
-              execPath: process.execPath,
-              silent: true,
-              env: childEnv,
-            })
-          : spawn(enginePath, args, {
-              windowsHide: true,
-              env: childEnv,
-            })
+      child = utilityProcess.fork(runnerPath, args, {
+        env: childEnv,
+        stdio: 'pipe',
+        serviceName: 'DevDesk Engine',
+      })
     } catch (error) {
       settle(() => reject(error instanceof Error ? error : new Error(String(error))))
       return
@@ -207,16 +199,31 @@ export async function runEngineCommand(
       }
     })
 
-    child.on('error', (err: Error) => {
-      settle(() => reject(err))
+    child.on('error', (error) => {
+      settle(() => reject(new Error(String(error))))
     })
 
-    child.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
+    child.on('message', (message: unknown) => {
+      if (!message || typeof message !== 'object') return
+      const response = message as { ok?: unknown; stdout?: unknown; stderr?: unknown }
+      if (response.ok === true && typeof response.stdout === 'string') {
+        const responseOutput = response.stdout
+        settle(() => resolve(responseOutput))
+        killChild()
+        return
+      }
+      if (response.ok === false) {
+        settle(() => reject(new Error(typeof response.stderr === 'string' ? response.stderr : 'Engine command failed')))
+        killChild()
+      }
+    })
+
+    child.on('exit', (code: number) => {
       if (code === 0) {
         settle(() => resolve(stdout))
         return
       }
-      const detail = stderr.trim() || `Engine exited with code ${code}${signal ? ` signal ${signal}` : ''}`
+      const detail = stderr.trim() || `Engine exited with code ${code}`
       settle(() => reject(new Error(detail)))
     })
   })

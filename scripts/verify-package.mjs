@@ -41,6 +41,7 @@ function getPackagedElectronBinary(platform, unpackedDir) {
 
 function buildNodePath(resourcesDir) {
   return [
+    path.join(resourcesDir, 'engine', 'node_modules'),
     path.join(resourcesDir, 'app.asar.unpacked', 'node_modules'),
     path.join(resourcesDir, 'app.asar', 'node_modules'),
     process.env.NODE_PATH,
@@ -54,6 +55,7 @@ async function main() {
   const unpackedDir = getUnpackedDir(platform)
   const resourcesDir = path.join(unpackedDir, 'resources')
   const engineCliPath = path.join(resourcesDir, 'engine', 'cli.js')
+  const engineRunnerPath = path.join(resourcesDir, 'engine', 'runner.js')
   const enginePackageJson = path.join(resourcesDir, 'engine', 'package.json')
   const packagedElectron = getPackagedElectronBinary(platform, unpackedDir)
   const electronBinaryPath = existsSync(packagedElectron)
@@ -62,6 +64,7 @@ async function main() {
 
   assert.ok(existsSync(unpackedDir), `Missing package output: ${unpackedDir}. Run package:${platform}:dir first.`)
   assert.ok(existsSync(engineCliPath), `Missing packaged engine CLI: ${engineCliPath}`)
+  assert.ok(existsSync(engineRunnerPath), `Missing packaged engine utility-process runner: ${engineRunnerPath}`)
   assert.ok(existsSync(enginePackageJson), `Missing packaged engine package.json: ${enginePackageJson}`)
   assert.ok(
     existsSync(path.join(resourcesDir, 'engine', 'node_modules', 'better-sqlite3')),
@@ -143,55 +146,29 @@ console.log('sqlite-ok');
     })
     assert.match(sqliteResult.stdout, /sqlite-ok/)
 
-    // The desktop process uses child_process.fork() with the packaged Electron
-    // executable. Exercise that exact launch mode instead of only invoking the
-    // CLI directly; this catches an engine that is present but unavailable to
-    // the renderer through the main-process IPC bridge.
-    const launcherProbe = path.join(tempRoot, 'engine-launcher-probe.cjs')
-    await writeFile(
-      launcherProbe,
-      `
-const { fork } = require('node:child_process');
-const path = require('node:path');
-
-const enginePath = process.argv[2];
-const dbPath = process.argv[3];
-const resourcesPath = path.dirname(path.dirname(enginePath));
-const child = fork(enginePath, ['stats', '--db', dbPath], {
-  execPath: process.execPath,
-  silent: true,
-  env: {
-    ...process.env,
-    ELECTRON_RUN_AS_NODE: '1',
-    NODE_PATH: [
-      path.join(resourcesPath, 'app.asar', 'node_modules'),
-      path.join(resourcesPath, 'app.asar.unpacked', 'node_modules'),
-      path.join(resourcesPath, 'engine', 'node_modules'),
-    ].join(path.delimiter),
-  },
-});
-
-let stdout = '';
-let stderr = '';
-child.stdout.on('data', (chunk) => { stdout += chunk; });
-child.stderr.on('data', (chunk) => { stderr += chunk; });
-child.on('error', (error) => {
-  console.error(error.stack || error.message);
-  process.exitCode = 1;
-});
-child.on('close', (code) => {
-  if (code === 0) {
-    process.stdout.write(stdout);
-  } else {
-    console.error(stderr || 'engine launcher exited with code ' + code);
-    process.exitCode = 1;
-  }
-});
-`,
+    // Exercise the same Electron utilityProcess + runner boundary used by the
+    // desktop IPC bridge. Direct CLI success alone does not prove this path.
+    const utilityElectronPath = path.join(
+      repoRoot,
+      'node_modules',
+      '.bin',
+      process.platform === 'win32' ? 'electron.cmd' : 'electron',
     )
-    const launcherResult = await execFileAsync(electronBinaryPath, [launcherProbe, engineCliPath, dbPath], {
-      env: childEnv,
-      shell: process.platform === 'win32' && electronBinaryPath.endsWith('.cmd'),
+    const utilityEnv = {
+      ...process.env,
+      NODE_PATH: buildNodePath(resourcesDir),
+    }
+    delete utilityEnv.ELECTRON_RUN_AS_NODE
+    const launcherResult = await execFileAsync(utilityElectronPath, [
+      path.join(repoRoot, 'scripts', 'engine-utility-probe.cjs'),
+      engineRunnerPath,
+      'stats',
+      '--db',
+      dbPath,
+    ], {
+      env: utilityEnv,
+      shell: process.platform === 'win32',
+      timeout: 30_000,
     })
     const launcherStats = JSON.parse(launcherResult.stdout)
     assert.equal(launcherStats.ok, true)

@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { normalizePath, resolvePath } from './utils.js';
@@ -81,10 +81,12 @@ export function isGitRepo(repoPath: string): boolean {
   }
 
   try {
-    const output = execSync('git rev-parse --is-inside-work-tree', {
+    const output = execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
       cwd: repoPath,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 10_000,
+      windowsHide: true,
     });
     return output.trim() === 'true';
   } catch {
@@ -97,11 +99,12 @@ export function isGitRepo(repoPath: string): boolean {
  */
 function runGit(repoPath: string, args: string[]): string {
   try {
-    const command = `git ${args.map((a) => `"${a}"`).join(' ')}`;
-    const result = execSync(command, {
+    const result = execFileSync('git', ['--no-pager', ...args], {
       cwd: repoPath,
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024, // 10MB
+      timeout: 15_000,
+      windowsHide: true,
     });
     return result.trim();
   } catch (error: unknown) {
@@ -348,93 +351,51 @@ export function getRecentCommits(repoPath: string, limit: number = 10): GitCommi
  * Get file churn (change frequency)
  */
 export function getFileChurn(repoPath: string, limit: number = 20): FileChurn[] {
-  // Get files with most changes
   const output = runGit(repoPath, [
     'log',
-    '--pretty=format:',
-    '--name-only',
+    '--format=__DEV_DESK_COMMIT__%x1f%an <%ae>%x1f%aI',
+    '--numstat',
+    '--no-renames',
   ]);
+  const byPath = new Map<string, FileChurn & { authorSet: Set<string> }>();
+  let currentAuthor = '';
+  let currentDate = '';
 
-  // Count occurrences
-  const fileCounts = new Map<string, { count: number; authors: Set<string> }>();
-
-  const lines = output.split('\n').filter(Boolean);
-  for (const file of lines) {
-    if (!fileCounts.has(file)) {
-      fileCounts.set(file, { count: 0, authors: new Set() });
-    }
-    const data = fileCounts.get(file)!;
-    data.count++;
-  }
-
-  // Get author info for each file
-  const churnData: FileChurn[] = [];
-
-  for (const [filePath, data] of fileCounts.entries()) {
-    if (data.count < 1) continue;
-
-    try {
-      const authors = runGit(repoPath, [
-        'log',
-        '--format=%an <%ae>',
-        '--',
-        filePath,
-      ]);
-      authors
-        .split('\n')
-        .map((author) => author.trim())
-        .filter(Boolean)
-        .forEach((author) => data.authors.add(author));
-    } catch {
-      // Ignore missing author history
+  for (const line of output.split(/\r?\n/)) {
+    if (line.startsWith('__DEV_DESK_COMMIT__')) {
+      const [, author = '', date = ''] = line.split('\u001f');
+      currentAuthor = author;
+      currentDate = date;
+      continue;
     }
 
-    // Get last modified date
-    let lastModified = '';
-    try {
-      lastModified = runGit(repoPath, [
-        'log',
-        '-1',
-        '--format=%ad',
-        '--',
-        filePath,
-      ]);
-    } catch {
-      // File might not exist anymore
-    }
+    const match = line.match(/^(\d+|-)\t(\d+|-)\t(.+)$/);
+    if (!match) continue;
 
-    // Get line changes
-    let linesAdded = 0;
-    let linesDeleted = 0;
-    try {
-      const stats = runGit(repoPath, [
-        'log',
-        '--numstat',
-        '--format=',
-        '--',
-        filePath,
-      ]);
-      const statLines = stats.split('\n').filter(Boolean);
-      for (const stat of statLines) {
-        const [added, deleted] = stat.split('\t');
-        linesAdded += parseInt(added, 10) || 0;
-        linesDeleted += parseInt(deleted, 10) || 0;
-      }
-    } catch {
-      // Ignore errors
-    }
-
-    churnData.push({
+    const [, additions, deletions, filePath] = match;
+    const existing = byPath.get(filePath) ?? {
       path: filePath,
-      commits: data.count,
-      authors: [...data.authors],
-      lastModified,
-      linesAdded,
-      linesDeleted,
-    });
+      commits: 0,
+      authors: [],
+      authorSet: new Set<string>(),
+      lastModified: '',
+      linesAdded: 0,
+      linesDeleted: 0,
+    };
+
+    existing.commits += 1;
+    existing.linesAdded += Number.parseInt(additions, 10) || 0;
+    existing.linesDeleted += Number.parseInt(deletions, 10) || 0;
+    if (currentAuthor) existing.authorSet.add(currentAuthor);
+    // git log is newest-first, so the first date seen is the latest one.
+    if (!existing.lastModified) existing.lastModified = currentDate;
+    byPath.set(filePath, existing);
   }
 
-  // Sort by commit count
+  const churnData = [...byPath.values()].map(({ authorSet, ...entry }) => ({
+    ...entry,
+    authors: [...authorSet],
+  }));
   churnData.sort((a, b) => b.commits - a.commits);
   return churnData.slice(0, limit);
 }
@@ -465,6 +426,11 @@ function determineRisk(score: number): 'low' | 'medium' | 'high' {
  */
 export function getHotspots(repoPath: string, limit: number = 10): HotspotFile[] {
   const churn = getFileChurn(repoPath, limit * 2);
+
+  return buildHotspots(churn, limit);
+}
+
+function buildHotspots(churn: FileChurn[], limit: number): HotspotFile[] {
 
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
@@ -516,14 +482,15 @@ export function getGitInsights(repoPath: string, options: GitInsightsOptions = {
   }
 
   const limit = options.limit ?? 10;
+  const churn = getFileChurn(repoPath, limit * 2);
 
   return {
     branch: getCurrentBranch(repoPath),
     totalCommits: getCommitCount(repoPath),
     contributors: getContributors(repoPath),
-    hotspots: getHotspots(repoPath, limit),
+    hotspots: buildHotspots(churn, limit),
     recentCommits: getRecentCommits(repoPath, limit),
-    churnFiles: getFileChurn(repoPath, limit),
+    churnFiles: churn.slice(0, limit),
     workingTree: getWorkingTree(repoPath),
   };
 }

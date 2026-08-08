@@ -13,6 +13,8 @@ const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
     "vendor",
     "dist",
     "build",
+    "release",
+    "out",
     "target",
     "coverage",
     ".next",
@@ -36,6 +38,23 @@ pub struct FileInfo {
     pub content: Option<String>,
 }
 
+fn build_walker(path: &Path, max_depth: usize) -> WalkBuilder {
+    let mut builder = WalkBuilder::new(path);
+    builder
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .require_git(false)
+        .follow_links(false);
+
+    if max_depth > 0 {
+        builder.max_depth(Some(max_depth));
+    }
+
+    builder
+}
+
 /// Scan a directory and stream file info as JSON
 pub fn scan(
     root_path: &str,
@@ -52,20 +71,8 @@ pub fn scan(
     let stdout = io::stdout();
     let mut out = stdout.lock();
 
-    // Build walker with .gitignore support
-    let mut builder = WalkBuilder::new(path);
-    builder
-        .hidden(false)
-        .git_ignore(false)
-        .git_global(false)
-        .git_exclude(false)
-        .follow_links(false);
-
-    if max_depth > 0 {
-        builder.max_depth(Some(max_depth));
-    }
-
-    for entry in builder.build().filter_map(|e| e.ok()) {
+    // Apply repository ignore rules before opening or hashing any file.
+    for entry in build_walker(path, max_depth).build().filter_map(|e| e.ok()) {
         let file_path = entry.path();
 
         if should_skip_path(path, file_path, include_hidden) {
@@ -316,6 +323,31 @@ mod tests {
 
         assert!(should_skip_path(dir.path(), &dep_file, true));
         assert!(!should_skip_path(dir.path(), &src_file, true));
+    }
+
+    #[test]
+    fn test_should_skip_packaged_release_outputs() {
+        let dir = TempDir::new().unwrap();
+        let release_file = create_test_file(&dir, "release/win-unpacked/DevDesk.exe", b"binary");
+
+        assert!(should_skip_path(dir.path(), &release_file, true));
+    }
+
+    #[test]
+    fn test_walker_respects_gitignore_files() {
+        let dir = TempDir::new().unwrap();
+        create_test_file(&dir, ".gitignore", b"generated/\n");
+        let ignored = create_test_file(&dir, "generated/bundle.js", b"ignored");
+        let included = create_test_file(&dir, "src/index.ts", b"included");
+
+        let paths = build_walker(dir.path(), 0)
+            .build()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.into_path())
+            .collect::<Vec<_>>();
+
+        assert!(!paths.contains(&ignored));
+        assert!(paths.contains(&included));
     }
 
     #[test]

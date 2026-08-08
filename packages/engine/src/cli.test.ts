@@ -2,6 +2,20 @@ import { describe, expect, it, vi } from 'vitest';
 import { createProgram } from './cli.js';
 
 describe('cli', () => {
+  it('reports worker availability without opening an index', async () => {
+    const engine = {
+      indexRepository: vi.fn(),
+      searchIndex: vi.fn(),
+      getStats: vi.fn(),
+      getGitInsights: vi.fn(),
+    };
+    const write = vi.fn();
+
+    await createProgram(engine as never, write).parseAsync(['node', 'engine', 'ping'], { from: 'node' });
+
+    expect(write).toHaveBeenCalledWith(JSON.stringify({ ok: true, version: '0.1.0' }));
+  });
+
   it('passes index options through to the engine', async () => {
     const engine = {
       indexRepository: vi.fn(async () => ({ ok: true })),

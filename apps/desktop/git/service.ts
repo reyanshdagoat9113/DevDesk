@@ -255,9 +255,50 @@ async function getFallbackGitInsights(repoPath: string): Promise<EngineGitInsigh
     return null
   }
 
-  const branchOutput = await runGit(repoPath, ['status', '--porcelain=1', '--branch', '--untracked-files=no'])
+  const { branchInfo, workingTree } = await getLiveWorkingTree(repoPath)
+  const [recentLog, totalCommitsOutput, contributorsOutput] = await Promise.all([
+    runGit(repoPath, ['log', '--date=iso-strict', '--pretty=format:%H%x1f%an%x1f%aI%x1f%s%x1e', '-n', '10']),
+    runGit(repoPath, ['rev-list', '--count', 'HEAD']).catch(() => '0'),
+    runGit(repoPath, ['shortlog', '-sn', '--all']).catch(() => ''),
+  ])
+
+  const recentCommits = recentLog
+    .split('\u001e')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [hash = '', author = '', date = '', message = ''] = entry.split('\u001f')
+      return {
+        hash,
+        author,
+        date,
+        message,
+        files: [],
+      }
+    })
+
+  const contributors = contributorsOutput
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^\d+\s+/, ''))
+    .filter(Boolean)
+
+  return {
+    branch: branchInfo.branch ?? '',
+    totalCommits: Number.parseInt(totalCommitsOutput, 10) || 0,
+    contributors,
+    hotspots: [],
+    recentCommits,
+    churnFiles: [],
+    workingTree,
+  }
+}
+
+async function getLiveWorkingTree(repoPath: string) {
+  const [branchOutput, statusResult] = await Promise.all([
+    runGit(repoPath, ['status', '--porcelain=1', '--branch', '--untracked-files=no']),
+    tryGit(repoPath, ['status', '--porcelain=1', '-z', '--untracked-files=all'], true),
+  ])
   const branchInfo = parseBranchStatus(branchOutput.split(/\r?\n/)[0] ?? '')
-  const statusResult = await tryGit(repoPath, ['status', '--porcelain=1', '-z', '--untracked-files=all'], true)
   if (!statusResult.ok) {
     throw new Error(statusResult.stderr || 'Unable to read git status.')
   }
@@ -284,41 +325,13 @@ async function getFallbackGitInsights(repoPath: string): Promise<EngineGitInsigh
     })
   }
 
-  const recentLog = await runGit(repoPath, ['log', '--date=iso-strict', '--pretty=format:%H%x1f%an%x1f%aI%x1f%s%x1e', '-n', '10'])
-  const recentCommits = recentLog
-    .split('\u001e')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      const [hash = '', author = '', date = '', message = ''] = entry.split('\u001f')
-      return {
-        hash,
-        author,
-        date,
-        message,
-        files: [],
-      }
-    })
-
-  const totalCommitsOutput = await runGit(repoPath, ['rev-list', '--count', 'HEAD']).catch(() => '0')
-  const contributorsOutput = await runGit(repoPath, ['shortlog', '-sn', '--all']).catch(() => '')
-  const contributors = contributorsOutput
-    .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^\d+\s+/, ''))
-    .filter(Boolean)
-
   const stagedCount = files.filter((file) => file.staged).length
   const unstagedCount = files.filter((file) => file.unstaged).length
   const untrackedCount = files.filter((file) => file.untracked).length
   const conflictedCount = files.filter((file) => file.conflicted).length
 
   return {
-    branch: branchInfo.branch ?? '',
-    totalCommits: Number.parseInt(totalCommitsOutput, 10) || 0,
-    contributors,
-    hotspots: [],
-    recentCommits,
-    churnFiles: [],
+    branchInfo,
     workingTree: {
       isClean: files.length === 0,
       hasStagedChanges: stagedCount > 0,
@@ -400,17 +413,20 @@ export async function getGitWorkflowState(repoPath: string): Promise<GitWorkflow
     }
   }
 
-  const insights = await getGitInsights(repoPath)
-  const branch = insights?.branch || (await tryGit(repoPath, ['branch', '--show-current'])).stdout || null
-  const upstreamResult = await tryGit(repoPath, ['rev-parse', '--abbrev-ref', '@{upstream}'])
+  const { branchInfo, workingTree } = await getLiveWorkingTree(repoPath)
+  const branch = branchInfo.branch || (await tryGit(repoPath, ['branch', '--show-current'])).stdout || null
+  const [upstreamResult, preferredRemoteName] = await Promise.all([
+    tryGit(repoPath, ['rev-parse', '--abbrev-ref', '@{upstream}']),
+    getPreferredRemoteName(repoPath),
+  ])
   const upstream = upstreamResult.ok ? upstreamResult.stdout : null
-  const remoteName = upstream?.split('/')[0] || (await getPreferredRemoteName(repoPath))
+  const remoteName = upstream?.split('/')[0] || preferredRemoteName
   const remoteUrlResult = remoteName ? await tryGit(repoPath, ['remote', 'get-url', remoteName]) : null
   const remoteUrl = remoteUrlResult?.ok ? remoteUrlResult.stdout : null
   const remote = remoteName && remoteUrl ? parseGitRemote(remoteName, remoteUrl) : null
-  const ahead = insights?.workingTree?.ahead ?? 0
-  const behind = insights?.workingTree?.behind ?? 0
-  const hasConflicts = Boolean(insights?.workingTree?.hasConflicts)
+  const ahead = branchInfo.ahead
+  const behind = branchInfo.behind
+  const hasConflicts = workingTree.hasConflicts
 
   return {
     ok: true,
@@ -425,7 +441,7 @@ export async function getGitWorkflowState(repoPath: string): Promise<GitWorkflow
     behind,
     canPush: Boolean(branch && remoteName && !hasConflicts),
     canCreatePullRequest: Boolean(branch && remote?.provider === 'github' && !hasConflicts),
-    workingTree: insights?.workingTree ?? null,
+    workingTree,
   }
 }
 
