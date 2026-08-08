@@ -32,12 +32,18 @@ export function createProgram(
     .description('Index a repository')
     .option('--db <path>', 'Database path')
     .option('--full', 'Force full reindex (ignore existing)', false)
+    .option(
+      '--profile <name>',
+      'Index profile: source-first | source-docs | full-text (default: source-first)',
+      'source-first',
+    )
     .action(async (repoPath, options) => {
       const dbPath = options.db ? resolvePath(options.db) : getDefaultDbPath(repoPath);
       const result = await engine.indexRepository({
         repo: repoPath,
         db: dbPath,
         incremental: !options.full,
+        profile: options.profile,
       });
       write(JSON.stringify(result, null, 2));
     });

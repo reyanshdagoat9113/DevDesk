@@ -60,6 +60,8 @@
     "build:renderer": "vite build",
     "build:preload": "tsc -p tsconfig.preload.json",
     "lint:architecture": "node scripts/check-architecture.mjs",
+    "report:file-sizes": "node scripts/report-file-sizes.mjs",
+    "report:file-sizes:json": "node scripts/report-file-sizes.mjs --json --top",
     "test:production": "electron .",
     "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
     "typecheck": "tsc --noEmit",

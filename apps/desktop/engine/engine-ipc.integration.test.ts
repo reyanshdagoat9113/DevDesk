@@ -149,10 +149,19 @@ vi.mock('../data/store', () => {
 
 vi.mock('../engine/binary', () => ({
   engineGit: async () => ({ ok: true, path: projectRoot, branch: 'main', hotspots: [], contributors: [], totalCommits: 0 }),
-  engineIndex: async (repoPath: string, projectIdValue: string) => {
+  engineIndex: async (
+    repoPath: string,
+    projectIdValue: string,
+    options?: { profile?: 'source-first' | 'source-docs' | 'full-text' },
+  ) => {
     const dbPath = path.join(userDataRoot, 'engine', `${projectIdValue}.sqlite`)
     fs.mkdirSync(path.dirname(dbPath), { recursive: true })
-    return realEngine.indexRepository({ repo: repoPath, db: dbPath, incremental: false })
+    return realEngine.indexRepository({
+      repo: repoPath,
+      db: dbPath,
+      incremental: false,
+      profile: options?.profile,
+    })
   },
   engineSearch: async (projectIdValue: string, query: string, options?: { regex?: boolean; limit?: number }) => {
     const dbPath = path.join(userDataRoot, 'engine', `${projectIdValue}.sqlite`)
@@ -214,7 +223,10 @@ test('Electron IPC exposes engine index, search, and stats flows', async () => {
   assert.equal(indexResult.ok, true)
   assert.equal(indexResult.repo, expectedRepo)
   assert.equal(indexResult.db, expectedDb)
-  assert.equal(indexResult.filesIndexed, 2)
+  assert.equal(indexResult.filesIndexed, 1)
+  assert.equal(indexResult.filesSkipped, 1)
+  assert.equal(indexResult.profile, 'source-first')
+  assert.equal(indexResult.skipReasons?.profile, 1)
   assert.ok(!indexResult.repo.includes('\\'), 'repo must not use backslashes')
   assert.ok(!indexResult.db.includes('\\'), 'db must not use backslashes')
 
@@ -225,7 +237,8 @@ test('Electron IPC exposes engine index, search, and stats flows', async () => {
   }
 
   const indexedState = await electronAPI.getEngineState()
-  assert.equal(indexedState.indexes[projectId].fileCount, 2)
+  assert.equal(indexedState.indexes[projectId].fileCount, 1)
+  assert.equal(indexedState.indexes[projectId].indexProfile, 'source-first')
   assert.equal(indexedState.indexes[projectId].dbPath, expectedDb)
   assert.ok(!indexedState.indexes[projectId].dbPath.includes('\\'))
 
@@ -237,7 +250,16 @@ test('Electron IPC exposes engine index, search, and stats flows', async () => {
 
   const statsResult = await electronAPI.getProjectStats(projectId)
   assert.equal(statsResult.ok, true)
-  assert.equal(statsResult.stats.totalFiles, 2)
+  assert.equal(statsResult.stats.totalFiles, 1)
   assert.equal(statsResult.db, expectedDb)
   assert.ok(!statsResult.db.includes('\\'))
+
+  const fullTextResult = await electronAPI.indexProject(projectId, { profile: 'full-text' })
+  assert.equal(fullTextResult.ok, true)
+  assert.equal(fullTextResult.filesIndexed, 2)
+  assert.equal(fullTextResult.profile, 'full-text')
+
+  const fullTextState = await electronAPI.getEngineState()
+  assert.equal(fullTextState.indexes[projectId].fileCount, 2)
+  assert.equal(fullTextState.indexes[projectId].indexProfile, 'full-text')
 })

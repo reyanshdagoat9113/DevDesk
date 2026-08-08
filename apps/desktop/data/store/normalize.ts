@@ -333,6 +333,12 @@ export function normalizeStore(value: unknown): DataStore {
         const dbPath = typeof rawEntry.dbPath === 'string' ? rawEntry.dbPath : ''
         const lastIndexed = typeof rawEntry.lastIndexed === 'string' ? rawEntry.lastIndexed : ''
         const fileCount = typeof rawEntry.fileCount === 'number' ? rawEntry.fileCount : 0
+        // JSON stores written before profiles used the legacy full-text index behavior.
+        const rawProfile = typeof rawEntry.indexProfile === 'string' ? rawEntry.indexProfile : 'full-text'
+        const indexProfile =
+          rawProfile === 'source-docs' || rawProfile === 'full-text' || rawProfile === 'source-first'
+            ? rawProfile
+            : 'source-first'
 
         if (!dbPath || !lastIndexed) {
           return acc
@@ -343,6 +349,7 @@ export function normalizeStore(value: unknown): DataStore {
           dbPath,
           lastIndexed,
           fileCount,
+          indexProfile,
         }
 
         return acc

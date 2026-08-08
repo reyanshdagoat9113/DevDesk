@@ -45,7 +45,23 @@ describe('engine runtime helpers', () => {
     expect(getEngineDbPathFromUserData(tmpUserData, 'proj-1')).toBe(
       path.join(tmpUserData, 'engine', 'proj-1.sqlite')
     )
-    expect(buildEngineIndexArgs('/repo', tmpIndex)).toEqual(['index', '/repo', '--db', tmpIndex])
+    expect(buildEngineIndexArgs('/repo', tmpIndex)).toEqual([
+      'index',
+      '/repo',
+      '--db',
+      tmpIndex,
+      '--profile',
+      'source-first',
+      '--full',
+    ])
+    expect(buildEngineIndexArgs('/repo', tmpIndex, { profile: 'full-text', full: false })).toEqual([
+      'index',
+      '/repo',
+      '--db',
+      tmpIndex,
+      '--profile',
+      'full-text',
+    ])
     expect(buildEngineSearchArgs('needle', tmpIndex, { regex: true, limit: 5 })).toEqual([
       'search', 'needle', '--db', tmpIndex, '--regex', '--limit', '5',
     ])

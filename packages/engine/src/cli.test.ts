@@ -36,6 +36,34 @@ describe('cli', () => {
       repo: '/repo',
       db: '/tmp/index.sqlite',
       incremental: false,
+      profile: 'source-first',
+    });
+  });
+
+  it('passes index profile through to the engine', async () => {
+    const engine = {
+      indexRepository: vi.fn(async () => ({ ok: true })),
+      searchIndex: vi.fn(),
+      getStats: vi.fn(),
+      getGitInsights: vi.fn(),
+    };
+    const program = createProgram(engine as never);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    try {
+      await program.parseAsync(
+        ['node', 'engine', 'index', '/repo', '--db', '/tmp/index.sqlite', '--full', '--profile', 'full-text'],
+        { from: 'node' },
+      );
+    } finally {
+      logSpy.mockRestore();
+    }
+
+    expect(engine.indexRepository).toHaveBeenCalledWith({
+      repo: '/repo',
+      db: '/tmp/index.sqlite',
+      incremental: false,
+      profile: 'full-text',
     });
   });
 

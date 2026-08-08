@@ -111,17 +111,26 @@ describe('store migrations', () => {
           end_time TEXT,
           output TEXT
         );
+        CREATE TABLE engine_indexes (
+          project_id TEXT PRIMARY KEY,
+          db_path TEXT NOT NULL,
+          last_indexed TEXT NOT NULL,
+          file_count INTEGER NOT NULL DEFAULT 0
+        );
         INSERT INTO projects (id, path, name, type, icon, linked_container_names)
         VALUES ('p-old', 'C:/old', 'Old Project', 'node', 'box', '[]');
         INSERT INTO commands (id, name, command, description, tags, project_id, working_directory)
         VALUES ('c-old', 'Build', 'npm run build', null, '[]', 'p-old', '.');
         INSERT INTO run_history (id, command_id, project_id, status, start_time, end_time, output)
         VALUES ('r-old', 'c-old', 'p-old', 'success', '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:01.000Z', 'done');
+        INSERT INTO engine_indexes (project_id, db_path, last_indexed, file_count)
+        VALUES ('p-old', 'C:/old/index.sqlite', '2025-01-01T00:00:00.000Z', 12);
       `)
 
       assert.equal(tableColumns(database, 'commands').includes('variables'), false)
       assert.equal(tableColumns(database, 'projects').includes('is_pinned'), false)
       assert.equal(tableColumns(database, 'run_history').includes('resolved_command'), false)
+      assert.equal(tableColumns(database, 'engine_indexes').includes('index_profile'), false)
 
       ensureSchemaCompatibility(database)
 
@@ -130,6 +139,7 @@ describe('store migrations', () => {
       assert.ok(tableColumns(database, 'projects').includes('is_pinned'))
       assert.ok(tableColumns(database, 'projects').includes('pinned_at'))
       assert.ok(tableColumns(database, 'run_history').includes('resolved_command'))
+      assert.ok(tableColumns(database, 'engine_indexes').includes('index_profile'))
 
       const project = database.prepare('SELECT name FROM projects WHERE id = ?').get('p-old') as { name: string }
       assert.equal(project.name, 'Old Project')
@@ -137,6 +147,10 @@ describe('store migrations', () => {
       assert.equal(command.name, 'Build')
       const run = database.prepare('SELECT status FROM run_history WHERE id = ?').get('r-old') as { status: string }
       assert.equal(run.status, 'success')
+      const engineIndex = database
+        .prepare('SELECT index_profile FROM engine_indexes WHERE project_id = ?')
+        .get('p-old') as { index_profile: string }
+      assert.equal(engineIndex.index_profile, 'full-text')
     } finally {
       database.close()
     }

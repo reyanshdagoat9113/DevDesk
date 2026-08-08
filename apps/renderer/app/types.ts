@@ -316,7 +316,11 @@ export interface EngineIndexMeta {
   dbPath: string
   lastIndexed: string
   fileCount: number
+  /** Profile used on the last successful index. */
+  indexProfile?: EngineIndexProfile
 }
+
+export type EngineIndexProfile = 'source-first' | 'source-docs' | 'full-text'
 
 export interface EngineIndexResult {
   ok: boolean
@@ -326,6 +330,19 @@ export interface EngineIndexResult {
   filesSkipped: number
   durationMs: number
   warnings: string[]
+  profile?: EngineIndexProfile
+  skipReasons?: {
+    binary: number
+    language: number
+    profile: number
+    devdeskignore: number
+    unchanged: number
+  }
+  metrics?: {
+    logicalIndexedBytes: number
+    searchableContentBytes: number
+    physicalDbBytes: number
+  }
 }
 
 export interface EngineStatus {
@@ -370,9 +387,13 @@ export interface EngineStats {
   db: string
   stats: {
     totalFiles: number
+    /** Logical indexed bytes: SUM(size_bytes) */
     totalSizeBytes: number
+    searchableContentBytes?: number
+    physicalDbBytes?: number
     byLanguage: Record<string, number>
     indexedAt: string
+    largestFiles?: Array<{ path: string; sizeBytes: number; language: string | null }>
   }
 }
 

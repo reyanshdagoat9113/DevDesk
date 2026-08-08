@@ -79,5 +79,37 @@ describe('devdesk-engine core', () => {
     expect(stats.stats.totalFiles).toBe(2)
     expect(stats.stats.byLanguage.typescript).toBe(1)
     expect(stats.stats.byLanguage.rust).toBe(1)
+    expect(stats.stats.totalSizeBytes).toBe(96)
+    expect(stats.stats.searchableContentBytes).toBeGreaterThan(0)
+    expect(stats.stats.physicalDbBytes).toBeGreaterThan(0)
+    expect(stats.stats.largestFiles.length).toBe(2)
+    expect(stats.stats.largestFiles[0].sizeBytes).toBeGreaterThanOrEqual(
+      stats.stats.largestFiles[1].sizeBytes,
+    )
+  })
+
+  it('reports searchable content as UTF-8 bytes', () => {
+    const unicodePath = path.join(tempDir, 'unicode.ts')
+    fs.writeFileSync(unicodePath, 'é')
+    const dbPath = path.join(tempDir, 'unicode.sqlite')
+    const db = new DatabaseManager(dbPath)
+
+    try {
+      db.upsertFile({
+        path: unicodePath,
+        filename: 'unicode.ts',
+        extension: 'ts',
+        size_bytes: 2,
+        mtime_ms: Date.now(),
+        content_hash: 'unicode',
+        language: 'typescript',
+        is_binary: false,
+        content: 'é',
+      })
+
+      expect(db.getStats().searchableContentBytes).toBe(2)
+    } finally {
+      db.close()
+    }
   })
 })

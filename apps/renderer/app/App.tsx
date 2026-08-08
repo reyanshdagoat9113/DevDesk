@@ -966,10 +966,13 @@ function App() {
     }
   }, [syncEngineState])
 
-  const handleIndexEngineProject = useCallback(async (projectId: string) => {
+  const handleIndexEngineProject = useCallback(async (
+    projectId: string,
+    options?: { profile?: 'source-first' | 'source-docs' | 'full-text' },
+  ) => {
     setLoadError(null)
     try {
-      const result = await window.electronAPI.indexProject(projectId)
+      const result = await window.electronAPI.indexProject(projectId, options)
       setEngineLatestIndexResults((prev) => ({ ...prev, [projectId]: result }))
       await syncEngineState()
       return result

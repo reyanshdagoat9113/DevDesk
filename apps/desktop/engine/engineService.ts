@@ -8,7 +8,8 @@ import {
   upsertEngineIndex,
   upsertEngineSearchSession,
 } from '../data/store'
-import type { EngineIndexMeta, EngineSearchSession } from '../data/model'
+import type { EngineIndexMeta, EngineIndexProfile, EngineSearchSession } from '../data/model'
+import { normalizeEngineIndexProfile } from '../data/store/engine'
 import {
   engineGit,
   engineIndex,
@@ -24,6 +25,10 @@ import type {
   EngineStats,
   EngineStatus,
 } from './types'
+
+export type IndexProjectOptions = {
+  profile?: EngineIndexProfile
+}
 
 export interface EngineSnapshot {
   status: EngineStatus
@@ -52,12 +57,17 @@ async function hasIndexMetadata(projectId: string) {
   }
 }
 
-async function persistIndexMetadata(projectId: string, result: EngineIndexResult) {
+async function persistIndexMetadata(
+  projectId: string,
+  result: EngineIndexResult,
+  profile: EngineIndexProfile,
+) {
   const entry: EngineIndexMeta = {
     projectId,
     dbPath: result.db,
     lastIndexed: new Date().toISOString(),
     fileCount: result.filesIndexed,
+    indexProfile: profile,
   }
   await upsertEngineIndex(entry)
   return entry
@@ -127,11 +137,20 @@ export async function loadEngineSnapshot(): Promise<EngineSnapshot> {
   }
 }
 
-export async function indexProject(projectId: string, projectPath: string): Promise<EngineIndexResult> {
-  const result = normalizeIndexResultPaths(await engineIndex(projectPath, projectId))
+export async function indexProject(
+  projectId: string,
+  projectPath: string,
+  options?: IndexProjectOptions,
+): Promise<EngineIndexResult> {
+  const existing = await hasIndexMetadata(projectId)
+  const profile = normalizeEngineIndexProfile(options?.profile ?? existing?.indexProfile)
+
+  const result = normalizeIndexResultPaths(
+    await engineIndex(projectPath, projectId, { profile, full: true }),
+  )
 
   if (result.ok) {
-    await persistIndexMetadata(projectId, result)
+    await persistIndexMetadata(projectId, result, profile)
   }
 
   return result
@@ -177,6 +196,7 @@ export async function getProjectStats(projectId: string): Promise<EngineStats | 
         dbPath: result.db,
         lastIndexed: result.stats.indexedAt,
         fileCount: result.stats.totalFiles,
+        indexProfile: existingIndex.indexProfile ?? 'source-first',
       })
     }
     return result

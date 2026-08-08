@@ -3,6 +3,9 @@
 ## Desktop
 - `apps/desktop/data` owns persistence, normalization, and schema migration.
 - `apps/desktop/ipc` owns Electron IPC handlers and runtime orchestration.
+  - Prefer domain registrars under `apps/desktop/ipc/handlers/*` (one domain per module).
+  - Shared in-memory maps live in `apps/desktop/ipc/runtimeState.ts`.
+  - `registerIpc.ts` should shrink toward a thin orchestrator that calls domain registrars.
 - `apps/desktop/engine` owns file indexing, search, and engine runtime integration.
 - `apps/desktop/git` owns git-specific runtime and service logic.
 - `apps/desktop/files` owns file listing, search, and editor/reveal helpers.

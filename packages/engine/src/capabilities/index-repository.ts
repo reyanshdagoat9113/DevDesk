@@ -1,14 +1,30 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import type { IndexOptions, IndexResult } from '../types.js';
 import { DatabaseManager } from '../db/index.js';
 import { getDefaultDbPath, normalizePath, resolvePath } from '../utils.js';
 import { detectLanguage, shouldIndex } from '../lang.js';
 import { getGitInsights, isGitRepo, resolveHotspots } from '../git.js';
+import {
+  createIndexPolicy,
+  createPathMatcher,
+  emptySkipReasons,
+  formatSkipReasons,
+  loadDevdeskIgnorePatterns,
+} from '../index-policy.js';
 import type { RustWorkerClient } from '../workers/client.js';
 
 export interface CapabilityDeps {
   worker: RustWorkerClient;
+}
+
+function toRepoRelative(repoPath: string, absolutePath: string): string {
+  const repo = normalizePath(repoPath).toLowerCase();
+  const file = normalizePath(absolutePath);
+  const fileLower = file.toLowerCase();
+  if (fileLower.startsWith(repo + '/')) {
+    return file.slice(normalizePath(repoPath).length + 1);
+  }
+  return file;
 }
 
 export async function indexRepositoryCapability(
@@ -19,6 +35,8 @@ export async function indexRepositoryCapability(
   const repoPath = resolvePath(repo);
   const dbPath = resolvePath(options.db || getDefaultDbPath(repoPath));
   const startedAt = Date.now();
+  const policy = createIndexPolicy(repoPath, options.profile);
+  const userIgnoreMatcher = createPathMatcher(loadDevdeskIgnorePatterns(repoPath));
 
   if (!fs.existsSync(repoPath)) {
     return {
@@ -29,11 +47,13 @@ export async function indexRepositoryCapability(
       filesSkipped: 0,
       durationMs: Date.now() - startedAt,
       warnings: [`Repository path does not exist: ${repoPath}`],
+      profile: policy.profile,
     };
   }
 
   const db = new DatabaseManager(dbPath);
   const warnings: string[] = [];
+  const skipReasons = emptySkipReasons();
 
   try {
     const existingPathHashMap = incremental ? db.getPathHashMap() : new Map<string, string | null>();
@@ -64,14 +84,34 @@ export async function indexRepositoryCapability(
 
       if (file.is_binary) {
         skipped++;
-        existingPaths.delete(canonicalPath);
+        skipReasons.binary++;
+        // Leave in existingPaths so a previously indexed path that became binary is removed.
+        continue;
+      }
+
+      // Path policy (.devdeskignore + profile globs) — leave in existingPaths so
+      // incremental reindex drops paths that are newly out of scope.
+      if (policy.ignoresPath(canonicalPath, repoPath)) {
+        skipped++;
+        const rel = toRepoRelative(repoPath, canonicalPath);
+        if (userIgnoreMatcher.ignores(rel)) {
+          skipReasons.devdeskignore++;
+        } else {
+          skipReasons.profile++;
+        }
         continue;
       }
 
       const language = detectLanguage(file.filename, file.extension);
       if (!shouldIndex(language)) {
         skipped++;
-        existingPaths.delete(canonicalPath);
+        skipReasons.language++;
+        continue;
+      }
+
+      if (policy.ignoresLanguage(language)) {
+        skipped++;
+        skipReasons.profile++;
         continue;
       }
 
@@ -85,8 +125,11 @@ export async function indexRepositoryCapability(
           file.content_hash != null &&
           previousHash === file.content_hash
         ) {
+          skipReasons.unchanged++;
           continue;
         }
+      } else {
+        existingPaths.delete(canonicalPath);
       }
 
       toIndex.push({
@@ -152,9 +195,27 @@ export async function indexRepositoryCapability(
     }
 
     db.optimize();
+    if (!incremental) {
+      // Full/profile-changing rebuilds should reclaim pages from the previous
+      // index so the reported physical size reflects the new scope.
+      db.compact();
+    } else {
+      db.checkpoint();
+    }
 
     if (skipped > 0) {
-      warnings.push(`Skipped ${skipped} binary or unsupported files`);
+      const excludedReasons = { ...skipReasons, unchanged: 0 };
+      warnings.push(
+        `Excluded ${skipped} files (${formatSkipReasons(excludedReasons)}); profile=${policy.profile}`,
+      );
+    }
+
+    const stats = db.getStats();
+    let physicalDbBytes = 0;
+    try {
+      physicalDbBytes = fs.statSync(dbPath).size;
+    } catch {
+      physicalDbBytes = 0;
     }
 
     return {
@@ -165,6 +226,13 @@ export async function indexRepositoryCapability(
       filesSkipped: skipped,
       durationMs: Date.now() - startedAt,
       warnings,
+      profile: policy.profile,
+      skipReasons,
+      metrics: {
+        logicalIndexedBytes: stats.totalSizeBytes,
+        searchableContentBytes: stats.searchableContentBytes,
+        physicalDbBytes,
+      },
     };
   } finally {
     db.close();

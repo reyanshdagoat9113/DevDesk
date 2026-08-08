@@ -232,11 +232,21 @@ export async function runEngineCommand(
 export async function engineIndex(
   projectPath: string,
   projectId: string,
+  options?: {
+    profile?: 'source-first' | 'source-docs' | 'full-text'
+    full?: boolean
+  },
 ): Promise<EngineIndexResult> {
   const dbPath = getEngineDbPath(projectId)
-  const result = await runEngineCommand(buildEngineIndexArgs(projectPath, dbPath), {
-    timeoutMs: 300_000,
-  })
+  const result = await runEngineCommand(
+    buildEngineIndexArgs(projectPath, dbPath, {
+      profile: options?.profile ?? 'source-first',
+      full: options?.full !== false,
+    }),
+    {
+      timeoutMs: 300_000,
+    },
+  )
   return parseEngineJson<EngineIndexResult>(result)
 }
 

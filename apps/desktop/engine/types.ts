@@ -4,6 +4,8 @@
  * - Search hit paths exposed to the UI are project-relative with `/` separators.
  * - Filesystem I/O uses native OS separators (via Node path / engine toNativePath).
  */
+export type EngineIndexProfile = 'source-first' | 'source-docs' | 'full-text'
+
 export interface EngineIndexResult {
   ok: boolean
   /** Absolute repository path, canonical forward-slash form */
@@ -14,6 +16,19 @@ export interface EngineIndexResult {
   filesSkipped: number
   durationMs: number
   warnings: string[]
+  profile?: EngineIndexProfile
+  skipReasons?: {
+    binary: number
+    language: number
+    profile: number
+    devdeskignore: number
+    unchanged: number
+  }
+  metrics?: {
+    logicalIndexedBytes: number
+    searchableContentBytes: number
+    physicalDbBytes: number
+  }
 }
 
 export interface EngineSearchMatch {
@@ -47,8 +62,11 @@ export interface EngineStats {
   stats: {
     totalFiles: number
     totalSizeBytes: number
+    searchableContentBytes?: number
+    physicalDbBytes?: number
     byLanguage: Record<string, number>
     indexedAt: string
+    largestFiles?: Array<{ path: string; sizeBytes: number; language: string | null }>
   }
 }
 

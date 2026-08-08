@@ -7,11 +7,19 @@ export function getStatsCapability(dbInput: string): StatsResult {
   const db = new DatabaseManager(dbPath);
 
   try {
-    const stats = db.getStats();
+    const raw = db.getStats();
     return {
       ok: true,
       db: normalizePath(dbPath),
-      stats,
+      stats: {
+        totalFiles: raw.totalFiles,
+        totalSizeBytes: raw.totalSizeBytes,
+        searchableContentBytes: raw.searchableContentBytes,
+        physicalDbBytes: raw.physicalDbBytes,
+        byLanguage: raw.byLanguage,
+        indexedAt: raw.indexedAt,
+        largestFiles: raw.largestFiles,
+      },
     };
   } finally {
     db.close();

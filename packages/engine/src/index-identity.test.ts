@@ -100,4 +100,42 @@ describe('incremental index identity', () => {
       db.close()
     }
   })
+
+  it('removes paths that become excluded during an incremental reindex', async () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devdesk-idx-policy-'))
+    const repo = path.join(tempRoot, 'repo')
+    const dbPath = path.join(tempRoot, 'index.sqlite')
+    fs.mkdirSync(repo, { recursive: true })
+
+    const files = [
+      makeFile(repo, 'src/app.ts', 'export const app = true'),
+      makeFile(repo, 'docs/guide.md', '# Guide'),
+    ]
+    await indexRepositoryCapability({ worker: new FakeWorker(files) as never }, {
+      repo,
+      db: dbPath,
+      incremental: false,
+      profile: 'full-text',
+    })
+
+    fs.writeFileSync(path.join(repo, '.devdeskignore'), 'docs/**\n', 'utf8')
+    const result = await indexRepositoryCapability({ worker: new FakeWorker(files) as never }, {
+      repo,
+      db: dbPath,
+      incremental: true,
+      profile: 'full-text',
+    })
+
+    const db = new DatabaseManager(dbPath)
+    try {
+      const paths = [...db.getAllPaths()].map((entry) => entry.replace(/\\/g, '/'))
+      assert.ok(paths.some((entry) => entry.endsWith('/src/app.ts')))
+      assert.ok(!paths.some((entry) => entry.endsWith('/docs/guide.md')))
+      assert.equal(result.filesSkipped, 1)
+      assert.equal(result.skipReasons?.devdeskignore, 1)
+      assert.equal(result.skipReasons?.unchanged, 1)
+    } finally {
+      db.close()
+    }
+  })
 })

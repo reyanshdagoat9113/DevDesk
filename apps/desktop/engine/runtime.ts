@@ -27,8 +27,22 @@ export function getEngineDbPathFromUserData(userDataPath: string, projectId: str
   return path.join(userDataPath, 'engine', `${projectId}.sqlite`)
 }
 
-export function buildEngineIndexArgs(projectPath: string, dbPath: string): string[] {
-  return ['index', projectPath, '--db', dbPath]
+export function buildEngineIndexArgs(
+  projectPath: string,
+  dbPath: string,
+  options?: {
+    profile?: 'source-first' | 'source-docs' | 'full-text'
+    full?: boolean
+  },
+): string[] {
+  const args = ['index', projectPath, '--db', dbPath]
+  const profile = options?.profile ?? 'source-first'
+  args.push('--profile', profile)
+  // App-driven reindex is full so profile scope changes always apply cleanly.
+  if (options?.full !== false) {
+    args.push('--full')
+  }
+  return args
 }
 
 export function buildEngineSearchArgs(

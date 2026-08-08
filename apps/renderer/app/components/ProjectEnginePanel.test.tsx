@@ -160,4 +160,16 @@ describe('ProjectEnginePanel', () => {
     expect(screen.getByText('Search query is required.')).toBeTruthy()
     expect(props.onSearch).not.toHaveBeenCalled()
   })
+
+  it('reindexes with the project persisted index profile', async () => {
+    const props = createProps()
+    props.engineIndexes = {
+      'project-1': { ...indexMeta['project-1'], indexProfile: 'source-docs' },
+    }
+    render(<ProjectEnginePanel {...props} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reindex Project' }))
+
+    expect(props.onIndexProject).toHaveBeenCalledWith('project-1', { profile: 'source-docs' })
+  })
 })

@@ -1,6 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
-import { IpcChannels, isSafeExternalUrl } from '@devdesk/ipc-contracts'
-import { assertSafeExternalUrl, assertTrustedSender } from './trustedIpc'
+import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
@@ -8,7 +6,6 @@ import path from 'node:path'
 import {
   addBugAttachmentRecord,
   cleanupOldHealthChecks,
-  clearRunHistoryInStore,
   createChain,
   createBugReport,
   createCommand,
@@ -30,8 +27,6 @@ import {
   getLatestHealthCheckForProject,
   getPreferencesFromStore,
   getProjectById,
-  getProjectNotesById,
-  getRunHistoryOutputById,
   getTriggerById,
   importAllData,
   listBugAttachmentPathsByBugId,
@@ -42,12 +37,10 @@ import {
   listHealthCheckRuns,
   listProjects,
   listRecentRunHistory,
-  listRunHistory,
   listTriggers,
   removeCommand,
   removeChain,
   removeProject,
-  removeRunHistoryEntry,
   removeTrigger,
   renameProject,
   replaceChain,
@@ -57,9 +50,7 @@ import {
   toggleCommandPin,
   toggleProjectPin,
   updateBugReport,
-  updatePreferencesInStore,
   updateProjectLinkedContainers,
-  upsertProjectNotes,
 } from '../data/store'
 import type { ImportMode } from '../data/store'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
@@ -85,7 +76,6 @@ import type {
   Container,
   Project,
   ProjectHealthReport,
-  ProjectNotes,
   RunStatus,
   UpdateBugReportInput,
 } from '../data/model'
@@ -98,40 +88,16 @@ import type { TerminalCreateOptions } from '../data/model'
 import { runSystemChecks } from '../health/systemChecks'
 import { runRuntimeChecks } from '../health/runtimeChecks'
 import { captureContextSnapshot } from '../bugs/contextSnapshot'
-import { bundleLlmContext, type LlmBundleOptions } from '../llm/bundler'
-
-type RunningCommand = {
-  process: ChildProcessWithoutNullStreams
-  output: string
-  requestedStop: boolean
-  completion: Promise<RunStatus>
-}
-
-const runningCommands = new Map<string, RunningCommand>()
-
-type ChainStepRunPayload = {
-  stepId: string
-  commandId: string
-  status: 'pending' | 'running' | 'success' | 'failed' | 'stopped' | 'skipped'
-  runId?: string
-  startedAt?: string
-  endedAt?: string
-  error?: string
-}
-
-type ChainRunPayload = {
-  runId: string
-  chainId: string
-  projectId?: string
-  status: 'running' | 'success' | 'failed' | 'stopped'
-  startedAt: string
-  endedAt?: string
-  activeStepId?: string
-  error?: string
-  steps: ChainStepRunPayload[]
-}
-
-const runningChains = new Map<string, ChainRunPayload>()
+import { registerExtractedDomainHandlers } from './handlers'
+import {
+  runningChains,
+  runningCommands,
+  runningDockerLogSubscriptions,
+  pendingTriggerConfirmations,
+  type ChainRunPayload,
+  type RunningCommand,
+  type TriggerConfirmationRequestPayload,
+} from './runtimeState'
 
 type TriggerMutationInput = {
   name: string
@@ -153,34 +119,6 @@ type TriggerEventContext = {
   projectId?: string
   containerNames?: string[]
 }
-
-type TriggerConfirmationRequestPayload = {
-  id: string
-  triggerId: string
-  triggerName: string
-  chainId: string
-  chainName: string
-  event: CommandTriggerEvent
-  projectId?: string
-  projectName?: string
-  containerNames?: string[]
-  createdAt: string
-}
-
-type PendingTriggerConfirmation = {
-  request: TriggerConfirmationRequestPayload
-  resolve: (approved: boolean) => void
-  timeout: NodeJS.Timeout
-}
-
-const pendingTriggerConfirmations = new Map<string, PendingTriggerConfirmation>()
-
-type RunningDockerLogSubscription = {
-  process: ChildProcessWithoutNullStreams
-  containerId: string
-}
-
-const runningDockerLogSubscriptions = new Map<string, RunningDockerLogSubscription>()
 
 type WslProjectLocation = {
   distro: string
@@ -1804,6 +1742,9 @@ export function emitStartupAutomationTriggers() {
 
 // Register all IPC handlers
 export function registerIpcHandlers() {
+  // Extracted domain modules (preferences, notes, history, …)
+  registerExtractedDomainHandlers()
+
   ipcMain.handle('wsl:list-distros', async () => {
     return listWslDistros()
   })
@@ -2112,20 +2053,6 @@ export function registerIpcHandlers() {
     }
 
     return inspectProjectHealth(project)
-  })
-
-  ipcMain.handle('preferences:get', async () => {
-    return getPreferences()
-  })
-
-  ipcMain.handle('preferences:update', async (_event, updates: Partial<AppPreferences>) => {
-    await updatePreferencesInStore(updates)
-    app.emit('preferences:updated')
-    return { success: true }
-  })
-
-  ipcMain.handle('llm:bundle-context', async (_event, projectId: string, options?: LlmBundleOptions) => {
-    return bundleLlmContext(projectId, options)
   })
 
   ipcMain.handle('projects:open-folder', async (_event, _id: string) => {
@@ -2634,43 +2561,6 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  // Run History
-  ipcMain.handle('history:get', async () => {
-    return listRunHistory()
-  })
-
-  ipcMain.handle('history:listRecent', async (_event, limit?: number) => {
-    const cap = Math.min(Math.max(1, limit ?? 20), 100)
-    return listRecentRunHistory(cap)
-  })
-
-  ipcMain.handle('history:clear', async () => {
-    await clearRunHistoryInStore()
-    return { success: true }
-  })
-
-  ipcMain.handle('history:remove', async (_event, runId: string) => {
-    const id = runId?.trim()
-    if (!id) {
-      return { success: false }
-    }
-
-    if (runningCommands.has(id)) {
-      throw new Error('Cannot remove a running command.')
-    }
-
-    await removeRunHistoryEntry(id)
-    return { success: true }
-  })
-
-  ipcMain.handle('history:output', async (_event, _runId: string) => {
-    const running = runningCommands.get(_runId)
-    if (running) {
-      return running.output
-    }
-    return getRunHistoryOutputById(_runId)
-  })
-
   // File navigation
   ipcMain.handle('files:list', async (_event, projectId: string, dir?: string) => {
     if (!projectId) {
@@ -2746,107 +2636,19 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle(IpcChannels.ShellOpenExternal, async (event, url: string) => {
-    assertTrustedSender(event)
-    if (!url?.trim()) {
-      return { success: false }
-    }
-    if (!isSafeExternalUrl(url)) {
-      return { success: false, error: 'External URL scheme is not allowed.' }
-    }
-    await shell.openExternal(assertSafeExternalUrl(url))
-    return { success: true }
-  })
-
-  ipcMain.handle('git:get-state', async (_event, projectId: string) => {
-    if (!projectId) {
-      throw new Error('Project id is required.')
-    }
-
-    const project = await getProjectById(projectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    const { getGitWorkflowState } = await import('../git/service')
-    return getGitWorkflowState(project.path)
-  })
-
-  ipcMain.handle('git:commit', async (_event, projectId: string, message: string) => {
-    if (!projectId) {
-      throw new Error('Project id is required.')
-    }
-
-    const project = await getProjectById(projectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    const { commitAllChanges } = await import('../git/service')
-    return commitAllChanges(project.path, message)
-  })
-
-  ipcMain.handle('git:push', async (_event, projectId: string) => {
-    if (!projectId) {
-      throw new Error('Project id is required.')
-    }
-
-    const project = await getProjectById(projectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    const { pushCurrentBranch } = await import('../git/service')
-    return pushCurrentBranch(project.path)
-  })
-
-  ipcMain.handle('git:create-pr', async (_event, projectId: string, input: {
-    title: string
-    body: string
-    isDraft: boolean
-    baseBranch?: string
-  }) => {
-    if (!projectId) {
-      throw new Error('Project id is required.')
-    }
-
-    const project = await getProjectById(projectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    const { createPullRequest } = await import('../git/service')
-    const result = await createPullRequest(project.path, input)
-    if (result.ok && result.url) {
-      await shell.openExternal(result.url)
-    }
-    return result
-  })
-
-  ipcMain.handle('git:diff', async (_event, projectId: string, relativePath: string) => {
-    if (!projectId) {
-      throw new Error('Project id is required.')
-    }
-    if (!relativePath?.trim()) {
-      throw new Error('File path is required.')
-    }
-
-    const project = await getProjectById(projectId)
-    if (!project) {
-      throw new Error('Project not found.')
-    }
-
-    const { getFileDiff } = await import('../git/service')
-    return getFileDiff(project.path, relativePath)
-  })
-
   // Engine operations (devdesk-engine integration)
   ipcMain.handle('engine:state', async () => {
     const { loadEngineSnapshot } = await import('../engine/engineService')
     return loadEngineSnapshot()
   })
 
-  ipcMain.handle('engine:index', async (_event, projectId: string) => {
+  ipcMain.handle(
+    'engine:index',
+    async (
+      _event,
+      projectId: string,
+      options?: { profile?: 'source-first' | 'source-docs' | 'full-text' },
+    ) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -2858,7 +2660,7 @@ export function registerIpcHandlers() {
 
     const { indexProject } = await import('../engine/engineService')
     _event.sender.send('engine:indexing-started', { projectId })
-    const result = await indexProject(projectId, project.path)
+    const result = await indexProject(projectId, project.path, options)
     _event.sender.send('engine:indexing-completed', { projectId, result })
     return result
   })
@@ -3146,31 +2948,6 @@ export function registerIpcHandlers() {
     } catch (error) {
       return bugFailure<{ canceled: boolean; filePaths: string[] }>(toBugApiError(error).code, toBugApiError(error).message)
     }
-  })
-
-  // Notes
-  ipcMain.handle('notes:get', async (_event, projectId: string) => {
-    if (!projectId?.trim()) {
-      throw new Error('Project id is required.')
-    }
-    return getProjectNotesById(projectId)
-  })
-
-  ipcMain.handle('notes:update', async (_event, projectId: string, updates: Partial<ProjectNotes>) => {
-    if (!projectId?.trim()) {
-      throw new Error('Project id is required.')
-    }
-    const sanitized: Partial<ProjectNotes> = {}
-    if (typeof updates.setupSteps === 'string') {
-      sanitized.setupSteps = updates.setupSteps
-    }
-    if (typeof updates.todos === 'string') {
-      sanitized.todos = updates.todos
-    }
-    if (typeof updates.reminders === 'string') {
-      sanitized.reminders = updates.reminders
-    }
-    await upsertProjectNotes(projectId, sanitized)
   })
 
   // ── Health Check ──────────────────────────────────────────────────

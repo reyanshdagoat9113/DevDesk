@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import * as fs from 'fs';
 import * as path from 'path';
 import type {
   FileRecord,
@@ -486,13 +487,19 @@ export class DatabaseManager {
   getStats(): {
     totalFiles: number;
     totalSizeBytes: number;
+    searchableContentBytes: number;
+    physicalDbBytes: number;
     byLanguage: Record<string, number>;
     indexedAt: string;
+    largestFiles: Array<{ path: string; sizeBytes: number; language: string | null }>;
   } {
     const totalRow = this.db.prepare(`
-      SELECT COUNT(*) as count, COALESCE(SUM(size_bytes), 0) as total_size
+      SELECT
+        COUNT(*) as count,
+        COALESCE(SUM(size_bytes), 0) as total_size,
+        COALESCE(SUM(LENGTH(CAST(COALESCE(content, '') AS BLOB))), 0) as content_size
       FROM files
-    `).get() as { count: number; total_size: number };
+    `).get() as { count: number; total_size: number; content_size: number };
 
     const langRows = this.db.prepare(`
       SELECT language, COUNT(*) as count
@@ -511,13 +518,34 @@ export class DatabaseManager {
       SELECT MIN(indexed_at) as first_indexed FROM files
     `).get() as { first_indexed: number | null };
 
+    const largestRows = this.db.prepare(`
+      SELECT path, size_bytes, language
+      FROM files
+      ORDER BY size_bytes DESC
+      LIMIT 10
+    `).all() as Array<{ path: string; size_bytes: number; language: string | null }>;
+
+    let physicalDbBytes = 0;
+    try {
+      physicalDbBytes = fs.statSync(this.dbPath).size;
+    } catch {
+      physicalDbBytes = 0;
+    }
+
     return {
       totalFiles: totalRow.count,
       totalSizeBytes: totalRow.total_size,
+      searchableContentBytes: totalRow.content_size,
+      physicalDbBytes,
       byLanguage,
       indexedAt: indexedRow.first_indexed
         ? new Date(indexedRow.first_indexed).toISOString()
         : new Date().toISOString(),
+      largestFiles: largestRows.map((row) => ({
+        path: normalizePath(row.path),
+        sizeBytes: row.size_bytes,
+        language: row.language,
+      })),
     };
   }
 
@@ -527,5 +555,14 @@ export class DatabaseManager {
 
   optimize(): void {
     this.db.pragma('optimize');
+  }
+
+  checkpoint(): void {
+    this.db.pragma('wal_checkpoint(PASSIVE)');
+  }
+
+  compact(): void {
+    this.db.exec('VACUUM');
+    this.db.pragma('wal_checkpoint(TRUNCATE)');
   }
 }

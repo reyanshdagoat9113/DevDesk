@@ -4,9 +4,18 @@ import { GitWorkspacePanel } from './GitWorkspacePanel'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
+import { Label } from './ui/Label'
 import { ScrollArea } from './ui/ScrollArea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/Select'
 import type {
   EngineGitInsights,
+  EngineIndexProfile,
   EngineIndexResult,
   EngineIndexMeta,
   EngineSearchResult,
@@ -20,6 +29,28 @@ import type {
   GitWorkflowState,
   Project,
 } from '../types'
+
+const INDEX_PROFILES: Array<{
+  value: EngineIndexProfile
+  label: string
+  description: string
+}> = [
+  {
+    value: 'source-first',
+    label: 'Source first (recommended)',
+    description: 'Code and config only. Skips planning HTML, marketing sites, and pure docs for a smaller, faster index.',
+  },
+  {
+    value: 'source-docs',
+    label: 'Source + docs',
+    description: 'Includes Markdown and docs. Still excludes landing/marketing and build output.',
+  },
+  {
+    value: 'full-text',
+    label: 'Full text',
+    description: 'Index all supported text files. Largest index — use when you need plans and wiki content in search.',
+  },
+]
 
 function formatDate(value?: string) {
   if (!value) return 'Not indexed yet'
@@ -69,7 +100,10 @@ export function ProjectEnginePanel({
   searchSessions: Record<string, EngineSearchSession>
   indexingProjects: Record<string, boolean>
   latestIndexResults: Record<string, EngineIndexResult>
-  onIndexProject: (projectId: string) => Promise<unknown>
+  onIndexProject: (
+    projectId: string,
+    options?: { profile?: EngineIndexProfile },
+  ) => Promise<unknown>
   onSearch: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<EngineSearchResult>
   onLoadStats: (projectId: string) => Promise<EngineStats>
   onLoadGitInsights: (projectId: string) => Promise<EngineGitInsights>
@@ -93,6 +127,9 @@ export function ProjectEnginePanel({
   const latestIndexResult = latestIndexResults[project.id] ?? null
   const [query, setQuery] = useState('')
   const [regex, setRegex] = useState(false)
+  const [indexProfile, setIndexProfile] = useState<EngineIndexProfile>(
+    selectedIndex?.indexProfile ?? 'source-first',
+  )
   const [searchResult, setSearchResult] = useState<EngineSearchResult | null>(null)
   const [stats, setStats] = useState<EngineStats | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -103,6 +140,11 @@ export function ProjectEnginePanel({
   const [isClearingSearch, setIsClearingSearch] = useState(false)
   const [openingResultKey, setOpeningResultKey] = useState<string | null>(null)
   const [revealingResultKey, setRevealingResultKey] = useState<string | null>(null)
+
+  const activeProfileMeta = INDEX_PROFILES.find((entry) => entry.value === indexProfile) ?? INDEX_PROFILES[0]
+  const profileDirty =
+    Boolean(selectedIndex) &&
+    (selectedIndex?.indexProfile ?? 'source-first') !== indexProfile
 
   const topLanguages = useMemo(() => {
     if (!stats) {
@@ -119,6 +161,10 @@ export function ProjectEnginePanel({
     setRegex(selectedSession?.regex ?? false)
     setSearchResult(selectedSession?.result ?? null)
   }, [project.id, selectedSession])
+
+  useEffect(() => {
+    setIndexProfile(selectedIndex?.indexProfile ?? latestIndexResult?.profile ?? 'source-first')
+  }, [project.id, selectedIndex?.indexProfile, latestIndexResult?.profile])
 
   useEffect(() => {
     setIsIndexing(Boolean(indexingProjects[project.id]))
@@ -160,7 +206,7 @@ export function ProjectEnginePanel({
     setActionError(null)
     setIsIndexing(true)
     try {
-      await onIndexProject(project.id)
+      await onIndexProject(project.id, { profile: indexProfile })
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to index project.')
     } finally {
@@ -260,48 +306,85 @@ export function ProjectEnginePanel({
       </div>
 
       <div className="rounded-xl border border-border/40 bg-muted/5 p-5 space-y-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="default"
-            size="sm"
-            className="h-8 gap-2 text-[11px] font-semibold"
-            onClick={() => void handleIndex()}
-            disabled={!engineStatus?.available || isIndexing}
-          >
-            <Database className="h-3.5 w-3.5" />
-            {isIndexing ? 'Indexing...' : selectedIndex ? 'Reindex Project' : 'Index Project'}
-          </Button>
-          {onOpenEngine ? (
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="space-y-1.5 min-w-0">
+            <Label htmlFor={`index-profile-${project.id}`} className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Index scope
+            </Label>
+            <Select
+              value={indexProfile}
+              onValueChange={(value) => setIndexProfile(value as EngineIndexProfile)}
+              disabled={!engineStatus?.available || isIndexing}
+            >
+              <SelectTrigger id={`index-profile-${project.id}`} className="h-9 bg-background text-[12px]">
+                <SelectValue placeholder="Choose what to index" />
+              </SelectTrigger>
+              <SelectContent>
+                {INDEX_PROFILES.map((profile) => (
+                  <SelectItem key={profile.value} value={profile.value} className="text-[12px]">
+                    {profile.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] leading-relaxed text-muted-foreground">
+              {activeProfileMeta.description}
+              {profileDirty ? (
+                <span className="mt-1 block font-medium text-amber-600 dark:text-amber-400">
+                  Profile changed — reindex to apply (search still uses the previous index until then).
+                </span>
+              ) : null}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              className="h-9 gap-2 text-[11px] font-semibold"
+              onClick={() => void handleIndex()}
+              disabled={!engineStatus?.available || isIndexing}
+            >
+              <Database className="h-3.5 w-3.5" />
+              {isIndexing
+                ? 'Indexing...'
+                : selectedIndex
+                  ? profileDirty
+                    ? 'Reindex with new scope'
+                    : 'Reindex Project'
+                  : 'Index Project'}
+            </Button>
+            {onOpenEngine ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-2 text-[11px] font-semibold"
+                onClick={() => onOpenEngine(project.id)}
+              >
+                <Search className="h-3.5 w-3.5" />
+                Open Engine Workspace
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-2 text-[11px] font-semibold"
-              onClick={() => onOpenEngine(project.id)}
+              className="h-9 gap-2 text-[11px] font-semibold"
+              onClick={() => void handleClearSearch()}
+              disabled={isClearingSearch || !selectedSession}
             >
-              <Search className="h-3.5 w-3.5" />
-              Open Engine Workspace
+              <RefreshCcw className="h-3.5 w-3.5" />
+              {isClearingSearch ? 'Clearing...' : 'Clear Saved Search'}
             </Button>
-          ) : null}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-2 text-[11px] font-semibold"
-            onClick={() => void handleClearSearch()}
-            disabled={isClearingSearch || !selectedSession}
-          >
-            <RefreshCcw className="h-3.5 w-3.5" />
-            {isClearingSearch ? 'Clearing...' : 'Clear Saved Search'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-2 text-[11px] font-semibold text-destructive hover:text-destructive"
-            onClick={() => void handleClearIndex()}
-            disabled={isClearingIndex || !selectedIndex}
-          >
-            <Eraser className="h-3.5 w-3.5" />
-            {isClearingIndex ? 'Removing...' : 'Clear Index'}
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-2 text-[11px] font-semibold text-destructive hover:text-destructive"
+              onClick={() => void handleClearIndex()}
+              disabled={isClearingIndex || !selectedIndex}
+            >
+              <Eraser className="h-3.5 w-3.5" />
+              {isClearingIndex ? 'Removing...' : 'Clear Index'}
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_320px]">
@@ -342,9 +425,20 @@ export function ProjectEnginePanel({
 
             <div className="rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-[11px] text-muted-foreground">
               {selectedIndex ? (
-                <>Indexed {selectedIndex.fileCount.toLocaleString()} files. Last updated {formatDate(selectedIndex.lastIndexed)}.</>
+                <>
+                  Indexed {selectedIndex.fileCount.toLocaleString()} files
+                  {' · '}
+                  scope{' '}
+                  <span className="font-medium text-foreground">
+                    {selectedIndex.indexProfile ?? 'source-first'}
+                  </span>
+                  . Last updated {formatDate(selectedIndex.lastIndexed)}.
+                </>
               ) : (
-                <>This project has not been indexed yet. Search will auto-index it on first run.</>
+                <>
+                  This project has not been indexed yet. First search auto-indexes with{' '}
+                  <span className="font-medium text-foreground">source-first</span> unless you index manually.
+                </>
               )}
             </div>
 
@@ -354,12 +448,22 @@ export function ProjectEnginePanel({
                   <Badge variant={latestIndexResult.ok ? 'success' : 'destructive'} className="text-[10px] uppercase tracking-wider">
                     {latestIndexResult.ok ? 'Last Index Succeeded' : 'Last Index Failed'}
                   </Badge>
+                  {latestIndexResult.profile ? (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {latestIndexResult.profile}
+                    </Badge>
+                  ) : null}
                   <Badge variant="outline" className="text-[10px]">
                     {latestIndexResult.filesIndexed.toLocaleString()} indexed
                   </Badge>
                   <Badge variant="outline" className="text-[10px]">
                     {latestIndexResult.filesSkipped.toLocaleString()} skipped
                   </Badge>
+                  {latestIndexResult.metrics ? (
+                    <Badge variant="outline" className="text-[10px]">
+                      {formatBytes(latestIndexResult.metrics.logicalIndexedBytes)} logical
+                    </Badge>
+                  ) : null}
                   <Badge variant="outline" className="text-[10px]">
                     {latestIndexResult.durationMs}ms
                   </Badge>
@@ -495,11 +599,60 @@ export function ProjectEnginePanel({
                       <p className="mt-1 text-lg font-semibold">{stats.stats.totalFiles.toLocaleString()}</p>
                     </div>
                     <div className="rounded-lg border border-border/30 bg-muted/20 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Size</p>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Logical size</p>
                       <p className="mt-1 text-lg font-semibold">{formatBytes(stats.stats.totalSizeBytes)}</p>
-                      {stats.db && <p className="mt-1 truncate text-[9px] text-muted-foreground" title={stats.db}>{stats.db.split(/[\\/]/).pop()}</p>}
+                      <p className="mt-1 text-[9px] text-muted-foreground">Sum of indexed file sizes</p>
+                    </div>
+                    <div className="rounded-lg border border-border/30 bg-muted/20 p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Searchable</p>
+                      <p className="mt-1 text-lg font-semibold">
+                        {formatBytes(stats.stats.searchableContentBytes ?? 0)}
+                      </p>
+                      <p className="mt-1 text-[9px] text-muted-foreground">Content stored for search</p>
+                    </div>
+                    <div className="rounded-lg border border-border/30 bg-muted/20 p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Index DB</p>
+                      <p className="mt-1 text-lg font-semibold">
+                        {formatBytes(stats.stats.physicalDbBytes ?? 0)}
+                      </p>
+                      {stats.db ? (
+                        <p className="mt-1 truncate text-[9px] text-muted-foreground" title={stats.db}>
+                          {stats.db.split(/[\\/]/).pop()}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
+                  {latestIndexResult?.profile ? (
+                    <p className="text-[10px] text-muted-foreground">
+                      Last index profile: <span className="font-medium text-foreground">{latestIndexResult.profile}</span>
+                      {latestIndexResult.skipReasons ? (
+                        <span>
+                          {' '}
+                          · skipped binary {latestIndexResult.skipReasons.binary}, language{' '}
+                          {latestIndexResult.skipReasons.language}, policy{' '}
+                          {latestIndexResult.skipReasons.profile + latestIndexResult.skipReasons.devdeskignore}
+                        </span>
+                      ) : null}
+                    </p>
+                  ) : null}
+                  {stats.stats.largestFiles && stats.stats.largestFiles.length > 0 ? (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Largest indexed</p>
+                      <ul className="space-y-1">
+                        {stats.stats.largestFiles.slice(0, 5).map((file) => (
+                          <li
+                            key={file.path}
+                            className="flex items-baseline justify-between gap-2 text-[10px] text-muted-foreground"
+                          >
+                            <span className="min-w-0 truncate font-mono" title={file.path}>
+                              {file.path.split(/[\\/]/).slice(-2).join('/')}
+                            </span>
+                            <span className="shrink-0 tabular-nums">{formatBytes(file.sizeBytes)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                   <div className="space-y-2">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Top Languages</p>
                     <div className="flex flex-wrap gap-2">

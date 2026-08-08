@@ -186,7 +186,7 @@ interface ElectronAPI {
   // Engine
   getEngineState: () => Promise<{
     status: { available: boolean; version?: string; error?: string }
-    indexes: Record<string, { projectId: string; dbPath: string; lastIndexed: string; fileCount: number }>
+    indexes: Record<string, { projectId: string; dbPath: string; lastIndexed: string; fileCount: number; indexProfile?: 'source-first' | 'source-docs' | 'full-text' }>
     searchSessions: Record<string, {
       projectId: string
       query: string
@@ -206,9 +206,35 @@ interface ElectronAPI {
       }
     }>
   }>
-  indexProject: (projectId: string) => Promise<{ ok: boolean; repo: string; db: string; filesIndexed: number; filesSkipped: number; durationMs: number; warnings: string[] }>
+  indexProject: (
+    projectId: string,
+    options?: { profile?: 'source-first' | 'source-docs' | 'full-text' },
+  ) => Promise<{
+    ok: boolean
+    repo: string
+    db: string
+    filesIndexed: number
+    filesSkipped: number
+    durationMs: number
+    warnings: string[]
+    profile?: 'source-first' | 'source-docs' | 'full-text'
+    skipReasons?: { binary: number; language: number; profile: number; devdeskignore: number; unchanged: number }
+    metrics?: { logicalIndexedBytes: number; searchableContentBytes: number; physicalDbBytes: number }
+  }>
   searchProjectContent: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<{ ok: boolean; query: string; results: Array<{ path: string; language: string | null; score: number; matches: Array<{ line: number; column: number; snippet: string; contextBefore: string[]; contextAfter: string[] }> }>; totalMatches: number; durationMs: number }>
-  getProjectStats: (projectId: string) => Promise<{ ok: boolean; db: string; stats: { totalFiles: number; totalSizeBytes: number; byLanguage: Record<string, number>; indexedAt: string } } | null>
+  getProjectStats: (projectId: string) => Promise<{
+    ok: boolean
+    db: string
+    stats: {
+      totalFiles: number
+      totalSizeBytes: number
+      searchableContentBytes?: number
+      physicalDbBytes?: number
+      byLanguage: Record<string, number>
+      indexedAt: string
+      largestFiles?: Array<{ path: string; sizeBytes: number; language: string | null }>
+    }
+  } | null>
   getProjectGitInsights: (projectId: string) => Promise<{ branch: string; totalCommits: number; contributors: string[]; hotspots: Array<{ path: string; score: number; commits: number; recency: number; risk: string }>; recentCommits: Array<{ hash: string; author: string; date: string; message: string; files: string[] }>; churnFiles: Array<{ path: string; commits: number; authors: string[]; lastModified: string; linesAdded: number; linesDeleted: number }>; workingTree: { isClean: boolean; hasStagedChanges: boolean; hasUnstagedChanges: boolean; hasUntrackedChanges: boolean; hasConflicts: boolean; stagedCount: number; unstagedCount: number; untrackedCount: number; conflictedCount: number; ahead: number; behind: number; files: Array<{ path: string; previousPath?: string; indexStatus: string; workingTreeStatus: string; staged: boolean; unstaged: boolean; untracked: boolean; conflicted: boolean; summary: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'conflicted' | 'unknown'; additions: number; deletions: number }> } } | null>
   getProjectGitState: (projectId: string) => Promise<{ ok: boolean; available: boolean; repoPath: string; branch: string | null; upstream: string | null; remoteName: string | null; remoteUrl: string | null; provider: 'github' | 'unknown'; ahead: number; behind: number; canPush: boolean; canCreatePullRequest: boolean; message?: string; workingTree: { isClean: boolean; hasStagedChanges: boolean; hasUnstagedChanges: boolean; hasUntrackedChanges: boolean; hasConflicts: boolean; stagedCount: number; unstagedCount: number; untrackedCount: number; conflictedCount: number; ahead: number; behind: number; files: Array<{ path: string; previousPath?: string; indexStatus: string; workingTreeStatus: string; staged: boolean; unstaged: boolean; untracked: boolean; conflicted: boolean; summary: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'conflicted' | 'unknown'; additions: number; deletions: number }> } | null }>
   commitProjectChanges: (projectId: string, message: string) => Promise<{ ok: boolean; message: string; branch: string | null; commitHash?: string }>
@@ -543,7 +569,8 @@ const electronAPI: ElectronAPI = {
 
   // Engine (devdesk-engine integration)
   getEngineState: () => ipcRenderer.invoke('engine:state'),
-  indexProject: (projectId: string) => ipcRenderer.invoke('engine:index', projectId),
+  indexProject: (projectId: string, options?: { profile?: 'source-first' | 'source-docs' | 'full-text' }) =>
+    ipcRenderer.invoke('engine:index', projectId, options),
   searchProjectContent: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) =>
     ipcRenderer.invoke('engine:search', projectId, query, options),
   getProjectStats: (projectId: string) => ipcRenderer.invoke('engine:stats', projectId),

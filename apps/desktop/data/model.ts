@@ -161,12 +161,17 @@ export interface TerminalCreateOptions {
   rows?: number
 }
 
+/** Controls what the Performance Engine indexes for a project. */
+export type EngineIndexProfile = 'source-first' | 'source-docs' | 'full-text'
+
 export interface EngineIndexMeta {
   projectId: string
   /** Absolute SQLite path in engine canonical form (forward slashes) */
   dbPath: string
   lastIndexed: string
   fileCount: number
+  /** Profile used for the last successful index (default: source-first). */
+  indexProfile?: EngineIndexProfile
 }
 
 export interface EngineSearchMatch {

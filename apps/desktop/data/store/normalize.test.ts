@@ -216,6 +216,7 @@ describe('normalize store helpers', () => {
     })
 
     expect(store.engineIndexes?.p1?.fileCount).toBe(10)
+    expect(store.engineIndexes?.p1?.indexProfile).toBe('full-text')
     expect(store.engineSearchSessions?.p1?.query).toBe('needle')
     expect(store.engineSearchSessions?.p1?.result.ok).toBe(true)
   })

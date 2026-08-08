@@ -111,7 +111,8 @@ function createSchema(database: Database.Database) {
       project_id TEXT PRIMARY KEY,
       db_path TEXT NOT NULL,
       last_indexed TEXT NOT NULL,
-      file_count INTEGER NOT NULL DEFAULT 0
+      file_count INTEGER NOT NULL DEFAULT 0,
+      index_profile TEXT NOT NULL DEFAULT 'source-first'
     );
 
     CREATE TABLE IF NOT EXISTS engine_search_sessions (
@@ -208,35 +209,51 @@ function createSchema(database: Database.Database) {
   `)
 }
 
+function hasTable(database: Database.Database, tableName: string): boolean {
+  const row = database
+    .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`)
+    .get(tableName) as { name: string } | undefined
+  return Boolean(row)
+}
+
 function hasColumn(database: Database.Database, tableName: string, columnName: string): boolean {
+  if (!hasTable(database, tableName)) {
+    return false
+  }
   const rows = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
   return rows.some((row) => row.name === columnName)
 }
 
 /** Apply additive schema upgrades for DBs created before the current schema. */
 export function ensureSchemaCompatibility(database: Database.Database) {
-  if (!hasColumn(database, 'commands', 'variables')) {
+  if (hasTable(database, 'commands') && !hasColumn(database, 'commands', 'variables')) {
     database.exec('ALTER TABLE commands ADD COLUMN variables TEXT')
   }
 
-  if (!hasColumn(database, 'run_history', 'resolved_command')) {
+  if (hasTable(database, 'run_history') && !hasColumn(database, 'run_history', 'resolved_command')) {
     database.exec('ALTER TABLE run_history ADD COLUMN resolved_command TEXT')
   }
 
-  if (!hasColumn(database, 'projects', 'is_pinned')) {
+  if (hasTable(database, 'projects') && !hasColumn(database, 'projects', 'is_pinned')) {
     database.exec('ALTER TABLE projects ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0')
   }
 
-  if (!hasColumn(database, 'projects', 'pinned_at')) {
+  if (hasTable(database, 'projects') && !hasColumn(database, 'projects', 'pinned_at')) {
     database.exec('ALTER TABLE projects ADD COLUMN pinned_at TEXT')
   }
 
-  if (!hasColumn(database, 'commands', 'is_pinned')) {
+  if (hasTable(database, 'commands') && !hasColumn(database, 'commands', 'is_pinned')) {
     database.exec('ALTER TABLE commands ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0')
   }
 
-  if (!hasColumn(database, 'commands', 'pinned_at')) {
+  if (hasTable(database, 'commands') && !hasColumn(database, 'commands', 'pinned_at')) {
     database.exec('ALTER TABLE commands ADD COLUMN pinned_at TEXT')
+  }
+
+  if (hasTable(database, 'engine_indexes') && !hasColumn(database, 'engine_indexes', 'index_profile')) {
+    // Existing indexes predate profiles and contain the engine's legacy full-text scope.
+    // Preserve that meaning instead of silently relabelling them as source-first.
+    database.exec(`ALTER TABLE engine_indexes ADD COLUMN index_profile TEXT NOT NULL DEFAULT 'full-text'`)
   }
 }
 
@@ -293,8 +310,8 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
     VALUES (@key, @id, @command)
   `)
   const insertEngineIndex = database.prepare(`
-    INSERT INTO engine_indexes (project_id, db_path, last_indexed, file_count)
-    VALUES (@projectId, @dbPath, @lastIndexed, @fileCount)
+    INSERT INTO engine_indexes (project_id, db_path, last_indexed, file_count, index_profile)
+    VALUES (@projectId, @dbPath, @lastIndexed, @fileCount, @indexProfile)
   `)
   const insertEngineSearchSession = database.prepare(`
     INSERT INTO engine_search_sessions (project_id, query, regex, updated_at, result_json)
@@ -448,6 +465,7 @@ function writeStoreToDb(database: Database.Database, store: DataStore) {
         dbPath: entry.dbPath,
         lastIndexed: entry.lastIndexed,
         fileCount: entry.fileCount,
+        indexProfile: entry.indexProfile ?? 'source-first',
       })
     }
 

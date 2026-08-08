@@ -72,3 +72,43 @@ With the app **closed**:
 
 - No cloud sync, analytics, or accounts in the core product.
 - Command output and project paths may appear in run history and bug context snapshots — treat userData as sensitive.
+
+## Engine index scope (what gets searched)
+
+The Performance Engine indexes **text files under a project root**. Indexed size in the UI is the sum of file `size_bytes` (logical), not only the SQLite file size.
+
+| Metric | Meaning |
+|--------|---------|
+| Logical indexed bytes | `SUM(files.size_bytes)` |
+| Searchable content bytes | UTF-8 bytes stored for FTS (`SUM(LENGTH(CAST(content AS BLOB)))`) |
+| Physical DB bytes | On-disk `engine/<id>.sqlite` size |
+
+### Profiles
+
+| Profile | Default | Includes |
+|---------|---------|----------|
+| `source-first` | **Yes** | Source/config languages; excludes planning HTML, `packages/landing/**`, pure markdown/HTML languages, build artifacts |
+| `source-docs` | No | Source + documentation languages; still drops landing/build artifacts |
+| `full-text` | No | All languages the engine already supports (plus optional ignore file) |
+
+In the app: open a project’s **Performance Engine** panel and use **Index scope** before Index / Reindex. The choice is saved per project with the index metadata.
+
+CLI:
+
+```bash
+npx devdesk-engine index /path/to/repo --full --profile source-first
+npx devdesk-engine index /path/to/repo --full --profile full-text
+```
+
+### `.devdeskignore`
+
+Optional gitignore-style file at the **project root**. Applied after the Rust scan (which already honors `.gitignore` and default dirs like `node_modules` / `dist`). Checked in for this monorepo at the repository root.
+
+Maintainability baseline (largest source files by line count):
+
+```bash
+npm run report:file-sizes
+npm run report:file-sizes:json -- 40
+```
+
+Related plan: [planning/codebase-size-optimization-plan.html](./planning/codebase-size-optimization-plan.html).

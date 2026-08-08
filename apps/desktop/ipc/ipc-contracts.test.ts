@@ -39,8 +39,17 @@ describe('shared IPC contracts', () => {
   })
 
   it('keeps main handle channels covered by the shared authority', () => {
-    const main = fs.readFileSync(path.join(repoRoot, 'apps/desktop/ipc/registerIpc.ts'), 'utf8')
-    const mainChannels = new Set(extractHandleChannels(main))
+    const ipcDir = path.join(repoRoot, 'apps/desktop/ipc')
+    const sources = [fs.readFileSync(path.join(ipcDir, 'registerIpc.ts'), 'utf8')]
+    const handlersDir = path.join(ipcDir, 'handlers')
+    if (fs.existsSync(handlersDir)) {
+      for (const name of fs.readdirSync(handlersDir)) {
+        if (name.endsWith('.ts') && !name.endsWith('.test.ts')) {
+          sources.push(fs.readFileSync(path.join(handlersDir, name), 'utf8'))
+        }
+      }
+    }
+    const mainChannels = new Set(sources.flatMap((source) => extractHandleChannels(source)))
     const authority = new Set<string>(IPC_INVOKE_CHANNELS)
     for (const channel of mainChannels) {
       assert.ok(authority.has(channel), `main handle missing from authority: ${channel}`)

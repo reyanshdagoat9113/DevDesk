@@ -10,6 +10,26 @@ export interface FileInfo {
   content?: string; // Only present when scanning with --content flag
 }
 
+/** Index scope profile — controls what is stored after scan. */
+export type IndexProfile = 'source-first' | 'source-docs' | 'full-text';
+
+export interface IndexSkipReasons {
+  binary: number;
+  language: number;
+  profile: number;
+  devdeskignore: number;
+  unchanged: number;
+}
+
+export interface IndexMetrics {
+  /** SUM(files.size_bytes) — logical indexed bytes */
+  logicalIndexedBytes: number;
+  /** SUM(LENGTH(content)) — searchable content payload */
+  searchableContentBytes: number;
+  /** On-disk SQLite file size (main db file) */
+  physicalDbBytes: number;
+}
+
 // Index result
 export interface IndexResult {
   ok: boolean;
@@ -19,6 +39,10 @@ export interface IndexResult {
   filesSkipped: number;
   durationMs: number;
   warnings: string[];
+  /** Active profile for this run (when ok or partial). */
+  profile?: IndexProfile;
+  skipReasons?: IndexSkipReasons;
+  metrics?: IndexMetrics;
 }
 
 // Search match from Rust
@@ -63,15 +87,27 @@ export interface SearchResult {
   error?: string;
 }
 
+export interface IndexLargestFile {
+  path: string;
+  sizeBytes: number;
+  language: string | null;
+}
+
 // Stats result
 export interface StatsResult {
   ok: boolean;
   db: string;
   stats: {
     totalFiles: number;
+    /** Logical indexed bytes: SUM(size_bytes) */
     totalSizeBytes: number;
+    /** Searchable content bytes: SUM(LENGTH(content)) */
+    searchableContentBytes: number;
+    /** Physical SQLite database file size */
+    physicalDbBytes: number;
     byLanguage: Record<string, number>;
     indexedAt: string;
+    largestFiles: IndexLargestFile[];
   };
 }
 
@@ -111,6 +147,13 @@ export interface IndexOptions {
   repo: string;
   db?: string;
   incremental?: boolean;
+  /**
+   * Index scope profile. Default: source-first.
+   * - source-first: code/config; drops planning HTML, landing, pure docs languages
+   * - source-docs: source + documentation; still drops landing/build artifacts
+   * - full-text: all indexable text (plus optional .devdeskignore)
+   */
+  profile?: IndexProfile;
 }
 
 export interface SearchOptions {

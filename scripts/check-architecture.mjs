@@ -21,6 +21,24 @@ const ignoredFilePatterns = [/\.d\.ts$/i, /\.test\.(ts|tsx|js|jsx)$/i, /\.spec\.
 const genericNames = new Set(['helpers.ts', 'helpers.tsx', 'misc.ts', 'misc.tsx', 'temp.ts', 'temp.tsx'])
 const warningLoc = 400
 const softLimitLoc = 600
+/** Hard fail for brand-new source files over this size (legacy files use allowlist). */
+const hardLimitLoc = 800
+const registerIpcHandlerBaseline = 86
+/**
+ * Legacy files already over the hard limit. Entries may not grow.
+ * Format: relative posix path → max allowed lines (baseline at allowlist time).
+ */
+const legacyLineAllowlist = {
+  'apps/desktop/ipc/registerIpc.ts': 3145,
+  'apps/renderer/app/App.tsx': 1892,
+  'apps/renderer/app/sections/ProjectsSection.tsx': 1557,
+  'apps/renderer/app/components/CommandPalette.tsx': 1168,
+  'apps/renderer/app/sections/CommandsSection.tsx': 1152,
+  'apps/renderer/app/sections/ContainersSection.tsx': 1132,
+  'apps/desktop/git/service.ts': 987,
+  'apps/renderer/app/components/BugRecorderPanel.tsx': 828,
+  'apps/renderer/app/sections/CommandChainsPanel.tsx': 804,
+}
 
 async function walk(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true })
@@ -92,10 +110,38 @@ async function main() {
 
   for (const filePath of sourceFiles) {
     const lineCount = await countLines(filePath)
-    if (lineCount > softLimitLoc) {
-      warnings.push(`Large source file: ${path.relative(repoRoot, filePath)} (${lineCount} LOC)`)
+    const rel = path.relative(repoRoot, filePath).replace(/\\/g, '/')
+    const allowMax = legacyLineAllowlist[rel]
+
+    if (rel === 'apps/desktop/ipc/registerIpc.ts') {
+      const source = await fs.readFile(filePath, 'utf8')
+      const handlerCount = source.match(/ipcMain\.handle\s*\(/g)?.length ?? 0
+      if (handlerCount > registerIpcHandlerBaseline) {
+        failures.push(
+          `registerIpc.ts gained direct handlers (${handlerCount} > ${registerIpcHandlerBaseline}). Add new channels under ipc/handlers instead.`,
+        )
+      }
+    }
+
+    if (allowMax != null) {
+      if (lineCount > allowMax) {
+        failures.push(
+          `Allowlisted file grew past baseline: ${rel} (${lineCount} LOC > ${allowMax}). Extract instead of growing.`,
+        )
+      } else if (lineCount > softLimitLoc) {
+        warnings.push(`Legacy large file (shrinking toward budget): ${rel} (${lineCount} LOC, max ${allowMax})`)
+      }
+      continue
+    }
+
+    if (lineCount > hardLimitLoc) {
+      failures.push(
+        `New/unallowlisted source file exceeds ${hardLimitLoc} LOC: ${rel} (${lineCount} LOC). Split before merge.`,
+      )
+    } else if (lineCount > softLimitLoc) {
+      warnings.push(`Large source file: ${rel} (${lineCount} LOC)`)
     } else if (lineCount > warningLoc) {
-      warnings.push(`Growing source file: ${path.relative(repoRoot, filePath)} (${lineCount} LOC)`)
+      warnings.push(`Growing source file: ${rel} (${lineCount} LOC)`)
     }
   }
 

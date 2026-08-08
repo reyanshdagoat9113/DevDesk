@@ -34,6 +34,7 @@ import type {
   HealthCheckRunSummary,
   EngineIndexCompletedPayload,
   EngineIndexLifecyclePayload,
+  EngineIndexProfile,
   EngineIndexResult,
   EngineIndexMeta,
   EngineSearchSession,
@@ -146,7 +147,10 @@ export interface ElectronAPI {
     indexes: Record<string, EngineIndexMeta>
     searchSessions: Record<string, EngineSearchSession>
   }>
-  indexProject: (projectId: string) => Promise<EngineIndexResult>
+  indexProject: (
+    projectId: string,
+    options?: { profile?: EngineIndexProfile },
+  ) => Promise<EngineIndexResult>
   searchProjectContent: (projectId: string, query: string, options?: { regex?: boolean; limit?: number }) => Promise<{ ok: boolean; query: string; results: Array<{ path: string; language: string | null; score: number; matches: Array<{ line: number; column: number; snippet: string; contextBefore: string[]; contextAfter: string[] }> }>; totalMatches: number; durationMs: number }>
   getProjectStats: (projectId: string) => Promise<EngineStats | null>
   getProjectGitInsights: (projectId: string) => Promise<EngineGitInsights | null>

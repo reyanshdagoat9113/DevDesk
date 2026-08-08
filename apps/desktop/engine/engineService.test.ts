@@ -71,22 +71,53 @@ describe('engine service', () => {
     const { searchProject } = await import('./engineService')
     const result = await searchProject('p1', '/repo', 'needle', { regex: true, limit: 10 })
 
-    expect(engineIndex).toHaveBeenCalledWith('/repo', 'p1')
+    expect(engineIndex).toHaveBeenCalledWith('/repo', 'p1', { profile: 'source-first', full: true })
     expect(engineSearch).toHaveBeenCalledWith('p1', 'needle', { regex: true, limit: 10 })
     expect(result.results[0].path).toBe('src/app.ts')
     expect(upsertEngineIndex).toHaveBeenCalled()
     expect(upsertEngineSearchSession).toHaveBeenCalled()
   })
 
+  it('indexes with an explicit profile and persists it on metadata', async () => {
+    engineIndex.mockResolvedValue({
+      ok: true,
+      db: '/tmp/p1.sqlite',
+      repo: '/repo',
+      filesIndexed: 3,
+      filesSkipped: 1,
+      durationMs: 12,
+      warnings: [],
+      profile: 'full-text',
+    })
+
+    const { indexProject } = await import('./engineService')
+    await indexProject('p1', '/repo', { profile: 'full-text' })
+
+    expect(engineIndex).toHaveBeenCalledWith('/repo', 'p1', { profile: 'full-text', full: true })
+    expect(upsertEngineIndex).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'p1',
+        fileCount: 3,
+        indexProfile: 'full-text',
+      }),
+    )
+  })
+
   it('returns stats and backfills missing index metadata from the database', async () => {
-    listEngineIndexes.mockResolvedValue({ p1: { projectId: 'p1', dbPath: '/tmp/p1.sqlite', lastIndexed: '', fileCount: 0 } })
+    listEngineIndexes.mockResolvedValue({ p1: { projectId: 'p1', dbPath: '/tmp/p1.sqlite', lastIndexed: '', fileCount: 0, indexProfile: 'source-docs' } })
     engineStats.mockResolvedValue({ ok: true, db: '/tmp/p1.sqlite', stats: { totalFiles: 4, totalSizeBytes: 99, byLanguage: { typescript: 4 }, indexedAt: '2026-01-01T00:00:00.000Z' } })
 
     const { getProjectStats } = await import('./engineService')
     const result = await getProjectStats('p1')
 
     expect(result?.stats.totalFiles).toBe(4)
-    expect(upsertEngineIndex).toHaveBeenCalledWith({ projectId: 'p1', dbPath: '/tmp/p1.sqlite', lastIndexed: '2026-01-01T00:00:00.000Z', fileCount: 4 })
+    expect(upsertEngineIndex).toHaveBeenCalledWith({
+      projectId: 'p1',
+      dbPath: '/tmp/p1.sqlite',
+      lastIndexed: '2026-01-01T00:00:00.000Z',
+      fileCount: 4,
+      indexProfile: 'source-docs',
+    })
   })
 
   it('clears project index metadata, search sessions, and db files', async () => {

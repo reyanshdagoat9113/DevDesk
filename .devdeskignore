@@ -1,0 +1,16 @@
+# DevDesk monorepo index policy (honored by devdesk-engine after scan).
+# Profiles still apply; this file adds project-specific exclusions.
+# See packages/engine/src/index-policy.ts and docs/data-locations.md.
+
+# Packaged / generated output excluded from every profile.
+# Profile-specific source/docs/landing rules live in index-policy.ts so
+# choosing full-text can still include plans and marketing content.
+release/**
+dist/**
+coverage/**
+**/*.map
+
+# Root design dumps / screenshots (not product source)
+Screenshot*.png
+ChatGPT Image*.png
+**/ChatGPT Image*.png

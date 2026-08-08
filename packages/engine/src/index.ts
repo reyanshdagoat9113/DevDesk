@@ -18,7 +18,22 @@ export {
   type GitWorkingTree,
   type ResolvedGitHotspot,
 } from './git.js';
-export type { IndexOptions, SearchOptions, GitInsightsOptions } from './types.js';
+export type {
+  IndexOptions,
+  IndexProfile,
+  SearchOptions,
+  GitInsightsOptions,
+  IndexResult,
+  StatsResult,
+} from './types.js';
+export {
+  createIndexPolicy,
+  createPathMatcher,
+  resolveIndexProfile,
+  DEFAULT_INDEX_PROFILE,
+  SOURCE_FIRST_PATTERNS,
+  type IndexPolicy,
+} from './index-policy.js';
 
 export const defaultEngine = new Engine();
 
