@@ -51,7 +51,7 @@ export function GitDiffViewer({
 }) {
   if (!path) {
     return (
-      <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed border-border/40 px-4 text-center text-sm text-muted-foreground">
+      <div className="flex h-full min-h-[280px] items-center justify-center rounded-lg border border-dashed border-border/40 px-4 text-center text-sm text-muted-foreground">
         Select a changed file to inspect its diff.
       </div>
     )
@@ -59,7 +59,7 @@ export function GitDiffViewer({
 
   if (isLoading) {
     return (
-      <div className="flex h-full min-h-[280px] items-center justify-center gap-2 rounded-xl border border-border/30 bg-background/70 text-sm text-muted-foreground">
+      <div className="flex h-full min-h-[280px] items-center justify-center gap-2 rounded-lg border border-border/30 bg-background/70 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading diff…
       </div>
@@ -68,7 +68,7 @@ export function GitDiffViewer({
 
   if (error) {
     return (
-      <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+      <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
         {error}
       </div>
     )
@@ -76,7 +76,7 @@ export function GitDiffViewer({
 
   if (!diff || !diff.ok) {
     return (
-      <div className="rounded-xl border border-border/30 bg-background/70 px-4 py-3 text-sm text-muted-foreground">
+      <div className="rounded-lg border border-border/30 bg-background/70 px-4 py-3 text-sm text-muted-foreground">
         {diff?.message || 'Unable to load diff for this file.'}
       </div>
     )
@@ -84,7 +84,7 @@ export function GitDiffViewer({
 
   if (!diff.sections.length) {
     return (
-      <div className="rounded-xl border border-dashed border-border/40 px-4 py-6 text-center text-sm text-muted-foreground">
+      <div className="rounded-lg border border-dashed border-border/40 px-4 py-6 text-center text-sm text-muted-foreground">
         {diff.message || 'No pending changes for this file.'}
       </div>
     )
@@ -112,7 +112,7 @@ export function GitDiffViewer({
       </div>
 
       {diff.sections.map((section) => (
-        <div key={section.scope} className="overflow-hidden rounded-xl border border-border/30 bg-background/70">
+        <div key={section.scope} className="overflow-hidden rounded-lg border border-border/30 bg-background/70">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               {section.label}

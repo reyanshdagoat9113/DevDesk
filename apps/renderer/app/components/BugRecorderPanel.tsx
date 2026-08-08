@@ -474,9 +474,9 @@ export function BugRecorderPanel({ projectId }: BugRecorderPanelProps) {
       {error ? <ErrorState title="Bug recorder action failed" description={error} onRetry={() => void loadBugs()} retryLabel="Retry loading bugs" className="min-h-0 py-4" /> : null}
 
       {loading ? (
-        <LoadingState label="Loading bug reports" description="Loading bug reports…" className="rounded-xl border border-border/40 bg-muted/5" />
+        <LoadingState label="Loading bug reports" description="Loading bug reports…" className="rounded-lg border border-border/40 bg-card" />
       ) : filteredBugs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/40 bg-muted/5 p-10 gap-3 text-muted-foreground">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border/40 bg-muted/20 p-10 text-muted-foreground">
           <Bug className="h-8 w-8 opacity-50" />
           <p className="text-sm">
             {hasActiveFilters ? 'No bugs match your filters.' : 'No bug reports yet.'}

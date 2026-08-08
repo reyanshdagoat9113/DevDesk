@@ -58,7 +58,7 @@ export function ProjectOverviewHighlights({ projectId, onLoadGitInsights }: Proj
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {noteItems.length > 0 && (
-        <div className="rounded-xl border border-border/40 bg-muted/5 p-5">
+        <div className="rounded-lg border border-border/40 bg-card p-5">
           <div className="mb-4 flex items-center gap-2">
             <FileText className="h-4 w-4 text-primary" />
             <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Project Notes</h3>
@@ -75,7 +75,7 @@ export function ProjectOverviewHighlights({ projectId, onLoadGitInsights }: Proj
       )}
 
       {hasGitInsight && workingTree && (
-        <div className="rounded-xl border border-border/40 bg-muted/5 p-5">
+        <div className="rounded-lg border border-border/40 bg-card p-5">
           <div className="mb-4 flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-primary" />
             <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Git Insights</h3>

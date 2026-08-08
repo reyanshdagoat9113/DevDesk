@@ -641,8 +641,8 @@ export function ContainersSection({
                         className={cn(
                           "group relative flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-all",
                           isActive 
-                            ? "bg-primary/10 shadow-sm ring-1 ring-primary/20" 
-                            : "hover:bg-muted/50"
+                            ? "border border-primary/15 bg-primary/10 text-foreground"
+                            : "border border-transparent hover:bg-muted/50"
                         )}
                       >
                         <div className="relative flex items-center" onClick={(e) => e.stopPropagation()}>
@@ -795,7 +795,7 @@ export function ContainersSection({
                       <Activity className="h-3.5 w-3.5" />
                       Status & Timeline
                     </h3>
-                    <div className="space-y-4 p-5 rounded-xl border border-border/40 bg-muted/5">
+                    <div className="space-y-4 rounded-lg border border-border/40 bg-card p-5">
                       <div className="space-y-1">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Runtime State</p>
                         <p className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -819,7 +819,7 @@ export function ContainersSection({
                       <Network className="h-3.5 w-3.5" />
                       Environment Context
                     </h3>
-                    <div className="space-y-4 p-5 rounded-xl border border-border/40 bg-muted/5 h-full">
+                    <div className="h-full space-y-4 rounded-lg border border-border/40 bg-card p-5">
                       {(composeProject || composeService) ? (
                         <div className="space-y-3">
                           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1">
@@ -906,7 +906,7 @@ export function ContainersSection({
                       {selectedContainer.labels.map((label) => {
                         const [k, v] = label.split('=')
                         return (
-                          <div key={label} className="flex flex-col p-2 rounded-lg border border-border/20 bg-muted/5 overflow-hidden">
+                          <div key={label} className="flex flex-col overflow-hidden rounded-md bg-muted/25 p-2">
                             <span className="text-[9px] font-bold text-muted-foreground/60 truncate uppercase tracking-tighter mb-0.5">{k}</span>
                             <span className="text-[11px] font-mono truncate text-foreground/80">{v || 'true'}</span>
                           </div>
@@ -988,7 +988,7 @@ export function ContainersSection({
               </div>
             </Card>
           ) : (
-            <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center">
+            <Card className="flex h-full items-center justify-center border-0 bg-transparent p-12 text-center shadow-none">
               <div className="max-w-[240px] space-y-4 opacity-40">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/20 border-2 border-border/40 border-dashed">
                   <Box className="h-8 w-8 text-muted-foreground" />

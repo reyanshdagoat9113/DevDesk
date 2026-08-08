@@ -687,7 +687,7 @@ export function GitWorkspacePanel({
                 type="button"
                 onClick={() => setPrMode('draft')}
                 className={cn(
-                  'rounded-xl border px-3 py-2 text-left text-sm transition-colors',
+                  'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
                   prMode === 'draft' ? 'border-primary/30 bg-primary/10 text-foreground' : 'border-border/40 text-muted-foreground hover:bg-muted/40'
                 )}
               >
@@ -697,7 +697,7 @@ export function GitWorkspacePanel({
                 type="button"
                 onClick={() => setPrMode('ready')}
                 className={cn(
-                  'rounded-xl border px-3 py-2 text-left text-sm transition-colors',
+                  'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
                   prMode === 'ready' ? 'border-primary/30 bg-primary/10 text-foreground' : 'border-border/40 text-muted-foreground hover:bg-muted/40'
                 )}
               >

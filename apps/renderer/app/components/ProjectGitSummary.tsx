@@ -69,7 +69,7 @@ export function ProjectGitSummary({
     : []
 
   return (
-    <div className="rounded-xl border border-border/40 bg-background/50 px-3 py-3 shadow-sm">
+    <div className="rounded-lg border border-border/40 bg-card px-3 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-2">

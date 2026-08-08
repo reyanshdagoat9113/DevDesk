@@ -412,8 +412,8 @@ export function HistorySection({
                         className={cn(
                           "group flex w-full flex-col gap-1 rounded-lg px-3 py-3 text-left transition-all",
                           isActive 
-                            ? "bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20" 
-                            : "hover:bg-muted/50"
+                            ? "border border-primary/15 bg-primary/10 text-foreground"
+                            : "border border-transparent hover:bg-muted/50"
                         )}
                       >
                         <div className="flex w-full items-center justify-between gap-2">
@@ -577,7 +577,7 @@ export function HistorySection({
               </div>
             </Card>
           ) : (
-            <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center shadow-sm">
+            <Card className="flex h-full items-center justify-center border-0 bg-transparent p-12 text-center shadow-none">
               <div className="max-w-[240px] space-y-4 opacity-40">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/20 border-2 border-border/40 border-dashed">
                   <HistoryIcon className="h-8 w-8 text-muted-foreground" />

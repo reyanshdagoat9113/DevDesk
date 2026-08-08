@@ -1383,7 +1383,7 @@ export function ProjectsSection({
               </div>
             </Card>
           ) : (
-            <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center">
+            <Card className="flex h-full items-center justify-center border-0 bg-transparent p-12 text-center shadow-none">
               <div className="max-w-[240px] space-y-4 opacity-40">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/20 border-2 border-border/40 border-dashed">
                   <FolderGit2 className="h-8 w-8 text-muted-foreground" />

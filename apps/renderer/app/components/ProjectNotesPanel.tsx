@@ -160,7 +160,7 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
   }, [notes, saveNotes])
 
   if (loading) {
-    return <LoadingState label="Loading project notes" description="Loading project notes…" className="rounded-xl border border-border/40 bg-muted/5" />
+    return <LoadingState label="Loading project notes" description="Loading project notes…" className="rounded-lg border border-border/40 bg-card" />
   }
 
   if (error) {
@@ -189,7 +189,7 @@ export function ProjectNotesPanel({ projectId, onLoadNotes, onUpdateNotes }: Pro
         </div>
       </div>
 
-      <div className="rounded-xl border border-border/40 bg-muted/5 p-5">
+      <div className="rounded-lg border border-border/40 bg-card p-5">
         {saveState === 'error' && saveError ? (
           <StatusNotice
             tone="error"

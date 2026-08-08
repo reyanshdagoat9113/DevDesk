@@ -133,7 +133,7 @@ export function CommandPresetPickerDialog({
       <DialogContent className="max-w-5xl overflow-hidden p-0 flex flex-col h-[85vh] max-h-[800px]">
         <DialogHeader className="border-b border-border/50 bg-muted/20 px-6 py-5 shrink-0">
           <div className="flex items-start gap-3">
-            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-2.5 text-primary">
+            <div className="rounded-lg border border-primary/20 bg-primary/10 p-2.5 text-primary">
               <Sparkles className="h-5 w-5" />
             </div>
             <div className="space-y-1">
@@ -182,14 +182,14 @@ export function CommandPresetPickerDialog({
                           setSelectedProjectId(project.id)
                         }}
                         className={cn(
-                          'w-full rounded-2xl border px-3 py-3 text-left transition-colors',
+                          'w-full rounded-lg border px-3 py-3 text-left transition-colors',
                           isSelected
-                            ? 'border-primary/30 bg-primary/10 text-foreground shadow-sm'
-                            : 'border-border/50 bg-background/60 text-muted-foreground hover:border-border hover:bg-muted/30 hover:text-foreground'
+                            ? 'border-primary/15 bg-primary/10 text-foreground'
+                            : 'border-transparent bg-background/60 text-muted-foreground hover:border-border/40 hover:bg-muted/30 hover:text-foreground'
                         )}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/40 bg-background text-base shrink-0">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/40 bg-background text-base">
                             <span aria-hidden>{project.icon}</span>
                           </div>
                           <div className="min-w-0 flex-1">
@@ -246,11 +246,11 @@ export function CommandPresetPickerDialog({
                     return (
                       <article
                         key={preset.id}
-                        className="flex flex-col rounded-3xl border border-border/50 bg-card p-5 shadow-sm transition-colors hover:border-primary/30 hover:shadow-md"
+                        className="flex flex-col rounded-lg border border-border/40 bg-card p-5 transition-colors hover:border-primary/30"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3 min-w-0">
-                            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-2.5 text-primary shrink-0 shadow-inner">
+                          <div className="flex min-w-0 items-start gap-3">
+                            <div className="shrink-0 rounded-lg border border-primary/20 bg-primary/10 p-2.5 text-primary">
                               <Icon className="h-4 w-4" />
                             </div>
                             <div className="min-w-0 pt-0.5">

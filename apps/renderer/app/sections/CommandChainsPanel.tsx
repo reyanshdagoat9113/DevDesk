@@ -397,7 +397,7 @@ export function CommandChainsPanel({
     <>
       <SectionLayout
         list={
-          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+          <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
             <div className="border-b border-border/40 bg-muted/20 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -437,8 +437,8 @@ export function CommandChainsPanel({
                         className={cn(
                           'group flex w-full flex-col gap-2 rounded-lg px-3 py-3 text-left transition-all',
                           isActive
-                            ? 'bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20'
-                            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                            ? 'border border-primary/15 bg-primary/10 text-foreground'
+                            : 'border border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                         )}
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -470,7 +470,7 @@ export function CommandChainsPanel({
         }
         detail={
           selectedChain ? (
-            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+            <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
               <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 space-y-2">
@@ -519,7 +519,7 @@ export function CommandChainsPanel({
                       const stepRun = selectedRun?.steps.find((entry) => entry.stepId === step.id)
 
                       return (
-                        <div key={step.id} className="rounded-2xl border border-border/50 bg-muted/10 p-4">
+                        <div key={step.id} className="rounded-lg border border-border/40 bg-card p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 space-y-2">
                               <div className="flex items-center gap-2">
@@ -566,7 +566,7 @@ export function CommandChainsPanel({
                 <div className="space-y-3">
                   <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Latest Run Progress</Label>
                   {selectedRun ? (
-                    <div className="rounded-2xl border border-border/50 bg-muted/10 p-4">
+                    <div className="rounded-lg border border-border/40 bg-card p-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={cn('rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]', statusStyles[selectedRun.status])}>
                           {selectedRun.status}
@@ -578,7 +578,7 @@ export function CommandChainsPanel({
                       {selectedRun.error ? <p className="mt-3 text-xs text-destructive">{selectedRun.error}</p> : null}
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-border/50 bg-muted/10 px-4 py-3 text-xs text-muted-foreground">
+                    <div className="rounded-lg border border-dashed border-border/40 bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
                       Run this chain to stream per-step progress here. Each step also lands in run history.
                     </div>
                   )}
@@ -624,7 +624,7 @@ export function CommandChainsPanel({
               </div>
             </Card>
           ) : (
-            <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center">
+            <Card className="flex h-full items-center justify-center border-0 bg-transparent p-12 text-center shadow-none">
               <div className="max-w-[260px] space-y-4 opacity-50">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-border/40 bg-muted/20">
                   <GitBranch className="h-8 w-8 text-muted-foreground" />
@@ -681,7 +681,7 @@ export function CommandChainsPanel({
               />
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/50 bg-muted/10 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/40 bg-card px-4 py-3">
               <div>
                 <p className="text-sm font-semibold">Failure behavior</p>
                 <p className="text-xs text-muted-foreground">Choose whether the chain stops immediately when a step fails.</p>
@@ -700,10 +700,10 @@ export function CommandChainsPanel({
                 </Button>
               </div>
 
-              <ScrollArea className="max-h-[420px] rounded-2xl border border-border/50 bg-muted/10 p-4">
+              <ScrollArea className="max-h-[420px] rounded-lg border border-border/40 bg-card p-4">
                 <div className="space-y-4">
                   {draftSteps.map((step, index) => (
-                    <div key={step.id} className="rounded-2xl border border-border/50 bg-background/80 p-4">
+                    <div key={step.id} className="rounded-md bg-muted/25 p-4">
                       <div className="mb-4 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-[9px] font-semibold uppercase tracking-[0.14em]">

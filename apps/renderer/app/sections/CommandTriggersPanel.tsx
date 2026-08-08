@@ -200,7 +200,7 @@ export function CommandTriggersPanel({
     <>
       <SectionLayout
         list={
-          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
+          <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
             <div className="border-b border-border/40 bg-muted/20 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -239,8 +239,8 @@ export function CommandTriggersPanel({
                         className={cn(
                           'group flex w-full flex-col gap-2 rounded-lg px-3 py-3 text-left transition-all',
                           isActive
-                            ? 'bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20'
-                            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                            ? 'border border-primary/15 bg-primary/10 text-foreground'
+                            : 'border border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                         )}
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -261,7 +261,7 @@ export function CommandTriggersPanel({
         }
         detail={
           selectedTrigger ? (
-            <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+            <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
               <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 space-y-2">
@@ -303,7 +303,7 @@ export function CommandTriggersPanel({
               </CardHeader>
 
               <CardContent className="flex-1 space-y-6 overflow-auto p-8 pt-6">
-                <div className="rounded-2xl border border-border/50 bg-muted/10 p-5">
+                <div className="rounded-lg border border-border/40 bg-card p-5">
                   <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Linked Chain</p>
                   <div className="mt-3">
                     <p className="text-lg font-semibold">{chainsById[selectedTrigger.chainId]?.name ?? 'Removed chain'}</p>
@@ -314,7 +314,7 @@ export function CommandTriggersPanel({
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border border-border/50 bg-muted/10 p-5">
+                  <div className="rounded-lg border border-border/40 bg-card p-5">
                     <div className="flex items-center gap-2 text-sm font-semibold">
                       <PlayCircle className="h-4 w-4 text-primary" />
                       Event Source
@@ -323,7 +323,7 @@ export function CommandTriggersPanel({
                     <p className="mt-1 text-xs text-muted-foreground">{triggerEventLabels[selectedTrigger.event].description}</p>
                   </div>
 
-                  <div className="rounded-2xl border border-border/50 bg-muted/10 p-5">
+                  <div className="rounded-lg border border-border/40 bg-card p-5">
                     <div className="flex items-center gap-2 text-sm font-semibold">
                       <Clock3 className="h-4 w-4 text-primary" />
                       Execution Safety
@@ -336,7 +336,7 @@ export function CommandTriggersPanel({
               </CardContent>
             </Card>
           ) : (
-            <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center">
+            <Card className="flex h-full items-center justify-center border-0 bg-transparent p-12 text-center shadow-none">
               <div className="max-w-[260px] space-y-4 opacity-50">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-border/40 bg-muted/20">
                   <BellRing className="h-8 w-8 text-muted-foreground" />
@@ -401,11 +401,11 @@ export function CommandTriggersPanel({
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
-              <button type="button" onClick={() => setDraftEnabled((current) => !current)} className={cn('rounded-2xl border p-4 text-left transition-colors', draftEnabled ? 'border-primary/30 bg-primary/10 text-foreground' : 'border-border/50 bg-muted/10 text-muted-foreground')}>
+              <button type="button" onClick={() => setDraftEnabled((current) => !current)} className={cn('rounded-lg border p-4 text-left transition-colors', draftEnabled ? 'border-primary/30 bg-primary/10 text-foreground' : 'border-border/40 bg-card text-muted-foreground')}>
                 <div className="flex items-center gap-2 text-sm font-semibold"><CheckCircle2 className="h-4 w-4" /> Enabled</div>
                 <p className="mt-1 text-xs">Disabled triggers stay saved but never run.</p>
               </button>
-              <button type="button" onClick={() => setDraftRequireConfirmation((current) => !current)} className={cn('rounded-2xl border p-4 text-left transition-colors', draftRequireConfirmation ? 'border-primary/30 bg-primary/10 text-foreground' : 'border-border/50 bg-muted/10 text-muted-foreground')}>
+              <button type="button" onClick={() => setDraftRequireConfirmation((current) => !current)} className={cn('rounded-lg border p-4 text-left transition-colors', draftRequireConfirmation ? 'border-primary/30 bg-primary/10 text-foreground' : 'border-border/40 bg-card text-muted-foreground')}>
                 <div className="flex items-center gap-2 text-sm font-semibold"><BellRing className="h-4 w-4" /> Require Confirmation</div>
                 <p className="mt-1 text-xs">Ask before running when the trigger fires.</p>
               </button>

@@ -122,7 +122,7 @@ export function ProjectHealthPanel({
   }
 
   return (
-    <section className="rounded-xl border border-border/40 bg-background/50 px-4 py-4 shadow-sm">
+    <section className="rounded-lg border border-border/40 bg-card px-4 py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
