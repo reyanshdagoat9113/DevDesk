@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FileText, GitBranch, Loader2 } from 'lucide-react'
 import { Badge } from './ui/Badge'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { EngineGitInsights, ProjectNotes } from '../types'
 
 interface ProjectOverviewHighlightsProps {
@@ -24,15 +25,23 @@ export function ProjectOverviewHighlights({ projectId, onLoadGitInsights }: Proj
     }).catch(() => {
       if (!cancelled) setNotes(null)
     })
-    if (onLoadGitInsights) {
-      void onLoadGitInsights(projectId).then((result) => {
-        if (!cancelled) setGit(result)
-      }).catch(() => {
-        if (!cancelled) setGit(null)
-      })
-    }
     return () => { cancelled = true }
-  }, [onLoadGitInsights, projectId])
+  }, [projectId])
+
+  const refreshGitInsights = async () => {
+    if (!onLoadGitInsights) {
+      setGit(null)
+      return
+    }
+
+    try {
+      setGit(await onLoadGitInsights(projectId))
+    } catch {
+      setGit(null)
+    }
+  }
+
+  useAutoRefresh(refreshGitInsights)
 
   const noteItems = notes
     ? [

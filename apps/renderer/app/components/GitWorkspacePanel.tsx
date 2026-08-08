@@ -24,6 +24,7 @@ import {
 } from './ui/Select'
 import { Textarea } from './ui/Textarea'
 import { cn } from '../../lib/utils'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type {
   EngineGitInsights,
   GitCommitResult,
@@ -204,9 +205,7 @@ export function GitWorkspacePanel({
     }
   }, [onLoadGitInsights, onLoadGitState, project.id])
 
-  useEffect(() => {
-    void refreshGitData()
-  }, [refreshGitData])
+  useAutoRefresh(refreshGitData)
 
   useEffect(() => {
     if (insightView === 'changes' && !changedFiles.length) {

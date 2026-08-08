@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProjectGitSummary } from './ProjectGitSummary'
 import type { EngineGitInsights, Project } from '../types'
 
@@ -37,6 +37,10 @@ const dirtyInsights: EngineGitInsights = {
 }
 
 describe('ProjectGitSummary', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('loads and renders git snapshot details', async () => {
     const onLoadGitInsights = vi.fn(async () => dirtyInsights)
     const onOpenWorkspace = vi.fn()
@@ -82,5 +86,33 @@ describe('ProjectGitSummary', () => {
     expect(screen.getByText('No repo')).toBeTruthy()
     expect(await screen.findByText(/No Git repository was found/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
+  })
+
+  it('refreshes insights every 30 seconds and stops after unmounting', async () => {
+    vi.useFakeTimers()
+    const onLoadGitInsights = vi.fn(async () => dirtyInsights)
+    const { unmount } = render(
+      <ProjectGitSummary
+        project={project}
+        onLoadGitInsights={onLoadGitInsights}
+        onOpenWorkspace={vi.fn()}
+      />,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(onLoadGitInsights).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000)
+    })
+    expect(onLoadGitInsights).toHaveBeenCalledTimes(2)
+
+    unmount()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000)
+    })
+    expect(onLoadGitInsights).toHaveBeenCalledTimes(2)
   })
 })

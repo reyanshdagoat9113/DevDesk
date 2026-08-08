@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { GitBranch } from 'lucide-react'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { ErrorState } from './ui/ErrorState'
 import { LoadingState } from './ui/LoadingState'
 import { StatusNotice } from './ui/StatusNotice'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { EngineGitInsights, Project } from '../types'
 
 export function ProjectGitSummary({
@@ -36,9 +37,7 @@ export function ProjectGitSummary({
       })
   }, [onLoadGitInsights, project.id])
 
-  useEffect(() => {
-    void loadInsights()
-  }, [loadInsights])
+  useAutoRefresh(loadInsights)
 
   const unavailableReason = loadError?.toLowerCase().includes('not a git repository') || loadError?.toLowerCase().includes('no repository') || loadError?.toLowerCase().includes('no repo')
     ? 'No Git repository was found at this project path. Initialize Git or open the project folder to inspect it.'
@@ -106,7 +105,7 @@ export function ProjectGitSummary({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {isLoading ? (
+        {isLoading && !workingTree ? (
           <LoadingState label="Loading Git insights" className="col-span-2 py-2 sm:col-span-4" />
         ) : workingTree ? (
           statItems.map((item) => (
