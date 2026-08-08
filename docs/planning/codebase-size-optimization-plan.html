@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevDesk Index Scope &amp; Codebase Modularity Plan</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --panel: #151b24;
+      --panel-2: #1b2430;
+      --panel-3: #10161e;
+      --text: #edf3f8;
+      --muted: #a5b2c0;
+      --subtle: #718094;
+      --line: #2b3848;
+      --accent: #61b8ff;
+      --accent-soft: rgba(97, 184, 255, .12);
+      --success: #73d69a;
+      --warning: #ffd166;
+      --danger: #ff7b84;
+      --info: #7ed6e8;
+      --code: #0a0e13;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.6 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: var(--accent); }
+    main { width: min(1220px, calc(100% - 40px)); margin: auto; padding: 42px 0 72px; }
+    header { border-bottom: 1px solid var(--line); padding-bottom: 30px; }
+    h1, h2, h3 { line-height: 1.2; margin: 0; }
+    h1 { font-size: clamp(2.1rem, 5vw, 3.6rem); letter-spacing: -.04em; max-width: 920px; }
+    h2 { font-size: 1.45rem; margin-bottom: 14px; }
+    h3 { font-size: 1.02rem; margin-bottom: 8px; }
+    p { color: var(--muted); margin: 0 0 13px; }
+    .eyebrow, .section-label {
+      color: var(--accent);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .eyebrow { margin-bottom: 12px; }
+    .subtitle { font-size: 1.08rem; max-width: 860px; margin-top: 16px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px; }
+    .pill, .status {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      display: inline-flex;
+      font-size: .78rem;
+      font-weight: 700;
+      padding: 5px 10px;
+    }
+    .status { color: var(--warning); border-color: rgba(255, 209, 102, .4); }
+    .layout {
+      display: grid;
+      gap: 22px;
+      grid-template-columns: 220px minmax(0, 1fr);
+      margin-top: 28px;
+    }
+    nav { position: sticky; top: 18px; align-self: start; }
+    nav a {
+      border-left: 1px solid var(--line);
+      color: var(--muted);
+      display: block;
+      padding: 6px 12px;
+      text-decoration: none;
+    }
+    nav a:hover { background: var(--accent-soft); color: var(--text); }
+    .content > section, .callout, .card, .phase, .risk {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    .content > section { margin-bottom: 20px; padding: 24px; }
+    .callout { border-left: 3px solid var(--accent); padding: 17px 19px; margin: 14px 0; }
+    .callout.warning { border-left-color: var(--warning); }
+    .callout.danger { border-left-color: var(--danger); }
+    .callout.success { border-left-color: var(--success); }
+    .callout strong { color: var(--text); }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card, .phase, .risk { padding: 17px; }
+    .card h3, .phase h3 { color: var(--text); }
+    .card p, .phase p, .risk p { font-size: .92rem; }
+    .phase { background: var(--panel-2); }
+    .phase .number { color: var(--accent); font-weight: 800; }
+    .phase .owner { color: var(--subtle); font-size: .82rem; }
+    ul, ol { color: var(--muted); margin: 9px 0 0; padding-left: 21px; }
+    li { margin: 6px 0; }
+    code {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: #d7e8f6;
+      padding: 1px 5px;
+      font-size: .9em;
+    }
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: #d7e8f6;
+      overflow-x: auto;
+      padding: 14px;
+      font-size: .86rem;
+    }
+    table { border-collapse: collapse; color: var(--muted); margin-top: 12px; width: 100%; }
+    th, td { border: 1px solid var(--line); padding: 10px 11px; text-align: left; vertical-align: top; }
+    th { background: var(--panel-2); color: var(--text); font-size: .86rem; }
+    .priority { font-weight: 800; white-space: nowrap; }
+    .p0 { color: var(--danger); }
+    .p1 { color: var(--warning); }
+    .p2 { color: var(--info); }
+    .p3 { color: var(--subtle); }
+    .stat {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .stat .value { color: var(--text); font-size: 1.55rem; font-weight: 800; letter-spacing: -.03em; }
+    .stat .label { color: var(--subtle); font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
+    .stat .note { color: var(--muted); font-size: .82rem; margin-top: 6px; }
+    .task-list { list-style: none; padding-left: 0; }
+    .task-list li {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 0 10px 28px;
+      position: relative;
+    }
+    .task-list li::before {
+      border: 1px solid var(--subtle);
+      border-radius: 4px;
+      content: "";
+      height: 14px;
+      left: 2px;
+      position: absolute;
+      top: 14px;
+      width: 14px;
+    }
+    .small { font-size: .87rem; }
+    .muted { color: var(--subtle); }
+    footer {
+      border-top: 1px solid var(--line);
+      color: var(--subtle);
+      margin-top: 28px;
+      padding-top: 18px;
+    }
+    .tag {
+      display: inline-block;
+      border-radius: 6px;
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+      padding: 2px 7px;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .tag-god { background: rgba(255, 123, 132, .15); color: var(--danger); }
+    .tag-index { background: rgba(97, 184, 255, .15); color: var(--accent); }
+    .tag-repo { background: rgba(255, 209, 102, .12); color: var(--warning); }
+    .tag-arch { background: rgba(126, 214, 232, .12); color: var(--info); }
+    .tag-guard { background: rgba(115, 214, 154, .12); color: var(--success); }
+    @media (max-width: 850px) {
+      main { width: min(100% - 24px, 720px); padding-top: 26px; }
+      .layout { display: block; }
+      nav {
+        position: static;
+        display: flex;
+        gap: 4px;
+        overflow-x: auto;
+        margin-bottom: 18px;
+        padding-bottom: 4px;
+      }
+      nav a { border-left: 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      .grid, .grid.three, .grid.four { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">DevDesk / Engineering Health</div>
+      <h1>Index scope &amp; codebase modularity plan</h1>
+      <p class="subtitle">
+        The Performance Engine shows DevDesk itself at <strong style="color:var(--text)">361 files / 20&nbsp;MB</strong>
+        (excluding <code>node_modules</code>), while peer projects such as localbase (~251 files / 2.1&nbsp;MB)
+        and Petlink (~176 files / 1.8&nbsp;MB) report much smaller source sets. The displayed MB is the sum of
+        indexed file sizes—not the SQLite database footprint. This plan therefore separates <em>index scope</em>
+        from <em>codebase modularity</em>; they require different work and different success metrics.
+      </p>
+      <div class="meta">
+        <span class="status">Status: Ready for implementation</span>
+        <span class="pill">Scope: monorepo + engine product</span>
+        <span class="pill">Date: 2026-08-08</span>
+        <span class="pill">Baseline commit: dc7533eca92a</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav aria-label="Plan sections">
+        <a href="#diagnosis">Diagnosis</a>
+        <a href="#levers">Solution levers</a>
+        <a href="#god-files">God files</a>
+        <a href="#index">Index &amp; engine</a>
+        <a href="#repo">Repo hygiene</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#dead-weight">Dead weight</a>
+        <a href="#guardrails">Guardrails</a>
+        <a href="#phases">Phases</a>
+        <a href="#acceptance">Acceptance</a>
+        <a href="#risks">Risks</a>
+      </nav>
+
+      <div class="content">
+        <!-- 01 DIAGNOSIS -->
+        <section id="diagnosis">
+          <div class="section-label">01 / Diagnosis</div>
+          <h2>What the numbers actually mean</h2>
+
+          <div class="grid four" style="margin-bottom:16px">
+            <div class="stat">
+              <div class="label">Engine (DevDesk)</div>
+              <div class="value">361</div>
+              <div class="note">files · 20 MB logical bytes</div>
+            </div>
+            <div class="stat">
+              <div class="label">localbase</div>
+              <div class="value">251</div>
+              <div class="note">files · 2.1 MB indexed</div>
+            </div>
+            <div class="stat">
+              <div class="label">Petlink</div>
+              <div class="value">176</div>
+              <div class="note">files · 1.8 MB indexed</div>
+            </div>
+            <div class="stat">
+              <div class="label">Avg logical bytes/file</div>
+              <div class="value">~55 KB</div>
+              <div class="note">vs ~8–10 KB peers</div>
+            </div>
+          </div>
+
+          <div class="callout warning">
+            <strong>Two different problems are mixed together.</strong>
+            File <em>count</em> is only ~1.4× localbase, while indexed logical bytes are ~10×. That points to
+            a broader indexed scope and larger files (source, docs, HTML, and supporting text), not SQLite overhead.
+            God files are a separate maintainability problem: splitting them improves ownership and reviewability,
+            but normally does not reduce logical bytes.
+          </div>
+
+          <h3 style="margin-top:18px">Engine language mix (DevDesk project)</h3>
+          <table>
+            <thead>
+              <tr><th>Language</th><th>Count</th><th>Implication</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>TypeScript</td><td>226</td><td>Primary product surface; includes many large UI/IPC units</td></tr>
+              <tr><td>JavaScript</td><td>42</td><td>Config/scripts + some generated or dual-output noise</td></tr>
+              <tr><td>Markdown</td><td>28</td><td>Roadmaps, plans, AGENTS/CLAUDE notes—full text in the index</td></tr>
+              <tr><td>JSON</td><td>21</td><td>Configs/package manifests (lockfiles are usually skipped as <code>lockfile</code>)</td></tr>
+              <tr><td>Other</td><td>~44</td><td>HTML plans, CSS, Rust, etc.</td></tr>
+            </tbody>
+          </table>
+
+          <h3 style="margin-top:18px">On-disk source reality (audit, excl. node_modules/dist/release/coverage)</h3>
+          <table>
+            <thead>
+              <tr><th>Area</th><th>Source files</th><th>~Source MB</th><th>~Source lines</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>apps/renderer</code></td><td>99</td><td>0.81</td><td>~19.8k</td><td>Heaviest product surface; many 400–1,700 line components</td></tr>
+              <tr><td><code>apps/desktop</code></td><td>66</td><td>0.51</td><td>~14.1k</td><td>IPC mega-file alone is now ~3.4k lines</td></tr>
+              <tr><td><code>packages/landing</code></td><td>43</td><td>0.15</td><td>~4.1k</td><td>Marketing site lives inside the same monorepo root</td></tr>
+              <tr><td><code>packages/engine</code></td><td>29</td><td>0.11</td><td>~3.3k</td><td>Relatively healthy</td></tr>
+              <tr><td><code>docs/</code></td><td>25*</td><td>0.35*</td><td>—</td><td>*Mostly HTML/MD plans, not TS; still indexed</td></tr>
+              <tr><td><code>scripts/</code> + root</td><td>~35</td><td>~0.7</td><td>—</td><td>Build/QA + large root markdown/images</td></tr>
+            </tbody>
+          </table>
+
+          <p class="small muted" style="margin-top:12px">
+            <code>Index Summary → Size</code> is currently <strong style="color:var(--text)"><code>SUM(files.size_bytes)</code></strong>.
+            It is not the database file size and does not include an estimate of FTS overhead. Phase 0 must capture
+            logical indexed bytes, searchable-content bytes, and physical SQLite bytes separately before setting a reduction target.
+          </p>
+        </section>
+
+        <!-- 02 LEVERS -->
+        <section id="levers">
+          <div class="section-label">02 / Full toolkit</div>
+          <h2>Every lever (not only god files)</h2>
+          <p>Run index-scope and maintainability work as separate tracks, with shared measurement and validation.</p>
+
+          <div class="grid">
+            <article class="card">
+              <h3><span class="tag tag-god">A</span> Split god files</h3>
+              <p>Break mega-modules by domain so reviews, tests, and mental models stay local. Highest leverage for day-to-day velocity.</p>
+            </article>
+            <article class="card">
+              <h3><span class="tag tag-index">B</span> Engine index policy</h3>
+              <p>Give users explicit source-first, source-plus-docs, and full-text scopes; report logical and physical index size separately.</p>
+            </article>
+            <article class="card">
+              <h3><span class="tag tag-repo">C</span> Repo hygiene</h3>
+              <p>Remove stray screenshots, duplicate assets, and committed bulk that is not product source. Tighten ignore rules.</p>
+            </article>
+            <article class="card">
+              <h3><span class="tag tag-arch">D</span> Architecture boundaries</h3>
+              <p>Thin <code>App.tsx</code>, domain IPC modules, feature state hooks, lazy section loading—align with <code>docs/architecture/module-boundaries.md</code>.</p>
+            </article>
+            <article class="card">
+              <h3><span class="tag tag-repo">E</span> Dead weight &amp; duplication</h3>
+              <p>Delete unused code paths, dual type emits, and inlined helpers that already exist as services.</p>
+            </article>
+            <article class="card">
+              <h3><span class="tag tag-guard">F</span> Guardrails</h3>
+              <p>File-size budgets, complexity lint, architecture checks, and “no new god files” in review—so the win sticks.</p>
+            </article>
+          </div>
+
+          <div class="callout success">
+            <strong>Target north stars (12 weeks):</strong>
+            (1) no new source file &gt; 600 lines without an explicit, owned exception;
+            (2) source-first indexing excludes known non-source paths and shows a reproducible reduction against the same commit;
+            (3) <code>App.tsx</code> orchestration-only (&lt; ~400 lines);
+            (4) CI fails on new files over budget or new IPC handlers outside domain modules.
+          </div>
+        </section>
+
+        <!-- 03 GOD FILES -->
+        <section id="god-files">
+          <div class="section-label">03 / Lever A</div>
+          <h2>God-file breakup map</h2>
+          <p>
+            Threshold used in this plan: <strong style="color:var(--text)">≥ 400 lines</strong> is a candidate;
+            <strong style="color:var(--text)">≥ 800 lines</strong> is P0. Snapshot: commit <code>dc7533eca92a</code>,
+            counted as physical lines on 2026-08-08.
+          </p>
+
+          <table>
+            <thead>
+              <tr><th>File</th><th>Lines</th><th>Pri</th><th>Proposed split</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>apps/desktop/ipc/registerIpc.ts</code></td>
+                <td>3,367</td>
+                <td class="priority p0">P0</td>
+                <td>
+                  Keep a thin <code>registerIpcHandlers()</code> that calls domain registrars:
+                  <code>ipc/handlers/projects.ts</code>, <code>commands.ts</code>, <code>chains.ts</code>,
+                  <code>triggers.ts</code>, <code>containers.ts</code>, <code>docker.ts</code>,
+                  <code>git.ts</code>, <code>engine.ts</code>, <code>bugs.ts</code>, <code>terminal.ts</code>,
+                  <code>history.ts</code>, <code>files.ts</code>, <code>health.ts</code>, <code>notes.ts</code>,
+                  <code>preferences.ts</code>, <code>llm.ts</code>. Move WSL/Docker helpers into
+                  <code>apps/desktop/system/</code> or <code>docker/</code> services (they currently live above the registrar).
+                </td>
+              </tr>
+              <tr>
+                <td><code>apps/renderer/app/App.tsx</code></td>
+                <td>1,888</td>
+                <td class="priority p0">P0</td>
+                <td>
+                  ~51 <code>useState</code> + 11 <code>useEffect</code> = app-level god state.
+                  Extract: <code>useAppBootstrap</code>, <code>useProjectsState</code>,
+                  <code>useCommandsAutomation</code>, <code>useContainersState</code>,
+                  <code>useEngineState</code>, <code>useTerminalSessions</code>,
+                  dialog controllers. <code>App</code> should compose providers + shell only.
+                </td>
+              </tr>
+              <tr>
+                <td><code>ProjectsSection.tsx</code></td>
+                <td>1,556</td>
+                <td class="priority p0">P0</td>
+                <td>
+                  Split list, detail, health badge, add/edit dialog, linked containers, and actions toolbar
+                  into <code>sections/projects/*</code>.
+                </td>
+              </tr>
+              <tr>
+                <td><code>CommandsSection.tsx</code> / <code>ContainersSection.tsx</code></td>
+                <td>1,151 / 1,131</td>
+                <td class="priority p0">P0</td>
+                <td>Same pattern: list + filters + form dialogs + run affordances as co-located children.</td>
+              </tr>
+              <tr>
+                <td><code>CommandPalette.tsx</code></td>
+                <td>1,167</td>
+                <td class="priority p1">P1</td>
+                <td>
+                  Separate command providers (projects, commands, git, navigation) from UI shell;
+                  pure ranking/filter module.
+                </td>
+              </tr>
+              <tr>
+                <td><code>preload.ts</code></td>
+                <td>646</td>
+                <td class="priority p1">P1</td>
+                <td>
+                  Group by domain mirrors of IPC; optionally generate thin wrappers from
+                  <code>@devdesk/ipc-contracts</code> to kill drift with <code>types.ts</code>.
+                </td>
+              </tr>
+              <tr>
+                <td><code>git/service.ts</code>, <code>llm/bundler.ts</code>, panels (Bug/Git/Chains/History)</td>
+                <td>400–986</td>
+                <td class="priority p1">P1</td>
+                <td>
+                  Extract pure helpers + presentational subcomponents; keep services as facades under 400 lines.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Split rules (from module-boundaries.md):</strong>
+            domain logic stays near the domain folder; extract shared code only when used in more than one place;
+            prefer thin orchestration over catch-all modules; no new <code>helpers.ts</code> / <code>misc.ts</code> dumps.
+          </div>
+        </section>
+
+        <!-- 04 INDEX -->
+        <section id="index">
+          <div class="section-label">04 / Lever B</div>
+          <h2>Engine &amp; index optimization</h2>
+          <p>
+            Peer projects are not just “better written”—they are smaller products with less non-source
+            text under the repo root. DevDesk indexes itself as a monorepo that includes docs, plans,
+            landing, and large TS units. First control <em>what</em> is indexed; evaluate storage changes independently
+            against physical database size, search correctness, and latency.
+          </p>
+
+          <h3>B1 — Source-first index profiles <span class="tag tag-index">Product</span></h3>
+          <ul>
+            <li>Add an engine ignore layer on top of <code>.gitignore</code> (e.g. <code>.devdeskignore</code> or project settings): default templates for “source only,” “source + docs,” “everything text.”</li>
+            <li>Default profile for app projects should exclude: <code>docs/planning/**</code>, <code>**/*.html</code> (except maybe <code>apps/*/index.html</code>), <code>packages/landing/**</code> when indexing the monorepo as DevDesk, root marketing markdown, screenshots, coverage, <code>release/</code>, <code>dist/</code>.</li>
+            <li>Respect language policy more aggressively: optional skip of pure Markdown/JSON unless the user opts in (today <code>shouldIndex</code> only skips binary/image/font/lockfile).</li>
+            <li>Surface “why is this large?” in Index Summary: top files by size, top paths by folder, skipped count, profile name.</li>
+          </ul>
+
+          <h3 style="margin-top:16px">B2 — Storage model <span class="tag tag-index">Product</span></h3>
+          <ul>
+            <li><strong>Measure before redesign:</strong> report the SQLite file size and searchable-content bytes separately from logical indexed bytes.</li>
+            <li><strong>Metadata-first spike:</strong> test storing content only for searchable text under a measured cap. Preserve FTS ranking, fallback search, incremental identity, and offline behavior before adopting it.</li>
+            <li><strong>On-demand content spike:</strong> reading current files at result-expansion time is acceptable only if deleted/moved files, stale indexes, and search-result consistency have defined behavior.</li>
+            <li><strong>Content size cap + warning:</strong> already skip binary; add soft skip for “huge text” (minified bundles, generated maps if not gitignored).</li>
+            <li>Gate any storage migration on equivalent search recall, unchanged regex behavior, migration tests, and a measured physical-size or latency benefit.</li>
+          </ul>
+
+          <h3 style="margin-top:16px">B3 — Scanner improvements <span class="tag tag-index">Engine</span></h3>
+          <ul>
+            <li>Confirm packaged skip dirs (already skip <code>node_modules</code>, <code>release</code>, etc. in Rust walker) cover <code>packages/engine/rust/target</code>, coverage, and Windows AppData paths when mis-pointed.</li>
+            <li>Optional monorepo mode: index only <code>apps/*</code> + <code>packages/engine</code> + <code>packages/ipc-contracts</code> when project type is “DevDesk monorepo.”</li>
+            <li>Index Summary UX: show “effective sources” vs “supporting files” so 20&nbsp;MB never surprises users.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Dependency:</strong> the scanner currently honors Git ignore rules, not <code>.devdeskignore</code>.
+            Implement and test the engine ignore layer first; only then commit a profile and measure the before/after reindex on the same revision.
+          </div>
+        </section>
+
+        <!-- 05 REPO -->
+        <section id="repo">
+          <div class="section-label">05 / Lever C</div>
+          <h2>Repository hygiene</h2>
+
+          <div class="grid">
+            <article class="card">
+              <h3>Remove or relocate bulk</h3>
+              <ul>
+                <li>Root screenshots / ChatGPT images already gitignored—ensure they are not still on disk under the project path the engine scans.</li>
+                <li>Large logo option PNGs under <code>apps/renderer/assets/</code> (~450&nbsp;KB each): keep only assets the app ships; move design explorations out of the indexed tree.</li>
+                <li>Keep useful engineering plans versioned in the repository; exclude completed or non-source plans from source-first indexing rather than moving them to an external system solely to lower a metric.</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Monorepo boundary for “self” projects</h3>
+              <ul>
+                <li><code>packages/landing</code> is a separate deployable. When DevDesk indexes its own code for search, landing screenshots and marketing copy should not count against product intelligence.</li>
+                <li>Prefer an explicit monorepo index profile over splitting deployables into separate repositories solely to lower self-index metrics.</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Generated &amp; dual artifacts</h3>
+              <ul>
+                <li>Avoid committing both <code>types.ts</code> and generated <code>types.js</code> / stale <code>types.d.ts</code> if any remain under renderer.</li>
+                <li>Keep <code>dist/</code>, <code>coverage/</code>, <code>release/</code> gitignored (already) and engine-skipped (verify).</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Markdown sprawl</h3>
+              <ul>
+                <li>Root has many parallel agent guides (<code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>GEMINI.md</code>, etc.). Consolidate shared rules into one source and thin wrappers if needed—less duplicated prose in the index.</li>
+                <li>Archive completed milestone plans; keep only living docs.</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <!-- 06 ARCHITECTURE -->
+        <section id="architecture">
+          <div class="section-label">06 / Lever D</div>
+          <h2>Architecture moves (structure without “just split files”)</h2>
+
+          <h3>D1 — Feature slices over mega-shell</h3>
+          <ul>
+            <li>Introduce lightweight feature modules under <code>apps/renderer/app/features/{projects,commands,containers,engine,git,bugs,history,terminal}/</code> each owning section UI + hooks + local types.</li>
+            <li><code>App.tsx</code> becomes a composition root: providers, tab router, global dialogs host.</li>
+            <li>Lazy-load heavy tabs with <code>React.lazy</code> so cold start and mental load track feature use (optional; measure first).</li>
+          </ul>
+
+          <h3 style="margin-top:16px">D2 — Domain IPC packages</h3>
+          <ul>
+            <li>~100 <code>ipcMain.handle</code> registrations today, dominated by projects (12), bugs (11), commands (9), engine/containers (8).</li>
+            <li>Pattern: <code>registerXHandlers(deps)</code> + shared <code>IpcContext</code> (window, store, services).</li>
+            <li>Move non-handler helpers (WSL path parsing, Docker spawn, chain execution) into existing service folders so IPC files stay pure wiring.</li>
+            <li>Align channel names with <code>packages/ipc-contracts</code>; generate preload stubs where possible.</li>
+          </ul>
+
+          <h3 style="margin-top:16px">D3 — Continue store modularization</h3>
+          <ul>
+            <li><code>apps/desktop/data/store/</code> is already split (good). Apply the same discipline to any remaining fat modules (<code>core.ts</code>, <code>normalize.ts</code>, <code>bugs.ts</code>).</li>
+            <li>Keep schema (<code>model.ts</code>) as types + migrations only—no orchestration.</li>
+          </ul>
+
+          <h3 style="margin-top:16px">D4 — Shared UI extraction (reduces line bloat)</h3>
+          <ul>
+            <li>Many 400–1,000 line sections reimplement filters, empty states, dialogs, and toolbars. Shared Panel/Empty/Error primitives (see UI improvement plan) cut duplicated JSX mass.</li>
+            <li>Prefer composition over copy-paste growth when adding new project tools.</li>
+          </ul>
+
+          <h3 style="margin-top:16px">D5 — Codegen for boilerplate</h3>
+          <ul>
+            <li>IPC channel list → preload method map → renderer <code>ElectronAPI</code> types from one source of truth.</li>
+            <li>Eliminates triple-maintenance bloat and prevents “types file” growth (currently large <code>types.ts</code> / <code>types.d.ts</code>).</li>
+          </ul>
+        </section>
+
+        <!-- 07 DEAD WEIGHT -->
+        <section id="dead-weight">
+          <div class="section-label">07 / Lever E</div>
+          <h2>Dead weight, duplication, and product scope</h2>
+          <table>
+            <thead>
+              <tr><th>Opportunity</th><th>Why it matters</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Unused or low-traffic UI paths</td>
+                <td>Every panel ships tests + types + IPC surface</td>
+                <td>Inventory features vs ROADMAP; archive or gate behind experimental flags rather than growing the default shell</td>
+              </tr>
+              <tr>
+                <td>Duplicate Docker/WSL command paths</td>
+                <td>Large helper blocks in <code>registerIpc.ts</code></td>
+                <td>Single docker runtime module; IPC only calls it</td>
+              </tr>
+              <tr>
+                <td>Parallel docs for agents</td>
+                <td>28 markdown files contribute index weight + drift</td>
+                <td>One canonical rules doc; others re-export or link</td>
+              </tr>
+              <tr>
+                <td>Landing in product monorepo</td>
+                <td>Screenshots + marketing TS inflate self-index</td>
+                <td>Ignore by default; or separate git repo later if packaging friction is low</td>
+              </tr>
+              <tr>
+                <td>Test file co-location growth</td>
+                <td>Healthy for quality but raises file count</td>
+                <td>Do not “optimize” by deleting tests; optionally engine-profile exclude <code>**/*.test.ts</code> for search index only</td>
+              </tr>
+              <tr>
+                <td>Dependency / lockfile noise</td>
+                <td>Lockfiles skipped as language; still keep tree lean</td>
+                <td>No change required for index; keep native rebuild discipline documented</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="callout warning">
+            <strong>Do not chase file count by merging small modules.</strong>
+            Peer projects look “optimized” partly because they have less product surface.
+            Prefer many small domain files over a few giant ones—even if the engine file count stays similar.
+          </div>
+        </section>
+
+        <!-- 08 GUARDRAILS -->
+        <section id="guardrails">
+          <div class="section-label">08 / Lever F</div>
+          <h2>Guardrails so the bloat does not return</h2>
+
+          <div class="grid">
+            <article class="card">
+              <h3>Budgets</h3>
+              <ul>
+                <li><strong>Existing baseline:</strong> retain <code>check-architecture.mjs</code> warnings at 400/600 lines while the P0 files are decomposed.</li>
+                <li><strong>Hard:</strong> fail CI for new files over 800 lines or growth in an allowlisted file; each exception records an owner, reason, removal ticket, and review date.</li>
+                <li><strong>Ratchet:</strong> reduce the allowlist as domains are extracted; do not force meaningless splits to reach zero by an arbitrary release.</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Lint &amp; architecture</h3>
+              <ul>
+                <li>ESLint <code>max-lines</code>, <code>max-lines-per-function</code>, complexity caps for new code.</li>
+                <li>Extend <code>scripts/check-architecture.mjs</code> to forbid new handlers in <code>registerIpc.ts</code> body beyond re-exports.</li>
+                <li>Renderer: forbid new <code>useState</code> in <code>App.tsx</code> beyond an allowlist (encourage hooks).</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Engine self-metrics</h3>
+              <ul>
+                <li>Show logical indexed bytes, searchable-content bytes, physical SQLite bytes, and largest 10 paths in Index Summary.</li>
+                <li>Optional health badge: “index looks heavy vs language mix.”</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Review checklist</h3>
+              <ul>
+                <li>PR template: “New files &gt; 400 lines? Split plan?”</li>
+                <li>No business logic in IPC registrars or preload beyond validation.</li>
+                <li>Prefer feature folder + test over extending a god section.</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <!-- 09 PHASES -->
+        <section id="phases">
+          <div class="section-label">09 / Delivery sequence</div>
+          <h2>Phased plan</h2>
+          <p>Order follows dependencies. Capture a reproducible baseline before changing index scope; establish test and dependency seams before moving IPC or renderer state.</p>
+
+          <div class="grid">
+            <article class="phase">
+              <h3><span class="number">Phase 0</span> — Reproducible baseline &amp; index scope</h3>
+              <p class="owner">Risk: low · Effort: 2–4 days · Levers B, C</p>
+              <ul class="task-list">
+                <li>Record commit SHA, exact project root, full/incremental mode, profile, counting script, and pre-change metrics.</li>
+                <li>Add and test engine support for <code>.devdeskignore</code> or persisted project profiles; do not treat the file as active before scanner support lands.</li>
+                <li>Add a source-first profile excluding planning HTML, landing media, root media, and optionally tests; retain source + docs and full-text profiles.</li>
+                <li>Reindex the same commit; capture logical bytes, searchable-content bytes, physical SQLite bytes, files, languages, skipped reasons, and search correctness before/after.</li>
+                <li>Delete or move stray root images still on disk; trim unused large assets under renderer if unused at runtime.</li>
+                <li>Document “how to index this monorepo” in engine section help / data-locations docs.</li>
+                <li>Script: report top 25 largest source files by line count (CI artifact or <code>npm run report:file-sizes</code>).</li>
+              </ul>
+            </article>
+
+            <article class="phase">
+              <h3><span class="number">Phase 1</span> — IPC &amp; service extraction</h3>
+              <p class="owner">Risk: medium–high · Effort: ~1–2 weeks · Lever A, D2</p>
+              <ul class="task-list">
+                <li>Inventory every registered channel and characterize success, validation, authorization, and error behavior with focused tests.</li>
+                <li>Introduce a typed shared dependency context so domain registrars do not capture hidden mutable state.</li>
+                <li>Extract Docker/WSL/command-execution helpers out of <code>registerIpc.ts</code> into services.</li>
+                <li>Split handlers one domain at a time; validate each wave, then leave <code>registerIpcHandlers</code> as a one-page orchestrator.</li>
+                <li>Preserve channel names, sender validation, error semantics, registration order where relevant, and preload contracts.</li>
+                <li>Target: <code>registerIpc.ts</code> &lt; 200 lines; registrars contain wiring and validation, while business logic lives in services.</li>
+              </ul>
+            </article>
+
+            <article class="phase">
+              <h3><span class="number">Phase 2</span> — App shell &amp; section modularization</h3>
+              <p class="owner">Risk: medium–high · Effort: 2–3 weeks · Lever A, D1</p>
+              <ul class="task-list">
+                <li>Wave 2A: characterize bootstrap, terminal, engine, tray, and listener lifecycles; extract bootstrap/subscription hooks without changing ownership.</li>
+                <li>Wave 2B: extract project and feature state from <code>App.tsx</code>; introduce context/providers only where prop drilling hurts.</li>
+                <li>Wave 2C: split Projects, Commands, and Containers one section at a time into co-located feature modules.</li>
+                <li>Wave 2D: reduce <code>CommandPalette</code> into UI shell, pure ranking, and feature-owned providers.</li>
+                <li>Align with UI improvement plan shared primitives to delete duplicated markup.</li>
+              </ul>
+            </article>
+
+            <article class="phase">
+              <h3><span class="number">Phase 3</span> — Engine product upgrades</h3>
+              <p class="owner">Risk: medium · Effort: ~1 week · Lever B</p>
+              <ul class="task-list">
+                <li>Complete profile selection and per-project UI after the Phase 0 scanner/profile foundation.</li>
+                <li>Run a storage-model spike; adopt content caps or on-demand content only when correctness and measured physical-size benefits meet the B2 gate.</li>
+                <li>Index Summary: top files, folder rollup, profile label, skipped reasons.</li>
+                <li>Tests for ignore layer and size caps in <code>packages/engine</code>.</li>
+              </ul>
+            </article>
+
+            <article class="phase">
+              <h3><span class="number">Phase 4</span> — Guardrails &amp; cleanup wave</h3>
+              <p class="owner">Risk: low–medium · Effort: ongoing · Lever E, F</p>
+              <ul class="task-list">
+                <li>CI file-size budgets + architecture rule: no new logic in mega entrypoints.</li>
+                <li>Second-pass splits for git/service, bundler, bug/git panels still over 400 lines.</li>
+                <li>Consolidate duplicated agent guidance only where tool-specific entrypoints and local repository context remain intact; archive completed plans without removing useful history.</li>
+                <li>Optional preload/types codegen from ipc-contracts.</li>
+                <li>Re-run engine self-index; publish metrics in release notes (“maintainability”).</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <!-- 10 ACCEPTANCE -->
+        <section id="acceptance">
+          <div class="section-label">10 / Definition of done</div>
+          <h2>Acceptance criteria</h2>
+          <div class="grid">
+            <article class="card">
+              <h3>Index health (self-project)</h3>
+              <ul>
+                <li>Before/after results use the same commit, project root, scanner version, and full-reindex mode.</li>
+                <li>Index Summary reports logical indexed bytes, searchable-content bytes, and physical SQLite bytes as separate metrics.</li>
+                <li>Planning HTML + landing media are not counted by default.</li>
+                <li>Source-first search preserves expected results for a checked-in representative query set; full-text remains available for docs-heavy projects.</li>
+                <li>UI exposes largest paths, folder rollups, profile, and skipped reasons so regressions are obvious.</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Structural health</h3>
+              <ul>
+                <li>No new source file &gt; 800 lines; legacy exceptions cannot grow and carry an owner, reason, ticket, and review date.</li>
+                <li><code>App.tsx</code> is orchestration-only (&lt; ~400 lines target).</li>
+                <li>IPC registration is domain-modular; registrars contain wiring/validation and helpers live in services.</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Process</h3>
+              <ul>
+                <li>CI enforces size/architecture budgets.</li>
+                <li><code>npm run release:gate</code> still green after splits.</li>
+                <li>IPC channel inventory, renderer lifecycle tests, engine ignore/profile tests, and representative search-recall checks pass.</li>
+                <li>Manual packaged smoke covers projects, commands, Docker/WSL, git, terminal lifecycle, and engine reindex/search; it remains distinct from automated evidence.</li>
+                <li>Docs updated: module boundaries + this plan linked from ROADMAP/TODO if tracked.</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Non-goals</h3>
+              <ul>
+                <li>Not a feature freeze excuse—features still land in feature folders.</li>
+                <li>Not deleting tests to lower file count.</li>
+                <li>Not optimizing <code>node_modules</code> (already excluded).</li>
+                <li>Not merging many small files into fewer large ones for vanity metrics.</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <!-- 11 RISKS -->
+        <section id="risks">
+          <div class="section-label">11 / Risks &amp; mitigations</div>
+          <h2>Risks</h2>
+          <div class="grid">
+            <article class="risk">
+              <h3>Regression during IPC split</h3>
+              <p>Many handlers touch shared helpers. Mitigate with existing IPC contract tests + engine-ipc suite + manual smoke of projects/commands/docker/git.</p>
+            </article>
+            <article class="risk">
+              <h3>App state extraction breaks listeners</h3>
+              <p>Terminal/engine subscriptions are lifecycle-sensitive. Extract hooks with identical effect deps; keep a single “data load” bootstrap path.</p>
+            </article>
+            <article class="risk">
+              <h3>Ignore profiles hide useful docs</h3>
+              <p>Default source-first is right for product code search; keep a “full text” profile for users who want plans/wiki in-index.</p>
+            </article>
+            <article class="risk">
+              <h3>Chasing the wrong metric</h3>
+              <p>File count and logical bytes alone are bad KPIs. Track domain ownership, largest modules, changed-file locality, search recall, reindex time, logical searchable bytes, and physical database size.</p>
+            </article>
+          </div>
+
+          <div class="callout" style="margin-top:16px">
+            <strong>Success story framing:</strong>
+            Petlink/localbase are smaller products. DevDesk will always have more features—and thus more files—than a focused app.
+            “Optimized” means <em>proportionate modules, honest indexes, and no 3k-line catch-all files</em>, not matching a 176-file index by gutting capabilities.
+          </div>
+        </section>
+
+        <footer>
+          <p class="small">
+            Related: <code>docs/architecture/module-boundaries.md</code>,
+            <code>docs/planning/ui-improvement-plan.html</code>,
+            <code>packages/engine/ARCHITECTURE.md</code>,
+            engine Index Summary (DevDesk · localbase · Petlink · 2026-08-08).
+          </p>
+          <p class="small muted">DevDesk engineering plan · local-first · no cloud dependencies</p>
+        </footer>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
