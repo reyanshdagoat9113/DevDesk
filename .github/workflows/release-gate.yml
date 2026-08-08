@@ -155,7 +155,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential python3 libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
+          sudo apt-get install -y build-essential python3 libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64 xvfb xauth
 
       - name: Install Rust (engine binary)
         uses: dtolnay/rust-toolchain@stable
@@ -166,8 +166,13 @@ jobs:
       - name: Build IPC contracts
         run: npm run build:ipc-contracts
 
-      - name: Packaged engine smoke
+      - name: Packaged engine smoke (Windows)
+        if: runner.os == 'Windows'
         run: npm run smoke:engine-packaged
+
+      - name: Packaged engine smoke (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run smoke:engine-packaged
 
       - name: Packaged app smoke (Windows)
         if: runner.os == 'Windows'
@@ -175,4 +180,4 @@ jobs:
 
       - name: Packaged app smoke (Linux)
         if: runner.os == 'Linux'
-        run: npm run verify:linux-package
+        run: xvfb-run --auto-servernum npm run verify:linux-package
