@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
+import path from 'node:path'
 import { describe, it, vi } from 'vitest'
 
 const { utilityFork } = vi.hoisted(() => ({
@@ -49,7 +50,10 @@ describe('runEngineCommand process boundary', () => {
 
     await assert.doesNotReject(result)
     assert.equal(await result, '0.1.0\n')
-    assert.deepEqual(utilityFork.mock.calls[0]?.slice(0, 2), ['C:\\nonexistent\\runner.js', ['--version']])
+    assert.deepEqual(utilityFork.mock.calls[0]?.slice(0, 2), [
+      path.join(path.dirname('C:\\nonexistent\\engine-missing.js'), 'runner.js'),
+      ['--version'],
+    ])
     assert.equal(utilityFork.mock.calls[0]?.[2]?.stdio, 'pipe')
   })
 })

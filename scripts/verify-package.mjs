@@ -160,6 +160,7 @@ console.log('sqlite-ok');
     }
     delete utilityEnv.ELECTRON_RUN_AS_NODE
     const launcherResult = await execFileAsync(utilityElectronPath, [
+      ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
       path.join(repoRoot, 'scripts', 'engine-utility-probe.cjs'),
       engineRunnerPath,
       'stats',
