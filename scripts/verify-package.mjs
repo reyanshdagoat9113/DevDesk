@@ -159,8 +159,10 @@ console.log('sqlite-ok');
       NODE_PATH: buildNodePath(resourcesDir),
     }
     delete utilityEnv.ELECTRON_RUN_AS_NODE
+    if (process.platform === 'linux') {
+      utilityEnv.ELECTRON_DISABLE_SANDBOX = '1'
+    }
     const launcherResult = await execFileAsync(utilityElectronPath, [
-      ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
       path.join(repoRoot, 'scripts', 'engine-utility-probe.cjs'),
       engineRunnerPath,
       'stats',

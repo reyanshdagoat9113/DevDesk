@@ -127,10 +127,12 @@ async function main() {
       NODE_PATH: path.join(packagedEngineDir, 'node_modules'),
     }
     delete utilityEnv.ELECTRON_RUN_AS_NODE
-    const utilityElectronArgs = process.platform === 'linux' ? ['--no-sandbox'] : []
+    if (process.platform === 'linux') {
+      utilityEnv.ELECTRON_DISABLE_SANDBOX = '1'
+    }
     const utilityPingResult = await execFileAsync(
       electronBinaryPath,
-      [...utilityElectronArgs, utilityProbePath, path.join(packagedEngineDir, 'runner.js'), 'ping'],
+      [utilityProbePath, path.join(packagedEngineDir, 'runner.js'), 'ping'],
       { env: utilityEnv, timeout: 30_000 },
     )
     assert.deepEqual(JSON.parse(utilityPingResult.stdout), { ok: true, version: '0.1.0' })
@@ -150,7 +152,7 @@ async function main() {
 
     const utilityStatsResult = await execFileAsync(
       electronBinaryPath,
-      [...utilityElectronArgs, utilityProbePath, path.join(packagedEngineDir, 'runner.js'), 'stats', '--db', dbPath],
+      [utilityProbePath, path.join(packagedEngineDir, 'runner.js'), 'stats', '--db', dbPath],
       { env: utilityEnv, timeout: 30_000 },
     )
     assert.equal(JSON.parse(utilityStatsResult.stdout).stats.totalFiles, 1)
