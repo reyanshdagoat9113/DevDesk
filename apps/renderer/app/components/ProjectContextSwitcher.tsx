@@ -53,12 +53,21 @@ export function ProjectContextSwitcher({
         >
           <SelectValue placeholder="Select project" />
         </SelectTrigger>
-        <SelectContent align="start">
+        <SelectContent
+          align="start"
+          className="border-border/80 bg-popover/95 backdrop-blur-xl shadow-lg"
+        >
           {projects.map((project) => (
-            <SelectItem key={project.id} value={project.id} displayValue={project.name}>
-              <div className="min-w-0 py-0.5">
-                <p className="truncate text-sm font-medium">{project.name}</p>
-                <p className="max-w-[260px] truncate font-mono text-[10px] text-muted-foreground">
+            <SelectItem
+              key={project.id}
+              value={project.id}
+              displayValue={project.name}
+              className="min-h-0 w-full items-center justify-start gap-2 px-3 py-2.5 pr-9 text-left"
+            >
+              <FolderGit2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-tight">
+                <p className="truncate text-[13px] font-semibold tracking-tight">{project.name}</p>
+                <p className="w-full truncate font-mono text-[10px] leading-4 text-muted-foreground">
                   {project.path}
                 </p>
               </div>
