@@ -128,6 +128,11 @@
     @apply bg-card/90 backdrop-blur-xl border-border/50;
   }
 
+  /* Shared surface for dropdown menus / popovers (matches project switcher) */
+  .glass-popover {
+    @apply border-border/80 bg-popover/95 backdrop-blur-xl shadow-lg;
+  }
+
   /* Subtle gradient text */
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-foreground/90 via-foreground to-foreground/50;

@@ -403,7 +403,7 @@ export function Terminal({ terminalId, onClose, onNewTab, onRequestRename, class
           aria-label="Terminal actions"
           tabIndex={-1}
           onKeyDown={handleMenuKeyDown}
-          className="absolute z-50 max-h-[calc(100%-1rem)] min-w-[180px] max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border/50 bg-card p-1 shadow-lg"
+          className="absolute z-50 max-h-[calc(100%-1rem)] min-w-[180px] max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border/80 bg-popover/95 p-1 text-popover-foreground shadow-lg backdrop-blur-xl"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
           <button

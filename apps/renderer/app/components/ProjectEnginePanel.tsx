@@ -290,24 +290,25 @@ export function ProjectEnginePanel({
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-          Performance Engine
-        </h3>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={engineStatus?.available ? 'success' : 'outline'} className="text-[10px] uppercase tracking-wider">
-            {engineStatus?.available ? 'Available' : 'Unavailable'}
-          </Badge>
-          <Badge variant={selectedIndex ? 'secondary' : 'outline'} className="text-[10px] uppercase tracking-wider">
-            {selectedIndex ? 'Indexed' : 'Not Indexed'}
-          </Badge>
+    <div className="space-y-10">
+      <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Performance Engine
+          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={engineStatus?.available ? 'success' : 'outline'} className="text-[10px] uppercase tracking-wider">
+              {engineStatus?.available ? 'Available' : 'Unavailable'}
+            </Badge>
+            <Badge variant={selectedIndex ? 'secondary' : 'outline'} className="text-[10px] uppercase tracking-wider">
+              {selectedIndex ? 'Indexed' : 'Not Indexed'}
+            </Badge>
+          </div>
         </div>
-      </div>
 
-      <div className="rounded-xl border border-border/40 bg-muted/5 p-5 space-y-5">
+        <div className="space-y-5 rounded-lg border border-border/40 bg-card p-5">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <div className="space-y-1.5 min-w-0">
+          <div className="min-w-0 space-y-1.5">
             <Label htmlFor={`index-profile-${project.id}`} className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Index scope
             </Label>
@@ -423,7 +424,7 @@ export function ProjectEnginePanel({
               </div>
             </div>
 
-            <div className="rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-[11px] text-muted-foreground">
+            <div className="rounded-md bg-muted/25 px-3 py-2 text-[11px] text-muted-foreground">
               {selectedIndex ? (
                 <>
                   Indexed {selectedIndex.fileCount.toLocaleString()} files
@@ -443,7 +444,7 @@ export function ProjectEnginePanel({
             </div>
 
             {latestIndexResult ? (
-              <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-[11px]">
+              <div className="rounded-md bg-muted/25 p-3 text-[11px]">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={latestIndexResult.ok ? 'success' : 'destructive'} className="text-[10px] uppercase tracking-wider">
                     {latestIndexResult.ok ? 'Last Index Succeeded' : 'Last Index Failed'}
@@ -483,7 +484,7 @@ export function ProjectEnginePanel({
                   )}
                 </div>
                 {latestIndexResult.warnings.length > 0 ? (
-                  <div className="mt-2 space-y-1 text-muted-foreground border-t border-border/30 pt-2">
+                  <div className="mt-2 space-y-1 border-t border-border/30 pt-2 text-muted-foreground">
                     {latestIndexResult.warnings.slice(0, 3).map((warning) => (
                       <p key={warning}>Warning: {warning}</p>
                     ))}
@@ -493,8 +494,8 @@ export function ProjectEnginePanel({
             ) : null}
 
             {searchResult ? (
-              <div className="rounded-xl border border-border/40 bg-background/50">
-                <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
+              <div className="rounded-md border border-border/30 bg-muted/15">
+                <div className="flex items-center justify-between border-b border-border/30 px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold">Search Results</p>
                     <p className="text-[11px] text-muted-foreground">
@@ -505,7 +506,7 @@ export function ProjectEnginePanel({
                 <ScrollArea className="h-72">
                   <div className="space-y-3 p-4">
                     {searchResult.results.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-border/40 px-3 py-6 text-center text-[11px] text-muted-foreground">
+                      <div className="rounded-md border border-dashed border-border/40 px-3 py-6 text-center text-[11px] text-muted-foreground">
                         No indexed matches found for this query.
                       </div>
                     ) : (
@@ -513,7 +514,7 @@ export function ProjectEnginePanel({
                         const firstMatch = result.matches[0]
                         const openKey = `${result.path}:${firstMatch?.line ?? 0}:${firstMatch?.column ?? 0}`
                         return (
-                          <div key={openKey} className="rounded-lg border border-border/40 bg-muted/20 p-3 space-y-3">
+                          <div key={openKey} className="space-y-3 rounded-md bg-background/50 p-3">
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 <p className="truncate font-mono text-xs font-semibold">{result.path}</p>
@@ -551,7 +552,7 @@ export function ProjectEnginePanel({
                             {firstMatch ? (
                               <button
                                 type="button"
-                                className="w-full rounded-md bg-background px-3 py-2 text-left text-[11px] text-muted-foreground"
+                                className="w-full rounded-md bg-muted/30 px-3 py-2 text-left text-[11px] text-muted-foreground"
                                 onClick={() =>
                                   void handleOpenResult(
                                     result.path,
@@ -585,117 +586,116 @@ export function ProjectEnginePanel({
             ) : null}
           </div>
 
-          <div>
-            <div className="rounded-xl border border-border/40 bg-background/50 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold">Index Summary</p>
-                {isLoadingStats ? <span className="text-[10px] text-muted-foreground">Loading...</span> : null}
-              </div>
-              {stats ? (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg border border-border/30 bg-muted/20 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Files</p>
-                      <p className="mt-1 text-lg font-semibold">{stats.stats.totalFiles.toLocaleString()}</p>
-                    </div>
-                    <div className="rounded-lg border border-border/30 bg-muted/20 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Logical size</p>
-                      <p className="mt-1 text-lg font-semibold">{formatBytes(stats.stats.totalSizeBytes)}</p>
-                      <p className="mt-1 text-[9px] text-muted-foreground">Sum of indexed file sizes</p>
-                    </div>
-                    <div className="rounded-lg border border-border/30 bg-muted/20 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Searchable</p>
-                      <p className="mt-1 text-lg font-semibold">
-                        {formatBytes(stats.stats.searchableContentBytes ?? 0)}
-                      </p>
-                      <p className="mt-1 text-[9px] text-muted-foreground">Content stored for search</p>
-                    </div>
-                    <div className="rounded-lg border border-border/30 bg-muted/20 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Index DB</p>
-                      <p className="mt-1 text-lg font-semibold">
-                        {formatBytes(stats.stats.physicalDbBytes ?? 0)}
-                      </p>
-                      {stats.db ? (
-                        <p className="mt-1 truncate text-[9px] text-muted-foreground" title={stats.db}>
-                          {stats.db.split(/[\\/]/).pop()}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  {latestIndexResult?.profile ? (
-                    <p className="text-[10px] text-muted-foreground">
-                      Last index profile: <span className="font-medium text-foreground">{latestIndexResult.profile}</span>
-                      {latestIndexResult.skipReasons ? (
-                        <span>
-                          {' '}
-                          · skipped binary {latestIndexResult.skipReasons.binary}, language{' '}
-                          {latestIndexResult.skipReasons.language}, policy{' '}
-                          {latestIndexResult.skipReasons.profile + latestIndexResult.skipReasons.devdeskignore}
-                        </span>
-                      ) : null}
-                    </p>
-                  ) : null}
-                  {stats.stats.largestFiles && stats.stats.largestFiles.length > 0 ? (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Largest indexed</p>
-                      <ul className="space-y-1">
-                        {stats.stats.largestFiles.slice(0, 5).map((file) => (
-                          <li
-                            key={file.path}
-                            className="flex items-baseline justify-between gap-2 text-[10px] text-muted-foreground"
-                          >
-                            <span className="min-w-0 truncate font-mono" title={file.path}>
-                              {file.path.split(/[\\/]/).slice(-2).join('/')}
-                            </span>
-                            <span className="shrink-0 tabular-nums">{formatBytes(file.sizeBytes)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Top Languages</p>
-                    <div className="flex flex-wrap gap-2">
-                      {topLanguages.length > 0 ? (
-                        topLanguages.map(([language, count]) => (
-                          <Badge key={language} variant="outline" className="text-[10px]">
-                            {language}: {count}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground">No language data yet.</span>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">
-                  {selectedIndex ? 'Stats will appear after the index metadata loads.' : 'Index this project to see search statistics.'}
-                </p>
-              )}
+          <div className="space-y-3 rounded-md bg-muted/20 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Index Summary</p>
+              {isLoadingStats ? <span className="text-[10px] text-muted-foreground">Loading...</span> : null}
             </div>
+            {stats ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-md bg-background/40 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Files</p>
+                    <p className="mt-1 text-lg font-semibold">{stats.stats.totalFiles.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-md bg-background/40 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Logical size</p>
+                    <p className="mt-1 text-lg font-semibold">{formatBytes(stats.stats.totalSizeBytes)}</p>
+                    <p className="mt-1 text-[9px] text-muted-foreground">Sum of indexed file sizes</p>
+                  </div>
+                  <div className="rounded-md bg-background/40 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Searchable</p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatBytes(stats.stats.searchableContentBytes ?? 0)}
+                    </p>
+                    <p className="mt-1 text-[9px] text-muted-foreground">Content stored for search</p>
+                  </div>
+                  <div className="rounded-md bg-background/40 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Index DB</p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatBytes(stats.stats.physicalDbBytes ?? 0)}
+                    </p>
+                    {stats.db ? (
+                      <p className="mt-1 truncate text-[9px] text-muted-foreground" title={stats.db}>
+                        {stats.db.split(/[\\/]/).pop()}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                {latestIndexResult?.profile ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    Last index profile: <span className="font-medium text-foreground">{latestIndexResult.profile}</span>
+                    {latestIndexResult.skipReasons ? (
+                      <span>
+                        {' '}
+                        · skipped binary {latestIndexResult.skipReasons.binary}, language{' '}
+                        {latestIndexResult.skipReasons.language}, policy{' '}
+                        {latestIndexResult.skipReasons.profile + latestIndexResult.skipReasons.devdeskignore}
+                      </span>
+                    ) : null}
+                  </p>
+                ) : null}
+                {stats.stats.largestFiles && stats.stats.largestFiles.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Largest indexed</p>
+                    <ul className="space-y-1">
+                      {stats.stats.largestFiles.slice(0, 5).map((file) => (
+                        <li
+                          key={file.path}
+                          className="flex items-baseline justify-between gap-2 text-[10px] text-muted-foreground"
+                        >
+                          <span className="min-w-0 truncate font-mono" title={file.path}>
+                            {file.path.split(/[\\/]/).slice(-2).join('/')}
+                          </span>
+                          <span className="shrink-0 tabular-nums">{formatBytes(file.sizeBytes)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Top Languages</p>
+                  <div className="flex flex-wrap gap-2">
+                    {topLanguages.length > 0 ? (
+                      topLanguages.map(([language, count]) => (
+                        <Badge key={language} variant="outline" className="text-[10px]">
+                          {language}: {count}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">No language data yet.</span>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                {selectedIndex ? 'Stats will appear after the index metadata loads.' : 'Index this project to see search statistics.'}
+              </p>
+            )}
           </div>
         </div>
-
-        <GitWorkspacePanel
-          project={project}
-          onLoadGitInsights={onLoadGitInsights}
-          onLoadGitState={onLoadGitState}
-          onLoadFileDiff={onLoadFileDiff}
-          onCommitChanges={onCommitChanges}
-          onPushBranch={onPushBranch}
-          onCreatePullRequest={onCreatePullRequest}
-          onOpenExternalUrl={onOpenExternalUrl}
-          onOpenResult={async (projectId, relativePath) => onOpenResult(projectId, relativePath)}
-          onRevealResult={onRevealResult}
-        />
-
-        {actionError ? (
-          <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-[11px] text-destructive">
-            {actionError}
-          </div>
-        ) : null}
+        </div>
       </div>
+
+      <GitWorkspacePanel
+        project={project}
+        onLoadGitInsights={onLoadGitInsights}
+        onLoadGitState={onLoadGitState}
+        onLoadFileDiff={onLoadFileDiff}
+        onCommitChanges={onCommitChanges}
+        onPushBranch={onPushBranch}
+        onCreatePullRequest={onCreatePullRequest}
+        onOpenExternalUrl={onOpenExternalUrl}
+        onOpenResult={async (projectId, relativePath) => onOpenResult(projectId, relativePath)}
+        onRevealResult={onRevealResult}
+      />
+
+      {actionError ? (
+        <div className="rounded-lg border border-destructive/10 bg-destructive/5 p-3 text-[11px] text-destructive">
+          {actionError}
+        </div>
+      ) : null}
     </div>
   )
 }

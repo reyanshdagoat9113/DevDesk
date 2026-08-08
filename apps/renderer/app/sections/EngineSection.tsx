@@ -119,13 +119,11 @@ export function EngineSection({
   return (
     <SectionLayout
       list={
-        <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-sm">
-          <div className="border-b border-border/40 bg-muted/20 px-4 py-3">
+        <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
+          <div className="border-b border-border/30 px-4 py-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Projects</p>
-              <Badge variant="outline" className="text-[10px] font-medium">
-                {projects.length}
-              </Badge>
+              <p className="text-xs font-semibold text-muted-foreground">Projects</p>
+              <span className="text-xs text-muted-foreground tabular-nums">{projects.length}</span>
             </div>
           </div>
           <div className="flex-1 overflow-auto px-2 py-2">
@@ -152,31 +150,31 @@ export function EngineSection({
                       type="button"
                       onClick={() => handleProjectSelect(project.id)}
                       className={cn(
-                        'group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all',
+                        'group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150',
                         isActive
-                          ? 'bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/20'
-                          : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                          ? 'border border-primary/15 bg-primary/10 text-foreground'
+                          : 'border border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                       )}
                     >
                       <div
                         className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors',
+                          'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors',
                           isActive
-                            ? 'border-primary/30 bg-background text-primary'
-                            : 'border-border/40 bg-background/50 text-muted-foreground group-hover:border-border/60'
+                            ? 'bg-primary/15 text-primary'
+                            : 'bg-muted text-muted-foreground group-hover:text-foreground'
                         )}
                       >
                         {project.name.slice(0, 1).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="mb-1 truncate text-sm font-semibold leading-none">{project.name}</p>
-                        <p className="truncate font-mono text-[11px] text-muted-foreground">{project.path}</p>
+                        <p className="truncate text-sm font-medium leading-tight">{project.name}</p>
+                        <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{project.path}</p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <Badge
                           variant={engineIndexes[project.id] ? 'success' : 'outline'}
                           className={cn(
-                            'h-5 px-1.5 text-[8px] font-bold uppercase tracking-wider',
+                            'h-4 px-1.5 text-[8px] font-bold uppercase tracking-wider',
                             !engineIndexes[project.id] && 'border-border/40 bg-transparent text-muted-foreground/70'
                           )}
                         >
@@ -193,7 +191,7 @@ export function EngineSection({
       }
       detail={
         selectedProject ? (
-          <Card className="flex h-full flex-col overflow-hidden border-border/40 bg-card shadow-md">
+          <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none">
             <CardHeader className="border-b border-border/40 bg-muted/5 p-6 pb-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 space-y-1.5">
@@ -235,7 +233,7 @@ export function EngineSection({
               </div>
             </CardHeader>
 
-            <CardContent className="flex-1 overflow-auto p-8 pt-6">
+            <CardContent className="flex-1 overflow-auto p-6 pt-5">
               {onIndexProject &&
               onSearch &&
               onLoadStats &&
@@ -273,7 +271,7 @@ export function EngineSection({
                   onOpenExternalUrl={onOpenExternalUrl}
                 />
               ) : (
-                <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/40 bg-card/30 p-12 text-center">
+                <div className="flex h-full items-center justify-center p-12 text-center">
                   <div className="max-w-[240px] space-y-4 opacity-40">
                     <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-border/40 bg-muted/20">
                       <Search className="h-8 w-8 text-muted-foreground" />
@@ -290,7 +288,7 @@ export function EngineSection({
             </CardContent>
           </Card>
         ) : (
-          <Card className="flex h-full items-center justify-center border-border/40 border-dashed bg-card/30 p-12 text-center">
+          <Card className="flex h-full items-center justify-center border-0 bg-transparent p-12 text-center shadow-none">
             <div className="max-w-[240px] space-y-4 opacity-40">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-border/40 bg-muted/20">
                 <Search className="h-8 w-8 text-muted-foreground" />

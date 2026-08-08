@@ -400,319 +400,277 @@ export function GitWorkspacePanel({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border/40 bg-background/60 shadow-sm">
-          <div className="border-b border-border/30 px-4 py-3">
-            {!gitState?.available ? (
-              <div className="flex items-start gap-3 rounded-xl bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                <div className="space-y-1">
-                  <p className="font-semibold text-foreground">Git workspace unavailable</p>
-                  <p>{gitState?.message || 'This project does not appear to be a git repository.'}</p>
-                </div>
-              </div>
-            ) : (
+        {!gitState?.available ? (
+          <div className="flex items-start gap-3 rounded-lg border border-border/40 bg-card px-4 py-3 text-sm text-muted-foreground">
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-semibold text-foreground">Git workspace unavailable</p>
+              <p>{gitState?.message || 'This project does not appear to be a git repository.'}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-5 rounded-lg border border-border/40 bg-card p-5">
+            <div className="space-y-3">
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5 sm:col-span-2 lg:col-span-1">
+                <div className="rounded-md bg-muted/25 px-3 py-2.5 sm:col-span-2 lg:col-span-1">
                   <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Branch</p>
                   <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
                     <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="truncate">{gitState.branch || 'Detached'}</span>
                   </div>
                 </div>
-                <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
+                <div className="rounded-md bg-muted/25 px-3 py-2.5">
                   <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">State</p>
                   <p className="mt-1 text-sm font-semibold">{gitState.workingTree?.isClean ? 'Clean' : 'Changes pending'}</p>
                 </div>
-                <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
+                <div className="rounded-md bg-muted/25 px-3 py-2.5">
                   <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Ahead</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums">{gitState.ahead}</p>
                 </div>
-                <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
+                <div className="rounded-md bg-muted/25 px-3 py-2.5">
                   <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Behind</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums">{gitState.behind}</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground sm:col-span-2 lg:col-span-4">
-                  <span>
-                    {gitState.remoteName ? (
-                      <>
-                        Remote <span className="font-semibold text-foreground">{gitState.remoteName}</span>
-                        {gitState.upstream ? ` / ${gitState.upstream}` : ''}
-                      </>
-                    ) : (
-                      'No remote configured yet.'
-                    )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <span>
+                  {gitState.remoteName ? (
+                    <>
+                      Remote <span className="font-semibold text-foreground">{gitState.remoteName}</span>
+                      {gitState.upstream ? ` / ${gitState.upstream}` : ''}
+                    </>
+                  ) : (
+                    'No remote configured yet.'
+                  )}
+                </span>
+                {firstRecentCommit ? (
+                  <span className="truncate">
+                    · Latest <span className="font-semibold text-foreground">{firstRecentCommit.message}</span>
                   </span>
-                  <div className="flex flex-wrap gap-2">
-                    {statusPills.map((pill) => (
-                      <Badge key={pill.label} variant={pill.variant} className="h-5 px-2 text-[9px] uppercase tracking-wider">
-                        {pill.label} {pill.value}
-                      </Badge>
-                    ))}
-                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {statusPills.map((pill) => (
+                    <Badge key={pill.label} variant={pill.variant} className="h-5 px-2 text-[9px] uppercase tracking-wider">
+                      {pill.label} {pill.value}
+                    </Badge>
+                  ))}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
 
-          {gitState?.available ? (
-            <>
-              {insightView === 'overview' ? (
-                <div className="grid gap-3 px-4 py-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5 sm:col-span-2 xl:col-span-1">
-                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Branch</p>
-                    <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
-                      <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="truncate">{gitState.branch || 'Detached'}</span>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
-                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">State</p>
-                    <p className="mt-1 text-sm font-semibold">{gitState.workingTree?.isClean ? 'Clean' : 'Changes pending'}</p>
-                  </div>
-                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
-                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Ahead</p>
-                    <p className="mt-1 text-sm font-semibold tabular-nums">{gitState.ahead}</p>
-                  </div>
-                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5">
-                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Behind</p>
-                    <p className="mt-1 text-sm font-semibold tabular-nums">{gitState.behind}</p>
-                  </div>
-                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5 sm:col-span-2 xl:col-span-2">
-                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Remote</p>
-                    <p className="mt-1 truncate text-sm font-semibold">
-                      {gitState.remoteName ? (
-                        <>
-                          <span>{gitState.remoteName}</span>
-                          {gitState.upstream ? <span className="font-normal text-muted-foreground"> / {gitState.upstream}</span> : null}
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">No remote configured yet.</span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-border/30 bg-background/70 px-3 py-2.5 sm:col-span-2 xl:col-span-2">
-                    <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">Recent commit</p>
-                    <p className="mt-1 truncate text-sm font-semibold">
-                      {firstRecentCommit ? firstRecentCommit.message : 'No recent commits available.'}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className={insightView === 'changes' ? 'px-4 py-3' : 'hidden'}>
-                <div className="mb-2.5">
-                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                    Changed Files
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Select a file to inspect its diff, open it in the editor, or reveal it in the folder.
-                  </p>
-                </div>
-                <div className="grid gap-3 xl:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.35fr)]">
-                  <ScrollArea className="h-[420px] rounded-xl border border-border/30 bg-background/40">
-                    <div className="space-y-1 p-2">
-                      {changedFiles.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-6 text-center text-sm text-muted-foreground">
-                          No pending file changes.
-                        </div>
-                      ) : (
-                        changedFiles.map((file) => {
-                          const isSelected = file.path === selectedFilePath
-                          return (
-                            <button
-                              key={file.path}
-                              type="button"
-                              onClick={() => {
-                                if (file.path !== selectedFilePath) {
-                                  diffRequestId.current += 1
-                                  setSelectedFilePath(file.path)
-                                  setSelectedFileDiff(null)
-                                  setDiffError(null)
-                                  setIsLoadingDiff(true)
-                                }
-                                setInsightView('changes')
-                              }}
-                              className={cn(
-                                'w-full rounded-xl px-3 py-2.5 text-left transition-colors',
-                                isSelected ? 'bg-primary/10 ring-1 ring-primary/20' : 'hover:bg-muted/50'
-                              )}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 space-y-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge
-                                      variant={summaryBadgeVariant(file.summary)}
-                                      className="h-5 px-2 text-[9px] uppercase tracking-wider"
-                                    >
-                                      {file.summary}
-                                    </Badge>
-                                    {file.conflicted ? (
-                                      <Badge variant="destructive" className="h-5 px-2 text-[9px] uppercase tracking-wider">
-                                        Conflict
-                                      </Badge>
-                                    ) : null}
-                                  </div>
-                                  <p className="truncate font-mono text-[10.5px] font-semibold text-foreground">
-                                    {file.path}
-                                  </p>
-                                </div>
-                                <div className="shrink-0 text-right text-[10px] text-muted-foreground">
-                                  <div className="tabular-nums">+{file.additions} / -{file.deletions}</div>
-                                </div>
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {onOpenResult ? (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      void onOpenResult(project.id, file.path)
-                                    }}
-                                  >
-                                    Open
-                                  </Button>
-                                ) : null}
-                                {onRevealResult ? (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      void onRevealResult(project.id, file.path)
-                                    }}
-                                  >
-                                    Reveal
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </button>
-                          )
-                        })
-                      )}
-                    </div>
-                  </ScrollArea>
-
-                  <div className="min-w-0">
-                    <GitDiffViewer
-                      path={selectedFilePath}
-                      previousPath={selectedFile?.previousPath}
-                      diff={selectedFileDiff}
-                      isLoading={isLoadingDiff}
-                      error={diffError}
-                    />
-                  </div>
-                </div>
+            <div className={insightView === 'changes' ? 'space-y-3' : 'hidden'}>
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Changed Files
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Select a file to inspect its diff, open it in the editor, or reveal it in the folder.
+                </p>
               </div>
-
-              <div className={insightView === 'overview' ? 'border-t border-border/30 px-4 py-3' : 'border-t border-border/30 px-4 py-4'}>
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <LabelLine label="Commit Message" meta={gitState.branch ? `Branch ${gitState.branch}` : undefined} />
-                      <Textarea
-                        value={commitMessage}
-                        onChange={(event) => setCommitMessage(event.target.value)}
-                        placeholder="Describe the change set clearly..."
-                        rows={2}
-                        className="min-h-[76px] bg-background"
-                      />
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        className="h-8 gap-2 px-3 text-[11px] font-semibold"
-                        onClick={() => void handleCommit()}
-                        disabled={isCommitting || !commitMessage.trim() || Boolean(gitState.workingTree?.hasConflicts)}
-                      >
-                        {isCommitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitCommitHorizontal className="h-3.5 w-3.5" />}
-                        {isCommitting ? 'Committing...' : 'Commit All'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-2 px-3 text-[11px] font-semibold"
-                        onClick={() => void handlePush()}
-                        disabled={isPushing || !gitState.canPush}
-                      >
-                        {isPushing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                        {isPushing ? 'Pushing...' : 'Push Branch'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-2 px-3 text-[11px] font-semibold"
-                        onClick={() => setIsPrDialogOpen(true)}
-                        disabled={!gitState.canCreatePullRequest}
-                      >
-                        <Github className="h-3.5 w-3.5" />
-                        Create PR
-                      </Button>
-                    </div>
-
-                    {status ? (
-                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-700 dark:text-emerald-300">
-                        {status}
+              <div className="grid gap-3 xl:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.35fr)]">
+                <ScrollArea className="h-[420px] rounded-md border border-border/30 bg-muted/15">
+                  <div className="space-y-1 p-2">
+                    {changedFiles.length === 0 ? (
+                      <div className="rounded-md border border-dashed border-border/40 px-4 py-6 text-center text-sm text-muted-foreground">
+                        No pending file changes.
                       </div>
-                    ) : null}
-                    {error ? (
-                      <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
-                        {error}
-                      </div>
-                    ) : null}
-                    {prResult?.ok && prResult.url ? (
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-[11px]">
-                        <div className="space-y-1">
-                          <p className="font-semibold text-foreground">Pull request link ready</p>
-                          <p className="break-all text-muted-foreground">{prResult.url}</p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-2 text-[11px] font-semibold"
-                          onClick={() => void onOpenExternalUrl(prResult.url!)}
-                        >
-                          <ArrowUpRight className="h-3.5 w-3.5" />
-                          Open PR
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className={insightView === 'activity' ? 'space-y-2.5 xl:col-span-2' : 'space-y-2.5'}>
-                    <LabelLine label="Recent Activity" meta={`${recentCommits.length} commits`} />
-                    <div className="space-y-1.5">
-                      {recentCommits.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border/40 px-4 py-5 text-sm text-muted-foreground">
-                          Commit history will appear here once git activity is available.
-                        </div>
-                      ) : (
-                        recentCommits.slice(0, 4).map((commit) => (
-                          <div key={commit.hash} className="rounded-xl border border-border/30 bg-muted/20 px-3 py-2.5">
+                    ) : (
+                      changedFiles.map((file) => {
+                        const isSelected = file.path === selectedFilePath
+                        return (
+                          <button
+                            key={file.path}
+                            type="button"
+                            onClick={() => {
+                              if (file.path !== selectedFilePath) {
+                                diffRequestId.current += 1
+                                setSelectedFilePath(file.path)
+                                setSelectedFileDiff(null)
+                                setDiffError(null)
+                                setIsLoadingDiff(true)
+                              }
+                              setInsightView('changes')
+                            }}
+                            className={cn(
+                              'w-full rounded-md px-3 py-2.5 text-left transition-colors',
+                              isSelected
+                                ? 'bg-primary/10 text-foreground ring-1 ring-primary/15'
+                                : 'hover:bg-muted/50'
+                            )}
+                          >
                             <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="truncate text-[13px] font-semibold leading-5">{commit.message}</p>
-                                <p className="mt-0.5 text-[10px] text-muted-foreground">
-                                  {commit.author} · {formatDate(commit.date)}
+                              <div className="min-w-0 space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge
+                                    variant={summaryBadgeVariant(file.summary)}
+                                    className="h-5 px-2 text-[9px] uppercase tracking-wider"
+                                  >
+                                    {file.summary}
+                                  </Badge>
+                                  {file.conflicted ? (
+                                    <Badge variant="destructive" className="h-5 px-2 text-[9px] uppercase tracking-wider">
+                                      Conflict
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                <p className="truncate font-mono text-[10.5px] font-semibold text-foreground">
+                                  {file.path}
                                 </p>
                               </div>
-                              <Badge variant="outline" className="shrink-0 text-[9px] uppercase tracking-wider">
-                                {commit.hash.slice(0, 7)}
-                              </Badge>
+                              <div className="shrink-0 text-right text-[10px] text-muted-foreground">
+                                <div className="tabular-nums">+{file.additions} / -{file.deletions}</div>
+                              </div>
                             </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {onOpenResult ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-[10px]"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    void onOpenResult(project.id, file.path)
+                                  }}
+                                >
+                                  Open
+                                </Button>
+                              ) : null}
+                              {onRevealResult ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-[10px]"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    void onRevealResult(project.id, file.path)
+                                  }}
+                                >
+                                  Reveal
+                                </Button>
+                              ) : null}
+                            </div>
+                          </button>
+                        )
+                      })
+                    )}
                   </div>
+                </ScrollArea>
+
+                <div className="min-w-0">
+                  <GitDiffViewer
+                    path={selectedFilePath}
+                    previousPath={selectedFile?.previousPath}
+                    diff={selectedFileDiff}
+                    isLoading={isLoadingDiff}
+                    error={diffError}
+                  />
                 </div>
               </div>
-            </>
-          ) : null}
-        </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <LabelLine label="Commit Message" meta={gitState.branch ? `Branch ${gitState.branch}` : undefined} />
+                  <Textarea
+                    value={commitMessage}
+                    onChange={(event) => setCommitMessage(event.target.value)}
+                    placeholder="Describe the change set clearly..."
+                    rows={2}
+                    className="min-h-[76px] bg-background"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    className="h-8 gap-2 px-3 text-[11px] font-semibold"
+                    onClick={() => void handleCommit()}
+                    disabled={isCommitting || !commitMessage.trim() || Boolean(gitState.workingTree?.hasConflicts)}
+                  >
+                    {isCommitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitCommitHorizontal className="h-3.5 w-3.5" />}
+                    {isCommitting ? 'Committing...' : 'Commit All'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-2 px-3 text-[11px] font-semibold"
+                    onClick={() => void handlePush()}
+                    disabled={isPushing || !gitState.canPush}
+                  >
+                    {isPushing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    {isPushing ? 'Pushing...' : 'Push Branch'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-2 px-3 text-[11px] font-semibold"
+                    onClick={() => setIsPrDialogOpen(true)}
+                    disabled={!gitState.canCreatePullRequest}
+                  >
+                    <Github className="h-3.5 w-3.5" />
+                    Create PR
+                  </Button>
+                </div>
+
+                {status ? (
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-700 dark:text-emerald-300">
+                    {status}
+                  </div>
+                ) : null}
+                {error ? (
+                  <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
+                    {error}
+                  </div>
+                ) : null}
+                {prResult?.ok && prResult.url ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[11px]">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-foreground">Pull request link ready</p>
+                      <p className="break-all text-muted-foreground">{prResult.url}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-2 text-[11px] font-semibold"
+                      onClick={() => void onOpenExternalUrl(prResult.url!)}
+                    >
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                      Open PR
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className={insightView === 'activity' ? 'space-y-2.5 xl:col-span-2' : 'space-y-2.5'}>
+                <LabelLine label="Recent Activity" meta={`${recentCommits.length} commits`} />
+                <div className="space-y-1.5">
+                  {recentCommits.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-border/40 px-4 py-5 text-sm text-muted-foreground">
+                      Commit history will appear here once git activity is available.
+                    </div>
+                  ) : (
+                    recentCommits.slice(0, 4).map((commit) => (
+                      <div key={commit.hash} className="rounded-md bg-muted/25 px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-semibold leading-5">{commit.message}</p>
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                              {commit.author} · {formatDate(commit.date)}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="shrink-0 text-[9px] uppercase tracking-wider">
+                            {commit.hash.slice(0, 7)}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <Dialog open={isPrDialogOpen} onOpenChange={setIsPrDialogOpen}>

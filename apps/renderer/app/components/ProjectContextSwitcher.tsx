@@ -53,10 +53,7 @@ export function ProjectContextSwitcher({
         >
           <SelectValue placeholder="Select project" />
         </SelectTrigger>
-        <SelectContent
-          align="start"
-          className="border-border/80 bg-popover/95 backdrop-blur-xl shadow-lg"
-        >
+        <SelectContent align="start">
           {projects.map((project) => (
             <SelectItem
               key={project.id}
