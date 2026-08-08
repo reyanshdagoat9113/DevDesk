@@ -9,6 +9,7 @@ packages/engine/coverage/
 
 # Dependencies
 node_modules/
+bun.lock
 
 # Local env / OS files
 .DS_Store
