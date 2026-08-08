@@ -75,9 +75,12 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
     mainWindow.show()
   })
 
-  registerTrustedWebContents(mainWindow.webContents.id)
+  // `closed` fires after Electron has destroyed the BrowserWindow, so retain the
+  // ID while its webContents is still available for the cleanup handler.
+  const webContentsId = mainWindow.webContents.id
+  registerTrustedWebContents(webContentsId)
   mainWindow.on('closed', () => {
-    unregisterTrustedWebContents(mainWindow.webContents.id)
+    unregisterTrustedWebContents(webContentsId)
   })
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
