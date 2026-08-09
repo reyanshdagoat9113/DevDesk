@@ -62,6 +62,7 @@ jobs:
             verify_command: npm run verify:win-package
             artifact_glob: release/DevDesk-*-win-x64.exe
             checksum_command: Get-FileHash release/DevDesk-*-win-x64.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Name)" } | Set-Content release/SHA256SUMS-win.txt
+            checksum_shell: pwsh
             checksum_file: release/SHA256SUMS-win.txt
             artifact_name: devdesk-windows-${{ needs.validate-release.outputs.version }}
           - name: Linux x64
@@ -70,6 +71,7 @@ jobs:
             verify_command: xvfb-run --auto-servernum npm run verify:linux-package
             artifact_glob: release/DevDesk-*-linux-x64.deb
             checksum_command: sha256sum release/DevDesk-*-linux-x64.deb > release/SHA256SUMS-linux.txt
+            checksum_shell: bash
             checksum_file: release/SHA256SUMS-linux.txt
             artifact_name: devdesk-linux-${{ needs.validate-release.outputs.version }}
     steps:
@@ -104,7 +106,7 @@ jobs:
         run: ${{ matrix.verify_command }}
 
       - name: Generate SHA-256 checksum
-        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+        shell: ${{ matrix.checksum_shell }}
         run: ${{ matrix.checksum_command }}
 
       - name: Upload release assets
