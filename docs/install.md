@@ -1,14 +1,14 @@
 # Installation and platform support
 
-**Product version:** `0.1.1` (private beta)
+**Product version:** `0.1.2` (private beta)
 **Related:** [release.md](./release.md) · [native-modules.md](./native-modules.md) · [manual-qa.md](./manual-qa.md)
 
 ## Supported platforms
 
 | Platform | Installer / package | Arch | Status |
 |----------|---------------------|------|--------|
-| Windows 10/11 | NSIS `.exe` (`DevDesk-0.1.1-win-x64.exe`) | x64 | Primary beta target |
-| Linux | `.deb` (`DevDesk-0.1.1-linux-x64.deb`) | x64 | Supported |
+| Windows 10/11 | NSIS `.exe` (`DevDesk-0.1.2-win-x64.exe`) | x64 | Primary beta target |
+| Linux | `.deb` (`DevDesk-0.1.2-linux-x64.deb`) | x64 | Supported |
 | macOS | — | — | **Not available** in this beta |
 
 ## End-user install (binary)

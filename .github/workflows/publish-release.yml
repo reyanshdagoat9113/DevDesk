@@ -1,0 +1,150 @@
+name: Publish release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag to package and publish (for example v0.1.2)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+
+jobs:
+  validate-release:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Confirm tag and package version agree
+        id: version
+        shell: bash
+        run: |
+          test "${RELEASE_TAG}" != "${RELEASE_TAG#v}" || {
+            echo "Release tag must begin with v: ${RELEASE_TAG}" >&2
+            exit 1
+          }
+          VERSION="$(node -p "require('./package.json').version")"
+          test "${VERSION}" = "${RELEASE_TAG#v}" || {
+            echo "Tag ${RELEASE_TAG} does not match package version ${VERSION}" >&2
+            exit 1
+          }
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Package and verify (${{ matrix.name }})
+    needs: validate-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            package_command: npm run package:win
+            verify_command: npm run verify:win-package
+            artifact_glob: release/DevDesk-*-win-x64.exe
+            checksum_command: Get-FileHash release/DevDesk-*-win-x64.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Name)" } | Set-Content release/SHA256SUMS-win.txt
+            checksum_file: release/SHA256SUMS-win.txt
+            artifact_name: devdesk-windows-${{ needs.validate-release.outputs.version }}
+          - name: Linux x64
+            os: ubuntu-latest
+            package_command: npm run package:linux
+            verify_command: xvfb-run --auto-servernum npm run verify:linux-package
+            artifact_glob: release/DevDesk-*-linux-x64.deb
+            checksum_command: sha256sum release/DevDesk-*-linux-x64.deb > release/SHA256SUMS-linux.txt
+            checksum_file: release/SHA256SUMS-linux.txt
+            artifact_name: devdesk-linux-${{ needs.validate-release.outputs.version }}
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3 fakeroot dpkg libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64 xvfb xauth
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build installer/package
+        run: ${{ matrix.package_command }}
+
+      - name: Verify unpacked package
+        run: ${{ matrix.verify_command }}
+
+      - name: Generate SHA-256 checksum
+        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+        run: ${{ matrix.checksum_command }}
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.artifact_glob }}
+            ${{ matrix.checksum_file }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [validate-release, package]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Download Windows assets
+        uses: actions/download-artifact@v4
+        with:
+          name: devdesk-windows-${{ needs.validate-release.outputs.version }}
+          path: release-assets/windows
+
+      - name: Download Linux assets
+        uses: actions/download-artifact@v4
+        with:
+          name: devdesk-linux-${{ needs.validate-release.outputs.version }}
+          path: release-assets/linux
+
+      - name: Create or update prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          NOTES="docs/RELEASE-NOTES-${{ needs.validate-release.outputs.version }}.md"
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" --verify-tag --prerelease \
+              --title "DevDesk $RELEASE_TAG" --notes-file "$NOTES"
+          gh release upload "$RELEASE_TAG" release-assets/windows/* release-assets/linux/* --clobber

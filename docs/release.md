@@ -1,6 +1,6 @@
 # DevDesk release packaging
 
-Also see: [install.md](./install.md) · [RELEASE-NOTES-0.1.1.md](./RELEASE-NOTES-0.1.1.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [data-locations.md](./data-locations.md)
+Also see: [install.md](./install.md) · [RELEASE-NOTES-0.1.2.md](./RELEASE-NOTES-0.1.2.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [data-locations.md](./data-locations.md)
 
 ## Supported platforms (private beta)
 
@@ -16,7 +16,13 @@ Version and artifact names come from `package.json`:
 DevDesk-${version}-${os}-${arch}.${ext}
 ```
 
-Example: `DevDesk-0.1.1-win-x64.exe`, `DevDesk-0.1.1-linux-x64.deb`.
+Example: `DevDesk-0.1.2-win-x64.exe`, `DevDesk-0.1.2-linux-x64.deb`.
+
+## GitHub Releases (automated)
+
+Pushing a version tag such as `v0.1.2` runs `.github/workflows/publish-release.yml`. The workflow checks that the tag matches `package.json`, builds and verifies both platform packages on their native GitHub-hosted runners, generates SHA-256 checksum files, and publishes the installers to a prerelease.
+
+The landing page must advertise a release only after both assets are live. Set the relevant `available` flags in `packages/landing/src/config/site.ts` to `true`, then run `npm run landing:verify-downloads` before deploying the landing page.
 
 ## Release gate (automated)
 
