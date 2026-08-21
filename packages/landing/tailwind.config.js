@@ -43,6 +43,8 @@ export default {
           DEFAULT: 'hsl(var(--accent-brand))',
           foreground: 'hsl(var(--accent-brand-foreground))',
         },
+        // Logo cursor green — a filled block, not a wash. Use bg-prompt only.
+        prompt: 'hsl(var(--prompt))',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -50,7 +52,8 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', 'monospace'],
+        sans: ['"Red Hat Display"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Consolas', 'monospace'],
       },
       keyframes: {
         // Required by the Accordion primitive (no tailwindcss-animate plugin here).
@@ -62,10 +65,15 @@ export default {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
+        'cursor-blink': {
+          '0%, 49%': { opacity: '1' },
+          '50%, 100%': { opacity: '0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'cursor-blink': 'cursor-blink 1.1s steps(1) infinite',
       },
     },
   },

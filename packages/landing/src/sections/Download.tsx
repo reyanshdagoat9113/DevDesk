@@ -6,6 +6,7 @@ import {
   Terminal,
 } from 'lucide-react'
 
+import { SectionPath } from '@/components/Prompt'
 import {
   Alert,
   AlertDescription,
@@ -37,13 +38,11 @@ export function Download() {
   const linux = downloads.filter((item) => item.platform === 'linux')
 
   return (
-    <section id="download" className="border-t border-border/40 bg-muted/10">
+    <section id="download" className="scroll-mt-20 border-t border-border/40 bg-muted/10">
       <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-        <div className="mx-auto max-w-2xl text-center">
-          <Badge variant="outline" className="mb-4">
-            Install
-          </Badge>
-          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+        <div className="max-w-2xl">
+          <SectionPath segment="install" />
+          <h2 className="text-balance text-3xl font-semibold sm:text-4xl">
             Download DevDesk {APP_VERSION}
           </h2>
           <p className="mt-3 text-pretty text-muted-foreground">
@@ -52,8 +51,8 @@ export function Download() {
         </div>
 
         {!anyDownloadAvailable && (
-          <Alert className="mx-auto mt-8 max-w-2xl border-brand/20 bg-brand/5">
-            <AlertTriangle className="size-4 text-brand" />
+          <Alert className="mt-8 max-w-2xl">
+            <AlertTriangle className="size-4" />
             <AlertTitle>Installers not published yet</AlertTitle>
             <AlertDescription className="text-muted-foreground">
               Build locally with{' '}
@@ -69,7 +68,7 @@ export function Download() {
                 href={RELEASE_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="text-brand underline underline-offset-4"
+                className="underline underline-offset-4"
               >
                 GitHub release
               </a>
@@ -78,7 +77,7 @@ export function Download() {
           </Alert>
         )}
 
-        <Tabs defaultValue="windows" className="mx-auto mt-10 max-w-3xl">
+        <Tabs defaultValue="windows" className="mt-10 max-w-3xl">
           <TabsList className="grid h-auto w-full grid-cols-2 p-1">
             <TabsTrigger value="windows" className="gap-2 py-2.5">
               <Monitor className="size-4" aria-hidden="true" />
@@ -103,7 +102,7 @@ export function Download() {
           </TabsContent>
         </Tabs>
 
-        <div className="mx-auto mt-12 grid max-w-3xl gap-6 sm:grid-cols-2">
+        <div className="mt-12 grid max-w-3xl gap-6 sm:grid-cols-2">
           <Card className="border-border/50">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">System requirements</CardTitle>
@@ -113,7 +112,7 @@ export function Download() {
               <ul className="flex flex-col gap-2.5">
                 {systemRequirements.map((item) => (
                   <li key={item} className="flex gap-2 text-sm text-muted-foreground">
-                    <span className="mt-2 size-1 shrink-0 rounded-full bg-brand" aria-hidden="true" />
+                    <span className="mt-2 size-1 shrink-0 rounded-full bg-foreground/40" aria-hidden="true" />
                     {item}
                   </li>
                 ))}
@@ -169,7 +168,7 @@ function ArtifactCard({
         </div>
         <Button
           asChild={artifact.available}
-          variant={artifact.available ? 'brand' : 'secondary'}
+          variant={artifact.available ? 'default' : 'secondary'}
           size="default"
           className="w-full shrink-0 sm:w-auto"
           disabled={!artifact.available}

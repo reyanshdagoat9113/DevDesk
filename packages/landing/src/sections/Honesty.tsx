@@ -1,13 +1,9 @@
-import { X } from 'lucide-react'
-
+import { SectionPath } from '@/components/Prompt'
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-  Badge,
-  Card,
-  CardContent,
 } from '@/components/ui'
 import { faq, nonGoals } from '@/config/content'
 
@@ -16,12 +12,10 @@ export function Honesty() {
     <section aria-label="Scope and questions" className="border-t border-border/40">
       <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 py-16 sm:gap-16 sm:px-6 sm:py-24 lg:grid-cols-2">
         <div role="region" aria-labelledby="honesty">
-          <Badge variant="outline" className="mb-4">
-            Honest about scope
-          </Badge>
+          <SectionPath segment="not-this" />
           <h2
             id="honesty"
-            className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl"
+            className="text-balance text-3xl font-semibold sm:text-4xl"
           >
             What DevDesk is not
           </h2>
@@ -30,29 +24,26 @@ export function Honesty() {
             — better to know now.
           </p>
 
-          <ul className="mt-8 grid gap-2 sm:grid-cols-2">
+          <ul className="mt-8 flex flex-col gap-1 font-mono text-sm">
             {nonGoals.map((item) => (
-              <li key={item}>
-                <Card className="border-border/50 bg-muted/20">
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-                      <X className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                    </span>
-                    <span className="text-sm font-medium">{item}</span>
-                  </CardContent>
-                </Card>
+              <li
+                key={item}
+                className="flex items-baseline gap-3 border-b border-border/40 py-3 last:border-b-0"
+              >
+                <span className="text-muted-foreground/50" aria-hidden="true">
+                  ×
+                </span>
+                <span>{item}</span>
               </li>
             ))}
           </ul>
         </div>
 
         <div role="region" aria-labelledby="faq-heading">
-          <Badge variant="outline" className="mb-4">
-            FAQ
-          </Badge>
+          <SectionPath segment="faq" />
           <h2
             id="faq-heading"
-            className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl"
+            className="text-balance text-3xl font-semibold sm:text-4xl"
           >
             Questions
           </h2>

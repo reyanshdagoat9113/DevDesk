@@ -11,7 +11,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui'
-import { GITHUB_URL, primaryDownload, siteMeta } from '@/config/site'
+import { APP_VERSION, GITHUB_URL, siteMeta } from '@/config/site'
+import { usePreferredDownload } from '@/hooks/usePreferredDownload'
 import { useTheme } from '@/hooks/useTheme'
 
 const links = [
@@ -23,12 +24,13 @@ const links = [
 
 export function Nav() {
   const { theme, toggle } = useTheme()
+  const download = usePreferredDownload()
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/40 glass">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-brand-foreground"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
       >
         Skip to content
       </a>
@@ -36,8 +38,13 @@ export function Nav() {
         aria-label="Primary"
         className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:h-16 sm:gap-6 sm:px-6"
       >
-        <a href="#top" className="focus-brand rounded-md" aria-label="DevDesk home">
-          <Wordmark />
+        <a href="#top" className="min-w-0 shrink focus-brand rounded-md" aria-label="DevDesk home">
+          <span className="inline-flex items-center gap-2.5">
+            <Wordmark />
+            <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
+              v{APP_VERSION}
+            </span>
+          </span>
         </a>
 
         <ul className="ml-auto hidden items-center gap-0.5 lg:flex">
@@ -54,7 +61,7 @@ export function Nav() {
           ))}
         </ul>
 
-        <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 lg:ml-0">
           <Button asChild variant="ghost" size="icon" aria-label="DevDesk on GitHub">
             <a href={GITHUB_URL} target="_blank" rel="noreferrer">
               <Github className="size-4" />
@@ -69,15 +76,9 @@ export function Nav() {
             {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </Button>
 
-          {primaryDownload ? (
-            <Button asChild variant="brand" size="sm" className="hidden sm:inline-flex">
-              <a href={primaryDownload.url}>Download</a>
-            </Button>
-          ) : (
-            <Button asChild variant="brand" size="sm" className="hidden sm:inline-flex">
-              <a href="#download">Download</a>
-            </Button>
-          )}
+          <Button asChild variant="default" size="sm" className="hidden sm:inline-flex">
+            <a href={download ? download.url : '#download'}>Download</a>
+          </Button>
 
           <Sheet>
             <SheetTrigger asChild>
@@ -110,7 +111,7 @@ export function Nav() {
               </nav>
               <Separator />
               <SheetClose asChild>
-                <Button asChild variant="brand" className="w-full">
+                <Button asChild variant="default" className="w-full">
                   <a href="#download">Get DevDesk</a>
                 </Button>
               </SheetClose>

@@ -1,33 +1,33 @@
-import { HardDrive, Scale, UserX, WifiOff } from 'lucide-react'
-
-import { Separator } from '@/components/ui'
-
 const claims = [
-  { icon: HardDrive, label: 'Local-first', detail: 'Data lives in a local SQLite file' },
-  { icon: UserX, label: 'No account', detail: 'Nothing to sign up for' },
-  { icon: WifiOff, label: 'No telemetry', detail: 'No analytics, no background daemons' },
-  { icon: Scale, label: 'MIT licensed', detail: 'Source is on GitHub' },
+  { key: 'store', label: 'local-first', detail: 'sqlite on disk' },
+  { key: 'account', label: 'account', detail: 'none' },
+  { key: 'telemetry', label: 'telemetry', detail: 'off' },
+  { key: 'license', label: 'license', detail: 'MIT' },
 ]
 
 export function TrustStrip() {
   return (
-    <section aria-label="How DevDesk handles your data" className="border-y border-border/40 bg-muted/20">
-      <ul className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-0 px-4 sm:px-6 lg:grid-cols-4">
-        {claims.map(({ icon: Icon, label, detail }, index) => (
-          <li key={label} className="relative flex items-start gap-3 px-2 py-6 sm:px-4 sm:py-8">
+    <section
+      aria-label="How DevDesk handles your data"
+      className="border-y border-border/40 bg-muted/15"
+    >
+      <ul className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-1 gap-y-3 px-4 py-5 font-mono text-xs sm:px-6 sm:text-[13px]">
+        <li className="mr-3 flex items-center gap-2 text-foreground">
+          <span className="size-2 rounded-full bg-prompt" aria-hidden="true" />
+          <span>status</span>
+        </li>
+        {claims.map((claim, index) => (
+          <li key={claim.key} className="flex items-center gap-3 text-muted-foreground">
             {index > 0 && (
-              <Separator
-                orientation="vertical"
-                className="absolute left-0 top-1/2 hidden h-10 -translate-y-1/2 lg:block"
-              />
+              <span className="hidden text-border sm:inline" aria-hidden="true">
+                |
+              </span>
             )}
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-card shadow-sm">
-              <Icon className="size-4 text-brand" aria-hidden="true" />
+            <span>
+              <span className="text-foreground/55">{claim.label}</span>
+              <span className="mx-1.5 text-foreground/25">:</span>
+              <span className="text-foreground">{claim.detail}</span>
             </span>
-            <div className="min-w-0">
-              <p className="text-sm font-medium">{label}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
-            </div>
           </li>
         ))}
       </ul>

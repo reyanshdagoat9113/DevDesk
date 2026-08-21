@@ -18,7 +18,7 @@ const columns = [
       { label: 'Licence (MIT)', href: `${GITHUB_URL}/blob/main/LICENSE`, external: true },
       {
         label: 'Release notes',
-        href: `${GITHUB_URL}/blob/main/docs/RELEASE-NOTES-0.1.0.md`,
+        href: `${GITHUB_URL}/blob/main/docs/RELEASE-NOTES-${APP_VERSION}.md`,
         external: true,
       },
     ],
@@ -76,7 +76,7 @@ export function Footer() {
           <p>
             DevDesk {APP_VERSION} · {siteMeta.license} licence
           </p>
-          <p>Built for local development. No accounts, no servers, no tracking.</p>
+          <p className="font-mono">built locally · no accounts · no servers · no tracking</p>
         </div>
       </div>
     </footer>

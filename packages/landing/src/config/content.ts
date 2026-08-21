@@ -42,6 +42,14 @@ export type FeatureRow = {
  * Primary feature rows mirror the app's own navigation. Git lives in SecondaryFeatures
  * (commodity UI). Projects is copy-only because the hero already uses that shot.
  */
+/** Commands a user would actually save in the vault — shown in the hero prompt. */
+export const vaultCommands = [
+  'npm run test:run',
+  'npm run rebuild:native:electron',
+  'docker start postgres',
+  'git status',
+]
+
 export const featureRows: FeatureRow[] = [
   {
     id: 'projects',

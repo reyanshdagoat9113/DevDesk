@@ -58,7 +58,7 @@ export function Wordmark({ className, tile = false }: WordmarkProps) {
       ) : (
         <LogoMark className="size-8" />
       )}
-      <span className="text-lg font-semibold leading-none tracking-tight">DevDesk</span>
+      <span className="text-lg font-semibold leading-none tracking-[-0.03em]">DevDesk</span>
     </span>
   )
 }

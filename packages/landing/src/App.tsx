@@ -1,3 +1,5 @@
+import { useLayoutEffect } from 'react'
+
 import { JsonLd } from './components/JsonLd'
 import { Download } from './sections/Download'
 import { Features } from './sections/Features'
@@ -11,6 +13,12 @@ import { TrustStrip } from './sections/TrustStrip'
 
 /** Single scrolling page; section order follows docs/landing-page-plan.md section 5. */
 export function App() {
+  useLayoutEffect(() => {
+    const id = window.location.hash.slice(1)
+    if (!id) return
+    document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: 'auto' })
+  }, [])
+
   return (
     <>
       <JsonLd />

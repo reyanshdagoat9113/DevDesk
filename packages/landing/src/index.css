@@ -7,8 +7,9 @@
  * The :root / .dark blocks below are copied verbatim from apps/renderer/index.css
  * so the site and the product read as the same brand. Do not drift them by hand;
  * re-copy when the app tokens change.
- * The only site-only additions are --accent-brand / --accent-brand-foreground,
- * kept in their own block so parity stays auditable.
+ * Site-only additions (kept in their own block so parity stays auditable):
+ *   --accent-brand / --accent-brand-foreground  focus rings, links
+ *   --prompt  the logo's cursor green (#33d02b), used as a filled block only
  */
 @layer base {
   :root {
@@ -77,17 +78,20 @@
     --radius: 0.75rem;
   }
 
-  /* Site-only accent (landing-page-plan decision 4).
-   * Single restrained hue, reserved for CTAs, links, and focus rings.
-   * Light: #1636CE-family on warm off-white (>= 7:1 for text, white text on fill).
-   * Dark:  brighter blue on pure black, with near-black text on the fill. */
+  /* Site-only colour (landing-page-plan decision 4, retargeted to the logo).
+   * --prompt is the sampled cursor green from the mark (#33d02b). It is a
+   * graphic, not a fill: the  block cursor and one status lamp. CTAs stay
+   * on the app's primary ink so the page does not become "black + neon".
+   * --accent-brand is a darker/brighter sibling for focus rings and links. */
   :root {
-    --accent-brand: 224 76% 45%;
+    --prompt: 125 64% 51%;
+    --accent-brand: 142 55% 28%;
     --accent-brand-foreground: 0 0% 100%;
   }
 
   .dark {
-    --accent-brand: 217 91% 62%;
+    --prompt: 125 64% 51%;
+    --accent-brand: 125 64% 51%;
     --accent-brand-foreground: 222 47% 8%;
   }
 
@@ -98,6 +102,7 @@
   html {
     scroll-behavior: smooth;
     scroll-padding-top: 5rem;
+    overflow-x: clip;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -107,26 +112,22 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
-    font-family:
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      'Segoe UI',
-      Roboto,
-      'Helvetica Neue',
-      Arial,
-      sans-serif;
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: 'ss01' 1, 'kern' 1;
+  }
+
+  h1, h2, h3 {
+    letter-spacing: -0.03em;
   }
 
   ::selection {
-    background: hsl(var(--accent-brand) / 0.25);
+    background: hsl(var(--prompt) / 0.35);
   }
 
   pre,
-  code {
-    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  code,
+  kbd {
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
   }
 
   /* Visually hidden but available to screen readers / keyboard focus */
@@ -190,6 +191,13 @@
   .focus-brand {
     @apply outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2;
   }
+
+  .cursor-block {
+    @apply inline-block translate-y-[0.12em] bg-prompt align-baseline;
+    width: 0.55em;
+    height: 1.05em;
+    animation: cursor-blink 1.1s steps(1) infinite;
+  }
 }
 
 /* Animation utilities (parity with apps/renderer/index.css) */
@@ -218,9 +226,15 @@
 .delay-300 { animation-delay: 300ms; }
 
 /* Phase 4 requirement: respect reduced-motion preferences. */
+@keyframes cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,
-  .animate-slide-up {
+  .animate-slide-up,
+  .cursor-block {
     animation: none;
     opacity: 1;
     transform: none;

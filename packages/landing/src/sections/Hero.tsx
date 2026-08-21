@@ -1,28 +1,21 @@
-import { ArrowDown, ArrowRight, Github, MonitorDown, Sparkles } from 'lucide-react'
+import { ArrowDown, Github, MonitorDown } from 'lucide-react'
 
 import { Screenshot } from '@/components/Screenshot'
+import { VaultPrompt } from '@/components/Prompt'
 import { Badge, Button } from '@/components/ui'
 import { heroScreenshot } from '@/config/screenshots'
-import { APP_VERSION, GITHUB_URL, primaryDownload, siteMeta } from '@/config/site'
+import { APP_VERSION, GITHUB_URL } from '@/config/site'
+import { usePreferredDownload } from '@/hooks/usePreferredDownload'
 
 export function Hero() {
-  return (
-    <section id="top" className="relative overflow-hidden">
-      {/* Ambient brand wash — restrained, behind content */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
-      >
-        <div className="absolute -left-24 top-0 size-[28rem] rounded-full bg-brand/10 blur-3xl dark:bg-brand/15" />
-        <div className="absolute -right-16 top-32 size-[22rem] rounded-full bg-brand/5 blur-3xl" />
-        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background to-transparent" />
-      </div>
+  const download = usePreferredDownload()
 
-      <div className="mx-auto w-full max-w-6xl px-4 pb-10 pt-14 sm:px-6 sm:pb-12 sm:pt-20 md:pt-24">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 text-center animate-slide-up">
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <Badge variant="outline" className="gap-1.5 border-brand/30 bg-brand/5 text-foreground">
-              <Sparkles className="size-3 text-brand" aria-hidden="true" />
+  return (
+    <section id="top" className="relative">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 px-4 pb-12 pt-12 sm:px-6 sm:pb-16 sm:pt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-14 lg:pt-20">
+        <div className="flex w-full min-w-0 max-w-xl flex-col items-start gap-6 animate-slide-up">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="font-mono text-[11px] tracking-wide">
               v{APP_VERSION} private beta
             </Badge>
             <Badge variant="secondary">Windows</Badge>
@@ -30,53 +23,55 @@ export function Hero() {
             <Badge variant="secondary">MIT</Badge>
           </div>
 
-          <h1 className="text-balance text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
-            One workspace for the{' '}
-            <span className="bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
-              projects, commands, and containers
-            </span>{' '}
-            you already have
+          <h1 className="text-balance text-[2.6rem] font-semibold leading-[0.95] sm:text-5xl lg:text-[3.5rem]">
+            Your machine.
+            <br />
+            One window.
           </h1>
 
-          <p className="max-w-2xl text-pretty text-base text-muted-foreground sm:text-lg">
-            {siteMeta.tagline}
-          </p>
+          <div className="w-full min-w-0 max-w-md space-y-1 text-base leading-relaxed text-muted-foreground sm:text-lg">
+            <p>
+              Projects, saved commands, Docker, terminals,
+              <br className="sm:hidden" /> and local search.
+            </p>
+            <p>On this machine, in one window.</p>
+          </div>
 
-          <p className="text-sm text-muted-foreground">{siteMeta.trustLine}</p>
+          <VaultPrompt className="w-full max-w-md" />
 
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {primaryDownload ? (
-              <Button asChild variant="brand" size="xl">
-                <a href={primaryDownload.url}>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            {download ? (
+              <Button asChild variant="default" size="xl" className="w-full sm:w-auto">
+                <a href={download.url}>
                   <MonitorDown className="size-4" />
-                  {primaryDownload.platform === 'windows'
+                  {download.platform === 'windows'
                     ? 'Download for Windows'
-                    : `Download ${primaryDownload.label}`}
+                    : 'Download for Linux'}
                 </a>
               </Button>
             ) : (
-              <Button asChild variant="brand" size="xl">
+              <Button asChild variant="default" size="xl" className="w-full sm:w-auto">
                 <a href="#download">
                   <ArrowDown className="size-4" />
                   See download options
                 </a>
               </Button>
             )}
-            <Button asChild variant="outline" size="xl">
+            <Button asChild variant="outline" size="xl" className="w-full sm:w-auto">
               <a href={GITHUB_URL} target="_blank" rel="noreferrer">
                 <Github className="size-4" />
-                View on GitHub
-                <ArrowRight className="size-4 opacity-60" />
+                Source
               </a>
             </Button>
           </div>
+
+          <p className="w-full min-w-0 font-mono text-xs leading-relaxed text-muted-foreground">
+            Local-first. No account. No telemetry.
+            <br className="sm:hidden" /> No background daemons.
+          </p>
         </div>
 
-        <div className="relative mx-auto mt-12 max-w-5xl animate-fade-in delay-150 sm:mt-16">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -inset-4 rounded-3xl bg-gradient-to-b from-brand/10 via-transparent to-transparent blur-2xl"
-          />
+        <div className="relative w-full min-w-0 animate-fade-in delay-150">
           <Screenshot shot={heroScreenshot} priority className="relative" />
         </div>
       </div>

@@ -4,8 +4,8 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 // Copied from apps/renderer/app/components/ui/Button.tsx.
-// Site-only addition: the `brand` variant, which is the single place the
-// --accent-brand token is allowed to fill a surface (landing-page-plan decision 4).
+// Site-only addition: the `brand` variant, kept for links/focus. Primary CTAs
+// use `default` (app ink) so the page is not a neon-on-black template.
 const buttonVariants = cva(
   'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
   {
