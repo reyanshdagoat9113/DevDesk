@@ -7,7 +7,7 @@
 - `apps/desktop/`: Electron main + preload + IPC + data store (SQLite) + Docker/terminal/git services.
 - `apps/renderer/`: React renderer UI.
 - `packages/engine/`: `devdesk-engine` workspace package (local code intelligence; packaged into app `resources/engine/`).
-- `docs/`: Install, release, QA, data-model, and native-module documentation.
+- `docs/`: User guide, architecture, install, release, QA, data model, native modules. Index: `docs/README.md`.
 - `scripts/`: Build, native-rebuild, release-gate, packaging-verify, and QA automation scripts.
 - `Readme.md`: Product overview and current status.
 - `TODO.md` / `ROADMAP.md`: Roadmap and implementation checklist.
@@ -49,9 +49,9 @@
 - Local-first: avoid cloud services, analytics, or background daemons.
 - Renderer build output is `dist/renderer`; main process loads `../../renderer/index.html` in production.
 
-## Current Status (v0.1.0 private beta)
-- Product features are complete; the release gate and CI are in place.
-- Remaining launch work is release-process only: interactive packaged-app QA on Windows + Linux (`docs/manual-qa.md`), Linux host verification, optional Windows code signing, macOS deferred.
+## Current Status (v0.1.2 private beta)
+- Product features are complete; the release gate, CI, and Windows/Linux package targets are in place.
+- Remaining launch work is release-process: interactive packaged-app QA on Windows + Linux (`docs/manual-qa.md`), optional Windows code signing, macOS deferred.
 
 ## Security & Configuration Tips
 - Keep `nodeIntegration` disabled and `contextIsolation` enabled (already set).

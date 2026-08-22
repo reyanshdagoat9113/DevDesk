@@ -1,24 +1,50 @@
-# Module Boundaries
+# Module boundaries
 
-## Desktop
-- `apps/desktop/data` owns persistence, normalization, and schema migration.
-- `apps/desktop/ipc` owns Electron IPC handlers and runtime orchestration.
-  - Prefer domain registrars under `apps/desktop/ipc/handlers/*` (one domain per module).
-  - Shared in-memory maps live in `apps/desktop/ipc/runtimeState.ts`.
-  - `registerIpc.ts` should shrink toward a thin orchestrator that calls domain registrars.
-- `apps/desktop/engine` owns file indexing, search, and engine runtime integration.
-- `apps/desktop/git` owns git-specific runtime and service logic.
-- `apps/desktop/files` owns file listing, search, and editor/reveal helpers.
-- `apps/desktop/projects` owns project classification and discovery helpers.
+High-level process model: [../architecture.md](../architecture.md). Architecture lint: `npm run lint:architecture` (`scripts/check-architecture.mjs`).
 
-## Renderer
-- `apps/renderer/app` owns React composition, feature screens, dialogs, and hooks.
-- `apps/renderer/app/components/ui` contains reusable low-level UI primitives only.
-- `apps/renderer/app/sections` contains feature-level page sections and should stay thin.
+## Desktop (`apps/desktop`)
+
+| Folder | Owns |
+|--------|------|
+| `data/` | Persistence, normalization, schema, export/import |
+| `ipc/` | Electron IPC: `handlers/*` (one domain per file), `runtimeState.ts`, thin `registerIpc.ts` |
+| `engine/` | Spawn packaged engine, index/search/stats/git insights |
+| `git/` | Git CLI wrapper, diff, commit, push, PR URL |
+| `files/` | List/search inside a project, editor/reveal helpers |
+| `projects/` | Type detection and related helpers |
+| `commands/` | Variable detect/resolve |
+| `system/` | Command process runner |
+| `terminal/` | `node-pty` session manager |
+| `health/` + `projectIntelligence/` | Environment and project health |
+| `bugs/` | Attachments and context snapshots |
+| `tray/` | Tray icon and menu |
+| `llm/` | Local context bundle |
+| `preload.ts` | `contextBridge` API only |
+
+## Renderer (`apps/renderer`)
+
+| Folder | Owns |
+|--------|------|
+| `app/sections/` | Feature screens (keep thin) |
+| `app/components/` | Feature widgets and dialogs |
+| `app/components/ui/` | Low-level shadcn/Radix primitives only |
+| `app/layout/` | App chrome, shortcuts help |
+| `app/lib/` | Pure UI helpers (`appShell`, markdown) |
+| `lib/utils.ts` | `cn()` |
+
+## Packages
+
+| Package | Owns |
+|---------|------|
+| `packages/engine` | Indexer CLI and Rust scanner — not Docker, tray, or UI |
+| `packages/ipc-contracts` | Channel name constants — no Electron imports |
+| `packages/landing` | Public install site — not loaded by the desktop app |
 
 ## Rules
-- Keep domain logic close to the domain folder.
-- Extract shared code only when it is used in more than one place.
-- Avoid generic filenames such as `helpers.ts`, `misc.ts`, and `temp.ts`.
-- Prefer thin orchestration files over catch-all modules.
-- Keep new files aligned to feature or runtime ownership, not arbitrary utility buckets.
+
+- Keep domain logic in the domain folder.
+- Extract shared code only when a second caller exists.
+- Avoid catch-all names (`helpers.ts`, `misc.ts`, `temp.ts`).
+- Prefer thin orchestration files.
+- Renderer must not import `apps/desktop` or Node builtins.
+- New IPC channels go through `@devdesk/ipc-contracts`, then preload, then UI.

@@ -1,31 +1,31 @@
 # Native modules and rebuild workflow
 
-DevDesk uses two native Node addons:
+DevDesk uses two native Node addons. Node and Electron have **different ABIs** — rebuild for the runtime that will `require()` the module.
 
-| Package | Runtime | When needed |
-|---------|---------|-------------|
-| `better-sqlite3` | Node (tests) and Electron (app / packaged engine) | Persistence + engine SQLite |
+| Package | Loaded by | When |
+|---------|-----------|------|
+| `better-sqlite3` | Node (tests) and Electron (app + packaged engine) | Persistence and engine SQLite |
 | `node-pty` | Electron only | Embedded terminals |
 
-Node and Electron use different ABIs. Always rebuild against the runtime that will load the module.
+Root and `devdesk-engine` must stay on the same `better-sqlite3` **v12** (do not nest a second major in the lockfile).
 
 ## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `npm run rebuild:native:node` | Ensure `better-sqlite3` loads under **Node** for the app and linked `devdesk-engine` |
-| `npm run rebuild:native` | Rebuild `better-sqlite3` for **Electron** only (tests/smoke) |
-| `npm run rebuild:native:electron` | Rebuild `better-sqlite3` + `node-pty` for **Electron** (dev / packaging) |
-| `npm run test:engine-ipc` | Node-native ensure → engine build → engine IPC integration tests |
-| `npm run smoke:engine-packaged` | Electron-native sqlite rebuild → main build → packaged engine smoke |
+| `npm run rebuild:native:node` | `better-sqlite3` for **Node** (app + linked engine) |
+| `npm run rebuild:native` | `better-sqlite3` for **Electron** only (smoke / CI jobs without PTY) |
+| `npm run rebuild:native:electron` | `better-sqlite3` + `node-pty` for **Electron** (dev and packaging) |
+| `npm run test:engine-ipc` | Node natives → engine build → IPC integration tests |
+| `npm run smoke:engine-packaged` | Electron sqlite rebuild → main build → packaged engine smoke |
 
-Engine package helper:
+Engine-only helper:
 
 ```bash
 npm --workspace devdesk-engine run ensure:native
 ```
 
-This only targets the engine package’s own `better-sqlite3` for the current Node process.
+That only targets the engine package’s `better-sqlite3` for the current Node process.
 
 ## Clean-checkout flow
 
@@ -39,34 +39,34 @@ npm run rebuild:native:electron
 npm run dev                    # or package:* / smoke:engine-packaged
 ```
 
-`smoke:engine-packaged` already runs `rebuild:native` (Electron `better-sqlite3` only) and does not require `node-pty`.
+`smoke:engine-packaged` already runs `rebuild:native` (Electron sqlite only) and does not need `node-pty`.
+
+`npm run dev` and `package:*` run `rebuild:native:electron` themselves.
 
 ## Windows prerequisites
 
-- **Node.js** 22.12–24 (default development/packaging line: Node 22; see root `engines` and `.nvmrc`)
-- **Visual Studio Build Tools** with workload **Desktop development with C++**
-  (includes MSVC, Windows SDK)
+- **Node.js** 22.12–24 (default 22; `.nvmrc`)
+- **Visual Studio Build Tools** with **Desktop development with C++** (MSVC + Windows SDK)
 - **Python 3** on `PATH` (node-gyp)
-- **Git** (some native packages run git during configure; `node-pty` historically used `GetCommitHash.bat`)
-- Optional for the engine Rust binary: **Rust** toolchain (`cargo`) when running `build:engine` / `build:all`
+- **Git** (some native packages shell out to git)
+- Optional: **Rust** toolchain when running `build:engine` / `test:rust`
 
-If rebuild fails, the scripts print an actionable error. Common fixes:
+If rebuild fails:
 
 1. Open a new terminal after installing Build Tools so `cl.exe` is on `PATH`.
-2. Prefer `npm run rebuild:native` over full Electron rebuild when only SQLite is needed.
-3. Use `npm run rebuild:native:electron` only when terminals or packaging need `node-pty`.
-4. Avoid mixing a Node rebuild into an Electron session without re-running the Electron rebuild before `npm run dev`.
+2. Prefer `rebuild:native` when only SQLite is needed (skips `node-pty`).
+3. Use `rebuild:native:electron` for terminals and packaging.
+4. After a Node-targeted rebuild, run the Electron rebuild again before `npm run dev`.
 
 ## Linux / macOS
 
 - Linux: `build-essential`, `python3`
-- macOS: Xcode Command Line Tools (`xcode-select --install`)
+- macOS: Xcode Command Line Tools (`xcode-select --install`) — app packaging for macOS is still deferred
 
-## CI notes
+## CI
 
-- Run Node-targeted ensures before Vitest that loads `better-sqlite3` under Node.
-- Run Electron-targeted rebuilds before packaged smoke or Electron launch.
-- Prefer `-o better-sqlite3` (via `rebuild:native`) in jobs that do not exercise terminals, so `node-pty` compile failures do not block engine smoke.
-- Native/integration CI runs on Windows and Linux for both Node 22 and Node 24; packaging jobs use Node 22 only.
-- Root and `devdesk-engine` share one `better-sqlite3` v12 contract (lockfile must not nest a second major).
-- Rust tests: `npm run test:rust` (`cargo test --locked` in `packages/engine/rust`).
+- Node-targeted ensure before Vitest that loads `better-sqlite3` under Node
+- Electron-targeted rebuild before packaged smoke or Electron launch
+- Jobs that do not exercise terminals should use `rebuild:native` so a `node-pty` compile failure does not block engine smoke
+- Native/integration CI: Windows + Linux, Node 22 and 24; packaging jobs: Node 22 only
+- Rust: `npm run test:rust` (`cargo test --locked` in `packages/engine/rust`)

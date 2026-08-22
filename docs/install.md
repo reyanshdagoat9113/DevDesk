@@ -1,40 +1,46 @@
 # Installation and platform support
 
-**Product version:** `0.1.2` (private beta)
-**Related:** [release.md](./release.md) · [native-modules.md](./native-modules.md) · [manual-qa.md](./manual-qa.md)
+**Product version:** 0.1.2 (private beta)  
+**Related:** [user-guide.md](./user-guide.md) · [release.md](./release.md) · [native-modules.md](./native-modules.md) · [data-locations.md](./data-locations.md)
 
 ## Supported platforms
 
-| Platform | Installer / package | Arch | Status |
-|----------|---------------------|------|--------|
-| Windows 10/11 | NSIS `.exe` (`DevDesk-0.1.2-win-x64.exe`) | x64 | Primary beta target |
-| Linux | `.deb` (`DevDesk-0.1.2-linux-x64.deb`) | x64 | Supported |
-| macOS | — | — | **Not available** in this beta |
+| Platform | Package | Arch | Status |
+|----------|---------|------|--------|
+| Windows 10/11 | NSIS `DevDesk-0.1.2-win-x64.exe` | x64 | Primary |
+| Linux (Debian/Ubuntu family) | `DevDesk-0.1.2-linux-x64.deb` | x64 | Supported |
+| macOS | — | — | Not shipped |
 
-## End-user install (binary)
+Downloads: [GitHub Releases](https://github.com/reyanshdagoat9113/DevDesk/releases). Checksums ship as SHA-256 files on the same release.
+
+## End-user install
 
 ### Windows
 
-1. Download `DevDesk-<version>-win-x64.exe` from [GitHub Releases](https://github.com/reyanshdagoat9113/DevDesk/releases) (or the public install page once the `packages/landing` site is deployed).
-2. Run the installer. You may see a **SmartScreen** warning because beta builds are **unsigned** — use “More info” → “Run anyway” only if you trust the build source.
+1. Download `DevDesk-<version>-win-x64.exe`.
+2. Run the installer. **SmartScreen** may warn because beta builds are **unsigned** — “More info” → “Run anyway” only if you trust the source.
 3. Launch **DevDesk** from the Start Menu or desktop shortcut.
-4. Optional portable-style test without installing: run `DevDesk.exe` from an unpacked `win-unpacked` directory.
+4. Portable check without installing: `release\win-unpacked\DevDesk.exe` (from a local package) or the unpacked artifact from CI.
 
 ### Linux
 
-1. Download `DevDesk-*-linux-x64.deb` from [GitHub Releases](https://github.com/reyanshdagoat9113/DevDesk/releases).
-2. Install it with `sudo dpkg -i DevDesk-*-linux-x64.deb` (or open it with your package installer).
-3. If dependencies are reported as missing, run `sudo apt-get -f install` and retry the install.
+1. Download `DevDesk-*-linux-x64.deb`.
+2. `sudo dpkg -i DevDesk-*-linux-x64.deb` (or open it in your package installer).
+3. If dependencies are missing: `sudo apt-get -f install`, then retry.
 
 ### First launch
 
-- No account or cloud setup is required.
-- Data is stored only on the local machine (see [data-locations.md](./data-locations.md)).
-- If you previously used a JSON store, the app imports `devdesk-store.json` into SQLite once when the database is empty.
+- No account or network setup.
+- Data stays on the machine ([data-locations.md](./data-locations.md)).
+- A previous JSON store (`devdesk-store.json`) is imported into SQLite once when the database has no preferences row.
+- Docker is optional. Container features need Docker Desktop or a running daemon; everything else works without it.
+- Git features need `git` on `PATH`. Editor/terminal “open” actions use Preferences.
+
+How to use the workspace: [user-guide.md](./user-guide.md).
 
 ## Developer install (from source)
 
-A single DevDesk clone is enough. The performance engine is packaged as `packages/engine` (`devdesk-engine`) in the root npm workspace.
+One clone is enough. The engine is `packages/engine`.
 
 ```bash
 cd DevDesk
@@ -43,27 +49,25 @@ npm run rebuild:native:electron
 npm run dev
 ```
 
-### Prerequisites
+Requires **Node.js 22.12–24** (default 22; `.nvmrc`).
 
 | Tool | Windows | Linux | Why |
 |------|---------|-------|-----|
-| Node.js 22.12–24 (22 default; see `.nvmrc`) | Yes | Yes | App, tests, packaging |
+| Node.js 22.12–24 | Yes | Yes | App, tests, packaging |
 | Visual Studio Build Tools (C++) | Yes | — | Native modules |
 | `build-essential` + python3 | — | Yes | Native modules |
-| Git | Yes | Yes | Some native package scripts |
+| Git | Yes | Yes | App Git features + some native scripts |
 | Rust (`cargo`) | For engine binary builds | Same | `npm run build:engine` |
 
-Details and troubleshooting: [native-modules.md](./native-modules.md).
+Details: [native-modules.md](./native-modules.md). Contributor flow: [../CONTRIBUTING.md](../CONTRIBUTING.md).
 
-## Build release artifacts from source
+## Build installers from source
 
 ```bash
 npm run rebuild:native:electron
-npm run package:win      # on Windows → release/*.exe
-npm run package:linux    # on Linux → .deb
+npm run package:win      # Windows host → release/*.exe
+npm run package:linux    # Linux host → .deb
 ```
-
-Verify:
 
 ```bash
 npm run verify:win-package    # Windows
@@ -73,12 +77,12 @@ npm run release:gate          # full automated baseline
 
 ## Uninstall
 
-- **Windows:** Settings → Apps → DevDesk, or the installer uninstaller. User data under `%APPDATA%\DevDesk` is **not** always removed; delete it manually if you want a clean slate.
-- **Linux deb:** `sudo apt remove devdesk` (package name may vary by artifact metadata). Remove user data under `~/.config/DevDesk` if present.
+- **Windows:** Settings → Apps → DevDesk, or the installer uninstaller. `%APPDATA%\DevDesk` is **not** always removed — delete it for a clean slate.
+- **Linux:** `sudo apt remove devdesk` (package name follows electron-builder metadata). Remove `~/.config/DevDesk` if you want user data gone.
 
-## Known install limitations (beta)
+## Known limits (beta)
 
-- Windows builds are **unsigned**.
-- No auto-update channel.
+- Windows builds are unsigned.
+- No auto-update channel — install a newer GitHub Release by hand.
 - No macOS builds.
-- Docker features need Docker (or WSL Docker) installed separately; the app still runs without it.
+- Bug attachment **files** are not inside JSON export (copy `attachments/` yourself).

@@ -1,40 +1,51 @@
 # DevDesk Engine (`devdesk-engine`)
 
-Fast local code-intelligence engine for DevDesk. Lives in the monorepo at `packages/engine` and is linked via the root npm workspace.
+Local code-intelligence engine for DevDesk: index a repo, full-text/regex search, stats, Git insights. Lives at `packages/engine` and is linked via the root npm workspace.
 
-## Setup (from monorepo root)
+Internals: [ARCHITECTURE.md](./ARCHITECTURE.md). Native ABI: [../../docs/native-modules.md](../../docs/native-modules.md).
+
+## Setup (monorepo root)
 
 ```bash
 npm install
-npm run rebuild:native:node      # Node ABI for tests
+npm run rebuild:native:node
 npm --workspace devdesk-engine run build:all
 ```
 
-Do **not** clone a separate `devdesk-addons` repository.
+Do **not** clone the archived `devdesk-addons` repository.
 
-## Common commands
+## Commands
 
-From monorepo root:
+From repo root:
 
 ```bash
-npm --workspace devdesk-engine run build
-npm --workspace devdesk-engine run build:rust
+npm --workspace devdesk-engine run build        # TypeScript
+npm --workspace devdesk-engine run build:rust   # scanner binary → dist/
 npm --workspace devdesk-engine run build:all
 npm run test:engine
 npm run test:engine-ipc
+npm run test:rust
 npm run smoke:engine-packaged
 ```
 
-From this package directory (optional):
+CLI (after build; JSON on stdout):
 
 ```bash
-npm run rebuild:native
-npm run build:all
-npm run test:run
+npx devdesk-engine ping
+npx devdesk-engine index ./my-project
+npx devdesk-engine index ./my-project --full --profile source-first
+npx devdesk-engine search "useEffect" ./my-project
+npx devdesk-engine search "TODO|FIXME" ./my-project --regex
+npx devdesk-engine stats ./my-project
+npx devdesk-engine git ./my-project
 ```
 
-## Notes
+Index profiles: `source-first` (default), `source-docs`, `full-text`. See [docs/data-locations.md](../../docs/data-locations.md).
 
-- `better-sqlite3` must match the runtime ABI (Node for tests, Electron for the app/packaged engine). Use root scripts in `docs/native-modules.md`.
-- The Rust scanner is produced by `build:rust` and copied into `dist/`.
-- Packaging copies `packages/engine/dist` into app `resources/engine/` (plus runtime deps under `resources/engine/node_modules/`).
+## Packaging
+
+The desktop app copies `packages/engine/dist` to `resources/engine/` plus Electron-built `better-sqlite3` and `commander` under `resources/engine/node_modules/`.
+
+`better-sqlite3` must match the runtime ABI: Node for tests, Electron for the app and packaged engine.
+
+The Rust scanner is optional at runtime: TypeScript fallbacks exist, but `build:all` / packaging expect the binary in `dist/`.

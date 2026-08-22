@@ -1,8 +1,11 @@
 # DevDesk Landing Page Plan
 
-Status: complete for ship-ready page code — real product screenshots still optional; Railway service create is ops
-Owner: repo maintainer (`reyanshdagoat9113`)
-Target: public install page for the v0.1.0 private beta
+> **Status (2026-08-22):** Implemented in `packages/landing`. This document is design history.  
+> **Maintainer docs:** [../packages/landing/README.md](../packages/landing/README.md) · [release.md](./release.md)
+
+Status when written: complete for ship-ready page code — real product screenshots still optional; Railway service create is ops  
+Owner: repo maintainer (`reyanshdagoat9113`)  
+Target: public install page for the v0.1.x private beta
 
 ## 1. Context
 

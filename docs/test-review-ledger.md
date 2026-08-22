@@ -1,6 +1,6 @@
 # Test review ledger
 
-Durable evidence for the test-suite modernization initiative. Dispositions evolve as replacements land.
+Living list of automated tests and how they relate to the suite-modernization work. Planning narrative: [DevDesk Test Suite Modernization.md](./DevDesk%20Test%20Suite%20Modernization.md). How to run suites: [../COMMANDS.md](../COMMANDS.md).
 
 **Coverage policy:** V8 reports via `npm run test:coverage*`. Per-suite thresholds are active and non-decreasing (see vitest configs). Lowering a threshold requires an explicit planning decision.
 

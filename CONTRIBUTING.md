@@ -1,12 +1,12 @@
 # Contributing to DevDesk
 
-Thanks for helping improve DevDesk.
+Thanks for helping. Product overview: [Readme.md](Readme.md). Docs index: [docs/README.md](docs/README.md).
 
-## Development setup
+## Setup
 
-Clone this repository only. The performance engine is at `packages/engine` and is linked via the root npm workspace.
+Clone this repository only. The engine is `packages/engine` (`devdesk-engine`) in the root npm workspace.
 
-Requires **Node.js 22.12–24** (default **22**; `.nvmrc`). Root and engine share one `better-sqlite3` v12 dependency.
+**Node.js 22.12–24** (default **22**; `.nvmrc`). Root and engine share one `better-sqlite3` **v12**.
 
 ```bash
 npm install
@@ -14,31 +14,58 @@ npm run rebuild:native:electron
 npm run dev
 ```
 
-Windows native builds need Visual Studio Build Tools (C++), Python 3, and Git.
+Windows native builds need Visual Studio Build Tools (C++), Python 3, and Git.  
 See [docs/native-modules.md](docs/native-modules.md) and [docs/install.md](docs/install.md).
+
+Use `rebuild:native:node` before Node-based tests, and `rebuild:native:electron` before `dev` / packaging. Do not mix ABIs.
 
 ## Verification
 
-Before opening a pull request, run:
+Before opening a pull request:
 
 ```bash
 npm run rebuild:native:node
 npm run release:gate
 ```
 
-When packaging changes:
+Packaging changes:
 
-- Windows: `npm run verify:win-package` (and optionally `npm run package:win`)
-- Linux: `npm run verify:linux-package` (and optionally `npm run package:linux`)
+- Windows: `npm run verify:win-package` (optionally `package:win`)
+- Linux: `npm run verify:linux-package` (optionally `package:linux`)
 
-Maintainer release steps: [docs/beta-release-checklist.md](docs/beta-release-checklist.md).  
-Packaging details: [docs/release.md](docs/release.md).
+Maintainer release steps: [docs/beta-release-checklist.md](docs/beta-release-checklist.md).
 
-## Guidelines
+## Conventions
 
-- Keep changes local-first and deterministic.
-- Prefer small, focused commits.
-- Update docs when behavior or release expectations change (install, data locations, release notes).
-- If you touch the engine or packaging flow, verify the packaged smoke tests.
-- Do not rebuild Electron natives for Node tests (or the reverse); use the scripts in `docs/native-modules.md`.
-- Do not list completed launch items as open work in `TODO.md` / `ROADMAP.md`.
+- TypeScript, 2-space indent, PascalCase components, `useX` hooks.
+- IPC channels are kebab-case; add them to `packages/ipc-contracts/src/channels.ts`, not as one-off strings.
+- Keep `apps/desktop/preload.ts` small and explicit.
+- UI: shadcn wrappers in `apps/renderer/app/components/ui`, Radix primitives, `cn` from `apps/renderer/lib/utils.ts`.
+- Domain logic stays in the owning folder ([docs/architecture/module-boundaries.md](docs/architecture/module-boundaries.md)).
+- Local-first and deterministic. No cloud services or analytics.
+- Treat shell execution as explicit user intent.
+
+## Tests
+
+| Suite | Command | Config |
+|-------|---------|--------|
+| Desktop (main) | `npm run test:run` | `vitest.desktop.config.ts` |
+| Renderer | `npm run test:renderer:run` | `vitest.renderer.config.ts` |
+| Engine | `npm run test:engine` | engine workspace |
+| Engine IPC | `npm run test:engine-ipc` | `vitest.engine.config.ts` |
+| Rust | `npm run test:rust` | `packages/engine/rust` |
+| Coverage | `npm run test:coverage` | V8; floors are non-decreasing |
+
+Add or update tests when behavior changes. Coverage policy: [docs/test-review-ledger.md](docs/test-review-ledger.md).
+
+## Pull requests
+
+- Short imperative titles (`Add run history output viewer`).
+- Describe what changed and how you verified it.
+- Screenshots for UI changes.
+- Update docs when install, data, IPC, or release behavior changes.
+- Do not list finished work as open in `TODO.md` / `ROADMAP.md`.
+
+## Scripts
+
+[COMMANDS.md](COMMANDS.md) lists npm scripts.

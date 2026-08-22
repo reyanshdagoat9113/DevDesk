@@ -1,6 +1,7 @@
 # DevDesk v0.1.2 — Cross-platform packaging and workspace refinements
 
-**Label:** Private beta / prerelease
+**Label:** Private beta / prerelease  
+**Docs:** [install.md](./install.md) · [user-guide.md](./user-guide.md) · [release.md](./release.md)
 
 ## Highlights
 

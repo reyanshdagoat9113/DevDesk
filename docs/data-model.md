@@ -1,75 +1,88 @@
 # Data model
 
-Canonical TypeScript types live in `apps/desktop/data/model.ts` (`DATA_VERSION` is the store export version).
+Canonical TypeScript types: `apps/desktop/data/model.ts`.  
+Export version: `DATA_VERSION` (currently **5**), also `EXPORT_VERSION` in `apps/desktop/data/store/export.ts`.
 
-## Persistence (current)
+OS paths and backup behavior: [data-locations.md](./data-locations.md).
+
+## Stores
 
 | Store | Location | Notes |
 |-------|----------|--------|
-| SQLite `devdesk.db` | Electron userData | Primary store; WAL; single-writer main process |
-| Legacy `devdesk-store.json` | Same userData | Imported once when preferences table is empty |
-| Engine indexes | `userData/engine/<projectId>.sqlite` | Performance engine |
-| Bug attachments | `userData/attachments/` | Files on disk |
+| SQLite `devdesk.db` | Electron userData | Primary; WAL; main process is the only writer |
+| Legacy `devdesk-store.json` | Same folder | Imported once when the preferences table is empty |
+| Engine indexes | `userData/engine/<projectId>.sqlite` | Separate DBs; not mixed into `devdesk.db` rows except metadata |
+| Bug attachments | `userData/attachments/` | Files on disk; export stores metadata only |
 
-See [data-locations.md](./data-locations.md) for OS paths and backup/export behavior.
+Containers from Docker are **runtime-only**. Linked names are stored on the project.
 
-## Core entities
+## Entities
 
 ### Project
-- `id`, `path`, `name`, `type` (`node | python | rust | go | unknown`), `icon`
-- `linkedContainerNames`, optional `isPinned` / `pinnedAt`
+
+`id`, `path` (unique), `name`, `type` (`node | python | rust | go | unknown`), `icon`, `linkedContainerNames`, optional `isPinned` / `pinnedAt`.
 
 ### Command
-- `id`, `name`, `command`, optional `description`, `tags`, `projectId`, `workingDirectory`
-- optional `variables`, `isPinned` / `pinnedAt`
+
+`id`, `name`, `command`, optional `description`, `tags`, `projectId`, `workingDirectory`, `variables[]`, optional pin fields.
+
+Variable tokens are documented in [user-guide.md](./user-guide.md).
+
+### Chain / trigger
+
+- **Chain:** ordered `steps` (`commandId`, optional variables, `delayMs`), `stopOnFailure`, `parallel` (unused in UI today).
+- **Trigger:** `chainId`, `event` (`onProjectOpen | afterContainerStart | onStartup`), `enabled`, `requireConfirmation`.
 
 ### Run history
-- `id`, `commandId`, optional `projectId`, `status`, `startTime`, `endTime`, `output`
-- optional `resolvedCommand`
 
-### Project notes
-- `projectId`, `setupSteps`, `todos`, `reminders`
+`commandId`, optional `projectId`, `status` (`running | success | failed | stopped`), timestamps, `output`, `resolvedCommand`. Startup reconciliation turns leftover `running` into `stopped`.
+
+### Notes
+
+Per project: `setupSteps`, `todos`, `reminders` (markdown strings). Legacy `ports` / `urls` merge into `setupSteps` when setup is empty.
 
 ### Preferences
-- `editor` / `terminal` (`id`, optional `command`)
-- `trayEnabled`
 
-### Bugs / health / automation
-- Bug reports, context snapshots, attachments
-- Health check runs
-- Command chains and triggers
+`editor` / `terminal` (`id` + optional `command` with `{path}`), `trayEnabled`.
 
-Containers from Docker are **runtime-only** (not persisted as the source of truth).
+### Engine metadata (in `devdesk.db`)
 
-## SQLite tables (overview)
+- `engine_indexes` — `dbPath`, `lastIndexed`, `fileCount`, `indexProfile` (`source-first | source-docs | full-text`)
+- `engine_search_sessions` — last query/result JSON per project
 
-Created in `apps/desktop/data/store/core.ts` (`createSchema`), including:
+Indexed file content lives in the engine SQLite, not here.
 
-- `projects`, `commands`, `chains`, `triggers`, `run_history`, `notes`, `preferences`
-- `engine_indexes`, `engine_search_sessions`
-- `health_check_runs` (and related)
-- `bug_reports`, `bug_context_snapshots`, `bug_attachments`
+### Health
 
-### Schema compatibility
+Runs + items: category `system | project | runtime`, status `pass | warning | fail | skipped`.
 
-`ensureSchemaCompatibility` adds missing columns for older DBs:
+### Bugs
+
+Reports (severity/status), context snapshots (JSON blobs of recent activity), attachments (`kind`, `fileName`, `filePath`, `fileSize`).
+
+## SQLite tables
+
+Created in `apps/desktop/data/store/core.ts`:
+
+`projects`, `commands`, `chains`, `triggers`, `run_history`, `notes`, `preferences`, `engine_indexes`, `engine_search_sessions`, `health_check_runs`, `health_check_items`, `bug_reports`, `bug_context_snapshots`, `bug_attachments`.
+
+### Compatibility
+
+`ensureSchemaCompatibility` adds columns older DBs may lack:
 
 - `commands.variables`, `commands.is_pinned`, `commands.pinned_at`
 - `projects.is_pinned`, `projects.pinned_at`
 - `run_history.resolved_command`
+- `engine_indexes.index_profile`
 
-### JSON → SQLite migration
+### Init sequence
 
-On init (`initializeDatabaseAt` / `ensureDbInitialized`):
+1. Open/create `devdesk.db`, enable WAL + foreign keys
+2. `createSchema` + `ensureSchemaCompatibility`
+3. If no preferences row, import normalized JSON from `devdesk-store.json` or write defaults
 
-1. Open/create `devdesk.db`, enable WAL + foreign keys  
-2. `createSchema` + `ensureSchemaCompatibility`  
-3. If no preferences row exists, import normalized JSON from `devdesk-store.json` (or write defaults)
-
-Legacy note fields `ports` / `urls` merge into `setupSteps` when setup steps are empty (`normalizeNotes`).
+Corrupt DB files are renamed `devdesk.db.corrupt-<timestamp>` when open fails.
 
 ## Export format
 
-In-app export produces a versioned JSON document of table rows (`export.ts`).  
-Import supports **merge** and **replace**, with a `devdesk.db.backup-*` file created first.  
-Attachment **files** are not embedded in the export payload (metadata only).
+In-app export is a versioned JSON document of table rows. Import supports **merge** (upsert) and **replace** (after a `devdesk.db.backup-*` copy). Attachment **binaries** are not embedded.

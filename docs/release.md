@@ -1,32 +1,37 @@
-# DevDesk release packaging
+# Release packaging
 
-Also see: [install.md](./install.md) · [RELEASE-NOTES-0.1.2.md](./RELEASE-NOTES-0.1.2.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [data-locations.md](./data-locations.md)
+Also see: [install.md](./install.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [RELEASE-NOTES-0.1.2.md](./RELEASE-NOTES-0.1.2.md) · [manual-qa.md](./manual-qa.md)
 
-## Supported platforms (private beta)
+## Platforms
 
 | Platform | Artifacts | Status |
 |----------|-----------|--------|
-| **Windows x64** | NSIS installer (`.exe`), unpacked dir for smoke | Primary |
-| **Linux x64** | deb, unpacked dir for smoke | Supported |
-| **macOS** | — | Deferred (no target/signing/notarization yet) |
+| Windows x64 | NSIS `.exe`, unpacked dir for smoke | Primary |
+| Linux x64 | `.deb`, unpacked dir for smoke | Supported |
+| macOS | — | Deferred |
 
-Version and artifact names come from `package.json`:
+Artifact names come from `package.json` `build.artifactName`:
 
 ```text
 DevDesk-${version}-${os}-${arch}.${ext}
 ```
 
-Example: `DevDesk-0.1.2-win-x64.exe`, `DevDesk-0.1.2-linux-x64.deb`.
+Examples: `DevDesk-0.1.2-win-x64.exe`, `DevDesk-0.1.2-linux-x64.deb`.
 
-## GitHub Releases (automated)
+## GitHub Releases
 
-Pushing a version tag such as `v0.1.2` runs `.github/workflows/publish-release.yml`. The workflow checks that the tag matches `package.json`, builds and verifies both platform packages on their native GitHub-hosted runners, generates SHA-256 checksum files, and publishes the installers to a prerelease.
+Pushing a version tag (`v0.1.2`) runs `.github/workflows/publish-release.yml`. The workflow:
 
-The landing page must advertise a release only after both assets are live. Set the relevant `available` flags in `packages/landing/src/config/site.ts` to `true`, then run `npm run landing:verify-downloads` before deploying the landing page.
+1. Checks the tag matches `package.json` `version`
+2. Builds and verifies Windows and Linux packages on native runners
+3. Writes SHA-256 checksum files
+4. Publishes a **prerelease** with both installers
 
-## Release gate (automated)
+The landing page (`packages/landing`) must advertise an asset only after it is live. Set `available` on that artifact in `packages/landing/src/config/site.ts`, then `npm run landing:verify-downloads` before deploying the site.
 
-From a clean checkout of DevDesk:
+## Release gate
+
+From a clean checkout:
 
 ```bash
 npm install
@@ -40,64 +45,48 @@ npm run release:gate
 typecheck
 lint
 lint:architecture
-test:rust             # cargo test --locked (packages/engine/rust)
-test:run              # includes migration, native load, terminal unit tests
+test:rust
+test:run
 test:renderer:run
 test:engine
 test:engine-ipc
 smoke:engine-packaged
 ```
 
-Coverage (V8; per-suite non-decreasing thresholds active in vitest configs):
+Coverage (optional locally; CI static lane publishes reports):
 
 ```bash
 npm run test:coverage
 ```
 
-Platform package smokes (CI per OS, Node 22 packaging lane):
-
-```bash
-npm run verify:win-package    # Windows
-npm run verify:linux-package  # Linux
-```
-
-Windows clean-profile backend integration and packaged-startup evidence:
-
-```bash
-npm run qa:clean-install:win
-# → release/clean-install-qa-report.json
-```
-
-The command creates a fresh Windows package before testing it. It does not drive the renderer UI; interactive Windows and Linux sign-off remains tracked in `manual-qa.md`.
-
-### CI topology (`.github/workflows/release-gate.yml`)
+### CI (`.github/workflows/release-gate.yml`)
 
 | Lane | Matrix | Purpose |
 |------|--------|---------|
-| Static and coverage | Ubuntu, Node 22 | typecheck, lint, architecture, V8 coverage reports |
-| Native and integration | Windows + Ubuntu × Node 22 + 24 | clean install, Node-native rebuild, desktop/renderer/engine/engine-ipc tests |
-| Rust | Windows + Ubuntu | `cargo test --locked` (+ locked build) |
-| Package verification | Windows + Ubuntu, Node 22 | packaged engine smoke + unpacked package verify |
+| Static and coverage | Ubuntu, Node 22 | typecheck, lint, architecture, V8 coverage |
+| Native and integration | Windows + Ubuntu × Node 22 + 24 | clean install, Node natives, desktop/renderer/engine/engine-ipc |
+| Rust | Windows + Ubuntu | `cargo test --locked` |
+| Package verification | Windows + Ubuntu, Node 22 | packaged engine smoke + unpack verify |
 
-Supported host Node for development and packaging: **22.12–24** (default **22**, see `.nvmrc`). Review ledger: [test-review-ledger.md](./test-review-ledger.md).
+Host Node for development and packaging: **22.12–24** (default **22**). Ledger: [test-review-ledger.md](./test-review-ledger.md).
 
-## Clean-checkout packaging
+## Package on a clean checkout
 
 ```bash
 npm install
 npm run rebuild:native:electron
-npm run icons:generate   # optional if build/icon.* already committed
 ```
 
-### Windows host
+Windows:
 
 ```bash
-npm run package:win          # NSIS installer under release/
-npm run package:win:dir      # unpacked app for verification
-npm run verify:win-package   # engine + native unpack checks
+npm run package:win
+npm run package:win:dir
+npm run verify:win-package
+npm run qa:clean-install:win   # fresh NSIS + backend harness
 ```
 
-### Linux host
+Linux:
 
 ```bash
 npm run package:linux
@@ -105,44 +94,44 @@ npm run package:linux:dir
 npm run verify:linux-package
 ```
 
-Native rebuild prerequisites: [native-modules.md](./native-modules.md).
+`qa:clean-install:win` does **not** drive the renderer. Interactive sign-off stays in [manual-qa.md](./manual-qa.md).
 
 ## What is bundled
 
-- App main/preload/renderer under `dist/`
+- `dist/` main, preload, renderer
 - Electron-native `better-sqlite3` and `node-pty` (asar-unpacked)
-- Packaged performance engine under `resources/engine/` from `packages/engine/dist` (workspace package), with Electron-built `better-sqlite3` and `commander` under `resources/engine/node_modules/`
+- Performance engine from `packages/engine/dist` → `resources/engine/`, plus Electron-built `better-sqlite3` and `commander` under `resources/engine/node_modules/`
 
-## Icons and metadata
+The landing site is **not** inside the desktop app.
+
+## Metadata
 
 | Item | Value |
 |------|--------|
 | `appId` | `com.devdesk.app` |
 | `productName` | `DevDesk` |
 | Version | `package.json` → `version` |
-| Icon source | `build/icon.png` / `build/icon.ico` (from logo via `npm run icons:generate`) |
+| Icons | `build/icon.png` / `build/icon.ico` (`npm run icons:generate`) |
 
-## Code signing (deferred for beta)
+## Code signing (not in beta)
 
 Private beta builds are **unsigned**:
 
-- **Windows:** SmartScreen may warn on first launch. Authenticode signing is deferred until a release certificate is available (`CSC_LINK` / `CSC_KEY_PASSWORD` with electron-builder).
-- **macOS:** Not a first-release target; Developer ID + notarization deferred.
-- **Linux:** No code signing is required for deb distribution in beta.
+- **Windows:** SmartScreen may warn. Authenticode (`CSC_LINK` / `CSC_KEY_PASSWORD`) is deferred.
+- **macOS:** Not a 0.1 target.
+- **Linux:** No signing required for deb in this beta.
 
-Do not claim “signed installers” until signing secrets and CI are configured.
+Do not claim signed installers until secrets and CI are in place.
 
-## Manual packaged-app checks
+## Manual packaged checks
 
-Full checklist and session results: [manual-qa.md](./manual-qa.md).
+Full table: [manual-qa.md](./manual-qa.md). Minimum after install or unpacked launch:
 
-After installing or running the unpacked binary:
-
-1. App launches without DevTools and loads the renderer.
-2. Projects persist after restart (SQLite in userData).
-3. Terminal tab opens (`node-pty`).
-4. Engine index/search works for a sample project.
-5. Docker missing/present states still degrade gracefully.
+1. App starts without DevTools and the renderer loads
+2. A project survives restart (SQLite in userData)
+3. Terminal tab opens
+4. Engine index/search on a sample project
+5. Docker missing still degrades cleanly
 
 ## Release notes template
 

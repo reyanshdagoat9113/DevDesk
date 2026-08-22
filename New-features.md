@@ -1,16 +1,17 @@
-# DevDesk – Feature Expansion Specification (Agent-Ready)
+# DevDesk – Feature Expansion Specification (historical)
 
-This is a **single continuous Markdown file** you can paste into your IDE and hand to a coding agent.  
-It describes each planned feature with: **goal, scope, steps, required npm packages (as plain text), IPC/API surface, file placement, and acceptance checks**.
+> **Archive.** This file is the original agent-ready feature spec. The work it describes is implemented in v0.1.x.  
+> **Live plan:** [ROADMAP.md](ROADMAP.md) · [TODO.md](TODO.md) · [docs/beta-release-checklist.md](docs/beta-release-checklist.md) · [docs/user-guide.md](docs/user-guide.md)
 
-**Important:** This file is Markdown only. Any “code-like” snippets below are written as *documentation examples* (still inside Markdown).  
+It remains useful as design history (goals, IPC sketches, acceptance checks). Do not treat the steps below as the current task queue.
+
 DevDesk principles: **local-first, safe-by-default, fast UI, deterministic actions, secure IPC boundaries**.
 
 ---
 
-## Baseline Context (updated 2026-07-12)
+## Baseline context (frozen 2026-07-12)
 
-**Current DevDesk MVP (already exists):**
+**MVP that already existed when this spec was written:**
 - Projects: add/edit/remove, type detection
 - Command Vault: CRUD + run, tags
 - Run History: live output streaming + viewer
@@ -19,19 +20,13 @@ DevDesk principles: **local-first, safe-by-default, fast UI, deterministic actio
 - Preferences: editor/terminal selection
 - Architecture: Renderer (React) → Preload API → Main process services (no direct Node in renderer)
 
-**Implemented since the original specification:**
-- Command search/filter by tag
-- Run history shows names
-- Production build verification
+**Later implemented (now in 0.1.x):**
+- Command search/filter by tag; run history names
+- Production build verification; JSON store → SQLite
 - Command variables, presets, chains, and triggers
 - Embedded terminals and terminal tabs
-- Project health checks, file search, Git workspace features, and engine indexing
-- Markdown notes, tray actions, export/import, bug recording, and LLM context bundling
-
-The feature specifications below are historical implementation reference. The
-remaining work is release hardening and is tracked in
-`LAUNCH-BLOCKERS-PLAN.md`.
-- JSON store to SQLite migration
+- Project health checks, file search, Git workspace, engine indexing
+- Markdown notes, tray actions, export/import, bug recording, LLM context bundling
 
 ---
 

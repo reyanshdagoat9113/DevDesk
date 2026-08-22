@@ -1,5 +1,8 @@
 # DevDesk Test Suite Modernization
 
+> Planning document. **Current dispositions and coverage floors:** [test-review-ledger.md](./test-review-ledger.md).  
+> **How to run tests:** [../COMMANDS.md](../COMMANDS.md) · [../CONTRIBUTING.md](../CONTRIBUTING.md).
+
 ## Summary
 
 Modernize DevDesk's automated test suite so it reflects the current product, protects its highest-risk behavior, and provides credible evidence for private-beta release decisions. Every existing test and meaningful production surface will be reviewed, but new coverage will be prioritized by risk and behavior rather than test count or blanket coverage percentages.

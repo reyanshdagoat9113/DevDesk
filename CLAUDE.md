@@ -28,13 +28,13 @@ DevDesk is a local-first Electron app in an npm-workspaces monorepo:
 - Engine: `packages/engine` (`devdesk-engine` workspace package) — local code intelligence (index, search, stats, Git insights). Packaged into app `resources/engine/` from `packages/engine/dist`.
 
 Implementation notes:
-- IPC channels use kebab-case (e.g. `projects:add`, `commands:run`) and are registered in `apps/desktop/ipc/registerIpc.ts`.
+- IPC channels use kebab-case (e.g. `projects:add`, `commands:run`). Canonical names: `packages/ipc-contracts`. Registration: `apps/desktop/ipc/registerIpc.ts`.
 - Persistence is SQLite via `better-sqlite3` in userData as `devdesk.db` (WAL mode). Schema lives in `apps/desktop/data/model.ts`; store logic in `apps/desktop/data/store.ts`.
 - Legacy JSON store (`devdesk-store.json`) is imported once when the DB is empty.
 - Engine indexes live under `userData/engine/*.sqlite`.
 - `reconcileRunHistory()` marks any "running" entries as "stopped" on startup.
 
-## Current Feature Coverage (v0.1.0 — feature complete)
+## Current Feature Coverage (v0.1.2 — feature complete)
 
 - Projects: add/edit/remove/pin, open folder/editor/terminal, type detection.
 - Preferences: editor/terminal selection with custom command support (`{path}`).
@@ -50,12 +50,12 @@ Implementation notes:
 - Export/import (merge or replace, DB backup), tray quick actions, LLM context export.
 - Global Command Palette (Cmd/Ctrl+K) with fuzzy search.
 
-Remaining launch work (release-process, not code): interactive packaged-app QA on Windows + Linux (`docs/manual-qa.md`), Linux host verification, optional Windows code signing, macOS deferred. See `TODO.md` and `docs/beta-release-checklist.md`.
+Remaining launch work (release-process, not code): interactive packaged-app QA on Windows + Linux (`docs/manual-qa.md`), optional Windows code signing, macOS deferred. See `TODO.md`, `ROADMAP.md`, and `docs/beta-release-checklist.md`. Docs index: `docs/README.md`.
 
 ## Key Constraints
 - Local-first only. No cloud, no accounts, no AI services.
 - Safe by default. Destructive actions require confirmation.
-- Platform targets: Windows (installer shipped, unsigned) + Linux (AppImage/deb targets configured). macOS deferred.
+- Platform targets: Windows (unsigned NSIS) + Linux (x64 `.deb`). macOS deferred.
 
 ## Build Outputs
 - Renderer output: `dist/renderer`

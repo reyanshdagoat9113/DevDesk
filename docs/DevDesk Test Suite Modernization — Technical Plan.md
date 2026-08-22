@@ -1,5 +1,7 @@
 # DevDesk Test Suite Modernization — Technical Plan
 
+> Companion to [DevDesk Test Suite Modernization.md](./DevDesk%20Test%20Suite%20Modernization.md). **Living ledger:** [test-review-ledger.md](./test-review-ledger.md).
+
 ## Architectural approach
 
 Modernize the suite through a shared foundation followed by risk-ordered vertical waves. Tests should exercise the narrowest real boundary that proves a product invariant: pure logic at unit level, renderer behavior through a typed preload fake, persistence through temporary SQLite databases, process behavior through real child boundaries, and packaged behavior through the actual unpacked application.

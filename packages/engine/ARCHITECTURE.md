@@ -1,237 +1,87 @@
-# DevDesk Performance Engine - Architecture
+# DevDesk Performance Engine — architecture
 
-> **Tech:** TypeScript + Rust + SQLite (better-sqlite3)
-> **Role:** Fast local code intelligence for DevDesk
+**Tech:** TypeScript + SQLite (`better-sqlite3`) + optional Rust scanner  
+**Role:** Fast local code intelligence for DevDesk
 
----
+Desktop integration and path usage: [../../docs/architecture.md](../../docs/architecture.md).
 
-## Core Principle
+## Principle
 
-**Default to TypeScript. Move to Rust only for CPU-heavy operations.**
+**Default to TypeScript. Use Rust only for CPU-heavy work.**
 
-TypeScript handles orchestration, business logic, and most operations. Rust is reserved exclusively for: directory scanning, file hashing, heavy regex search, and parsing large files.
+| Layer | Does |
+|-------|------|
+| TypeScript | Orchestration, SQLite, language detect, ranking, CLI, Git insights |
+| Rust subprocess | Recursive walk, Blake3 hashing, heavy regex over many files |
+| Avoid in Rust | Docker, settings, fuzzy ranking, DB queries, Electron IPC |
 
----
+If the Rust binary is missing, TypeScript fallbacks still run (slower).
 
-## What Goes Where
+## Capabilities
 
-**TypeScript (default):** App logic, database calls, filesystem operations, CLI spawning, API boundaries, config, fuzzy matching, result ranking.
-
-**Rust (CPU-heavy only):** Recursive directory walks, Blake3 hashing, regex search on many files, watching large workspaces.
-
-**Avoid using Rust for:** Docker commands, settings, general orchestration, fuzzy matching, result ranking, API boundaries, database queries.
-
----
-
-## Engine Capabilities
-
-The Engine exposes capabilities (not commands). All clients—CLI, DevDesk app, API server—call the same TypeScript Engine, which decides how to execute each request.
+Clients (CLI and the desktop app) call the same `Engine` class.
 
 | Capability | Description |
 |------------|-------------|
-| `indexRepository()` | Scan, hash, detect language, store in SQLite |
-| `search()` | FTS5 text search with optional regex refinement |
-| `getFileIntelligence()` | Metadata, language, related files (deferred for the first public release) |
-| `getStats()` | File counts, language breakdown |
-| `getGitHotspots()` | Churn analysis, recent changes (v1.1) |
-| `buildContextBundle()` | Top-N relevant files for LLM context (deferred for the first public release) |
+| `indexRepository()` | Scan, hash, detect language, store in SQLite (incremental unless `--full`) |
+| `search()` | FTS5 candidates, optional regex refine, TS ranking |
+| `getStats()` | File counts and language breakdown |
+| `getGitInsights()` | Churn / hotspots from local Git |
 
----
+Not in the 0.1 engine surface: file-intelligence graph and LLM context assembly (the **app** has its own `llm` bundler).
 
-## How Operations Flow
+## Indexing flow
 
-### Indexing
+1. Open or create the per-repo SQLite file
+2. Walk + hash (Rust when available)
+3. For each file: language detect (TS), skip unchanged hashes, upsert content
+4. Soft-delete files not seen in this scan (`is_deleted`)
+5. Record scan metadata
 
-1. Generate scan ID (UUID)
-2. Get or create repository record in SQLite
-3. Call Rust scanner for directory walk + hashing
-4. For each file: detect language (TS), check hash for changes, upsert to SQLite
-5. Mark unseen files as deleted (soft delete via `is_deleted` flag)
-6. Record scan results
+Ignore: `.gitignore`, default build dirs (`node_modules`, `dist`, …), optional `.devdeskignore`, and the selected **profile** (`source-first` / `source-docs` / `full-text`). Policy: `src/index-policy.ts`.
 
-### Search
+## Search flow
 
-1. **FTS5 phase:** SQLite full-text search for candidates with snippets
-2. **Regex phase (if needed):** Rust worker refines with pattern matching
-3. **Ranking phase:** TS scores by FTS rank, recency, language relevance
+1. **FTS5** — SQLite full-text with snippets
+2. **Regex** — Rust worker when `--regex` / `regex: true`
+3. **Rank** — FTS score, recency, language
 
----
+## Database
 
-## Database Design
+Each indexed project has its own SQLite file (in the app: `userData/engine/<projectId>.sqlite`).
 
-SQLite stores repositories, files, scan history, and git hotspots. FTS5 provides full-text search via a virtual table synced through triggers.
+Typical tables: `repositories`, `files`, `files_fts` (FTS5 + triggers), `scans`, Git hotspot storage.
 
-**Key tables:**
-- `repositories` — tracked repos with scan metadata
-- `files` — file records with path, hash, language, content, soft-delete flag
-- `files_fts` — FTS5 virtual table for search
-- `scans` — scan history for incremental indexing
-- `git_hotspots` — churn data per file (v1.1)
+Incremental keys: `scan_id`, `is_deleted`, portable `relative_path`.
 
-**Incremental indexing keys:**
-- `scan_id` — tracks which scan last saw a file
-- `is_deleted` — soft delete for detecting removed files
-- `relative_path` — portable paths that work if repo moves
+## Path contract
 
----
-
-## Path Contract
-
-Engine API results use a stable cross-platform path form so Electron IPC and UI
-code can compare and persist paths without OS-specific branching.
+Engine JSON uses a stable form so Electron IPC does not branch on OS separators.
 
 | Context | Form | Helper |
 |---------|------|--------|
-| API / JSON results (`repo`, `db`, stored absolute file paths) | Absolute, **forward slashes** (e.g. `C:/Users/proj`) | `normalizePath()` |
-| Search paths returned through DevDesk IPC | **Project-relative** with `/` (e.g. `src/app.ts`) | desktop `normalizeSearchResultPaths` |
-| Filesystem and Rust worker I/O | Native OS separators | `toNativePath()` / Node `path` |
+| API / stored absolute paths | Absolute, **forward slashes** (`C:/Users/proj`) | `normalizePath()` |
+| Search hits through DevDesk IPC | **Project-relative** with `/` | desktop `normalizeSearchResultPaths` |
+| Filesystem / Rust I/O | Native separators | `toNativePath()` / Node `path` |
 
 Rules:
 
-1. Never return native Windows backslashes from engine capability results.
-2. Callers that need to open files convert with `toNativePath` (or Node `path`
-   APIs, which accept `/` on Windows).
-3. DevDesk persists `dbPath` from the engine result as-is (canonical form).
+1. Do not return Windows backslashes from engine capability results.
+2. Callers that open files convert with `toNativePath` (Node `path` accepts `/` on Windows).
+3. DevDesk persists `dbPath` from the engine result as-is.
 
----
+## Layout (`packages/engine`)
 
-## CLI Commands
-
-```bash
-# Index
-engine index ./my-project              # Incremental index
-engine index ./my-project --full       # Force full reindex
-
-# Search
-engine search "useEffect" ./my-project
-engine search "TODO|FIXME" ./my-project --regex
-
-# Stats
-engine stats ./my-project
+```text
+src/
+  engine.ts              Engine class
+  cli.ts                 commander CLI (JSON stdout)
+  capabilities/          index, search, stats, git-insights
+  workers/client.ts      Rust subprocess
+  db/                    SQLite schema + queries
+  index-policy.ts        profiles and ignore rules
+  git.ts                 Git insights helpers
+rust/                    scanner + regex worker (JSON CLI)
 ```
 
----
-
-## Project Structure
-
-```
-devdesk-engine/
-├── src/
-│   ├── engine.ts              # Main Engine class
-│   ├── capabilities/          # Capability implementations
-│   │   ├── index.ts           # Capability registry
-│   │   ├── index-repository.ts
-│   │   ├── search.ts
-│   │   ├── file-intelligence.ts
-│   │   ├── stats.ts
-│   │   ├── git-hotspots.ts
-│   │   └── context-bundle.ts
-│   ├── workers/               # Rust subprocess manager
-│   │   ├── client.ts          # Spawns and talks to Rust
-│   │   └── fallback.ts        # Pure TS fallbacks
-│   ├── db/                    # SQLite connection, schema, queries
-│   │   ├── schema.sql         # DDL for all tables
-│   │   ├── migrations/        # Schema version migrations
-│   │   └── queries.ts         # Prepared statements
-│   ├── scoring/               # Ranking and fuzzy matching
-│   │   ├── ranker.ts          # Result scoring
-│   │   └── fuzzy.ts           # Fuzzy matching utilities
-│   └── cli.ts                 # CLI entry point
-├── rust/
-│   ├── Cargo.toml
-│   └── src/
-│       ├── main.rs            # JSON CLI entry point
-│       ├── scanner.rs         # File walking + hashing
-│       └── search.rs          # Regex search
-└── tests/
-    ├── unit/                  # Unit tests per module
-    └── integration/           # End-to-end capability tests
-```
-
----
-
-## Rust Worker Integration
-
-**MVP:** Rust runs as a subprocess, communicates via JSON stdout. Simple, debuggable, works everywhere.
-
-**Future (v1.5):** napi-rs native bindings if JSON parsing becomes a bottleneck. Profile first.
-
----
-
-## Performance Targets
-
-| Operation | Target |
-|-----------|--------|
-| Index 10k files (full) | < 3s |
-| Index 10k files (incremental) | < 500ms |
-| FTS5 search | < 50ms |
-| Regex search | < 200ms |
-| Context bundle | < 100ms |
-| Database size | 15-25% of repo |
-
----
-
-## Key Design Decisions
-
-- **TypeScript-first** — Rust only for proven CPU-heavy paths
-- **Engine API** — CLI is just one client; the app is another
-- **Capabilities, not modules** — expose what, not how
-- **SQLite FTS5** — fast enough for text search, no external deps
-- **Subprocess Rust (MVP)** — simple, debuggable, portable
-- **FTS triggers** — automatic sync, no manual index management
-- **Incremental-first schema** — `scan_id` and `is_deleted` enable clean incremental updates
-
----
-
-## Roadmap
-
-### v1.0 — Core Engine
-
-| Phase | Focus | Deliverables |
-|-------|-------|--------------|
-| **1. Engine Core** | Foundation | Engine class, SQLite schema, `indexRepository()` capability, language detection |
-| **2. Search** | Querying | `search()` with FTS5, ranking layer, `getFileIntelligence()`, `getStats()` |
-| **3. Rust Worker** | Performance | Scanner binary (walk + hash), regex search worker, TS client with JSON IPC |
-| **4. CLI** | Interface | Refactor CLI to use Engine, all commands working, `--json` output |
-| **5. Testing** | Quality | Unit tests (>80% coverage), integration tests, performance benchmarks |
-
-### v1.1 — Git Insights
-
-| Deliverable | Description |
-|-------------|-------------|
-| `getGitHotspots()` | Parse git log, identify high-churn files |
-| Churn scoring | Integrate hotspot data into search ranking |
-| `engine hotspots` | CLI command to display churn analysis |
-
-### v1.2 — Context Bundling
-
-Deferred for the first public release.
-
-| Deliverable | Description |
-|-------------|-------------|
-| `buildContextBundle()` | Select top-N relevant files for LLM context |
-| Token budgeting | Fit output within configurable token limits |
-| Smart selection | Use search ranking + hotspots for relevance |
-| `engine context` | CLI command to generate context bundles |
-
-### v1.5 — Native Bindings (Optional)
-
-| Deliverable | Description |
-|-------------|-------------|
-| napi-rs integration | Replace JSON subprocess with native bindings |
-| Performance profile | Measure improvement, justify complexity |
-| Fallback support | Keep subprocess path for debugging |
-
----
-
-## Success Criteria
-
-| Metric | Target |
-|--------|--------|
-| Index 10k files (cold) | < 3 seconds |
-| Index 10k files (warm) | < 500ms |
-| FTS5 search latency | < 50ms p99 |
-| Regex search latency | < 200ms p99 |
-| Memory footprint | < 100MB idle |
-| Test coverage | > 80% |
-| CLI startup | < 50ms |
+Packaging copies `dist/` (JS + Rust binary) into the Electron `resources/engine/` tree. See root `package.json` `build.extraResources`.

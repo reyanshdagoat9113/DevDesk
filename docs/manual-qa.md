@@ -1,14 +1,14 @@
 # Manual clean-install QA
 
-**Version under test:** `0.1.0`
-**Plan reference:** launch-blocker tasks 5 and 15
-**Last updated:** 2026-07-13
+**Current product version:** `0.1.2`  
+**Last Windows automated session logged below:** `0.1.0` (2026-07-13) — re-run the harness against a fresh `0.1.2` artifact before calling that version signed off.  
+**Related:** [release.md](./release.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [install.md](./install.md)
 
-This checklist separates automated clean-profile integration evidence from manual actions performed in the packaged UI.
+This checklist separates automated clean-profile integration evidence from manual actions in the packaged UI.
 
 Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is out of scope.
 
-**Evidence rule:** `Automated pass` means the harness exercised the main-process or packaged-smoke path. `Manual pass` is reserved for a person performing the documented action in the packaged UI. Automated evidence must not be presented as completed interactive QA.
+**Evidence rule:** `Automated pass` means the harness exercised the main-process or packaged-smoke path. `Manual pass` is a person performing the documented action in the packaged UI. Automated evidence must not be presented as completed interactive QA. Interactive Windows and Linux rows below are still the launch gap.
 
 ---
 
