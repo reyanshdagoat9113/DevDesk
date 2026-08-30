@@ -3,6 +3,13 @@
 **Label:** Private beta / prerelease  
 **Docs:** [install.md](./install.md) · [user-guide.md](./user-guide.md) · [release.md](./release.md)
 
+## Maintenance refresh (installers rebuilt from `main`)
+
+- Renderer runtime errors no longer replace the whole workspace; bootstrap failures stay on a static screen, and later errors use a React error boundary plus a banner.
+- Stop now kills the command process tree (Windows `taskkill /T`, POSIX process group), not only the shell wrapper.
+- Command run output is capped (first 64 KiB + last 512 KiB) before it is stored.
+- History and bug lists paginate without shipping full output bodies at startup; unknown command variables fail closed instead of running as literal `{{…}}` text.
+
 ## Highlights
 
 - Refined project, automation, and performance-engine surfaces for a more consistent workspace.
