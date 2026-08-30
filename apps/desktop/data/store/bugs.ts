@@ -234,7 +234,7 @@ export async function listBugReports(filters: BugReportFilters = {}): Promise<Bu
     await ensureDbInitialized()
 
     const where: string[] = []
-    const params: string[] = []
+    const params: Array<string | number> = []
 
     if (filters.projectId) {
       where.push('project_id = ?')
@@ -250,6 +250,13 @@ export async function listBugReports(filters: BugReportFilters = {}): Promise<Bu
       where.push('severity = ?')
       params.push(filters.severity)
     }
+
+    const limit = typeof filters.limit === 'number' && Number.isFinite(filters.limit)
+      ? Math.min(Math.max(1, Math.trunc(filters.limit)), 500)
+      : 200
+    const offset = typeof filters.offset === 'number' && Number.isFinite(filters.offset)
+      ? Math.max(0, Math.trunc(filters.offset))
+      : 0
 
     const sql = `
       SELECT
@@ -269,8 +276,10 @@ export async function listBugReports(filters: BugReportFilters = {}): Promise<Bu
       FROM bug_reports
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY updated_at DESC, rowid DESC
+      LIMIT ? OFFSET ?
     `
 
+    params.push(limit, offset)
     const rows = getDbOrThrow().prepare(sql).all(...params) as BugReportRow[]
     return rows.map(toBugReport)
   })

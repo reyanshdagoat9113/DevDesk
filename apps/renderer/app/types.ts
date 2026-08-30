@@ -222,6 +222,8 @@ export interface BugReportFilters {
   projectId?: string
   status?: BugStatus
   severity?: BugSeverity
+  limit?: number
+  offset?: number
 }
 
 export interface BugContextSnapshot {
@@ -298,6 +300,13 @@ export interface RunHistoryEntry {
   endTime?: string
   output?: string
   resolvedCommand?: string
+}
+
+export interface RunHistoryPage {
+  entries: Array<Omit<RunHistoryEntry, 'output'>>
+  total: number
+  limit: number
+  offset: number
 }
 
 export interface AppPreference {

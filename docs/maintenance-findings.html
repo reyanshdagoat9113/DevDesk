@@ -8,7 +8,7 @@
   :root {
     --bg: #0b0b0e; --panel: #141419; --panel2: #1a1a22; --border: #2a2a35;
     --text: #e8e8ee; --muted: #9a9aad; --accent: #6c8cff;
-    --high: #ff5c6c; --med: #ffb454; --low: #4dc991; --info: #7f8ea8;
+    --high: #ff5c6c; --med: #ffb454; --low: #4dc991; --info: #7f8ea8; --done: #4dc991;
   }
   * { box-sizing: border-box; }
   body { background: var(--bg); color: var(--text); font-family: "Segoe UI", Inter, system-ui, sans-serif; margin: 0; padding: 0; line-height: 1.55; }
@@ -25,11 +25,14 @@
   .tag.med { background: rgba(255,180,84,.12); color: var(--med); border: 1px solid rgba(255,180,84,.4); }
   .tag.low { background: rgba(77,201,145,.12); color: var(--low); border: 1px solid rgba(77,201,145,.4); }
   .tag.info { background: rgba(127,142,168,.12); color: var(--info); border: 1px solid rgba(127,142,168,.4); }
+  .tag.done { background: rgba(77,201,145,.14); color: var(--done); border: 1px solid rgba(77,201,145,.4); }
   .group { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; margin: 18px 0; }
   .group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 6px; }
   .group-head h3 { margin: 0; font-size: 17px; color: var(--text); }
   .commit { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--accent); background: rgba(108,140,255,.1); border: 1px solid rgba(108,140,255,.3); padding: 2px 8px; border-radius: 6px; }
   .finding { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+  .finding.done { border-color: rgba(77,201,145,.35); }
+  .group.done { border-color: rgba(77,201,145,.35); }
   .finding-title { font-weight: 700; margin-bottom: 6px; }
   .fid { font-family: ui-monospace, Consolas, monospace; color: var(--accent); margin-right: 8px; }
   code, .path { font-family: ui-monospace, Consolas, "Cascadia Mono", monospace; font-size: 12.5px; background: rgba(255,255,255,.06); padding: 1px 6px; border-radius: 5px; }
@@ -54,7 +57,7 @@
 <div class="wrap">
 
   <h1>DevDesk — Maintenance Findings Report</h1>
-  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. No fixes have been applied; this document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together.</p>
+  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Group 1 and Group 2 are completed</span>; remaining groups are still open.</p>
 
   <div class="meta">
     <div class="card"><b>Audited commit</b><code>90ec4fd</code> — "Refresh documentation for v0.1.2" (clean working tree)</div>
@@ -67,14 +70,15 @@
     <b>Severity legend</b>
     <span class="tag high">HIGH</span> crashes, data loss, broken core feature &nbsp;
     <span class="tag med">MEDIUM</span> functional bug or real risk on supported platforms &nbsp;
-    <span class="tag low">LOW</span> polish, hygiene, hardening, tech-debt
+    <span class="tag low">LOW</span> polish, hygiene, hardening, tech-debt &nbsp;
+    <span class="tag done">COMPLETED</span> implemented in tree
     <p class="note" style="margin:8px 0 0">Confidence reflects how certainly the behavior was confirmed from code. Items needing a manual repro on real hardware are marked <b>verify-by-hand</b>.</p>
   </div>
 
   <h2>Contents — Fix-Commit Groups</h2>
   <ol class="toc">
-    <li><a href="#g1">Group 1 — Renderer crash-resilience</a></li>
-    <li><a href="#g2">Group 2 — Command run pipeline</a></li>
+    <li><a href="#g1">Group 1 — Renderer crash-resilience</a> <span class="tag done">COMPLETED</span></li>
+    <li><a href="#g2">Group 2 — Command run pipeline</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g3">Group 3 — Platform launchers (Win/Linux)</a></li>
     <li><a href="#g4">Group 4 — WSL embedded terminal</a></li>
     <li><a href="#g5">Group 5 — Data lifecycle &amp; export/import</a></li>
@@ -88,16 +92,17 @@
 
   <!-- ==================== GROUP 1 ==================== -->
   <h2 id="g1">Group 1 — Renderer crash-resilience</h2>
-  <div class="group">
+  <div class="group done">
     <div class="group-head">
       <h3>One unhandled rejection can wipe the entire running UI</h3>
       <span class="commit">fix/renderer-error-handling</span>
       <span class="tag high">HIGH</span>
+      <span class="tag done">COMPLETED</span>
     </div>
-    <p class="note">Suggested commit message: “Replace DOM-destroying global error handlers with a React error boundary”</p>
+    <p class="note">Suggested commit message: “Replace DOM-destroying global error handlers with a React error boundary”. <span class="pass">Status: completed.</span> Runtime errors now use a React error boundary plus a non-destructive banner; <code>renderBootstrapError</code> is bootstrap-only and interpolated text is escaped.</p>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-01</span> Window-level error handlers overwrite the mounted React root <span class="tag high">HIGH</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-01</span> Window-level error handlers overwrite the mounted React root <span class="tag high">HIGH</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/renderer/main.tsx</span> (lines 7–57)</p>
       <p><code>renderBootstrapError()</code> is wired not only to bootstrap failures but to <em>lifetime</em> events: <code>window.addEventListener('error', …)</code> and <code>window.addEventListener('unhandledrejection', …)</code> both call it, and it does <code>root.innerHTML = …</code>. Consequence: any late async rejection — a stray promise from an IPC event callback, a failed refresh, a component bug outside a boundary — <b>destroys the whole workspace UI mid-session</b> and replaces it with the static "DevDesk failed to render." screen. The React tree is yanked out from under the mounted root, so nothing recovers without a reload. The name says "bootstrap error" but the handler runs for the entire app lifetime.</p>
       <ul>
@@ -106,47 +111,53 @@
       </ul>
       <p><b>Fix direction:</b> keep <code>renderBootstrapError</code> only for the pre-mount <code>try/catch</code>; wrap <code>&lt;App/&gt;</code> in a React error boundary; for runtime <code>error</code>/<code>unhandledrejection</code> render a non-destructive toast/banner (reuse the existing Alert components), and escape all interpolated content.</p>
       <p><b>Tests to add:</b> renderer test asserting an unhandled rejection does not unmount the app tree; error-boundary fallback renders and offers reload.</p>
+      <p><span class="pass">Applied:</span> React error boundary + runtime banner; bootstrap-only fatal screen; escaped interpolation. Tests in <span class="path">AppErrorBoundary.test.tsx</span> / <span class="path">RuntimeErrorBanner.test.tsx</span>.</p>
     </div>
   </div>
 
   <!-- ==================== GROUP 2 ==================== -->
   <h2 id="g2">Group 2 — Command run pipeline</h2>
-  <div class="group">
+  <div class="group done">
     <div class="group-head">
       <h3>Stop button, unbounded output, heavy history loads, silent unresolved variables</h3>
       <span class="commit">fix/run-pipeline</span>
       <span class="tag high">HIGH</span>
+      <span class="tag done">COMPLETED</span>
     </div>
-    <p class="note">Suggested commit message: “Harden command execution: tree-kill, bounded output, on-demand history, unresolved-variable guard”. All findings share the run-execution path (<span class="path">apps/desktop/ipc/registerIpc.ts</span> → <span class="path">history.ts</span> → <span class="path">variableResolver.ts</span> → History UI), so they belong in one commit.</p>
+    <p class="note">Suggested commit message: “Harden command execution: tree-kill, bounded output, on-demand history, unresolved-variable guard”. All findings share the run-execution path (<span class="path">apps/desktop/ipc/registerIpc.ts</span> → <span class="path">history.ts</span> → <span class="path">variableResolver.ts</span> → History UI), so they belong in one commit. <span class="pass">Status: completed</span> (F-02, F-03, F-04, F-05).</p>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-02</span> "Stop" kills the shell, not the process tree <span class="tag high">HIGH</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-02</span> "Stop" kills the shell, not the process tree <span class="tag high">HIGH</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> line 2251–2259 (<code>commands:stop</code>), spawn at line 1407 (<code>spawn(finalCommand, { shell: true })</code>)</p>
       <p>Commands run through a shell; <code>running.process.kill()</code> kills only the shell process. On Windows the cmd.exe wrapper dies but the actual child (dev server, watcher, long build) keeps running invisibly and keeps ports/files locked; same on POSIX since no process group is used. The run is then marked <code>stopped</code> in history even though the process is still alive — users will see "stopped" servers that still occupy port 3000.</p>
       <p><b>Fix direction:</b> platform tree-kill — <code>taskkill /pid &lt;pid&gt; /T /F</code> on win32; spawn with <code>detached: true</code> and kill <code>-pid</code> (process group) on POSIX. Consider confirming "process still alive after stop" in history output.</p>
       <p><b>Tests to add:</b> unit test spawning a shell that launches a grandchild, assert stop terminates the grandchild (platform-guarded).</p>
+      <p><span class="pass">Applied:</span> <span class="path">killProcessTree</span> — <code>taskkill /T /F</code> on win32, process-group kill on POSIX. Test in <span class="path">processTree.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-03</span> Run output is buffered without limit — memory + database bloat <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-03</span> Run output is buffered without limit — memory + database bloat <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> line 1430 (<code>running.output += text</code>)</p>
       <p>A command that produces heavy output (e.g. <code>cat</code> of a huge file, chatty dev server, <code>npm install</code> debug logs) grows an in-memory string without bound and then persists the entire text into <code>run_history.output</code>. Long-running noisy commands will bloat RAM in the main process and the SQLite file. Contrast: the engine bridge (<span class="path">apps/desktop/engine/binary.ts</span>) already caps output at 8 MB — the command runner has no such guard.</p>
       <p><b>Fix direction:</b> cap the live buffer (ring buffer with head+tail, e.g. keep first 64 KB + last 512 KB, note truncation in output), cap what is written to the DB, and mark truncated runs in history.</p>
+      <p><span class="pass">Applied:</span> head 64 KiB + tail 512 KiB ring buffer; truncated text persisted and returned by <code>history:output</code>. Tests in <span class="path">runOutputBuffer.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-04</span> Full run history — including every stored output — ships to the renderer at startup; no LIMIT anywhere <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-04</span> Full run history — including every stored output — ships to the renderer at startup; no LIMIT anywhere <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/data/store/history.ts</span> (<code>listRunHistory</code> — selects <code>output</code>, no LIMIT); <span class="path">apps/desktop/data/store/bugs.ts</span> (<code>listBugReports</code> — no LIMIT); consumer <span class="path">apps/renderer/app/App.tsx</span> <code>loadAll()</code></p>
       <p><code>getRunHistory()</code> is called on every app start and returns <em>every row with its full output column</em>. Combined with F-03 this can transfer hundreds of MB into the renderer over IPC on a well-used install, slowing startup and bloating the renderer heap. The output-on-demand API (<code>history:output</code>) already exists and is used by the viewer — the list payload simply shouldn't include outputs.</p>
       <p><b>Fix direction:</b> stop selecting <code>output</code> in list queries; add LIMIT/pagination to <code>listRunHistory</code> and <code>listBugReports</code>; keep <code>getRunOutput(runId)</code> as the single source for body text.</p>
+      <p><span class="pass">Applied:</span> list payload omits <code>output</code>; default page 200 (max 500); History <b>Load more</b>; bug lists paginated. Tests in <span class="path">history.test.ts</span> / HistorySection.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-05</span> Unresolved non-input variables are silently executed as literal text <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-05</span> Unresolved non-input variables are silently executed as literal text <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/commands/variableResolver.ts</span> (<code>resolve()</code> — <code>'unresolved'</code> branch returns the placeholder unchanged; only <code>input-required</code> is collected)</p>
       <p><code>{{input.*}}</code> variables correctly pause execution with a needs-input flow, but a typo'd or missing <code>{{env.MISSING_VAR}}</code>, <code>{{project.wrongfield}}</code> or <code>{{container.nope}}</code> is left as literal braces in the command and the command <b>runs anyway</b> (e.g. <code>docker logs {{container.nope}}</code>). The user gets a raw shell error for an obviously invalid command instead of a validation message.</p>
       <p><b>Fix direction:</b> collect unresolved (non-input) variables in the result and either fail <code>prepareCommandExecution</code> with "Unknown variable: …" or surface a confirm-with-preview warning.</p>
       <p><b>Tests to add:</b> variableResolver tests for unresolved env/project/container paths; registerIpc-level test that execution is blocked or warned.</p>
+      <p><span class="pass">Applied:</span> unknown non-input tokens fail closed with <code>Unknown variable(s): …</code>; <code>{{input}}</code> still prompts. Tests in <span class="path">variableResolver.test.ts</span>.</p>
     </div>
   </div>
 
@@ -463,7 +474,7 @@
     </table>
   </div>
 
-  <p class="note" style="margin-top:36px">Generated by the maintenance sweep on 2026-08-27 · base commit <code>90ec4fd</code> · 32 findings across 9 fix-commit groups · all baseline gates green at time of audit.</p>
+  <p class="note" style="margin-top:36px">Generated by the maintenance sweep on 2026-08-27 · base commit <code>90ec4fd</code> · 32 findings across 9 fix-commit groups · <span class="pass">5 completed</span> (F-01–F-05, Groups 1–2) · 27 still open · all baseline gates green at time of audit.</p>
 </div>
 </body>
 </html>

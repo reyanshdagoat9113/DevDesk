@@ -65,6 +65,10 @@ Living list of automated tests and how they relate to the suite-modernization wo
 | `apps/renderer/app/lib/electronApiFake.test.ts` | renderer | T2 harness |
 | `apps/renderer/app/App.bootstrap.test.tsx` | renderer | T6 bootstrap/events (mounts `App`) |
 | `apps/renderer/app/components/RunnableBlock.wiring.test.tsx` | renderer | T6 runnable wiring |
+| `apps/desktop/system/processTree.test.ts` | desktop | F-02 tree-kill stop |
+| `apps/desktop/system/runOutputBuffer.test.ts` | desktop | F-03 bounded run output |
+| `apps/desktop/data/store/history.test.ts` | desktop | F-04 history list pagination |
+| `apps/renderer/app/lib/runHistory.test.ts` | renderer | F-04 history page merge helpers |
 
 ## Meaningful production surfaces
 

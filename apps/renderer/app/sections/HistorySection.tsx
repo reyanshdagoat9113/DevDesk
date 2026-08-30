@@ -58,6 +58,8 @@ export function HistorySection({
   onLoadOutput,
   onClearHistory,
   onRemoveEntry,
+  onLoadMore,
+  hasMore,
   initialRunId,
   onOpenCommands,
 }: {
@@ -70,6 +72,8 @@ export function HistorySection({
   onLoadOutput?: (runId: string) => Promise<string>
   onClearHistory?: () => Promise<void>
   onRemoveEntry?: (runId: string) => Promise<void>
+  onLoadMore?: () => Promise<void> | void
+  hasMore?: boolean
   initialRunId?: string | null
   onOpenCommands?: () => void
 }) {
@@ -95,6 +99,7 @@ export function HistorySection({
   const [statusFilter, setStatusFilter] = useState<RunHistoryEntry['status'] | 'all'>('all')
   const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('all')
   const [sort, setSort] = useState<HistorySort>('newest')
+  const [loadingMore, setLoadingMore] = useState(false)
   const appliedInitialRunId = useRef<string | null>(null)
   const outputRequestRef = useRef(0)
 
@@ -254,6 +259,16 @@ export function HistorySection({
       setStopError(stopFailure instanceof Error ? stopFailure.message : 'Failed to terminate the run.')
     } finally {
       setStopping(false)
+    }
+  }
+
+  const handleLoadMore = async () => {
+    if (!onLoadMore || loadingMore) return
+    setLoadingMore(true)
+    try {
+      await onLoadMore()
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -438,6 +453,17 @@ export function HistorySection({
                       </button>
                     )
                   })}
+                  {hasMore && onLoadMore ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 w-full"
+                      disabled={loadingMore}
+                      onClick={() => void handleLoadMore()}
+                    >
+                      {loadingMore ? 'Loading…' : 'Load more'}
+                    </Button>
+                  ) : null}
                 </div>
               )}
             </div>

@@ -11,12 +11,10 @@ import {
   createCommand,
   createHealthCheckRun,
   createProject,
-  createRunHistoryEntry,
   createTrigger,
   deleteBugAttachmentRecord,
   deleteBugReport,
   exportAllData,
-  finalizeRunHistoryEntry,
   validateExportData,
   getBugAttachmentById,
   getBugReportById,
@@ -76,18 +74,19 @@ import type {
   Container,
   Project,
   ProjectHealthReport,
-  RunStatus,
   UpdateBugReportInput,
 } from '../data/model'
 import { copyFileToAttachments, deleteAttachmentFile } from '../bugs/attachmentService'
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
-import { variableResolver } from '../commands/variableResolver'
+import { startTrackedCommandRun, type StartedCommandRun } from '../commands/commandRun'
+import { assertCommandVariablesResolved, variableResolver } from '../commands/variableResolver'
 import { detectVariables } from '../commands/variableDetector'
 import { terminalManager } from '../terminal/terminalManager'
 import type { TerminalCreateOptions } from '../data/model'
 import { runSystemChecks } from '../health/systemChecks'
 import { runRuntimeChecks } from '../health/runtimeChecks'
 import { captureContextSnapshot } from '../bugs/contextSnapshot'
+import { killProcessTree } from '../system/processTree'
 import { registerExtractedDomainHandlers } from './handlers'
 import {
   runningChains,
@@ -95,7 +94,6 @@ import {
   runningDockerLogSubscriptions,
   pendingTriggerConfirmations,
   type ChainRunPayload,
-  type RunningCommand,
   type TriggerConfirmationRequestPayload,
 } from './runtimeState'
 
@@ -186,7 +184,7 @@ const BUG_UPDATE_INPUT_KEYS = new Set<keyof UpdateBugReportInput>([
   'notes',
   'resolutionNotes',
 ])
-const BUG_FILTER_KEYS = new Set<keyof BugReportFilters>(['projectId', 'status', 'severity'])
+const BUG_FILTER_KEYS = new Set<keyof BugReportFilters>(['projectId', 'status', 'severity', 'limit', 'offset'])
 
 function bugSuccess<T>(data: T): BugApiResult<T> {
   return { ok: true, data }
@@ -339,6 +337,18 @@ function sanitizeBugFilters(filters: unknown): BugReportFilters {
   }
   if ('severity' in filters) {
     sanitized.severity = sanitizeBugSeverity(filters.severity, 'Bug filters severity')
+  }
+  if ('limit' in filters) {
+    if (typeof filters.limit !== 'number' || !Number.isFinite(filters.limit)) {
+      throw new Error('Bug filters limit must be a finite integer.')
+    }
+    sanitized.limit = Math.trunc(filters.limit)
+  }
+  if ('offset' in filters) {
+    if (typeof filters.offset !== 'number' || !Number.isFinite(filters.offset)) {
+      throw new Error('Bug filters offset must be a finite integer.')
+    }
+    sanitized.offset = Math.trunc(filters.offset)
   }
 
   return sanitized
@@ -1215,12 +1225,7 @@ type PreparedCommandExecution = {
   finalCommand: string
 }
 
-type StartedCommandRun = {
-  runId: string
-  status: 'running'
-  startTime: string
-  completion: Promise<RunStatus>
-}
+
 
 function sanitizeStepVariables(value: unknown): Record<string, string> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -1340,6 +1345,8 @@ async function prepareCommandExecution(
     shellDialect
   )
 
+  assertCommandVariablesResolved(resolution)
+
   if (resolution.unresolvedInputs.length > 0) {
     return {
       status: 'needs-input',
@@ -1359,29 +1366,6 @@ async function prepareCommandExecution(
 }
 
 async function startPreparedCommandExecution(prepared: PreparedCommandExecution): Promise<StartedCommandRun> {
-  const runId = randomUUID()
-  const startTime = new Date().toISOString()
-
-  await createRunHistoryEntry({
-    id: runId,
-    commandId: prepared.command.id,
-    projectId: prepared.project.id,
-    status: 'running',
-    startTime,
-    output: '',
-    resolvedCommand: prepared.finalCommand,
-  })
-
-  broadcast('runs:started', {
-    id: runId,
-    commandId: prepared.command.id,
-    projectId: prepared.project.id,
-    status: 'running',
-    startTime,
-    output: '',
-    resolvedCommand: prepared.finalCommand,
-  })
-
   const wslLocation = parseWslProjectPath(prepared.projectPath)
   const child = wslLocation
     ? spawn(
@@ -1406,56 +1390,16 @@ async function startPreparedCommandExecution(prepared: PreparedCommandExecution)
         cwd: prepared.workingDirectoryPath,
         shell: true,
         env: process.env,
+        detached: process.platform !== 'win32',
       })
 
-  let resolveCompletion: ((status: RunStatus) => void) | null = null
-  const completion = new Promise<RunStatus>((resolve) => {
-    resolveCompletion = resolve
+  return startTrackedCommandRun({
+    commandId: prepared.command.id,
+    projectId: prepared.project.id,
+    finalCommand: prepared.finalCommand,
+    child,
+    broadcast,
   })
-
-  const running: RunningCommand = {
-    process: child,
-    output: '',
-    requestedStop: false,
-    completion,
-  }
-  runningCommands.set(runId, running)
-
-  const flushOutput = async (runStatus?: RunStatus) => {
-    await finalizeRunHistoryEntry(runId, running.output, runStatus)
-  }
-
-  const pushChunk = (chunk: Buffer) => {
-    const text = chunk.toString()
-    running.output += text
-    broadcast('runs:output', { runId, chunk: text })
-  }
-
-  child.stdout.on('data', pushChunk)
-  child.stderr.on('data', pushChunk)
-
-  child.on('error', async (error) => {
-    running.output += `\n${error.message}\n`
-    await flushOutput('failed')
-    runningCommands.delete(runId)
-    broadcast('runs:status', { runId, status: 'failed' })
-    resolveCompletion?.('failed')
-  })
-
-  child.on('close', async (code) => {
-    const status: RunStatus = running.requestedStop ? 'stopped' : code === 0 ? 'success' : 'failed'
-    await flushOutput(status)
-    runningCommands.delete(runId)
-    broadcast('runs:status', { runId, status })
-    resolveCompletion?.(status)
-  })
-
-  return {
-    runId,
-    status: 'running',
-    startTime,
-    completion,
-  }
 }
 
 async function startCommandExecution(
@@ -2255,7 +2199,7 @@ export function registerIpcHandlers() {
     }
 
     running.requestedStop = true
-    running.process.kill()
+    await killProcessTree(running.process)
     return { success: true }
   })
 

@@ -79,7 +79,6 @@ export function filterAndSortHistory(
       command?.command,
       entry.resolvedCommand,
       project?.name,
-      entry.output,
       getFailureSummary(entry),
     ].filter(Boolean).join(' ').toLowerCase()
 

@@ -1,6 +1,13 @@
 import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('electron', () => ({
+  app: {
+    isReady: () => true,
+    getPath: () => '/mock/user/data',
+  },
+}))
+
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
@@ -168,6 +175,22 @@ describe('bug store', () => {
     await expect(deleteBugReport(report.id)).resolves.toBe(true)
     await expect(deleteBugReport(report.id)).resolves.toBe(false)
     await expect(getBugReportById(report.id)).resolves.toBeNull()
+  })
+
+  it('paginates reports with limit and offset', async () => {
+    const { createBugReport, listBugReports } = await importBugs()
+
+    const first = await createBugReport({ projectId: 'project-1', title: 'One' })
+    const second = await createBugReport({ projectId: 'project-1', title: 'Two' })
+    const third = await createBugReport({ projectId: 'project-1', title: 'Three' })
+
+    const page = await listBugReports({ projectId: 'project-1', limit: 2, offset: 0 })
+    expect(page).toHaveLength(2)
+    expect(page.map((report) => report.id)).toEqual([third.id, second.id])
+
+    const nextPage = await listBugReports({ projectId: 'project-1', limit: 2, offset: 2 })
+    expect(nextPage).toHaveLength(1)
+    expect(nextPage.map((report) => report.id)).toEqual([first.id])
   })
 
   it('removes project-owned bug reports when a project is removed', async () => {

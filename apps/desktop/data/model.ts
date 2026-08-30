@@ -271,6 +271,8 @@ export interface BugReportFilters {
   projectId?: string
   status?: BugStatus
   severity?: BugSeverity
+  limit?: number
+  offset?: number
 }
 
 export interface BugContextSnapshot {

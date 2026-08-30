@@ -10,6 +10,7 @@ export {
 } from './store/engine'
 export {
   clearRunHistoryInStore,
+  countRunHistory,
   createRunHistoryEntry,
   finalizeRunHistoryEntry,
   getRunHistoryOutputById,

@@ -48,7 +48,7 @@ Save shell commands once, bind them to a project or keep them global, then run t
 - **Working directory** — optional override; otherwise the bound project path is used.
 - **Ad-hoc run** — run a one-off command without saving it.
 
-Runs stream into **History**. You can stop a running command. Failed runs stay in history with output.
+Runs stream into **History**. You can stop a running command; Stop ends the shell and its child processes. Failed runs stay in history. Output is loaded when you open a run (noisy runs keep a head-and-tail excerpt).
 
 ### Variables
 
@@ -66,7 +66,7 @@ Templates use `{{...}}` and are resolved just before spawn:
 | `{{input:label}}` | Named prompt |
 | `{{input:name:default}}` | Named prompt with default |
 
-Unresolved `{{input}}` values open a prompt. Substituted values are shell-escaped. The **resolved** command (not the template) is stored on the history row.
+Unresolved `{{input}}` values open a prompt. Unknown `{{env.*}}` / `{{project.*}}` / `{{container.*}}` tokens block the run with an error instead of being sent to the shell as literal text. Substituted values are shell-escaped. The **resolved** command (not the template) is stored on the history row.
 
 ## Automation
 

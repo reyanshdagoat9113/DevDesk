@@ -35,7 +35,7 @@ Variable tokens are documented in [user-guide.md](./user-guide.md).
 
 ### Run history
 
-`commandId`, optional `projectId`, `status` (`running | success | failed | stopped`), timestamps, `output`, `resolvedCommand`. Startup reconciliation turns leftover `running` into `stopped`.
+`commandId`, optional `projectId`, `status` (`running | success | failed | stopped`), timestamps, `output`, `resolvedCommand`. Startup reconciliation turns leftover `running` into `stopped`. List queries omit `output` (loaded on demand via `history:output`) and paginate (default 200, max 500). Persisted output is capped to the first 64 KiB plus last 512 KiB of the stream.
 
 ### Notes
 

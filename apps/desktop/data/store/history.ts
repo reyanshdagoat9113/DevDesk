@@ -140,31 +140,68 @@ export async function listRecentRunHistoryForProject(
   }))
 }
 
-export async function listRunHistory(): Promise<RunHistoryEntry[]> {
+const DEFAULT_HISTORY_LIMIT = 200
+const MAX_HISTORY_LIMIT = 500
+
+type RunHistoryListRow = {
+  id: string
+  command_id: string
+  project_id: string | null
+  status: RunStatus
+  start_time: string
+  end_time: string | null
+  resolved_command: string | null
+}
+
+function mapRunHistoryListRow(row: RunHistoryListRow): Omit<RunHistoryEntry, 'output'> {
+  return {
+    id: row.id,
+    commandId: row.command_id,
+    projectId: row.project_id ?? undefined,
+    status: row.status,
+    startTime: row.start_time,
+    endTime: row.end_time ?? undefined,
+    resolvedCommand: row.resolved_command ?? undefined,
+  }
+}
+
+function clampHistoryLimit(limit?: number): number {
+  const n = typeof limit === 'number' && Number.isFinite(limit) ? Math.trunc(limit) : DEFAULT_HISTORY_LIMIT
+  return Math.min(Math.max(1, n), MAX_HISTORY_LIMIT)
+}
+
+function clampHistoryOffset(offset?: number): number {
+  const n = typeof offset === 'number' && Number.isFinite(offset) ? Math.trunc(offset) : 0
+  return Math.max(0, n)
+}
+
+export async function countRunHistory(): Promise<number> {
+  await ensureDbInitialized()
+  const row = getDbOrThrow()
+    .prepare('SELECT COUNT(*) AS count FROM run_history')
+    .get() as { count: number }
+  return row.count
+}
+
+export async function listRunHistory(options?: {
+  limit?: number
+  offset?: number
+}): Promise<Array<Omit<RunHistoryEntry, 'output'>>> {
   return withSqlTiming('listRunHistory', async () => {
     await ensureDbInitialized()
+    const limit = clampHistoryLimit(options?.limit)
+    const offset = clampHistoryOffset(options?.offset)
     const rows = getDbOrThrow()
-      .prepare('SELECT id, command_id, project_id, status, start_time, end_time, output, resolved_command FROM run_history ORDER BY start_time DESC, rowid DESC')
-      .all() as Array<{
-      id: string
-      command_id: string
-      project_id: string | null
-      status: RunStatus
-      start_time: string
-      end_time: string | null
-      output: string | null
-      resolved_command: string | null
-    }>
+      .prepare(
+        `
+          SELECT id, command_id, project_id, status, start_time, end_time, resolved_command
+          FROM run_history
+          ORDER BY start_time DESC, rowid DESC
+          LIMIT ? OFFSET ?
+        `,
+      )
+      .all(limit, offset) as RunHistoryListRow[]
 
-    return rows.map((row) => ({
-      id: row.id,
-      commandId: row.command_id,
-      projectId: row.project_id ?? undefined,
-      status: row.status,
-      startTime: row.start_time,
-      endTime: row.end_time ?? undefined,
-      output: row.output ?? undefined,
-      resolvedCommand: row.resolved_command ?? undefined,
-    }))
+    return rows.map(mapRunHistoryListRow)
   })
 }

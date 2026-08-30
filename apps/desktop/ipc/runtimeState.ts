@@ -4,10 +4,11 @@
  */
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import type { CommandTriggerEvent, RunStatus } from '../data/model'
+import type { RunOutputBuffer } from '../system/runOutputBuffer'
 
 export type RunningCommand = {
   process: ChildProcessWithoutNullStreams
-  output: string
+  output: RunOutputBuffer
   requestedStop: boolean
   completion: Promise<RunStatus>
 }

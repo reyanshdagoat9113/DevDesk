@@ -59,6 +59,7 @@ describe('variable resolver', () => {
     expect(result.resolvedCommand).toBe("cd '/workspace/my-app'")
     expect(result.resolvedValues['project.path']).toBe("'/workspace/my-app'")
     expect(result.unresolvedInputs).toEqual([])
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('resolves project.name and project.type', async () => {
@@ -70,6 +71,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe("echo 'My App' is 'node'")
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('resolves environment variables', async () => {
@@ -81,6 +83,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe("echo 'dev' in 'development'")
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('leaves unknown env vars as unresolved placeholders', async () => {
@@ -92,6 +95,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe('echo {{ env.MISSING }}')
+    expect(result.unresolvedVariables).toEqual(['env.MISSING'])
   })
 
   it('resolves container.name to first container', async () => {
@@ -103,6 +107,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe("docker logs 'my-db'")
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('resolves container.names to space-joined names', async () => {
@@ -114,6 +119,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe("docker restart 'my-db my-redis'")
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('handles empty container list gracefully', async () => {
@@ -125,6 +131,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe('echo {{ container.name }}')
+    expect(result.unresolvedVariables).toEqual(['container.name'])
   })
 
   it('returns input-required for simple {{input}}', async () => {
@@ -139,6 +146,7 @@ describe('variable resolver', () => {
     expect(result.unresolvedInputs).toEqual([
       { name: 'input', required: true, description: 'Input required' },
     ])
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('resolves {{input}} when user input provided', async () => {
@@ -151,6 +159,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe("echo 'hello'")
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('returns input-required for {{input:description}}', async () => {
@@ -164,6 +173,7 @@ describe('variable resolver', () => {
     expect(result.unresolvedInputs).toEqual([
       { name: 'version', required: true, description: 'version' },
     ])
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('resolves {{input:name}} when user input provided', async () => {
@@ -176,6 +186,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe("echo '2.0.0'")
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('returns input-required for {{input:name:default}} with default', async () => {
@@ -189,6 +200,7 @@ describe('variable resolver', () => {
     expect(result.unresolvedInputs).toEqual([
       { name: 'message', required: false, default: 'hello-world', description: 'message' },
     ])
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('resolves {{input:name:default}} when user provides input', async () => {
@@ -201,6 +213,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe("echo 'custom value'")
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('escapes posix shell values with single quotes', async () => {
@@ -213,6 +226,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe("echo 'it'\\''s working'")
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('escapes windows shell values with double quotes', async () => {
@@ -226,6 +240,7 @@ describe('variable resolver', () => {
     )
 
     expect(result.resolvedCommand).toBe('echo "some \\"value\\""')
+    expect(result.unresolvedVariables).toEqual([])
   })
 
   it('tracks resolved values for history', async () => {
@@ -242,5 +257,151 @@ describe('variable resolver', () => {
       'env.USER': "'dev'",
       'input:version': "'1.0'",
     })
+    expect(result.unresolvedVariables).toEqual([])
+  })
+
+  it('reports unknown project fields as unresolved variables', async () => {
+    const { variableResolver } = await import('./variableResolver')
+
+    const result = variableResolver.resolve(
+      'echo {{ project.wrongfield }}',
+      { project: mockProject, containers: [], env: {} }
+    )
+
+    expect(result.resolvedCommand).toBe('echo {{ project.wrongfield }}')
+    expect(result.unresolvedVariables).toEqual(['project.wrongfield'])
+    expect(result.unresolvedInputs).toEqual([])
+  })
+
+  it('reports unknown container fields as unresolved variables', async () => {
+    const { variableResolver } = await import('./variableResolver')
+
+    const result = variableResolver.resolve(
+      'docker logs {{ container.nope }}',
+      { project: mockProject, containers: mockContainers, env: {} }
+    )
+
+    expect(result.resolvedCommand).toBe('docker logs {{ container.nope }}')
+    expect(result.unresolvedVariables).toEqual(['container.nope'])
+    expect(result.unresolvedInputs).toEqual([])
+  })
+
+  it('lists only unknown env vars when mixed with resolved env', async () => {
+    const { variableResolver } = await import('./variableResolver')
+
+    const result = variableResolver.resolve(
+      'echo {{ env.USER }} {{ env.MISSING }}',
+      { project: mockProject, containers: [], env: mockEnv }
+    )
+
+    expect(result.resolvedCommand).toBe("echo 'dev' {{ env.MISSING }}")
+    expect(result.unresolvedVariables).toEqual(['env.MISSING'])
+    expect(result.resolvedValues['env.USER']).toBe("'dev'")
+  })
+
+  it('keeps {{input}} in unresolvedInputs without listing it as unknown', async () => {
+    const { variableResolver } = await import('./variableResolver')
+
+    const result = variableResolver.resolve(
+      'echo {{ input }}',
+      { project: mockProject, containers: [], env: {} }
+    )
+
+    expect(result.unresolvedVariables).toEqual([])
+    expect(result.unresolvedInputs).toEqual([
+      { name: 'input', required: true, description: 'Input required' },
+    ])
+  })
+
+  it('fills both collections when input and unknown env are present', async () => {
+    const { variableResolver } = await import('./variableResolver')
+
+    const result = variableResolver.resolve(
+      'echo {{ input }} {{ env.MISSING }}',
+      { project: mockProject, containers: [], env: {} }
+    )
+
+    expect(result.unresolvedInputs).toEqual([
+      { name: 'input', required: true, description: 'Input required' },
+    ])
+    expect(result.unresolvedVariables).toEqual(['env.MISSING'])
+    expect(result.resolvedCommand).toBe('echo {{ input }} {{ env.MISSING }}')
+  })
+
+  it('keeps unresolved variables unique in first-seen order', async () => {
+    const { variableResolver } = await import('./variableResolver')
+
+    const result = variableResolver.resolve(
+      'echo {{ env.MISSING }} {{ project.nope }} {{ env.MISSING }}',
+      { project: mockProject, containers: [], env: {} }
+    )
+
+    expect(result.unresolvedVariables).toEqual(['env.MISSING', 'project.nope'])
+  })
+
+  it('treats empty env values as resolved', async () => {
+    const { variableResolver } = await import('./variableResolver')
+
+    const result = variableResolver.resolve(
+      'echo {{ env.EMPTY }}',
+      { project: mockProject, containers: [], env: { EMPTY: '' } }
+    )
+
+    expect(result.resolvedCommand).toBe("echo ''")
+    expect(result.unresolvedVariables).toEqual([])
+  })
+})
+
+describe('assertCommandVariablesResolved', () => {
+  it('throws listing a single unknown variable', async () => {
+    const { assertCommandVariablesResolved } = await import('./variableResolver')
+
+    expect(() =>
+      assertCommandVariablesResolved({
+        resolvedCommand: 'echo {{ env.MISSING }}',
+        unresolvedInputs: [],
+        resolvedValues: {},
+        unresolvedVariables: ['env.MISSING'],
+      })
+    ).toThrow('Unknown variable: env.MISSING')
+  })
+
+  it('throws listing several unknown variables', async () => {
+    const { assertCommandVariablesResolved } = await import('./variableResolver')
+
+    expect(() =>
+      assertCommandVariablesResolved({
+        resolvedCommand: 'echo {{ env.MISSING }} {{ project.nope }}',
+        unresolvedInputs: [],
+        resolvedValues: {},
+        unresolvedVariables: ['env.MISSING', 'project.nope'],
+      })
+    ).toThrow('Unknown variables: env.MISSING, project.nope')
+  })
+
+  it('does not throw when only unresolvedInputs exist', async () => {
+    const { assertCommandVariablesResolved } = await import('./variableResolver')
+
+    expect(() =>
+      assertCommandVariablesResolved({
+        resolvedCommand: 'echo {{ input }}',
+        unresolvedInputs: [{ name: 'input', required: true, description: 'Input required' }],
+        resolvedValues: {},
+        unresolvedVariables: [],
+      })
+    ).not.toThrow()
+  })
+
+  it('does not throw when everything resolved', async () => {
+    const { assertCommandVariablesResolved } = await import('./variableResolver')
+
+    expect(() =>
+      assertCommandVariablesResolved({
+        resolvedCommand: "echo 'dev'",
+        unresolvedInputs: [],
+        resolvedValues: { 'env.USER': "'dev'" },
+        unresolvedVariables: [],
+      })
+    ).not.toThrow()
   })
 })

@@ -13,6 +13,8 @@ export interface VariableResolutionResult {
   unresolvedInputs: CommandVariable[]
   /** Record of resolved values for history */
   resolvedValues: Record<string, string>
+  /** Non-input placeholders that did not resolve (unique, first-seen order) */
+  unresolvedVariables: string[]
 }
 
 export type ShellDialect = 'posix' | 'windows'
@@ -62,6 +64,7 @@ export class VariableResolver {
   ): VariableResolutionResult {
     const resolvedValues: Record<string, string> = {}
     const unresolvedInputs: CommandVariable[] = []
+    const unresolvedVariables: string[] = []
 
     const resolvedCommand = command.replace(
       VariableResolver.VARIABLE_PATTERN,
@@ -88,12 +91,16 @@ export class VariableResolver {
           }
         }
 
+        if (resolved.type === 'unresolved' && !unresolvedVariables.includes(trimmed)) {
+          unresolvedVariables.push(trimmed)
+        }
+
         // Keep original placeholder if not resolved
         return match
       }
     )
 
-    return { resolvedCommand, unresolvedInputs, resolvedValues }
+    return { resolvedCommand, unresolvedInputs, resolvedValues, unresolvedVariables }
   }
 
   private resolveVariable(
@@ -248,3 +255,17 @@ export class VariableResolver {
 }
 
 export const variableResolver = new VariableResolver()
+
+/**
+ * Fail closed when non-input placeholders did not resolve.
+ * Input-required vars are handled separately via needs-input.
+ */
+export function assertCommandVariablesResolved(resolution: VariableResolutionResult): void {
+  if (resolution.unresolvedVariables.length === 0) {
+    return
+  }
+
+  const names = resolution.unresolvedVariables.join(', ')
+  const label = resolution.unresolvedVariables.length === 1 ? 'Unknown variable' : 'Unknown variables'
+  throw new Error(`${label}: ${names}`)
+}

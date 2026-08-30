@@ -101,4 +101,32 @@ describe('HistorySection', () => {
     await user.click(screen.getByRole('button', { name: /Clear filters/i }))
     expect(screen.getByText('2 of 2 runs')).toBeTruthy()
   })
+
+  it('shows Load more only when hasMore and calls onLoadMore', async () => {
+    const onLoadMore = vi.fn()
+    const { rerender } = render(
+      <HistorySection
+        history={history}
+        commands={commands}
+        projects={projects}
+        hasMore={false}
+        onLoadMore={onLoadMore}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+
+    rerender(
+      <HistorySection
+        history={history}
+        commands={commands}
+        projects={projects}
+        hasMore
+        onLoadMore={onLoadMore}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    expect(onLoadMore).toHaveBeenCalledOnce()
+  })
 })

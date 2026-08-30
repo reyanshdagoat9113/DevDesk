@@ -170,7 +170,12 @@ interface ElectronAPI {
   onContainerLogsEnd: (handler: (payload: { subscriptionId: string; containerId: string; code: number | null }) => void) => () => void
   onContainerLogsError: (handler: (payload: { subscriptionId: string; containerId: string; error: string }) => void) => () => void
 
-  getRunHistory: () => Promise<unknown[]>
+  getRunHistory: (options?: { limit?: number; offset?: number }) => Promise<{
+    entries: unknown[]
+    total: number
+    limit: number
+    offset: number
+  }>
   listRecentHistory: (limit?: number) => Promise<{ id: string; commandId: string; projectId?: string; status: string; startTime: string; endTime?: string }[]>
   getRunOutput: (runId: string) => Promise<string>
   clearRunHistory: () => Promise<{ success: boolean }>
@@ -550,7 +555,7 @@ const electronAPI: ElectronAPI = {
   },
 
   // Run History
-  getRunHistory: () => ipcRenderer.invoke('history:get'),
+  getRunHistory: (options?: { limit?: number; offset?: number }) => ipcRenderer.invoke('history:get', options),
   listRecentHistory: (limit?: number) => ipcRenderer.invoke('history:listRecent', limit),
   getRunOutput: (runId: string) => ipcRenderer.invoke('history:output', runId),
   clearRunHistory: () => ipcRenderer.invoke('history:clear'),

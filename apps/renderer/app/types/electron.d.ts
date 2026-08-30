@@ -44,6 +44,7 @@ import type {
   LlmBundleResult,
   ProjectHealthReport,
   RunHistoryEntry,
+  RunHistoryPage,
   RunStatus,
   TriggerConfirmationRequest,
   UpdateBugReportInput,
@@ -128,7 +129,7 @@ export interface ElectronAPI {
   onContainerLogsEnd: (handler: (payload: { subscriptionId: string; containerId: string; code: number | null }) => void) => () => void
   onContainerLogsError: (handler: (payload: { subscriptionId: string; containerId: string; error: string }) => void) => () => void
 
-  getRunHistory: () => Promise<RunHistoryEntry[]>
+  getRunHistory: (options?: { limit?: number; offset?: number }) => Promise<RunHistoryPage>
   listRecentHistory: (limit?: number) => Promise<{ id: string; commandId: string; projectId?: string; status: RunStatus; startTime: string; endTime?: string }[]>
   getRunOutput: (runId: string) => Promise<string>
   clearRunHistory: () => Promise<{ success: boolean }>

@@ -66,8 +66,14 @@ import {
   navItems,
   toUserContainerError,
   type TabValue,
-  upsertHistoryEntry,
 } from './lib/appShell'
+import {
+  HISTORY_PAGE_SIZE,
+  appendHistoryPage,
+  applyRunOutput,
+  applyRunStarted,
+  applyRunStatus,
+} from './lib/runHistory'
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -93,6 +99,7 @@ function App() {
   const [triggerConfirmations, setTriggerConfirmations] = useState<TriggerConfirmationRequest[]>([])
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [history, setHistory] = useState<RunHistoryEntry[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
   const [historyFocusRunId, setHistoryFocusRunId] = useState<string | null>(null)
   const [preferences, setPreferences] = useState<AppPreferences | null>(null)
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null)
@@ -271,7 +278,7 @@ function App() {
           window.electronAPI.getChains(),
           window.electronAPI.getTriggers(),
           window.electronAPI.getPendingTriggerConfirmations(),
-          window.electronAPI.getRunHistory(),
+          window.electronAPI.getRunHistory({ limit: HISTORY_PAGE_SIZE, offset: 0 }),
           window.electronAPI.getPreferences(),
           window.electronAPI.getEngineState(),
         ])
@@ -313,10 +320,12 @@ function App() {
       }
 
       if (historyResult.status === 'fulfilled') {
-        setHistory(historyResult.value)
+        setHistory(historyResult.value.entries)
+        setHistoryTotal(historyResult.value.total)
       } else {
         errors.push(historyResult.reason instanceof Error ? historyResult.reason.message : 'Failed to load history.')
         setHistory([])
+        setHistoryTotal(0)
       }
 
       if (preferencesResult.status === 'fulfilled') {
@@ -413,44 +422,15 @@ function App() {
 
   useEffect(() => {
     const unsubscribeStarted = window.electronAPI.onRunStarted((entry) => {
-      setHistory((prev) =>
-        upsertHistoryEntry(prev, {
-          id: entry.id,
-          commandId: entry.commandId,
-          projectId: entry.projectId,
-          status: 'running',
-          startTime: entry.startTime,
-          output: entry.output ?? '',
-          resolvedCommand: entry.resolvedCommand,
-        })
-      )
+      setHistory((prev) => applyRunStarted(prev, entry))
     })
 
     const unsubscribeOutput = window.electronAPI.onRunOutput(({ runId, chunk }) => {
-      setHistory((prev) =>
-        prev.map((entry) =>
-          entry.id === runId
-            ? {
-                ...entry,
-                output: `${entry.output ?? ''}${chunk}`,
-              }
-            : entry
-        )
-      )
+      setHistory((prev) => applyRunOutput(prev, runId, chunk))
     })
 
     const unsubscribeStatus = window.electronAPI.onRunStatus(({ runId, status }) => {
-      setHistory((prev) =>
-        prev.map((entry) =>
-          entry.id === runId
-            ? {
-                ...entry,
-                status: status as RunHistoryEntry['status'],
-                endTime: new Date().toISOString(),
-              }
-            : entry
-        )
-      )
+      setHistory((prev) => applyRunStatus(prev, runId, status as RunHistoryEntry['status']))
     })
 
     const unsubscribeChainProgress = window.electronAPI.onChainProgress((payload) => {
@@ -1211,6 +1191,7 @@ function App() {
     try {
       await window.electronAPI.clearRunHistory()
       setHistory([])
+      setHistoryTotal(0)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to clear history.'
       setLoadError(message)
@@ -1223,10 +1204,26 @@ function App() {
     try {
       await window.electronAPI.removeRunHistory(runId)
       setHistory((prev) => prev.filter((entry) => entry.id !== runId))
+      setHistoryTotal((prev) => Math.max(0, prev - 1))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to remove history entry.'
       setLoadError(message)
       throw new Error(message)
+    }
+  }
+
+  const handleLoadMoreHistory = async () => {
+    if (history.length >= historyTotal) return
+    try {
+      const page = await window.electronAPI.getRunHistory({
+        limit: HISTORY_PAGE_SIZE,
+        offset: history.length,
+      })
+      setHistory((prev) => appendHistoryPage(prev, page.entries))
+      setHistoryTotal(page.total)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load more history.'
+      setLoadError(message)
     }
   }
 
@@ -1521,6 +1518,8 @@ function App() {
               onLoadOutput={handleLoadOutput}
               onClearHistory={handleClearHistory}
               onRemoveEntry={handleRemoveHistoryEntry}
+              onLoadMore={handleLoadMoreHistory}
+              hasMore={history.length < historyTotal}
               initialRunId={historyFocusRunId}
               onOpenCommands={() => setActiveTab('commands')}
             />
