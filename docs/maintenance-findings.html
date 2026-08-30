@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DevDesk — Maintenance Findings Report</title>
+<style>
+  :root {
+    --bg: #0b0b0e; --panel: #141419; --panel2: #1a1a22; --border: #2a2a35;
+    --text: #e8e8ee; --muted: #9a9aad; --accent: #6c8cff;
+    --high: #ff5c6c; --med: #ffb454; --low: #4dc991; --info: #7f8ea8;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: "Segoe UI", Inter, system-ui, sans-serif; margin: 0; padding: 0; line-height: 1.55; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 28px 80px; }
+  h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 4px; }
+  h2 { font-size: 21px; margin: 44px 0 6px; padding-top: 18px; border-top: 1px solid var(--border); }
+  h3 { font-size: 15px; margin: 24px 0 8px; color: var(--accent); }
+  .sub { color: var(--muted); font-size: 14px; }
+  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 24px 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .card b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; letter-spacing: .04em; vertical-align: 1px; }
+  .tag.high { background: rgba(255,92,108,.14); color: var(--high); border: 1px solid rgba(255,92,108,.4); }
+  .tag.med { background: rgba(255,180,84,.12); color: var(--med); border: 1px solid rgba(255,180,84,.4); }
+  .tag.low { background: rgba(77,201,145,.12); color: var(--low); border: 1px solid rgba(77,201,145,.4); }
+  .tag.info { background: rgba(127,142,168,.12); color: var(--info); border: 1px solid rgba(127,142,168,.4); }
+  .group { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; margin: 18px 0; }
+  .group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .group-head h3 { margin: 0; font-size: 17px; color: var(--text); }
+  .commit { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--accent); background: rgba(108,140,255,.1); border: 1px solid rgba(108,140,255,.3); padding: 2px 8px; border-radius: 6px; }
+  .finding { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+  .finding-title { font-weight: 700; margin-bottom: 6px; }
+  .fid { font-family: ui-monospace, Consolas, monospace; color: var(--accent); margin-right: 8px; }
+  code, .path { font-family: ui-monospace, Consolas, "Cascadia Mono", monospace; font-size: 12.5px; background: rgba(255,255,255,.06); padding: 1px 6px; border-radius: 5px; }
+  .path { color: #c9d7ff; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0; }
+  th { text-align: left; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid var(--border); padding: 8px 10px; }
+  td { border-bottom: 1px solid rgba(42,42,53,.6); padding: 8px 10px; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  ul { margin: 6px 0 10px; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .pass { color: var(--low); font-weight: 600; }
+  .note { color: var(--muted); font-size: 13px; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+  .pill { font-size: 12px; background: var(--panel2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px; color: var(--muted); }
+  a { color: var(--accent); text-decoration: none; }
+  .toc { columns: 2; column-gap: 34px; font-size: 14px; }
+  .toc li { margin: 4px 0; }
+  @media (max-width: 720px) { .toc { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>DevDesk — Maintenance Findings Report</h1>
+  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. No fixes have been applied; this document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together.</p>
+
+  <div class="meta">
+    <div class="card"><b>Audited commit</b><code>90ec4fd</code> — "Refresh documentation for v0.1.2" (clean working tree)</div>
+    <div class="card"><b>Audit date</b>2026-08-27</div>
+    <div class="card"><b>Audit scope</b>Electron main, preload, IPC layer, data store, git service, engine bridge, engine package (TS+Rust), renderer app, release scripts, docs</div>
+    <div class="card"><b>Baseline health</b><span class="pass">All gates green</span> — typecheck ✓ · eslint ✓ · arch-lint ✓ · desktop 186 ✓ · renderer 78 ✓ · engine 34 ✓ · engine-ipc 1 ✓ · rust 18 ✓</div>
+  </div>
+
+  <div class="card">
+    <b>Severity legend</b>
+    <span class="tag high">HIGH</span> crashes, data loss, broken core feature &nbsp;
+    <span class="tag med">MEDIUM</span> functional bug or real risk on supported platforms &nbsp;
+    <span class="tag low">LOW</span> polish, hygiene, hardening, tech-debt
+    <p class="note" style="margin:8px 0 0">Confidence reflects how certainly the behavior was confirmed from code. Items needing a manual repro on real hardware are marked <b>verify-by-hand</b>.</p>
+  </div>
+
+  <h2>Contents — Fix-Commit Groups</h2>
+  <ol class="toc">
+    <li><a href="#g1">Group 1 — Renderer crash-resilience</a></li>
+    <li><a href="#g2">Group 2 — Command run pipeline</a></li>
+    <li><a href="#g3">Group 3 — Platform launchers (Win/Linux)</a></li>
+    <li><a href="#g4">Group 4 — WSL embedded terminal</a></li>
+    <li><a href="#g5">Group 5 — Data lifecycle &amp; export/import</a></li>
+    <li><a href="#g6">Group 6 — App lifecycle &amp; streaming</a></li>
+    <li><a href="#g7">Group 7 — Security hardening</a></li>
+    <li><a href="#g8">Group 8 — Command vault UX gaps</a></li>
+    <li><a href="#g9">Group 9 — Minor batch (polish &amp; hygiene)</a></li>
+    <li><a href="#g10">Verification log &amp; audit coverage</a></li>
+    <li><a href="#g11">Already-tracked release items (not new)</a></li>
+  </ol>
+
+  <!-- ==================== GROUP 1 ==================== -->
+  <h2 id="g1">Group 1 — Renderer crash-resilience</h2>
+  <div class="group">
+    <div class="group-head">
+      <h3>One unhandled rejection can wipe the entire running UI</h3>
+      <span class="commit">fix/renderer-error-handling</span>
+      <span class="tag high">HIGH</span>
+    </div>
+    <p class="note">Suggested commit message: “Replace DOM-destroying global error handlers with a React error boundary”</p>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-01</span> Window-level error handlers overwrite the mounted React root <span class="tag high">HIGH</span></div>
+      <p><span class="path">apps/renderer/main.tsx</span> (lines 7–57)</p>
+      <p><code>renderBootstrapError()</code> is wired not only to bootstrap failures but to <em>lifetime</em> events: <code>window.addEventListener('error', …)</code> and <code>window.addEventListener('unhandledrejection', …)</code> both call it, and it does <code>root.innerHTML = …</code>. Consequence: any late async rejection — a stray promise from an IPC event callback, a failed refresh, a component bug outside a boundary — <b>destroys the whole workspace UI mid-session</b> and replaces it with the static "DevDesk failed to render." screen. The React tree is yanked out from under the mounted root, so nothing recovers without a reload. The name says "bootstrap error" but the handler runs for the entire app lifetime.</p>
+      <ul>
+        <li>Secondary issue: the error screen interpolates <code>${message}</code> / <code>${details}</code> into <code>innerHTML</code> unescaped — HTML injection from any exception text (e.g. raw git/docker stderr shown in error messages).</li>
+        <li>Note the code already knows some rejections are benign: <code>isRecoverableDockerErrorMessage</code> is swallowed silently — everything else nukes the app.</li>
+      </ul>
+      <p><b>Fix direction:</b> keep <code>renderBootstrapError</code> only for the pre-mount <code>try/catch</code>; wrap <code>&lt;App/&gt;</code> in a React error boundary; for runtime <code>error</code>/<code>unhandledrejection</code> render a non-destructive toast/banner (reuse the existing Alert components), and escape all interpolated content.</p>
+      <p><b>Tests to add:</b> renderer test asserting an unhandled rejection does not unmount the app tree; error-boundary fallback renders and offers reload.</p>
+    </div>
+  </div>
+
+  <!-- ==================== GROUP 2 ==================== -->
+  <h2 id="g2">Group 2 — Command run pipeline</h2>
+  <div class="group">
+    <div class="group-head">
+      <h3>Stop button, unbounded output, heavy history loads, silent unresolved variables</h3>
+      <span class="commit">fix/run-pipeline</span>
+      <span class="tag high">HIGH</span>
+    </div>
+    <p class="note">Suggested commit message: “Harden command execution: tree-kill, bounded output, on-demand history, unresolved-variable guard”. All findings share the run-execution path (<span class="path">apps/desktop/ipc/registerIpc.ts</span> → <span class="path">history.ts</span> → <span class="path">variableResolver.ts</span> → History UI), so they belong in one commit.</p>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-02</span> "Stop" kills the shell, not the process tree <span class="tag high">HIGH</span></div>
+      <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> line 2251–2259 (<code>commands:stop</code>), spawn at line 1407 (<code>spawn(finalCommand, { shell: true })</code>)</p>
+      <p>Commands run through a shell; <code>running.process.kill()</code> kills only the shell process. On Windows the cmd.exe wrapper dies but the actual child (dev server, watcher, long build) keeps running invisibly and keeps ports/files locked; same on POSIX since no process group is used. The run is then marked <code>stopped</code> in history even though the process is still alive — users will see "stopped" servers that still occupy port 3000.</p>
+      <p><b>Fix direction:</b> platform tree-kill — <code>taskkill /pid &lt;pid&gt; /T /F</code> on win32; spawn with <code>detached: true</code> and kill <code>-pid</code> (process group) on POSIX. Consider confirming "process still alive after stop" in history output.</p>
+      <p><b>Tests to add:</b> unit test spawning a shell that launches a grandchild, assert stop terminates the grandchild (platform-guarded).</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-03</span> Run output is buffered without limit — memory + database bloat <span class="tag med">MEDIUM</span></div>
+      <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> line 1430 (<code>running.output += text</code>)</p>
+      <p>A command that produces heavy output (e.g. <code>cat</code> of a huge file, chatty dev server, <code>npm install</code> debug logs) grows an in-memory string without bound and then persists the entire text into <code>run_history.output</code>. Long-running noisy commands will bloat RAM in the main process and the SQLite file. Contrast: the engine bridge (<span class="path">apps/desktop/engine/binary.ts</span>) already caps output at 8 MB — the command runner has no such guard.</p>
+      <p><b>Fix direction:</b> cap the live buffer (ring buffer with head+tail, e.g. keep first 64 KB + last 512 KB, note truncation in output), cap what is written to the DB, and mark truncated runs in history.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-04</span> Full run history — including every stored output — ships to the renderer at startup; no LIMIT anywhere <span class="tag med">MEDIUM</span></div>
+      <p><span class="path">apps/desktop/data/store/history.ts</span> (<code>listRunHistory</code> — selects <code>output</code>, no LIMIT); <span class="path">apps/desktop/data/store/bugs.ts</span> (<code>listBugReports</code> — no LIMIT); consumer <span class="path">apps/renderer/app/App.tsx</span> <code>loadAll()</code></p>
+      <p><code>getRunHistory()</code> is called on every app start and returns <em>every row with its full output column</em>. Combined with F-03 this can transfer hundreds of MB into the renderer over IPC on a well-used install, slowing startup and bloating the renderer heap. The output-on-demand API (<code>history:output</code>) already exists and is used by the viewer — the list payload simply shouldn't include outputs.</p>
+      <p><b>Fix direction:</b> stop selecting <code>output</code> in list queries; add LIMIT/pagination to <code>listRunHistory</code> and <code>listBugReports</code>; keep <code>getRunOutput(runId)</code> as the single source for body text.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-05</span> Unresolved non-input variables are silently executed as literal text <span class="tag med">MEDIUM</span></div>
+      <p><span class="path">apps/desktop/commands/variableResolver.ts</span> (<code>resolve()</code> — <code>'unresolved'</code> branch returns the placeholder unchanged; only <code>input-required</code> is collected)</p>
+      <p><code>{{input.*}}</code> variables correctly pause execution with a needs-input flow, but a typo'd or missing <code>{{env.MISSING_VAR}}</code>, <code>{{project.wrongfield}}</code> or <code>{{container.nope}}</code> is left as literal braces in the command and the command <b>runs anyway</b> (e.g. <code>docker logs {{container.nope}}</code>). The user gets a raw shell error for an obviously invalid command instead of a validation message.</p>
+      <p><b>Fix direction:</b> collect unresolved (non-input) variables in the result and either fail <code>prepareCommandExecution</code> with "Unknown variable: …" or surface a confirm-with-preview warning.</p>
+      <p><b>Tests to add:</b> variableResolver tests for unresolved env/project/container paths; registerIpc-level test that execution is blocked or warned.</p>
+    </div>
+  </div>
+
+  <!-- ==================== GROUP 3 ==================== -->
+  <h2 id="g3">Group 3 — Platform launchers (Windows &amp; Linux)</h2>
+  <div class="group">
+    <div class="group-head">
+      <h3>Linux ignores user preferences; quoting bugs in shell-true launcher strings</h3>
+      <span class="commit">fix/platform-launchers</span>
+      <span class="tag med">MEDIUM</span>
+    </div>
+    <p class="note">Suggested commit message: “Honor editor/terminal preferences on Linux; quote-safe launcher construction”. One logical area: <span class="path">apps/desktop/ipc/registerIpc.ts</span> + <span class="path">apps/desktop/files/fileService.ts</span>. Linux is a <b>shipped, packaged platform (deb)</b>, so these are release-relevant.</p>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-06</span> On Linux, editor/terminal preferences are ignored entirely <span class="tag med">MEDIUM</span></div>
+      <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> lines ~2094–2113 (<code>projects:open-editor</code> / <code>projects:open-terminal</code> final <code>else</code> branches); same pattern in <span class="path">apps/desktop/files/fileService.ts</span> <code>openFileInEditor</code></p>
+      <p>macOS maps <code>MAC_EDITOR_APPS</code>/<code>MAC_TERMINAL_APPS</code>, Windows maps <code>WINDOWS_EDITOR_COMMANDS</code>/<code>WINDOWS_TERMINAL_COMMANDS</code> — the Linux fallback hardcodes <code>spawnDetached('code', …)</code> and <code>spawnDetached('x-terminal-emulator', …)</code> regardless of the preference the user chose in Settings. A Linux user who selects WebStorm or gets <code>x-terminal-emulator</code> missing (not present on Fedora/Arch; Debian-only alternative) silently gets VS Code or a failed launch.</p>
+      <p><b>Fix direction:</b> add LINUX_* command maps honoring the preference id + sensible fallbacks (<code>gnome-terminal</code>, <code>konsole</code>, <code>x-terminal-emulator</code>, <code>xdg-terminal</code>); for editors use <code>xdg-open</code>-style resolution or per-preference commands.</p>
+      <p><b>Tests to add:</b> table-driven tests for the preference→command mapping per platform.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-07</span> Shell-quoting defects in launcher command strings (breaks paths; injectable via filenames) <span class="tag med">MEDIUM</span></div>
+      <ul>
+        <li><span class="path">apps/desktop/ipc/registerIpc.ts</span> <code>resolveCustomCommand</code> (~line 1140): <code>{path}</code> replaced with <code>"${projectPath}"</code>, then run via <code>spawn(…, { shell: true })</code>. A project path containing <code>"</code>, <code>&amp;</code>, <code>%</code> breaks out of the quoting.</li>
+        <li><span class="path">apps/desktop/ipc/registerIpc.ts</span> <code>WINDOWS_TERMINAL_COMMANDS</code>: PowerShell <code>Set-Location -LiteralPath "${projectPath}"</code> and cmd <code>cd /d "${projectPath}"</code> — double quotes don't neutralize <code>"</code> inside the value; PowerShell interpolates <code>$</code> in double quotes.</li>
+        <li><span class="path">apps/desktop/files/fileService.ts</span> <code>openFileInEditor</code> custom-command branch (line ~369 <code>shell: true</code>): same interpolation with a <b>file path</b>. A repo can contain a file named e.g. <code>$(calc).txt</code> or <code>x"&amp;calc".txt</code>; opening it from DevDesk with a custom editor preference executes attacker-chosen text. Low practical risk (requires custom preference + hostile repo) but it is a genuine command-injection vector and a correctness bug for legal paths containing quotes/ampersands.</li>
+      </ul>
+      <p><b>Fix direction:</b> a shared, dialect-aware quoting helper (already exists in miniature as <code>formatPowerShellLiteral</code>/<code>formatCmdLiteral</code> — reuse and extend), or drop <code>shell:true</code> and pass argv arrays with a raw command template where possible.</p>
+      <p><b>Tests to add:</b> unit tests for the quoting helper against paths with quotes, spaces, <code>&amp;</code>, <code>%</code>, <code>$()</code>, unicode.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-08</span> ENOENT retry with <code>shell: true</code> mangles arguments containing spaces <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> lines 1136–1146 (<code>spawnDetachedWithShellFallback</code>)</p>
+      <p>The Windows fallback re-spawns the same argv array with <code>shell: true</code>. Node concatenates command+args without quoting in shell mode, so <code>wt -d C:\My Projects\app</code> becomes two broken arguments. The retry only fires after an ENOENT, which limits exposure, but when it does fire with a spaced project path the launch silently misbehaves. Related inconsistency: <code>fileService.openFileInEditor</code> (WSL VS Code path) spawns <code>code</code> without any shell fallback at all, while <code>registerIpc</code> does use the fallback.</p>
+      <p><b>Fix direction:</b> quote args when retrying with shell (or skip the retry for argument-bearing commands); unify the fallback behavior in one shared helper used by both files.</p>
+    </div>
+  </div>
+
+  <!-- ==================== GROUP 4 ==================== -->
+  <h2 id="g4">Group 4 — WSL embedded terminal</h2>
+  <div class="group">
+    <div class="group-head">
+      <h3>WSL terminals never open in the project directory</h3>
+      <span class="commit">fix/wsl-terminal-cwd</span>
+      <span class="tag med">MEDIUM</span> <span class="tag info">verify-by-hand</span>
+    </div>
+    <p class="note">Suggested commit message: “Open WSL terminals in the project directory via wsl.exe --cd”. Requires a real Windows + WSL machine for confirmation (this audit machine has WSL paths parsed but no live repro performed).</p>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-09</span> <code>bash -l</code> without <code>--cd</code>; POSIX path passed as a Win32 working directory <span class="tag med">MEDIUM</span></div>
+      <p><span class="path">apps/desktop/terminal/terminalManager.ts</span> lines 183–195 (<code>create()</code>, WSL branch)</p>
+      <p>The WSL branch spawns <code>wsl.exe -d &lt;distro&gt; -e bash -l</code> with <code>cwd: targetLinuxPath</code> where <code>targetLinuxPath</code> is a POSIX path like <code>/home/user/proj</code>. Two problems:</p>
+      <ul>
+        <li>A POSIX path is not a valid Win32 current directory for spawning <code>wsl.exe</code> (node-pty/winpty → <code>CreateProcess</code>), so the spawn either fails outright or the cwd is ignored.</li>
+        <li><code>bash -l</code> (login shell) starts in the user's Linux home — there is no <code>cd</code> and no <code>--cd</code> flag — so even when the spawn works, the terminal lands in <code>~</code>, <b>never in the project</b>.</li>
+      </ul>
+      <p>Net effect for a headline feature (WSL project support): embedded terminal is opened in the wrong directory or errors, while the external "Open in Terminal" flow (<code>openWslProjectInTerminal</code>) does pass <code>--cd</code> correctly — the two flows disagree, which strongly suggests the embedded path is a bug rather than intent.</p>
+      <p><b>Fix direction:</b> spawn <code>wsl.exe -d &lt;distro&gt; --cd &lt;linuxPath&gt; -e bash -l</code> (wsl.exe accepts Linux paths for <code>--cd</code> and handles the Win32 side internally) and drop the POSIX <code>cwd</code>.</p>
+      <p><b>Tests / QA:</b> add a manual-QA row to <span class="path">docs/manual-qa.md</span>: "Embedded terminal on a WSL project opens at the project path".</p>
+    </div>
+  </div>
+
+  <!-- ==================== GROUP 5 ==================== -->
+  <h2 id="g5">Group 5 — Data lifecycle &amp; export/import</h2>
+  <div class="group">
+    <div class="group-head">
+      <h3>Attachment-file leaks, orphaned rows, latent import corruption, swallowed export errors</h3>
+      <span class="commit">fix/data-lifecycle</span>
+      <span class="tag med">MEDIUM</span>
+    </div>
+    <p class="note">Suggested commit message: “Fix orphaned attachments/health rows and future-proof import column mapping”. One commit because all changes touch <span class="path">apps/desktop/data/store/</span> + deletion helpers and should ship with matching tests.</p>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-10</span> Attachment <em>files</em> leak permanently when a project is deleted or data is replaced via import <span class="tag med">MEDIUM</span></div>
+      <p><span class="path">apps/desktop/data/store/projects.ts</span> line 42 (<code>DELETE FROM bug_reports WHERE project_id = ?</code>); <span class="path">apps/desktop/data/store/export.ts</span> replace-mode deletes; file cleanup lives only in <span class="path">apps/desktop/ipc/registerIpc.ts</span> lines 2827/2917 (<code>bugs:delete</code>/<code>bugs:remove-attachment</code>)</p>
+      <p>Deleting a bug through the UI removes its attachment files from <code>userData/attachments</code>. But deleting a <b>project</b> (which cascades its bug reports) or a <b>replace-mode import</b> (which deletes all bug rows) leaves every referenced file on disk forever. Unbounded disk leak in userData — exactly the class of slow rot that surfaces months later as "why is DevDesk using 4 GB?".</p>
+      <p><b>Fix direction:</b> before cascading deletes, collect <code>file_path</code> of affected attachments and run <code>deleteAttachmentFile</code> best-effort after the transaction (same pattern already used in <code>bugs:delete</code>).</p>
+      <p><b>Tests to add:</b> store-level test asserting attachment rows+files are gone after project removal and after replace-import (tmp dir).</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-11</span> <code>removeProject</code> deletes every child table <em>except</em> <code>health_check_runs</code> <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/data/store/projects.ts</span> lines 33–43</p>
+      <p>Projects, commands, chains, triggers, run history, notes, engine indexes, search sessions and bug reports are all cleaned; <code>health_check_runs</code> (keyed by <code>project_id</code>) are not, leaving orphan rows that are never shown again (the UI only queries by project id) and never cleaned by <code>cleanupOldHealthChecks</code> (also project-scoped).</p>
+      <p><b>Fix direction:</b> add <code>DELETE FROM health_check_runs WHERE project_id = ?</code> to the same transaction (items cascade via FK).</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-12</span> Import maps exported rows to columns positionally — silent corruption on future schema drift <span class="tag med">MEDIUM</span></div>
+      <p><span class="path">apps/desktop/data/store/export.ts</span> lines 279+ (<code>getColumnNamesForExport</code> returns <code>allColumns.slice(0, rows[0].length)</code>; <code>padRow</code> maps by that prefix)</p>
+      <p>Exports store <b>positional rows</b> with no column names. Import assumes the export's column order equals a prefix of the current schema. This holds only while columns are strictly appended. The moment a future refactor adds a column in the middle or reorders <code>createSchema</code>, old backups import successfully but with <b>silently swapped field values</b> (e.g. <code>name</code> landing in <code>type</code>). Nothing validates; FK checks pass because values are all still valid.</p>
+      <p><b>Fix direction:</b> export a header row (or object-rows) in a v2 payload while keeping backward-compatible positional reading for v1; validate row length against the stored header.</p>
+      <p><b>Tests to add:</b> round-trip test simulating a mid-schema column insertion against a synthetic v1 backup.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-13</span> <code>config:export</code> swallows the failure reason <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> (<code>config:export</code> catch block)</p>
+      <p>The catch returns <code>{ success: false, data: {…empty}, recordCounts: {} }</code> with no <code>error</code> field (its sibling <code>config:export-to-file</code> does return one). When quick-export fails, the renderer can only show a generic failure — the actual cause (disk, permissions, DB) is lost. The unusual empty-data shape also forces the renderer to distinguish "failed" from "no data".</p>
+      <p><b>Fix direction:</b> return <code>{ success: false, error: message }</code> like the to-file variant; update the renderer type.</p>
+    </div>
+  </div>
+
+  <!-- ==================== GROUP 6 ==================== -->
+  <h2 id="g6">Group 6 — App lifecycle &amp; streaming</h2>
+  <div class="group">
+    <div class="group-head">
+      <h3>Double instances, tray-vs-close conflict, orphaned processes/streams on quit</h3>
+      <span class="commit">fix/app-lifecycle</span>
+      <span class="tag med">MEDIUM</span>
+    </div>
+    <p class="note">Suggested commit message: “Single-instance lock, tray-aware close, quit cleanup for runs and log streams”. These interlock (close-to-tray only makes sense with single-instance + cleanup), so one commit.</p>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-14</span> No single-instance lock <span class="tag med">MEDIUM</span></div>
+      <p><span class="path">apps/desktop/index.ts</span> — no <code>app.requestSingleInstanceLock()</code> anywhere in the codebase (verified by grep)</p>
+      <p>Launching DevDesk twice starts two full app instances: two tray icons, and — more damaging — <code>emitStartupAutomationTriggers()</code> fires in <b>both</b>, so <code>onStartup</code> chains (deploy scripts, etc.) execute twice concurrently. Both processes also write <code>devdesk.db</code>; WAL tolerates it, but the in-process <code>writeQueue</code> serialization no longer guarantees ordering.</p>
+      <p><b>Fix direction:</b> <code>requestSingleInstanceLock()</code>; on <code>second-instance</code> focus/show the existing window; quit the duplicate.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-15</span> Closing the window quits the app even when the tray is enabled <span class="tag med">MEDIUM</span></div>
+      <p><span class="path">apps/desktop/index.ts</span> (<code>window-all-closed</code> → <code>app.quit()</code> on win/linux); <span class="path">apps/desktop/tray/trayManager.ts</span></p>
+      <p>The tray is a advertised feature (Show DevDesk, New Terminal, Run Last Command), but the moment the user closes the window on Windows, <code>window-all-closed</code> quits the app — the tray icon then belongs to a dying process and every tray action is useless. Users who keep DevDesk in the tray expect close-to-tray; today the setting is effectively "extra icon until you close the window".</p>
+      <p><b>Fix direction:</b> when <code>trayEnabled</code>, intercept close → hide-to-tray (with a first-time hint); quit only via tray Quit or when tray disabled. Keep darwin behavior as-is.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-16</span> Running commands and docker log streams are not cleaned up on quit <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/index.ts</span> (<code>before-quit</code> closes only tray + terminals); <span class="path">apps/desktop/ipc/runtimeState.ts</span> (<code>runningCommands</code>, <code>runningDockerLogSubscriptions</code>)</p>
+      <p>On quit, active command children and <code>docker logs --follow</code> streams are left to the OS — they keep running headless (windows: invisible orphans; next launch reconciles only the <em>history rows</em> via <code>reconcileRunHistory</code>, the processes stay). At minimum quit should be explicit about it.</p>
+      <p><b>Fix direction:</b> in <code>before-quit</code>, tree-kill all <code>runningCommands</code> and kill all log subscriptions (or prompt when runs are active).</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-17</span> Docker log subscriptions leak on window reload/close <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> (<code>docker:logs:subscribe</code>, <code>docker:logs:unsubscribe</code>)</p>
+      <p>Subscriptions are removed only by an explicit renderer unsubscribe. A renderer reload (dev HMR or crash-recovery reload) loses the subscription id and the <code>docker logs --follow</code> child runs forever, broadcasting to nobody. A <code>webContents</code>-lifecycle hook (did-navigate/destroyed) or a generation counter on reload should reap them.</p>
+      <p><b>Fix direction:</b> track subscription→webContentsId; on <code>destroyed</code>/<code>did-start-navigation</code>, kill matching streams. Also add <code>isDestroyed()</code> guard inside the shared <code>broadcast()</code> for symmetry with <code>trayManager</code>'s guard.</p>
+    </div>
+  </div>
+
+  <!-- ==================== GROUP 7 ==================== -->
+  <h2 id="g7">Group 7 — Security hardening</h2>
+  <div class="group">
+    <div class="group-head">
+      <h3>Defense-in-depth gaps; no exploit chain on its own, but cheap wins</h3>
+      <span class="commit">chore/security-hardening</span>
+      <span class="tag low">LOW</span>
+    </div>
+    <p class="note">Suggested commit message: “Tighten CSP, enable sandbox, whitelist navigation, consistent trusted-IPC”. Nothing here is a confirmed vulnerability — DevDesk is local-first with contextIsolation on, no remote content, and <code>setWindowOpenHandler</code> denied (good). These are belt-and-braces items; grouping them keeps review easy.</p>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-18</span> CSP allows <code>unsafe-eval</code>/<code>unsafe-inline</code> for scripts in production <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/renderer/index.html</span> (meta CSP)</p>
+      <p><code>script-src 'self' 'unsafe-inline' 'unsafe-eval'</code> ships in the packaged app. A production Vite/React bundle needs neither. <code>connect-src</code> also allows the dev-server origins unconditionally. Tightening removes a whole class of escalation if any injection ever lands (see also F-01's innerHTML issue). Consider dev-conditional CSP or nonce-based styles for HMR in dev only.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-19</span> Renderer sandbox not enabled <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/app/createWindow.ts</span> (<code>webPreferences</code>)</p>
+      <p><code>nodeIntegration: false</code> + <code>contextIsolation: true</code> are set (good), but <code>sandbox: true</code> is absent. The preload only uses <code>contextBridge</code>/<code>ipcRenderer</code>, which are sandbox-compatible — enabling it costs nothing and materially reduces renderer-compromise impact.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-20</span> <code>will-navigate</code> permits any <code>file:</code> URL in production <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/app/createWindow.ts</span> (navigation guard)</p>
+      <p>Production allows navigation to any <code>file:</code> URL. Whitelist the app's own <code>index.html</code> (compare resolved path) instead of the whole scheme.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-21</span> Trusted-sender checks applied to only one IPC channel <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/ipc/trustedIpc.ts</span> defines <code>assertTrustedSender</code>/<code>handleTrusted</code> (with a duplicate-registration guard), but only <code>shell:open-external</code> uses it; the ~70 channels in <span class="path">registerIpc.ts</span> and the domain handlers register with plain <code>ipcMain.handle</code>.</p>
+      <p>Today there is a single trusted window and no remote content, so exposure is minimal — but the infrastructure exists and is unused; either roll it out (preferably incrementally, starting with state-mutating channels) or remove the dead abstraction. Note <code>git:create-pr</code> calls <code>shell.openExternal(result.url)</code> directly without the <code>isSafeExternalUrl</code> check its sibling uses (currently safe because the URL is built from a validated GitHub-HTTPS regex — keep it that way with an assertion).</p>
+    </div>
+  </div>
+
+  <!-- ==================== GROUP 8 ==================== -->
+  <h2 id="g8">Group 8 — Command vault UX gaps</h2>
+  <div class="group">
+    <div class="group-head">
+      <h3>Commands can't be reassigned to another project; fields can't be cleared</h3>
+      <span class="commit">fix/command-edit-parity</span>
+      <span class="tag med">MEDIUM</span>
+    </div>
+    <p class="note">Suggested commit message: “Allow editing project/working-directory and clearing fields on commands”. Backend mostly exists; this is preload + UI + semantics alignment.</p>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-22</span> A command's project and working directory are immutable after creation <span class="tag med">MEDIUM</span></div>
+      <ul>
+        <li><span class="path">apps/desktop/preload.ts</span> — <code>updateCommand</code> type omits <code>projectId</code>/<code>workingDirectory</code> (main's <code>commands:update</code> actually accepts both).</li>
+        <li><span class="path">apps/desktop/ipc/registerIpc.ts</span> — even when sent, <code>updates?.projectId ?? current.projectId</code> and <code>updates?.workingDirectory ?? current.workingDirectory</code> make it impossible to <em>clear</em> a value (sending <code>undefined</code> keeps the old one).</li>
+        <li><span class="path">apps/renderer/app/sections/CommandsSection.tsx</span> — the edit dialog offers only name/command/description/tags.</li>
+      </ul>
+      <p>Net: to move a command to a different project (or detach it to global) or change its working directory, the user must delete and recreate it — losing pin state and chain references. Same <code>??</code> pattern also makes <code>description</code> impossible to clear (F-23) — one semantics fix covers both: treat explicit <code>null</code> as "clear" or use has-flags.</p>
+      <p><b>Fix direction:</b> extend preload + renderer types and edit dialog; adopt explicit-clear semantics; validate tags as string arrays while touching this code (<code>tags.filter(Boolean)</code> currently accepts non-strings).</p>
+      <p><b>Tests to add:</b> registerIpc test: update with <code>projectId: undefined</code> clears; renderer test for the edit dialog fields.</p>
+    </div>
+  </div>
+
+  <!-- ==================== GROUP 9 ==================== -->
+  <h2 id="g9">Group 9 — Minor batch (polish &amp; hygiene)</h2>
+  <div class="group">
+    <div class="group-head">
+      <h3>Small, independent items — can land as one housekeeping commit or cherry-picked</h3>
+      <span class="commit">chore/maintenance-polish</span>
+      <span class="tag low">LOW</span>
+    </div>
+    <p class="note">Suggested commit message: “Maintenance polish: stale index, terminal flush, palette shortcut, engine downgrade guard, CRLF hygiene”.</p>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-24</span> File-search index never invalidates on filesystem changes <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/files/fileService.ts</span> (<code>getFileIndex</code> cache is keyed by projectId+path only)</p>
+      <p>Once built, the fuzzy-search index lives until the project is re-added or <code>files:clearIndex</code> is called. New/deleted files don't appear in results until then. Add mtime-based invalidation or a TTL, or refresh on section open.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-25</span> Terminal loses the final output chunk on exit <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/terminal/terminalManager.ts</span> (<code>onExit</code> clears the 4 ms coalescing buffer without flushing it)</p>
+      <p><code>clearTimeout</code> + <code>delete</code> discards whatever was still buffered, so the last bytes of a dying process (often the error line!) may never reach the renderer. Flush the buffer in <code>onExit</code> before broadcasting <code>terminal:exit</code>.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-26</span> Quick Launcher (Ctrl+K) is dead while any input has focus <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/renderer/app/components/CommandPalette.tsx</span> (keydown handler skips <code>INPUT/TEXTAREA/SELECT</code>)</p>
+      <p>The palette refuses to open when focus is in a text field — which is most of the time while working in forms or search boxes. The guard exists so typing <code>k</code> in a field doesn't trigger, but Ctrl+K never conflicts with typing; drop the editable-target check for the modifier combination (keep it for plain-key shortcuts).</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-27</span> Engine DB schema downgrades are silently tolerated <span class="tag low">LOW</span></div>
+      <p><span class="path">packages/engine/src/db/manager.ts</span> (<code>initialize()</code> only handles <code>version &lt; SCHEMA_VERSION</code>)</p>
+      <p>If a user rolls back to an older DevDesk, the engine opens a newer-schema index DB and proceeds; queries against unknown columns will fail at runtime with raw SQLite errors. Detect <code>version &gt; SCHEMA_VERSION</code> and either rebuild the index or surface "index created by a newer version — please re-index after update".</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-28</span> Docker/WSL fallback error surface is confusing and can be slow <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> (<code>runDockerCommand</code> win32 daemon-error path; <code>runWslDockerCommand</code> per-distro retry; <code>resolveDockerStreamLaunch</code>)</p>
+      <p>When Docker Desktop's daemon is down on Windows, the code silently probes WSL (per-distro, each a full <code>wsl -e bash -lc</code> round-trip) and then reports "Docker Desktop daemon is not running. (WSL fallback also failed: …)". Latency stacks up (seconds) and the message names a product the user may not use. Consider a fast pre-flight (<code>wsl --status</code>) and keep the primary error verbatim in a details line.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-29</span> Tray "Run Last Command" fails silently for needs-input commands <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> (<code>runLastCommand</code> returns <code>{success:false,error}</code>); <span class="path">apps/desktop/tray/trayManager.ts</span> logs to console only</p>
+      <p>If the last command needs variables, the tray action reports nothing visible (error only in main-process console). Surface a renderer toast on focus, or skip needs-input entries and pick the most recent runnable one.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-30</span> Synchronous fs calls on the main thread in warm paths <span class="tag low">LOW</span></div>
+      <p><code>fs.existsSync</code> in <code>getProjectPath</code>/<code>prepareCommandExecution</code> (<span class="path">registerIpc.ts</span>), <code>statSync/copyFileSync/existsSync</code> in <span class="path">attachmentService.ts</span>, <code>fs.existsSync</code> in engine binary resolution.</p>
+      <p>Individually negligible; on network drives (UNC project paths are first-class here) these block the main process for seconds. Migrate to <code>fs.promises</code> opportunistically, prioritizing the project-path checks that run on every command execution.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-31</span> PTY always uses legacy winpty (<code>useConpty: false</code>) <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/desktop/terminal/terminalManager.ts</span> (both spawn branches)</p>
+      <p>ConPTY is the modern Windows console host (better resize/VT support); winpty is in maintenance mode. If the flag was a workaround for a specific issue, document it; otherwise make it platform/version-conditional.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-32</span> CRLF churn warnings from the engine workspace <span class="tag low">LOW</span></div>
+      <p><code>npm run test:engine</code> prints "LF will be replaced by CRLF" for <code>packages/engine/src/*.ts</code>.</p>
+      <p>Add a root <span class="path">.gitattributes</span> (<code>* text=auto eol=lf</code> for sources or explicit per-type rules) to stop line-ending churn on Windows checkouts — cheap hygiene, prevents noisy diffs.</p>
+    </div>
+
+    <div class="finding">
+      <div class="finding-title"><span class="fid">F-33</span> Post-unmount state updates in two big sections <span class="tag low">LOW</span></div>
+      <p><span class="path">apps/renderer/app/sections/ContainersSection.tsx</span>, <span class="path">HistorySection.tsx</span> — several effects run async IPC without cancellation guards (<code>ProjectsSection</code> and <code>ExportImportDialog</code> already use <code>cancelled</code> flags — copy that pattern).</p>
+      <p>Harmless in React 18 (no more warning) but can surface as flicker/no-op updates when switching tabs quickly. Low-priority consistency cleanup.</p>
+    </div>
+  </div>
+
+  <!-- ==================== VERIFICATION ==================== -->
+  <h2 id="g10">Verification log &amp; audit coverage</h2>
+  <div class="group">
+    <h3>Commands executed during this audit (all on commit <code>90ec4fd</code>, Node v24.12.0, Windows)</h3>
+    <table>
+      <tr><th>Check</th><th>Command</th><th>Result</th></tr>
+      <tr><td>Typecheck</td><td><code>npm run typecheck</code></td><td class="pass">PASS (exit 0, no errors)</td></tr>
+      <tr><td>Lint</td><td><code>npm run lint</code></td><td class="pass">PASS (0 problems)</td></tr>
+      <tr><td>Architecture lint</td><td><code>npm run lint:architecture</code></td><td class="pass">PASS</td></tr>
+      <tr><td>Desktop tests</td><td><code>npm run test:run</code></td><td class="pass">25 files / 186 tests passed</td></tr>
+      <tr><td>Renderer tests</td><td><code>npm run test:renderer:run</code></td><td class="pass">21 files / 78 tests passed</td></tr>
+      <tr><td>Engine tests</td><td><code>npm run test:engine</code></td><td class="pass">7 files / 34 tests passed</td></tr>
+      <tr><td>Engine IPC integration</td><td><code>npm run test:engine-ipc</code></td><td class="pass">1 test passed</td></tr>
+      <tr><td>Rust tests</td><td><code>npm run test:rust</code></td><td class="pass">18 passed</td></tr>
+    </table>
+    <p class="note">All findings above are therefore <b>latent bugs that the existing suites do not catch</b> — which is exactly why each group lists new tests to add.</p>
+
+    <h3>Coverage statement</h3>
+    <ul>
+      <li><b>Read line-by-line:</b> <span class="path">registerIpc.ts</span> (all 3,145 lines), <span class="path">preload.ts</span>, <span class="path">fileService.ts</span>, <span class="path">terminalManager.ts</span>, <span class="path">git/service.ts</span>, <span class="path">git/runtime.ts</span>, <span class="path">engineService.ts</span>, <span class="path">engine/binary.ts</span>, <span class="path">data/store/core.ts</span>, <span class="path">export.ts</span>, <span class="path">history.ts</span>, <span class="path">settings.ts</span>, <span class="path">automation.ts</span>, <span class="path">projects.ts</span> (deletion), <span class="path">variableResolver.ts</span>, <span class="path">trayManager.ts</span>, <span class="path">index.ts</span>, <span class="path">createWindow.ts</span>, <span class="path">trustedIpc.ts</span>, all IPC domain handlers, <span class="path">attachmentService.ts</span>, <span class="path">contextSnapshot.ts</span>, <span class="path">main.tsx</span>, <span class="path">App.tsx</span> (core flows), <span class="path">Terminal.tsx</span>, <span class="path">AppShell.tsx</span>, <span class="path">useAutoRefresh.ts</span>, <span class="path">CommandPalette.tsx</span> (shortcut/search wiring), <span class="path">engine/db/manager.ts</span>, <span class="path">engine/rust/scanner.rs</span>, <span class="path">TODO.md</span>/<span class="path">ROADMAP.md</span>/<span class="path">docs/README.md</span>.</li>
+      <li><b>Spot-checked / pattern-scanned:</b> ProjectsSection, ContainersSection, HistorySection, BugRecorderPanel, ExportImportDialog (effects, cancel guards, API usage), llm/bundler.ts (path &amp; pattern handling).</li>
+      <li><b>Not verifiable on this machine:</b> live Docker daemon paths (daemon not running) — <code>parseDockerContainers</code> field handling relies on documented Docker formatter behavior; WSL terminal behavior (F-09) is code-confirmed as inconsistent but needs a manual repro; macOS-specific branches reviewed by reading only (macOS is a deferred platform).</li>
+      <li><b>Not re-audited:</b> <span class="path">packages/landing</span> (marketing site), CI workflow files beyond a passing-gate sanity check, and the QA/release scripts (<span class="path">scripts/</span>) beyond their entry points — candidates for the next maintenance cycle.</li>
+    </ul>
+  </div>
+
+  <!-- ==================== TRACKED ITEMS ==================== -->
+  <h2 id="g11">Already-tracked release items (not new findings)</h2>
+  <div class="group">
+    <p class="note">For completeness: these are known open items from <span class="path">TODO.md</span> / <span class="path">ROADMAP.md</span> and are release-process or roadmap work, not code bugs from this sweep. They should stay on the maintenance board alongside the groups above.</p>
+    <table>
+      <tr><th>Item</th><th>Source</th><th>Type</th></tr>
+      <tr><td>Interactive packaged-app QA rows on Windows + Linux</td><td>docs/manual-qa.md</td><td>Release QA (add a WSL-terminal row per F-09)</td></tr>
+      <tr><td>Windows Authenticode signing (optional)</td><td>TODO.md</td><td>Release process</td></tr>
+      <tr><td>Auto-update channel decision (or manual downloads)</td><td>TODO.md</td><td>Release process</td></tr>
+      <tr><td>macOS packaging / notarization (deferred)</td><td>ROADMAP.md</td><td>Platform</td></tr>
+      <tr><td>Git commits use <code>add -A</code> (no selective staging)</td><td>ROADMAP.md "Later"</td><td>Design gap</td></tr>
+      <tr><td>Chains are sequential (<code>parallel</code> field stored but ignored; UI always sends <code>false</code> — dead field today)</td><td>ROADMAP.md "Later" + this audit</td><td>Design gap</td></tr>
+      <tr><td>Manual index / reindex only (no watch mode)</td><td>ROADMAP.md "Later"</td><td>Design gap</td></tr>
+      <tr><td>GitHub-Enterprise remotes not recognized by <code>parseGitRemote</code> (PR creation disabled for GHE)</td><td>this audit (observation)</td><td>Feature gap</td></tr>
+    </table>
+  </div>
+
+  <p class="note" style="margin-top:36px">Generated by the maintenance sweep on 2026-08-27 · base commit <code>90ec4fd</code> · 32 findings across 9 fix-commit groups · all baseline gates green at time of audit.</p>
+</div>
+</body>
+</html>
