@@ -57,7 +57,7 @@
 <div class="wrap">
 
   <h1>DevDesk — Maintenance Findings Report</h1>
-  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Group 1 and Group 2 are completed</span>; remaining groups are still open.</p>
+  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Group 1, Group 2 and Group 3 are completed</span>; remaining groups are still open.</p>
 
   <div class="meta">
     <div class="card"><b>Audited commit</b><code>90ec4fd</code> — "Refresh documentation for v0.1.2" (clean working tree)</div>
@@ -79,7 +79,7 @@
   <ol class="toc">
     <li><a href="#g1">Group 1 — Renderer crash-resilience</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g2">Group 2 — Command run pipeline</a> <span class="tag done">COMPLETED</span></li>
-    <li><a href="#g3">Group 3 — Platform launchers (Win/Linux)</a></li>
+    <li><a href="#g3">Group 3 — Platform launchers (Win/Linux)</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g4">Group 4 — WSL embedded terminal</a></li>
     <li><a href="#g5">Group 5 — Data lifecycle &amp; export/import</a></li>
     <li><a href="#g6">Group 6 — App lifecycle &amp; streaming</a></li>
@@ -163,24 +163,26 @@
 
   <!-- ==================== GROUP 3 ==================== -->
   <h2 id="g3">Group 3 — Platform launchers (Windows &amp; Linux)</h2>
-  <div class="group">
+  <div class="group done">
     <div class="group-head">
       <h3>Linux ignores user preferences; quoting bugs in shell-true launcher strings</h3>
       <span class="commit">fix/platform-launchers</span>
       <span class="tag med">MEDIUM</span>
+      <span class="tag done">COMPLETED</span>
     </div>
-    <p class="note">Suggested commit message: “Honor editor/terminal preferences on Linux; quote-safe launcher construction”. One logical area: <span class="path">apps/desktop/ipc/registerIpc.ts</span> + <span class="path">apps/desktop/files/fileService.ts</span>. Linux is a <b>shipped, packaged platform (deb)</b>, so these are release-relevant.</p>
+    <p class="note">Suggested commit message: “Honor editor/terminal preferences on Linux; quote-safe launcher construction”. One logical area: <span class="path">apps/desktop/ipc/registerIpc.ts</span> + <span class="path">apps/desktop/files/fileService.ts</span>. Linux is a <b>shipped, packaged platform (deb)</b>, so these are release-relevant. <span class="pass">Status: completed</span> (F-06, F-07, F-08).</p>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-06</span> On Linux, editor/terminal preferences are ignored entirely <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-06</span> On Linux, editor/terminal preferences are ignored entirely <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> lines ~2094–2113 (<code>projects:open-editor</code> / <code>projects:open-terminal</code> final <code>else</code> branches); same pattern in <span class="path">apps/desktop/files/fileService.ts</span> <code>openFileInEditor</code></p>
       <p>macOS maps <code>MAC_EDITOR_APPS</code>/<code>MAC_TERMINAL_APPS</code>, Windows maps <code>WINDOWS_EDITOR_COMMANDS</code>/<code>WINDOWS_TERMINAL_COMMANDS</code> — the Linux fallback hardcodes <code>spawnDetached('code', …)</code> and <code>spawnDetached('x-terminal-emulator', …)</code> regardless of the preference the user chose in Settings. A Linux user who selects WebStorm or gets <code>x-terminal-emulator</code> missing (not present on Fedora/Arch; Debian-only alternative) silently gets VS Code or a failed launch.</p>
       <p><b>Fix direction:</b> add LINUX_* command maps honoring the preference id + sensible fallbacks (<code>gnome-terminal</code>, <code>konsole</code>, <code>x-terminal-emulator</code>, <code>xdg-terminal</code>); for editors use <code>xdg-open</code>-style resolution or per-preference commands.</p>
       <p><b>Tests to add:</b> table-driven tests for the preference→command mapping per platform.</p>
+      <p><span class="pass">Applied:</span> <span class="path">apps/desktop/launchers/editorTerminalCommands.ts</span> — <code>LINUX_EDITOR_COMMANDS</code> (vscode/cursor/webstorm/intellij/subl) + terminal candidate chain (gnome-terminal, konsole, xfce4-terminal, x-terminal-emulator, xdg-terminal; preferred id first) tried until one launches; <code>projects:open-editor</code>/<code>projects:open-terminal</code> and the <span class="path">fileService.ts</span> Linux fallback honor the preference; renderer <span class="path">projectsSectionConfig.ts</span> now offers the editors plus System default/GNOME Terminal/Konsole on Linux. Tests in <span class="path">editorTerminalCommands.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-07</span> Shell-quoting defects in launcher command strings (breaks paths; injectable via filenames) <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-07</span> Shell-quoting defects in launcher command strings (breaks paths; injectable via filenames) <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <ul>
         <li><span class="path">apps/desktop/ipc/registerIpc.ts</span> <code>resolveCustomCommand</code> (~line 1140): <code>{path}</code> replaced with <code>"${projectPath}"</code>, then run via <code>spawn(…, { shell: true })</code>. A project path containing <code>"</code>, <code>&amp;</code>, <code>%</code> breaks out of the quoting.</li>
         <li><span class="path">apps/desktop/ipc/registerIpc.ts</span> <code>WINDOWS_TERMINAL_COMMANDS</code>: PowerShell <code>Set-Location -LiteralPath "${projectPath}"</code> and cmd <code>cd /d "${projectPath}"</code> — double quotes don't neutralize <code>"</code> inside the value; PowerShell interpolates <code>$</code> in double quotes.</li>
@@ -188,13 +190,15 @@
       </ul>
       <p><b>Fix direction:</b> a shared, dialect-aware quoting helper (already exists in miniature as <code>formatPowerShellLiteral</code>/<code>formatCmdLiteral</code> — reuse and extend), or drop <code>shell:true</code> and pass argv arrays with a raw command template where possible.</p>
       <p><b>Tests to add:</b> unit tests for the quoting helper against paths with quotes, spaces, <code>&amp;</code>, <code>%</code>, <code>$()</code>, unicode.</p>
+      <p><span class="pass">Applied:</span> shared dialect-aware helpers in <span class="path">apps/desktop/launchers/shellQuoting.ts</span> (PowerShell/cmd/POSIX literals + <code>buildCustomCommand</code>); used by <code>resolveCustomCommand</code>, the <code>WINDOWS_TERMINAL_COMMANDS</code> PowerShell <code>Set-Location -LiteralPath</code> / cmd <code>cd /d</code> entries, and the <span class="path">fileService.ts</span> custom-command branch. Tests in <span class="path">shellQuoting.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-08</span> ENOENT retry with <code>shell: true</code> mangles arguments containing spaces <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-08</span> ENOENT retry with <code>shell: true</code> mangles arguments containing spaces <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> lines 1136–1146 (<code>spawnDetachedWithShellFallback</code>)</p>
       <p>The Windows fallback re-spawns the same argv array with <code>shell: true</code>. Node concatenates command+args without quoting in shell mode, so <code>wt -d C:\My Projects\app</code> becomes two broken arguments. The retry only fires after an ENOENT, which limits exposure, but when it does fire with a spaced project path the launch silently misbehaves. Related inconsistency: <code>fileService.openFileInEditor</code> (WSL VS Code path) spawns <code>code</code> without any shell fallback at all, while <code>registerIpc</code> does use the fallback.</p>
       <p><b>Fix direction:</b> quote args when retrying with shell (or skip the retry for argument-bearing commands); unify the fallback behavior in one shared helper used by both files.</p>
+      <p><span class="pass">Applied:</span> unified spawn helpers in <span class="path">apps/desktop/launchers/detachedSpawn.ts</span> used by both <span class="path">registerIpc.ts</span> and <span class="path">fileService.ts</span>; the win32 shell retry quotes args (<code>quoteCmdArgIfNeeded</code>) so spaced paths survive; the WSL VS Code path in <span class="path">fileService.ts</span> now uses the fallback too. Tests in <span class="path">detachedSpawn.test.ts</span>.</p>
     </div>
   </div>
 
