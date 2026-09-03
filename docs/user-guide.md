@@ -2,7 +2,7 @@
 
 DevDesk is a local-first workspace: projects, saved commands, terminals, Docker, Git, and code search on one machine. Nothing is sent to a cloud account.
 
-This guide describes the **0.1.2** desktop app. For installers see [install.md](./install.md). For where files live see [data-locations.md](./data-locations.md).
+This guide describes the **0.1.3** desktop app. For installers see [install.md](./install.md). For where files live see [data-locations.md](./data-locations.md).
 
 ## Workspace
 

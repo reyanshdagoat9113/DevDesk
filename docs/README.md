@@ -2,8 +2,8 @@
 
 Start here. Docs are split by audience so you can skip what you do not need.
 
-**Product version:** 0.1.2 (private beta)  
-**Last reviewed:** 2026-08-22
+**Product version:** 0.1.3 (private beta)
+**Last reviewed:** 2026-09-03
 
 ## If you want to use DevDesk
 
@@ -13,7 +13,7 @@ Start here. Docs are split by audience so you can skip what you do not need.
 | [install.md](./install.md) | Installers, first launch, uninstall |
 | [user-guide.md](./user-guide.md) | Workspace, commands, terminals, engine, Git, shortcuts |
 | [data-locations.md](./data-locations.md) | Where data lives, backup, export/import |
-| [RELEASE-NOTES-0.1.2.md](./RELEASE-NOTES-0.1.2.md) | Current release notes |
+| [RELEASE-NOTES-0.1.3.md](./RELEASE-NOTES-0.1.3.md) | Current release notes |
 
 ## If you want to build or contribute
 
