@@ -41,11 +41,17 @@ export const windowsTerminalOptions = [
 
 export const linuxEditorOptions = [
   { id: 'vscode', label: 'Visual Studio Code' },
+  { id: 'cursor', label: 'Cursor' },
+  { id: 'webstorm', label: 'WebStorm' },
+  { id: 'intellij', label: 'IntelliJ IDEA' },
+  { id: 'sublime', label: 'Sublime Text' },
   { id: 'custom', label: 'Custom command' },
 ]
 
 export const linuxTerminalOptions = [
-  { id: 'terminal', label: 'Terminal' },
+  { id: 'terminal', label: 'System default' },
+  { id: 'gnome-terminal', label: 'GNOME Terminal' },
+  { id: 'konsole', label: 'Konsole' },
   { id: 'custom', label: 'Custom command' },
 ]
 

@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { spawn } from 'node:child_process'
 import fastGlob from 'fast-glob'
 import ignore from 'ignore'
 import type { AppPreferences } from '../data/model'
+import { spawnDetached, spawnDetachedWithShellFallback, spawnShellDetached } from '../launchers/detachedSpawn'
+import { resolveLinuxEditorCandidates, spawnFirstSuccessfulLinuxCandidate } from '../launchers/editorTerminalCommands'
+import { buildCustomCommand } from '../launchers/shellQuoting'
 
 // File entry types
 export interface FileEntry {
@@ -340,45 +342,6 @@ const WINDOWS_EDITOR_COMMANDS: Record<string, { command: string; buildArgs: (fil
   },
 }
 
-function spawnDetached(command: string, args: string[]): Promise<{ success: boolean; error?: string }> {
-  return new Promise((resolve) => {
-    try {
-      const child = spawn(command, args, {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-      })
-      child.on('error', (error) => resolve({ success: false, error: error.message }))
-      child.on('spawn', () => {
-        child.unref()
-        resolve({ success: true })
-      })
-    } catch (error) {
-      resolve({ success: false, error: error instanceof Error ? error.message : 'Failed to start process.' })
-    }
-  })
-}
-
-function spawnShellDetached(command: string): Promise<{ success: boolean; error?: string }> {
-  return new Promise((resolve) => {
-    try {
-      const child = spawn(command, {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-        shell: true,
-      })
-      child.on('error', (error) => resolve({ success: false, error: error.message }))
-      child.on('spawn', () => {
-        child.unref()
-        resolve({ success: true })
-      })
-    } catch (error) {
-      resolve({ success: false, error: error instanceof Error ? error.message : 'Failed to start process.' })
-    }
-  })
-}
-
 // Parse WSL UNC path
 const WSL_UNC_PATH_PATTERN = /^\\\\wsl(?:\.localhost|\$)\\([^\\/]+)(?:[\\/](.*))?$/i
 
@@ -436,14 +399,9 @@ export async function openFileInEditor(
     if (!preference.command) {
       return { success: false, error: 'Custom command is required.' }
     }
-    // Replace {path} placeholder with actual file path
+    // Replace {path} placeholder with a shell-quoted file path (dialect-aware)
     // Support line/column placeholders too: {line}, {column}
-    let command = preference.command
-    if (command.includes('{path}')) {
-      command = command.replace(/\{path\}/g, `"${filePath}"`)
-    } else {
-      command = `${command} "${filePath}"`
-    }
+    let command = buildCustomCommand(preference.command, filePath)
     if (line !== undefined) {
       command = command.replace(/\{line\}/g, String(line))
     }
@@ -474,7 +432,7 @@ export async function openFileInEditor(
         args.push(fullLinuxPath)
       }
 
-      const result = await spawnDetached('code', args)
+      const result = await spawnDetachedWithShellFallback('code', args)
       if (result.success) {
         return result
       }
@@ -488,5 +446,5 @@ export async function openFileInEditor(
   }
 
   // Linux fallback
-  return spawnDetached('code', [filePath])
+  return spawnFirstSuccessfulLinuxCandidate(resolveLinuxEditorCandidates(preference.id, filePath), spawnDetached)
 }
