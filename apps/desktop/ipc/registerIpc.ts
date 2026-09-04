@@ -90,6 +90,8 @@ import { runSystemChecks } from '../health/systemChecks'
 import { runRuntimeChecks } from '../health/runtimeChecks'
 import { captureContextSnapshot } from '../bugs/contextSnapshot'
 import { killProcessTree } from '../system/processTree'
+import { broadcast } from './broadcast'
+import { registerDockerLogSubscription, stopDockerLogSubscription } from './dockerLogStreams'
 import { registerExtractedDomainHandlers } from './handlers'
 import {
   runningChains,
@@ -1033,12 +1035,6 @@ async function spawnDockerCommandStream(args: string[]): Promise<ChildProcessWit
   return spawn(launch.command, launch.args, {
     windowsHide: true,
   })
-}
-
-function broadcast(channel: string, payload: unknown) {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(channel, payload)
-  }
 }
 
 const MAC_EDITOR_APPS: Record<string, string> = {
@@ -2378,15 +2374,17 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('docker:logs:subscribe', async (_event, _id: string, tail?: number) => {
+  ipcMain.handle('docker:logs:subscribe', async (event, _id: string, tail?: number) => {
     const containerId = requireContainerId(_id)
     const subscriptionId = randomUUID()
     const tailCount = Number.isFinite(tail) ? Math.max(1, Math.min(2000, Math.floor(tail as number))) : 200
     const stream = await spawnDockerCommandStream(['logs', '--follow', '--tail', String(tailCount), containerId])
 
-    runningDockerLogSubscriptions.set(subscriptionId, {
+    registerDockerLogSubscription({
+      subscriptionId,
       process: stream,
       containerId,
+      webContents: event.sender,
     })
 
     const pushChunk = (chunk: Buffer) => {
@@ -2426,15 +2424,7 @@ export function registerIpcHandlers() {
     if (!id) {
       return { success: false }
     }
-
-    const running = runningDockerLogSubscriptions.get(id)
-    if (!running) {
-      return { success: false }
-    }
-
-    running.process.kill()
-    runningDockerLogSubscriptions.delete(id)
-    return { success: true }
+    return { success: stopDockerLogSubscription(id) }
   })
 
   // File navigation

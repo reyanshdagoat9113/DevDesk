@@ -57,7 +57,7 @@
 <div class="wrap">
 
   <h1>DevDesk — Maintenance Findings Report</h1>
-  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Groups 1, 2, 3, and 4 are completed</span>; remaining groups are still open.</p>
+  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Groups 1, 2, 3, 4, 5, and 6 are completed</span>; remaining groups are still open.</p>
 
   <div class="meta">
     <div class="card"><b>Audited commit</b><code>90ec4fd</code> — "Refresh documentation for v0.1.2" (clean working tree)</div>
@@ -81,8 +81,8 @@
     <li><a href="#g2">Group 2 — Command run pipeline</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g3">Group 3 — Platform launchers (Win/Linux)</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g4">Group 4 — WSL embedded terminal</a> <span class="tag done">COMPLETED</span></li>
-    <li><a href="#g5">Group 5 — Data lifecycle &amp; export/import</a></li>
-    <li><a href="#g6">Group 6 — App lifecycle &amp; streaming</a></li>
+    <li><a href="#g5">Group 5 — Data lifecycle &amp; export/import</a> <span class="tag done">COMPLETED</span></li>
+    <li><a href="#g6">Group 6 — App lifecycle &amp; streaming</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g7">Group 7 — Security hardening</a></li>
     <li><a href="#g8">Group 8 — Command vault UX gaps</a></li>
     <li><a href="#g9">Group 9 — Minor batch (polish &amp; hygiene)</a></li>
@@ -275,40 +275,45 @@
 
   <!-- ==================== GROUP 6 ==================== -->
   <h2 id="g6">Group 6 — App lifecycle &amp; streaming</h2>
-  <div class="group">
+  <div class="group done">
     <div class="group-head">
       <h3>Double instances, tray-vs-close conflict, orphaned processes/streams on quit</h3>
       <span class="commit">fix/app-lifecycle</span>
       <span class="tag med">MEDIUM</span>
+      <span class="tag done">COMPLETED</span>
     </div>
-    <p class="note">Suggested commit message: “Single-instance lock, tray-aware close, quit cleanup for runs and log streams”. These interlock (close-to-tray only makes sense with single-instance + cleanup), so one commit.</p>
+    <p class="note">Suggested commit message: “Single-instance lock, tray-aware close, quit cleanup for runs and log streams”. These interlock (close-to-tray only makes sense with single-instance + cleanup), so one commit. <span class="pass">Status: completed</span> (F-14, F-15, F-16, F-17).</p>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-14</span> No single-instance lock <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-14</span> No single-instance lock <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/index.ts</span> — no <code>app.requestSingleInstanceLock()</code> anywhere in the codebase (verified by grep)</p>
       <p>Launching DevDesk twice starts two full app instances: two tray icons, and — more damaging — <code>emitStartupAutomationTriggers()</code> fires in <b>both</b>, so <code>onStartup</code> chains (deploy scripts, etc.) execute twice concurrently. Both processes also write <code>devdesk.db</code>; WAL tolerates it, but the in-process <code>writeQueue</code> serialization no longer guarantees ordering.</p>
       <p><b>Fix direction:</b> <code>requestSingleInstanceLock()</code>; on <code>second-instance</code> focus/show the existing window; quit the duplicate.</p>
+      <p><span class="pass">Applied:</span> <span class="path">apps/desktop/app/singleInstance.ts</span> acquires the lock before <code>whenReady</code>; a duplicate calls <code>app.quit()</code> and skips bootstrap. <code>second-instance</code> restores/shows/focuses the existing window (including a hide-to-tray window). Tests in <span class="path">singleInstance.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-15</span> Closing the window quits the app even when the tray is enabled <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-15</span> Closing the window quits the app even when the tray is enabled <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/index.ts</span> (<code>window-all-closed</code> → <code>app.quit()</code> on win/linux); <span class="path">apps/desktop/tray/trayManager.ts</span></p>
       <p>The tray is a advertised feature (Show DevDesk, New Terminal, Run Last Command), but the moment the user closes the window on Windows, <code>window-all-closed</code> quits the app — the tray icon then belongs to a dying process and every tray action is useless. Users who keep DevDesk in the tray expect close-to-tray; today the setting is effectively "extra icon until you close the window".</p>
       <p><b>Fix direction:</b> when <code>trayEnabled</code>, intercept close → hide-to-tray (with a first-time hint); quit only via tray Quit or when tray disabled. Keep darwin behavior as-is.</p>
+      <p><span class="pass">Applied:</span> <span class="path">apps/desktop/app/closeToTray.ts</span> — on win32/linux with tray enabled, window <code>close</code> hides instead of destroying and shows a one-time notification; <code>window-all-closed</code> no longer quits while the tray is on. Darwin is unchanged. Tray Quit still calls <code>app.quit()</code>. Tests in <span class="path">closeToTray.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-16</span> Running commands and docker log streams are not cleaned up on quit <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-16</span> Running commands and docker log streams are not cleaned up on quit <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/index.ts</span> (<code>before-quit</code> closes only tray + terminals); <span class="path">apps/desktop/ipc/runtimeState.ts</span> (<code>runningCommands</code>, <code>runningDockerLogSubscriptions</code>)</p>
       <p>On quit, active command children and <code>docker logs --follow</code> streams are left to the OS — they keep running headless (windows: invisible orphans; next launch reconciles only the <em>history rows</em> via <code>reconcileRunHistory</code>, the processes stay). At minimum quit should be explicit about it.</p>
       <p><b>Fix direction:</b> in <code>before-quit</code>, tree-kill all <code>runningCommands</code> and kill all log subscriptions (or prompt when runs are active).</p>
+      <p><span class="pass">Applied:</span> <span class="path">apps/desktop/ipc/quitCleanup.ts</span> tree-kills every running command (<code>requestedStop</code> so history finalizes as stopped) and stops all docker log follow processes. <code>before-quit</code> awaits cleanup with a 2s cap, then quits. Tests in <span class="path">quitCleanup.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-17</span> Docker log subscriptions leak on window reload/close <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-17</span> Docker log subscriptions leak on window reload/close <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> (<code>docker:logs:subscribe</code>, <code>docker:logs:unsubscribe</code>)</p>
       <p>Subscriptions are removed only by an explicit renderer unsubscribe. A renderer reload (dev HMR or crash-recovery reload) loses the subscription id and the <code>docker logs --follow</code> child runs forever, broadcasting to nobody. A <code>webContents</code>-lifecycle hook (did-navigate/destroyed) or a generation counter on reload should reap them.</p>
       <p><b>Fix direction:</b> track subscription→webContentsId; on <code>destroyed</code>/<code>did-start-navigation</code>, kill matching streams. Also add <code>isDestroyed()</code> guard inside the shared <code>broadcast()</code> for symmetry with <code>trayManager</code>'s guard.</p>
+      <p><span class="pass">Applied:</span> subscriptions store <code>webContentsId</code> and a reaper on <code>destroyed</code> / <code>render-process-gone</code> / main-frame navigation kills matching <code>docker logs --follow</code> processes. Shared <span class="path">broadcast.ts</span> skips destroyed windows. Tests in <span class="path">dockerLogStreams.test.ts</span> / <span class="path">broadcast.test.ts</span>.</p>
     </div>
   </div>
 
@@ -484,7 +489,7 @@
     </table>
   </div>
 
-  <p class="note" style="margin-top:36px">Generated by the maintenance sweep on 2026-08-27 · base commit <code>90ec4fd</code> · 32 findings across 9 fix-commit groups · <span class="pass">5 completed</span> (F-01–F-05, Groups 1–2) · 27 still open · all baseline gates green at time of audit.</p>
+  <p class="note" style="margin-top:36px">Generated by the maintenance sweep on 2026-08-27 · base commit <code>90ec4fd</code> · 32 findings across 9 fix-commit groups · <span class="pass">17 completed</span> (F-01–F-17, Groups 1–6) · 15 still open · all baseline gates green at time of audit.</p>
 </div>
 </body>
 </html>

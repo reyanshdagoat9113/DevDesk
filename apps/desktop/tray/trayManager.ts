@@ -109,6 +109,10 @@ export class TrayManager {
     }
   }
 
+  isEnabled(): boolean {
+    return this.enabled
+  }
+
   private createTray() {
     if (this.tray) return
 
@@ -176,7 +180,7 @@ export class TrayManager {
     ])
   }
 
-  private showWindow() {
+  showWindow() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       const windows = BrowserWindow.getAllWindows()
       if (windows.length > 0) {

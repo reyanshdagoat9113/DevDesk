@@ -1,6 +1,7 @@
 import { BrowserWindow, Menu } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import { attachDockerLogReaper } from '../ipc/dockerLogStreams'
 import { registerTrustedWebContents, unregisterTrustedWebContents } from '../ipc/trustedIpc'
 
 function resolveWindowIcon(): string | undefined {
@@ -79,6 +80,7 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
   // ID while its webContents is still available for the cleanup handler.
   const webContentsId = mainWindow.webContents.id
   registerTrustedWebContents(webContentsId)
+  attachDockerLogReaper(mainWindow.webContents)
   mainWindow.on('closed', () => {
     unregisterTrustedWebContents(webContentsId)
   })

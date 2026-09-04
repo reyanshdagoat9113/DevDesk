@@ -63,6 +63,7 @@ export const pendingTriggerConfirmations = new Map<string, PendingTriggerConfirm
 export type RunningDockerLogSubscription = {
   process: ChildProcessWithoutNullStreams
   containerId: string
+  webContentsId: number
 }
 
 export const runningDockerLogSubscriptions = new Map<string, RunningDockerLogSubscription>()
