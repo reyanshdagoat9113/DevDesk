@@ -22,7 +22,7 @@ export const SITE_URL = (
 ).replace(/\/$/, '')
 
 /** Product version the page advertises. Keep in sync with the root package.json. */
-export const APP_VERSION = '0.1.4'
+export const APP_VERSION = '0.1.5'
 
 /** Git tag holding the installer assets. */
 export const RELEASE_TAG = `v${APP_VERSION}`
@@ -56,7 +56,7 @@ export const downloads: DownloadArtifact[] = [
     label: 'Windows 10/11 (x64) installer',
     fileName: `DevDesk-${APP_VERSION}-win-x64.exe`,
     url: assetUrl(`DevDesk-${APP_VERSION}-win-x64.exe`),
-    available: true,
+    available: false,
     notes: [
       'Unsigned build — Windows SmartScreen will warn; choose More info → Run anyway.',
       'No auto-update channel in the beta.',
@@ -68,7 +68,7 @@ export const downloads: DownloadArtifact[] = [
     label: 'Linux (x64) .deb',
     fileName: `DevDesk-${APP_VERSION}-linux-x64.deb`,
     url: assetUrl(`DevDesk-${APP_VERSION}-linux-x64.deb`),
-    available: true,
+    available: false,
     notes: ['Install with sudo dpkg -i <file>.'],
   },
 ]

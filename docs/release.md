@@ -1,6 +1,6 @@
 # Release packaging
 
-Also see: [install.md](./install.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [RELEASE-NOTES-0.1.4.md](./RELEASE-NOTES-0.1.4.md) · [manual-qa.md](./manual-qa.md)
+Also see: [install.md](./install.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [RELEASE-NOTES-0.1.5.md](./RELEASE-NOTES-0.1.5.md) · [manual-qa.md](./manual-qa.md)
 
 ## Platforms
 
@@ -16,11 +16,11 @@ Artifact names come from `package.json` `build.artifactName`:
 DevDesk-${version}-${os}-${arch}.${ext}
 ```
 
-Examples: `DevDesk-0.1.4-win-x64.exe`, `DevDesk-0.1.4-linux-x64.deb`.
+Examples: `DevDesk-0.1.5-win-x64.exe`, `DevDesk-0.1.5-linux-x64.deb`.
 
 ## GitHub Releases
 
-Pushing a version tag (for example `v0.1.4`) runs `.github/workflows/publish-release.yml`. The workflow:
+Pushing a version tag (for example `v0.1.5`) runs `.github/workflows/publish-release.yml`. The workflow:
 
 1. Checks the tag matches `package.json` `version`
 2. Builds and verifies Windows and Linux packages on native runners

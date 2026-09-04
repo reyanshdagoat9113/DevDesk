@@ -1,14 +1,14 @@
 # Installation and platform support
 
-**Product version:** 0.1.4 (private beta)
+**Product version:** 0.1.5 (private beta)
 **Related:** [user-guide.md](./user-guide.md) · [release.md](./release.md) · [native-modules.md](./native-modules.md) · [data-locations.md](./data-locations.md)
 
 ## Supported platforms
 
 | Platform | Package | Arch | Status |
 |----------|---------|------|--------|
-| Windows 10/11 | NSIS `DevDesk-0.1.4-win-x64.exe` | x64 | Primary |
-| Linux (Debian/Ubuntu family) | `DevDesk-0.1.4-linux-x64.deb` | x64 | Supported |
+| Windows 10/11 | NSIS `DevDesk-0.1.5-win-x64.exe` | x64 | Primary |
+| Linux (Debian/Ubuntu family) | `DevDesk-0.1.5-linux-x64.deb` | x64 | Supported |
 | macOS | — | — | Not shipped |
 
 Downloads: [GitHub Releases](https://github.com/reyanshdagoat9113/DevDesk/releases). Checksums ship as SHA-256 files on the same release.
