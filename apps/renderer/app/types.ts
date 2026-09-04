@@ -595,23 +595,45 @@ export interface HealthCheckRun {
 export type HealthCheckRunSummary = Omit<HealthCheckRun, 'items'>
 
 export interface ExportHeader {
+  formatVersion: 2
   version: number
   exportedAt: string
   platform: string
 }
 
+export interface ExportTable {
+  columns: string[]
+  rows: unknown[][]
+}
+
 export interface ExportData {
+  formatVersion: 2
+  version: number
+  exportedAt: string
+  platform: string
+  tables: Record<string, ExportTable>
+}
+
+export interface LegacyExportData {
+  formatVersion?: 1
   version: number
   exportedAt: string
   platform: string
   tables: Record<string, unknown[][]>
 }
 
-export interface ExportResult {
-  success: boolean
-  data: ExportData
-  recordCounts: Record<string, number>
-}
+export type ImportableExportData = ExportData | LegacyExportData
+
+export type ExportResult =
+  | {
+      success: true
+      data: ExportData
+      recordCounts: Record<string, number>
+    }
+  | {
+      success: false
+      error: string
+    }
 
 export type ImportMode = 'replace' | 'merge'
 
@@ -634,7 +656,7 @@ export interface ExportToFileResult {
 export interface ImportPreviewResult {
   success: boolean
   canceled?: boolean
-  data?: ExportData
+  data?: ImportableExportData
   recordCounts?: Record<string, number>
   warnings?: string[]
   error?: string

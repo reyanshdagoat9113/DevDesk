@@ -1,4 +1,5 @@
 import type { Project } from '../model'
+import { deleteAttachmentFile } from './attachments'
 import { parseJsonArray } from './normalize'
 import { parseBoolean, VALID_PROJECT_TYPES } from './shared'
 import { ensureDbInitialized, getDbOrThrow, queueWrite, withSqlTiming } from './core'
@@ -30,6 +31,14 @@ export async function removeProject(projectId: string): Promise<void> {
   await queueWrite(async () => withSqlTiming('removeProject', async () => {
     await ensureDbInitialized()
     const database = getDbOrThrow()
+    const attachmentPaths = database
+      .prepare(`
+        SELECT bug_attachments.file_path
+        FROM bug_attachments
+        INNER JOIN bug_reports ON bug_reports.id = bug_attachments.bug_report_id
+        WHERE bug_reports.project_id = ?
+      `)
+      .all(projectId) as Array<{ file_path: string }>
     const transaction = database.transaction((id: string) => {
       database.prepare('DELETE FROM projects WHERE id = ?').run(id)
       database.prepare('DELETE FROM commands WHERE project_id = ?').run(id)
@@ -39,9 +48,18 @@ export async function removeProject(projectId: string): Promise<void> {
       database.prepare('DELETE FROM notes WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM engine_indexes WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM engine_search_sessions WHERE project_id = ?').run(id)
+      database.prepare('DELETE FROM health_check_runs WHERE project_id = ?').run(id)
       database.prepare('DELETE FROM bug_reports WHERE project_id = ?').run(id)
     })
     transaction(projectId)
+
+    for (const { file_path: filePath } of attachmentPaths) {
+      try {
+        deleteAttachmentFile(filePath)
+      } catch {
+        // A missing or malformed attachment must not prevent project deletion.
+      }
+    }
   }))
 }
 

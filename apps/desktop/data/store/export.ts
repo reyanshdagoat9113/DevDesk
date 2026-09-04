@@ -2,32 +2,61 @@ import fs from 'node:fs/promises'
 
 import type Database from 'better-sqlite3'
 
+import { deleteAttachmentFile } from './attachments'
 import { DATA_VERSION } from '../model'
 import { ensureDbInitialized, getDbOrThrow, queueWrite, withSqlTiming } from './core'
 import { getDbPath } from './shared'
 
 export const EXPORT_VERSION = DATA_VERSION
+export const EXPORT_FORMAT_VERSION = 2 as const
 
 export type ImportMode = 'replace' | 'merge'
 
 export interface ExportHeader {
+  formatVersion: typeof EXPORT_FORMAT_VERSION
   version: number
   exportedAt: string
   platform: string
 }
 
+export interface ExportTable {
+  columns: string[]
+  rows: unknown[][]
+}
+
+/**
+ * The current, schema-safe export format. Rows retain a compact array shape,
+ * while `columns` makes their meaning independent of SQLite column order.
+ */
 export interface ExportData {
+  formatVersion: typeof EXPORT_FORMAT_VERSION
+  version: number
+  exportedAt: string
+  platform: string
+  tables: Record<string, ExportTable>
+}
+
+/** Positional v1 exports remain importable for existing user backups. */
+export interface LegacyExportData {
+  formatVersion?: 1
   version: number
   exportedAt: string
   platform: string
   tables: Record<string, unknown[][]>
 }
 
-export interface ExportResult {
-  success: boolean
-  data: ExportData
-  recordCounts: Record<string, number>
-}
+export type ImportableExportData = ExportData | LegacyExportData
+
+export type ExportResult =
+  | {
+      success: true
+      data: ExportData
+      recordCounts: Record<string, number>
+    }
+  | {
+      success: false
+      error: string
+    }
 
 export interface ImportResult {
   success: boolean
@@ -48,7 +77,7 @@ export interface ExportToFileResult {
 export interface ImportPreviewResult {
   success: boolean
   canceled?: boolean
-  data?: ExportData
+  data?: ImportableExportData
   recordCounts?: Record<string, number>
   warnings?: string[]
   error?: string
@@ -98,14 +127,14 @@ export async function exportAllData(): Promise<ExportResult> {
     const database = getDbOrThrow()
 
     const exportTransaction = database.transaction(() => {
-      const tables: Record<string, unknown[][]> = {}
+      const tables: Record<string, ExportTable> = {}
       const recordCounts: Record<string, number> = {}
 
       for (const tableName of TABLE_NAMES) {
         const columnNames = getColumnNames(database, tableName)
         const rows = database.prepare(`SELECT * FROM ${tableName}`).all() as Array<Record<string, unknown>>
         const orderedRows = rows.map((row) => columnNames.map((col) => row[col]))
-        tables[tableName] = orderedRows
+        tables[tableName] = { columns: columnNames, rows: orderedRows }
         recordCounts[tableName] = rows.length
       }
 
@@ -115,6 +144,7 @@ export async function exportAllData(): Promise<ExportResult> {
     const { tables, recordCounts } = exportTransaction()
 
     const data: ExportData = {
+      formatVersion: EXPORT_FORMAT_VERSION,
       version: EXPORT_VERSION,
       exportedAt: new Date().toISOString(),
       platform: process.platform,
@@ -138,10 +168,10 @@ export async function importAllData(
     return { success: false, recordCounts: {}, error: validation.error }
   }
 
-  const parsed = validation.data as ExportData
+  const parsed = validation.data!
   const warnings: string[] = []
 
-  const attachmentCount = parsed.tables['bug_attachments']?.length ?? 0
+  const attachmentCount = getExportRows(parsed.tables['bug_attachments']).length
   if (attachmentCount > 0) {
     warnings.push(
       `This backup contains ${attachmentCount} external attachment record(s). External files are not included in v1 exports and will not be available after restore.`
@@ -168,6 +198,9 @@ export async function importAllData(
 
     const recordCounts: Record<string, number> = {}
     const rowErrors: string[] = []
+    const attachmentPaths = mode === 'replace'
+      ? (database.prepare('SELECT file_path FROM bug_attachments').all() as Array<{ file_path: string }>)
+      : []
 
     try {
       const importTransaction = database.transaction(() => {
@@ -180,15 +213,16 @@ export async function importAllData(
         }
 
         for (const tableName of INSERT_ORDER) {
-          const rows = parsed.tables[tableName]
+          const table = parsed.tables[tableName]
+          const rows = getExportRows(table)
           if (!rows || rows.length === 0) {
             recordCounts[tableName] = 0
             continue
           }
 
           const currentColumns = getColumnNames(database, tableName)
-          const exportColumns = getColumnNamesForExport(database, tableName, rows)
-          const paddedRows = rows.map((row) => padRow(row, exportColumns, currentColumns))
+          const exportColumns = getExportColumnNames(database, tableName, table, rows)
+          const paddedRows = rows.map((row) => mapRowToCurrentColumns(row, exportColumns, currentColumns))
 
           const placeholders = currentColumns.map(() => '?').join(', ')
           const columns = currentColumns.map((c) => `"${c}"`).join(', ')
@@ -238,6 +272,19 @@ export async function importAllData(
 
       importTransaction()
 
+      for (const { file_path: filePath } of attachmentPaths) {
+        const isStillReferenced = database
+          .prepare('SELECT 1 FROM bug_attachments WHERE file_path = ? LIMIT 1')
+          .get(filePath)
+        if (isStillReferenced) continue
+
+        try {
+          deleteAttachmentFile(filePath)
+        } catch {
+          // A missing or malformed attachment must not make an imported database unusable.
+        }
+      }
+
       return { success: true, recordCounts, backupPath, warnings }
     } catch (err) {
       return {
@@ -276,22 +323,36 @@ function getPrimaryKeyColumns(database: Database.Database, tableName: string): s
   return pkNames
 }
 
-function getColumnNamesForExport(database: Database.Database, tableName: string, rows: unknown[][]): string[] {
+function getExportColumnNames(
+  database: Database.Database,
+  tableName: string,
+  table: ExportTable | unknown[][],
+  rows: unknown[][],
+): string[] {
+  if (!Array.isArray(table)) return table.columns
+
+  // v1 exported positional rows without headers. Their original column order
+  // can only be inferred as the then-current schema prefix.
   const allColumns = getColumnNames(database, tableName)
   if (rows.length === 0) return allColumns
   return allColumns.slice(0, rows[0].length)
 }
 
-function padRow(row: unknown[], exportColumns: string[], currentColumns: string[]): unknown[] {
+function mapRowToCurrentColumns(row: unknown[], exportColumns: string[], currentColumns: string[]): unknown[] {
   return currentColumns.map((col) => {
     const idx = exportColumns.indexOf(col)
     return idx >= 0 ? row[idx] : null
   })
 }
 
+function getExportRows(table: ExportTable | unknown[][] | undefined): unknown[][] {
+  if (!table) return []
+  return Array.isArray(table) ? table : table.rows
+}
+
 interface ValidationResult {
   valid: boolean
-  data?: ExportData
+  data?: ImportableExportData
   error?: string
 }
 
@@ -323,20 +384,55 @@ export function validateExportData(raw: unknown): ValidationResult {
 
   const tables = data.tables as Record<string, unknown>
 
-  for (const tableName of TABLE_NAMES) {
-    if (!(tableName in tables)) {
-      tables[tableName] = []
+  const isV2 = data.formatVersion === EXPORT_FORMAT_VERSION
+  if ('formatVersion' in data && !isV2 && data.formatVersion !== 1) {
+    return {
+      valid: false,
+      error: `Invalid export data: unsupported payload format version (${String(data.formatVersion)}).`,
     }
   }
 
   for (const tableName of TABLE_NAMES) {
-    if (!Array.isArray(tables[tableName])) {
+    if (!(tableName in tables)) {
+      tables[tableName] = isV2 ? { columns: [], rows: [] } : []
+    }
+  }
+
+  for (const tableName of TABLE_NAMES) {
+    const table = tables[tableName]
+    if (!isV2 && !Array.isArray(table)) {
       return {
         valid: false,
         error: `Invalid export data: table "${tableName}" is not an array.`,
       }
     }
+
+    if (isV2) {
+      if (typeof table !== 'object' || table === null || Array.isArray(table)) {
+        return { valid: false, error: `Invalid export data: table "${tableName}" must contain columns and rows.` }
+      }
+
+      const { columns, rows } = table as Record<string, unknown>
+      if (!Array.isArray(columns) || columns.some((column) => typeof column !== 'string' || column.length === 0)) {
+        return { valid: false, error: `Invalid export data: table "${tableName}" has invalid column headers.` }
+      }
+      if (new Set(columns).size !== columns.length) {
+        return { valid: false, error: `Invalid export data: table "${tableName}" has duplicate column headers.` }
+      }
+      if (!Array.isArray(rows)) {
+        return { valid: false, error: `Invalid export data: table "${tableName}" rows are not an array.` }
+      }
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const row = rows[rowIndex]
+        if (!Array.isArray(row) || row.length !== columns.length) {
+          return {
+            valid: false,
+            error: `Invalid export data: table "${tableName}" row ${rowIndex} does not match its ${columns.length} column header(s).`,
+          }
+        }
+      }
+    }
   }
 
-  return { valid: true, data: data as unknown as ExportData }
+  return { valid: true, data: data as unknown as ImportableExportData }
 }

@@ -85,4 +85,4 @@ Corrupt DB files are renamed `devdesk.db.corrupt-<timestamp>` when open fails.
 
 ## Export format
 
-In-app export is a versioned JSON document of table rows. Import supports **merge** (upsert) and **replace** (after a `devdesk.db.backup-*` copy). Attachment **binaries** are not embedded.
+In-app export is a versioned JSON document. Current exports use payload format 2: each table has explicit `columns` plus positional `rows`, so restore maps values by column name rather than SQLite's column order. Import also accepts legacy format-1 positional table rows for existing backups. Import supports **merge** (upsert) and **replace** (after a `devdesk.db.backup-*` copy). Attachment **binaries** are not embedded.

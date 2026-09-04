@@ -35,7 +35,7 @@ Settings → Export / Import.
 
 | Mode | Behavior |
 |------|----------|
-| **Export** | Versioned JSON of table rows (`EXPORT_VERSION` = store `DATA_VERSION`) |
+| **Export** | Versioned JSON with format-2 table column headers and rows (`EXPORT_VERSION` = store `DATA_VERSION`) |
 | **Import · merge** | Upserts rows into the existing database |
 | **Import · replace** | Replaces table contents after validation |
 

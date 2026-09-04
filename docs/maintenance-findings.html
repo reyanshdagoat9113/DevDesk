@@ -229,42 +229,47 @@
 
   <!-- ==================== GROUP 5 ==================== -->
   <h2 id="g5">Group 5 — Data lifecycle &amp; export/import</h2>
-  <div class="group">
+  <div class="group done">
     <div class="group-head">
       <h3>Attachment-file leaks, orphaned rows, latent import corruption, swallowed export errors</h3>
       <span class="commit">fix/data-lifecycle</span>
       <span class="tag med">MEDIUM</span>
+      <span class="tag done">COMPLETED</span>
     </div>
-    <p class="note">Suggested commit message: “Fix orphaned attachments/health rows and future-proof import column mapping”. One commit because all changes touch <span class="path">apps/desktop/data/store/</span> + deletion helpers and should ship with matching tests.</p>
+    <p class="note">Suggested commit message: “Fix orphaned attachments/health rows and future-proof import column mapping”. One commit because all changes touch <span class="path">apps/desktop/data/store/</span> + deletion helpers and should ship with matching tests. <span class="pass">Status: completed (F-10, F-11, F-12, F-13).</span></p>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-10</span> Attachment <em>files</em> leak permanently when a project is deleted or data is replaced via import <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-10</span> Attachment <em>files</em> leak permanently when a project is deleted or data is replaced via import <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/data/store/projects.ts</span> line 42 (<code>DELETE FROM bug_reports WHERE project_id = ?</code>); <span class="path">apps/desktop/data/store/export.ts</span> replace-mode deletes; file cleanup lives only in <span class="path">apps/desktop/ipc/registerIpc.ts</span> lines 2827/2917 (<code>bugs:delete</code>/<code>bugs:remove-attachment</code>)</p>
       <p>Deleting a bug through the UI removes its attachment files from <code>userData/attachments</code>. But deleting a <b>project</b> (which cascades its bug reports) or a <b>replace-mode import</b> (which deletes all bug rows) leaves every referenced file on disk forever. Unbounded disk leak in userData — exactly the class of slow rot that surfaces months later as "why is DevDesk using 4 GB?".</p>
       <p><b>Fix direction:</b> before cascading deletes, collect <code>file_path</code> of affected attachments and run <code>deleteAttachmentFile</code> best-effort after the transaction (same pattern already used in <code>bugs:delete</code>).</p>
       <p><b>Tests to add:</b> store-level test asserting attachment rows+files are gone after project removal and after replace-import (tmp dir).</p>
+      <p><span class="pass">Applied:</span> attachment paths are collected before deletion and files are removed best-effort only after a successful transaction; replace import retains paths still referenced by imported rows. Tests cover project deletion and replace import.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-11</span> <code>removeProject</code> deletes every child table <em>except</em> <code>health_check_runs</code> <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-11</span> <code>removeProject</code> deletes every child table <em>except</em> <code>health_check_runs</code> <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/data/store/projects.ts</span> lines 33–43</p>
       <p>Projects, commands, chains, triggers, run history, notes, engine indexes, search sessions and bug reports are all cleaned; <code>health_check_runs</code> (keyed by <code>project_id</code>) are not, leaving orphan rows that are never shown again (the UI only queries by project id) and never cleaned by <code>cleanupOldHealthChecks</code> (also project-scoped).</p>
       <p><b>Fix direction:</b> add <code>DELETE FROM health_check_runs WHERE project_id = ?</code> to the same transaction (items cascade via FK).</p>
+      <p><span class="pass">Applied:</span> project deletion now removes health-check runs; their items cascade. Regression coverage confirms unrelated project health data remains.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-12</span> Import maps exported rows to columns positionally — silent corruption on future schema drift <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-12</span> Import maps exported rows to columns positionally — silent corruption on future schema drift <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/data/store/export.ts</span> lines 279+ (<code>getColumnNamesForExport</code> returns <code>allColumns.slice(0, rows[0].length)</code>; <code>padRow</code> maps by that prefix)</p>
       <p>Exports store <b>positional rows</b> with no column names. Import assumes the export's column order equals a prefix of the current schema. This holds only while columns are strictly appended. The moment a future refactor adds a column in the middle or reorders <code>createSchema</code>, old backups import successfully but with <b>silently swapped field values</b> (e.g. <code>name</code> landing in <code>type</code>). Nothing validates; FK checks pass because values are all still valid.</p>
       <p><b>Fix direction:</b> export a header row (or object-rows) in a v2 payload while keeping backward-compatible positional reading for v1; validate row length against the stored header.</p>
       <p><b>Tests to add:</b> round-trip test simulating a mid-schema column insertion against a synthetic v1 backup.</p>
+      <p><span class="pass">Applied:</span> format-v2 backups include per-table column headers; import maps values by header and validates row lengths. Existing format-v1 positional backups remain supported. Tests cover schema insertion, v1 compatibility, and invalid v2 rows.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-13</span> <code>config:export</code> swallows the failure reason <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-13</span> <code>config:export</code> swallows the failure reason <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> (<code>config:export</code> catch block)</p>
       <p>The catch returns <code>{ success: false, data: {…empty}, recordCounts: {} }</code> with no <code>error</code> field (its sibling <code>config:export-to-file</code> does return one). When quick-export fails, the renderer can only show a generic failure — the actual cause (disk, permissions, DB) is lost. The unusual empty-data shape also forces the renderer to distinguish "failed" from "no data".</p>
       <p><b>Fix direction:</b> return <code>{ success: false, error: message }</code> like the to-file variant; update the renderer type.</p>
+      <p><span class="pass">Applied:</span> quick export now returns an explicit error result; the shared types distinguish successful payloads from failures, and the import/export dialog shows the returned message.</p>
     </div>
   </div>
 

@@ -27,6 +27,7 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS notes (project_id TEXT PRIMARY KEY);
   CREATE TABLE IF NOT EXISTS engine_indexes (project_id TEXT PRIMARY KEY);
   CREATE TABLE IF NOT EXISTS engine_search_sessions (project_id TEXT PRIMARY KEY);
+  CREATE TABLE IF NOT EXISTS health_check_runs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL);
 
   CREATE TABLE IF NOT EXISTS bug_reports (
     id TEXT PRIMARY KEY,
@@ -43,6 +44,13 @@ const SCHEMA = `
     updated_at TEXT NOT NULL,
     resolved_at TEXT,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS bug_attachments (
+    id TEXT PRIMARY KEY,
+    bug_report_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    FOREIGN KEY (bug_report_id) REFERENCES bug_reports(id) ON DELETE CASCADE
   );
 `
 

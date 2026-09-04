@@ -2,7 +2,7 @@
 
 Use this before tagging a release or calling the product launch-ready.
 
-Current product version: **0.1.3**. Docs index: [README.md](./README.md).
+Current product version: **0.1.4**. Docs index: [README.md](./README.md).
 
 ## Every candidate build
 

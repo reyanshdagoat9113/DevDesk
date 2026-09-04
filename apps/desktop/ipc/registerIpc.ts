@@ -2892,8 +2892,7 @@ export function registerIpcHandlers() {
     } catch (err) {
       return {
         success: false,
-        data: { version: 0, exportedAt: '', platform: '', tables: {} },
-        recordCounts: {},
+        error: err instanceof Error ? err.message : String(err),
       }
     }
   })
@@ -2965,12 +2964,15 @@ export function registerIpcHandlers() {
       const data = validation.data!
       const recordCounts: Record<string, number> = {}
       for (const tableName of Object.keys(data.tables)) {
-        const rows = data.tables[tableName]
-        recordCounts[tableName] = Array.isArray(rows) ? rows.length : 0
+        const table = data.tables[tableName]
+        recordCounts[tableName] = Array.isArray(table) ? table.length : table.rows.length
       }
 
       const warnings: string[] = []
-      const attachmentCount = data.tables['bug_attachments']?.length ?? 0
+      const attachmentTable = data.tables['bug_attachments']
+      const attachmentCount = Array.isArray(attachmentTable)
+        ? attachmentTable.length
+        : attachmentTable?.rows.length ?? 0
       if (attachmentCount > 0) {
         warnings.push(
           `This backup contains ${attachmentCount} external attachment record(s). External files are not included in v1 exports and will not be available after restore.`

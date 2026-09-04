@@ -35,7 +35,7 @@ import {
 } from './ui/Select'
 import { Badge } from './ui/Badge'
 import { ScrollArea } from './ui/ScrollArea'
-import type { ExportData, ImportMode, ImportResult } from '../types'
+import type { ImportableExportData, ImportMode, ImportResult } from '../types'
 
 type DialogTab = 'export' | 'import'
 type ImportStep = 'select' | 'preview' | 'done'
@@ -60,7 +60,7 @@ export function ExportImportDialog({
   const [exportFilePath, setExportFilePath] = useState<string | null>(null)
 
   const [importStep, setImportStep] = useState<ImportStep>('select')
-  const [importData, setImportData] = useState<ExportData | null>(null)
+  const [importData, setImportData] = useState<ImportableExportData | null>(null)
   const [importCounts, setImportCounts] = useState<Record<string, number> | null>(null)
   const [importMode, setImportMode] = useState<ImportMode>('merge')
   const [importWarnings, setImportWarnings] = useState<string[]>([])
@@ -109,7 +109,7 @@ export function ExportImportDialog({
       .then((res) => {
         if (canceled) return
         if (res.success) setExportCounts(res.recordCounts)
-        else setError('Failed to load export preview.')
+        else setError(res.error)
       })
       .catch(() => {
         if (!canceled) setError('Failed to load export preview.')
