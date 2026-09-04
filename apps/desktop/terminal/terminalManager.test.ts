@@ -96,6 +96,33 @@ describe('TerminalManager', () => {
     expect(fakePty.kill).toHaveBeenCalled()
   })
 
+  it.runIf(process.platform === 'win32')('opens a WSL project terminal in its Linux project directory', async () => {
+    const fakePty = createFakePty()
+    ptySpawn.mockReturnValue(fakePty)
+    getProjectById.mockResolvedValue({
+      id: 'wsl-project',
+      path: '\\\\wsl.localhost\\Ubuntu\\home\\dev\\project with spaces',
+    })
+    const { TerminalManager } = await import('./terminalManager')
+    const manager = new TerminalManager(() => undefined)
+
+    const session = await manager.create({ projectId: 'wsl-project' })
+
+    expect(session.cwd).toBe('/home/dev/project with spaces')
+    expect(session.shell).toBe('wsl.exe')
+    expect(ptySpawn).toHaveBeenCalledWith(
+      'wsl.exe',
+      ['-d', 'Ubuntu', '--cd', '/home/dev/project with spaces', '-e', 'bash', '-l'],
+      expect.objectContaining({
+        cols: 80,
+        rows: 24,
+        name: 'xterm-256color',
+        useConpty: false,
+      })
+    )
+    expect(ptySpawn.mock.calls[0]?.[2]).not.toHaveProperty('cwd')
+  })
+
   it('rejects blocked system working directories', async () => {
     const { TerminalManager } = await import('./terminalManager')
     const manager = new TerminalManager(() => undefined)

@@ -186,11 +186,10 @@ export class TerminalManager {
         const distro = wslLocation?.distro ?? 'Ubuntu'
         const targetLinuxPath = wslLocation?.linuxPath ?? linuxPath
 
-        ptyProcess = pty.spawn('wsl.exe', ['-d', distro, '-e', 'bash', '-l'], {
+        ptyProcess = pty.spawn('wsl.exe', ['-d', distro, '--cd', targetLinuxPath, '-e', 'bash', '-l'], {
           name: 'xterm-256color',
           cols,
           rows,
-          cwd: targetLinuxPath,
           env: getCleanEnv(),
           useConpty: false,
         })

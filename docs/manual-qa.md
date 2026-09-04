@@ -92,6 +92,7 @@ Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is o
 | 9 | Tray toggle and quick actions | Pending |
 | 10 | Docker-present, Docker-missing, and WSL fallback | Pending |
 | 11 | Packaged restart and persistence | Pending |
+| 12 | WSL project: embedded terminal opens at the selected project path | Pending |
 
 ---
 
@@ -103,7 +104,7 @@ Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is o
 | Artifact | Debian package target: `DevDesk-0.1.3-linux-x64.deb` (`package:linux`) |
 | Status | **Execution pending on Linux host** |
 
-The Linux interactive workflow uses the same 11 manual actions listed in the Windows table. All rows remain pending until executed on a representative Linux desktop.
+The Linux interactive workflow uses the same 12 manual actions listed in the Windows table, except the Windows-only WSL project check. All applicable rows remain pending until executed on a representative Linux desktop.
 
 ---
 

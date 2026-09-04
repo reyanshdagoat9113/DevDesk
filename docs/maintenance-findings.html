@@ -57,7 +57,7 @@
 <div class="wrap">
 
   <h1>DevDesk — Maintenance Findings Report</h1>
-  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Group 1, Group 2 and Group 3 are completed</span>; remaining groups are still open.</p>
+  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Groups 1, 2, 3, and 4 are completed</span>; remaining groups are still open.</p>
 
   <div class="meta">
     <div class="card"><b>Audited commit</b><code>90ec4fd</code> — "Refresh documentation for v0.1.2" (clean working tree)</div>
@@ -80,7 +80,7 @@
     <li><a href="#g1">Group 1 — Renderer crash-resilience</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g2">Group 2 — Command run pipeline</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g3">Group 3 — Platform launchers (Win/Linux)</a> <span class="tag done">COMPLETED</span></li>
-    <li><a href="#g4">Group 4 — WSL embedded terminal</a></li>
+    <li><a href="#g4">Group 4 — WSL embedded terminal</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g5">Group 5 — Data lifecycle &amp; export/import</a></li>
     <li><a href="#g6">Group 6 — App lifecycle &amp; streaming</a></li>
     <li><a href="#g7">Group 7 — Security hardening</a></li>
@@ -204,16 +204,16 @@
 
   <!-- ==================== GROUP 4 ==================== -->
   <h2 id="g4">Group 4 — WSL embedded terminal</h2>
-  <div class="group">
+  <div class="group done">
     <div class="group-head">
       <h3>WSL terminals never open in the project directory</h3>
       <span class="commit">fix/wsl-terminal-cwd</span>
-      <span class="tag med">MEDIUM</span> <span class="tag info">verify-by-hand</span>
+      <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span> <span class="tag info">verify-by-hand</span>
     </div>
-    <p class="note">Suggested commit message: “Open WSL terminals in the project directory via wsl.exe --cd”. Requires a real Windows + WSL machine for confirmation (this audit machine has WSL paths parsed but no live repro performed).</p>
+    <p class="note">Suggested commit message: “Open WSL terminals in the project directory via wsl.exe --cd”. <span class="pass">Status: implemented and unit-tested.</span> Requires a real Windows + WSL machine for final interactive confirmation.</p>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-09</span> <code>bash -l</code> without <code>--cd</code>; POSIX path passed as a Win32 working directory <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-09</span> <code>bash -l</code> without <code>--cd</code>; POSIX path passed as a Win32 working directory <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/terminal/terminalManager.ts</span> lines 183–195 (<code>create()</code>, WSL branch)</p>
       <p>The WSL branch spawns <code>wsl.exe -d &lt;distro&gt; -e bash -l</code> with <code>cwd: targetLinuxPath</code> where <code>targetLinuxPath</code> is a POSIX path like <code>/home/user/proj</code>. Two problems:</p>
       <ul>
@@ -223,6 +223,7 @@
       <p>Net effect for a headline feature (WSL project support): embedded terminal is opened in the wrong directory or errors, while the external "Open in Terminal" flow (<code>openWslProjectInTerminal</code>) does pass <code>--cd</code> correctly — the two flows disagree, which strongly suggests the embedded path is a bug rather than intent.</p>
       <p><b>Fix direction:</b> spawn <code>wsl.exe -d &lt;distro&gt; --cd &lt;linuxPath&gt; -e bash -l</code> (wsl.exe accepts Linux paths for <code>--cd</code> and handles the Win32 side internally) and drop the POSIX <code>cwd</code>.</p>
       <p><b>Tests / QA:</b> add a manual-QA row to <span class="path">docs/manual-qa.md</span>: "Embedded terminal on a WSL project opens at the project path".</p>
+      <p><span class="pass">Applied:</span> the WSL PTY now invokes <code>wsl.exe -d &lt;distro&gt; --cd &lt;linuxPath&gt; -e bash -l</code> and no longer supplies a POSIX path as node-pty's Win32 <code>cwd</code>. Regression coverage in <span class="path">apps/desktop/terminal/terminalManager.test.ts</span>; the dedicated packaged-app QA row is in <span class="path">docs/manual-qa.md</span>. The <b>verify-by-hand</b> tag remains because an actual Windows + WSL terminal session cannot be authenticated by a mock.</p>
     </div>
   </div>
 
