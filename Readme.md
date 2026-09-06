@@ -5,7 +5,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-lightgrey)](docs/install.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Local-first desktop workspace for developers: projects, a command vault, terminals, Docker, Git, and on-disk code search — without accounts or cloud sync.
+Local-first Electron desktop workspace for developers: project manager, command vault, embedded terminals, Docker controls, Git actions, and on-disk code search — without accounts or cloud sync.
 
 ## Status
 
@@ -39,6 +39,33 @@ Release notes: [docs/RELEASE-NOTES-0.1.5.md](docs/RELEASE-NOTES-0.1.5.md) · [0.
 
 Non-goals: cloud sync, team collaboration, analytics, replacing a full IDE.
 
+## Stack
+
+| Layer | Technologies |
+|-------|----------------|
+| Desktop shell | Electron 33, TypeScript |
+| Main process | Node, `better-sqlite3` (WAL), `node-pty`, IPC handlers |
+| Preload | `contextBridge` → `window.electronAPI` (`nodeIntegration` off) |
+| Renderer | React 19, Vite 6, Tailwind CSS, shadcn/ui, Radix, xterm |
+| Engine | `devdesk-engine` (TypeScript + optional Rust scanner), FTS SQLite indexes |
+| Shared contracts | `@devdesk/ipc-contracts` (npm workspace) |
+| Landing (optional) | `@devdesk/landing` — separate Vite site, not bundled in the installer |
+| Tests | Vitest (desktop / renderer / engine), `cargo test` for Rust |
+| Packaging | electron-builder → Windows NSIS + Linux `.deb` under `release/` |
+
+## Prerequisites
+
+| Tool | Required for | Notes |
+|------|--------------|--------|
+| **Node.js 22.12–24** | App, tests, packaging | Engines: `>=22.12.0 <25`. Local pin: `.nvmrc` (`22.23.1`). CI also exercises Node 24. |
+| **npm** | Install / scripts | Uses root workspaces (`packages/*`) |
+| **C/C++ toolchain** | Native modules | Windows: VS Build Tools (Desktop C++) + Python 3. Linux: `build-essential` + `python3`. |
+| **Git** | App Git features + some native builds | Must be on `PATH` |
+| **Rust (`cargo`)** | Engine binary / `test:rust` / packaging smoke | Needed for `npm run build:engine` and release gate |
+| **Docker** (optional) | Container UI | App runs without Docker; container features need a daemon |
+
+See [docs/native-modules.md](docs/native-modules.md) and [docs/install.md](docs/install.md).
+
 ## Install (end users)
 
 See [docs/install.md](docs/install.md). Short version:
@@ -49,34 +76,95 @@ See [docs/install.md](docs/install.md). Short version:
 
 All data stays on the machine ([docs/data-locations.md](docs/data-locations.md)).
 
-## Quick start (developers)
+## Setup (developers)
 
-The performance engine is `packages/engine` in this repo. Do not clone the archived `devdesk-addons` tree.
-
-Requires **Node.js 22.12–24** (default **22**; `.nvmrc`).
+The performance engine is `packages/engine` in this repo. Do **not** clone the archived `devdesk-addons` tree.
 
 ```bash
 npm install
-npm run rebuild:native:electron
+npm run rebuild:native:electron   # better-sqlite3 + node-pty for Electron
 npm run dev
 ```
 
+`npm run dev` rebuilds Electron natives, builds main/preload, starts Vite on `http://127.0.0.1:5180`, then launches Electron.
+
+Before Node-based Vitest suites:
+
+```bash
+npm run rebuild:native:node
+```
+
+Do not mix Node and Electron ABIs without rebuilding — `better-sqlite3` / `node-pty` will fail to load.
+
+## Run
+
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Vite renderer + Electron (rebuilds Electron natives first) |
-| `npm run build` | Engine prebuild + main / preload / renderer |
-| `npm run release:gate` | Typecheck, lint, Rust, all Vitest suites, packaged-engine smoke |
-| `npm run test:coverage` | V8 coverage (per-suite floors in vitest configs) |
+| `npm run dev` | Dev app (Vite renderer + Electron) |
+| `npm run dev:renderer` | Vite only (`127.0.0.1:5180`) |
+| `npm run build` | IPC contracts + engine prebuild, then main / preload / renderer → `dist/` |
+| `npm run test:production` | Launch Electron against current `dist/` |
 | `npm run package:win` / `package:linux` | Installers under `release/` |
 | `npm run verify:win-package` / `verify:linux-package` | Unpacked engine + native checks |
+| `npm run landing:dev` | Optional public install page (`packages/landing`) |
 
-Windows native builds need Visual Studio C++ Build Tools, Python 3, and Git. See [docs/native-modules.md](docs/native-modules.md).
+Full script list: [COMMANDS.md](COMMANDS.md).
 
-Before tests under Node: `npm run rebuild:native:node`. Mixing Node and Electron ABIs without rebuilding will fail to load `better-sqlite3` or `node-pty`.
+## Test
+
+| Suite | Command |
+|-------|---------|
+| Desktop (main) | `npm run test:run` |
+| Renderer | `npm run test:renderer:run` |
+| Engine | `npm run test:engine` |
+| Engine IPC | `npm run test:engine-ipc` |
+| Rust | `npm run test:rust` |
+| Coverage (all) | `npm run test:coverage` |
+| Full release gate | `npm run release:gate` |
+
+`release:gate` runs typecheck, lint, architecture lint, Rust tests, all Vitest suites, and packaged-engine smoke. Run it before opening a PR.
+
+## Repository structure
+
+```text
+DevDesk/
+├── apps/
+│   ├── desktop/          # Electron main, preload, IPC, SQLite, Docker/Git/PTY services
+│   └── renderer/         # React UI (Vite root)
+├── packages/
+│   ├── engine/           # devdesk-engine — local index / search (TS + rust/)
+│   ├── ipc-contracts/    # Shared IPC channel constants
+│   └── landing/          # Public install site (not shipped inside the app)
+├── scripts/              # Native rebuild, release gate, package verify, QA harnesses
+├── docs/                 # User + contributor documentation
+├── build/                # App icons and packaging resources
+├── dist/                 # Build output (gitignored)
+└── release/              # Installers / unpacked apps (gitignored)
+```
+
+Process model and boundaries: [docs/architecture.md](docs/architecture.md).
+
+## Environment variables
+
+The desktop app is local-first and does **not** require API keys or a `.env` file to run. `.env` / `.env.*` are gitignored for local tooling only.
+
+| Name | Where | Purpose |
+|------|--------|---------|
+| `NODE_ENV=production` | Main process | Forces non-dev mode even when unpackaged |
+| `VITE_SITE_URL` | `packages/landing` only | Canonical origin for SEO/OG tags (falls back to the GitHub repo URL) |
+| `npm_execpath` | Scripts | Used by Node helper scripts to locate npm (set by npm itself) |
+
+Useful runtime flag (not an env var):
+
+```text
+DevDesk.exe --user-data-dir=C:\path\to\profile
+```
+
+Isolates Electron `userData` for clean-install / QA testing. Default data paths: [docs/data-locations.md](docs/data-locations.md).
 
 ## Architecture
 
-Electron **main** (Node + TypeScript) owns IPC, SQLite (`devdesk.db` in userData, WAL), Docker, Git, PTYs, and engine spawn. **Preload** exposes `window.electronAPI`. The **renderer** is React + Vite + shadcn/ui. The **engine** is a packaged local indexer.
+Electron **main** (`apps/desktop`) owns IPC, SQLite (`devdesk.db` in userData, WAL), Docker, Git, PTYs, and engine spawn. **Preload** exposes `window.electronAPI`. The **renderer** is React + Vite + shadcn/ui. The **engine** is a packaged local indexer under `resources/engine/`.
 
 Details: [docs/architecture.md](docs/architecture.md).
 
@@ -95,6 +183,7 @@ Full index: [docs/README.md](docs/README.md).
 | [docs/data-model.md](docs/data-model.md) | SQLite entities |
 | [docs/manual-qa.md](docs/manual-qa.md) | Clean-install QA |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributor setup |
+| [COMMANDS.md](COMMANDS.md) | npm script reference |
 
 ## Contributing
 
