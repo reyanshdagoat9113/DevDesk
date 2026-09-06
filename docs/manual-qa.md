@@ -1,7 +1,7 @@
 # Manual clean-install QA
 
-**Current product version:** `0.1.4`
-**Last Windows automated session logged below:** `0.1.0` (2026-07-13) — re-run the harness against a fresh `0.1.4` artifact before calling that version signed off.
+**Current product version:** `0.1.5`
+**Last Windows automated session logged below:** `0.1.0` (2026-07-13) — re-run the harness against a fresh `0.1.5` artifact before calling that version signed off.
 **Related:** [release.md](./release.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [install.md](./install.md)
 
 This checklist separates automated clean-profile integration evidence from manual actions in the packaged UI.
@@ -101,7 +101,7 @@ Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is o
 | Field | Value |
 |-------|--------|
 | Host | Not available in this session (Windows primary machine) |
-| Artifact | Debian package target: `DevDesk-0.1.4-linux-x64.deb` (`package:linux`) |
+| Artifact | Debian package target: `DevDesk-0.1.5-linux-x64.deb` (`package:linux`) |
 | Status | **Execution pending on Linux host** |
 
 The Linux interactive workflow uses the same 12 manual actions listed in the Windows table, except the Windows-only WSL project check. All applicable rows remain pending until executed on a representative Linux desktop.
