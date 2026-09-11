@@ -1,7 +1,7 @@
 # DevDesk
 
 [![Release gate](https://github.com/reyanshdagoat9113/DevDesk/actions/workflows/release-gate.yml/badge.svg?branch=main)](https://github.com/reyanshdagoat9113/DevDesk/actions/workflows/release-gate.yml)
-[![Version](https://img.shields.io/badge/version-0.1.4-blue)](docs/RELEASE-NOTES-0.1.4.md)
+[![Version](https://img.shields.io/badge/version-0.1.5-blue)](docs/RELEASE-NOTES-0.1.5.md)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-lightgrey)](docs/install.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -9,7 +9,7 @@ Local-first desktop workspace for developers: projects, a command vault, termina
 
 ## Status
 
-**v0.1.4 private beta** (2026-09-04). Product features for this line are implemented. Remaining launch work is interactive packaged-app QA, optional Windows Authenticode signing, and macOS (deferred).
+**v0.1.5 private beta** (2026-09-04). Product features for this line are implemented. Remaining launch work is interactive packaged-app QA, optional Windows Authenticode signing, and macOS (deferred).
 
 | Area | State |
 |------|--------|
@@ -20,7 +20,7 @@ Local-first desktop workspace for developers: projects, a command vault, termina
 | macOS | Not shipped |
 | Manual QA | Automated Windows clean-install harness green; interactive Windows + Linux rows still open in [docs/manual-qa.md](docs/manual-qa.md) |
 
-Release notes: [docs/RELEASE-NOTES-0.1.4.md](docs/RELEASE-NOTES-0.1.4.md) · [0.1.3](docs/RELEASE-NOTES-0.1.3.md) · [0.1.2](docs/RELEASE-NOTES-0.1.2.md) · [0.1.1](docs/RELEASE-NOTES-0.1.1.md) · [0.1.0](docs/RELEASE-NOTES-0.1.0.md)
+Release notes: [docs/RELEASE-NOTES-0.1.5.md](docs/RELEASE-NOTES-0.1.5.md) · [0.1.4](docs/RELEASE-NOTES-0.1.4.md) · [0.1.3](docs/RELEASE-NOTES-0.1.3.md) · [0.1.2](docs/RELEASE-NOTES-0.1.2.md) · [0.1.1](docs/RELEASE-NOTES-0.1.1.md) · [0.1.0](docs/RELEASE-NOTES-0.1.0.md)
 
 ## Features
 
@@ -43,8 +43,8 @@ Non-goals: cloud sync, team collaboration, analytics, replacing a full IDE.
 
 See [docs/install.md](docs/install.md). Short version:
 
-- **Windows 10/11 x64:** `DevDesk-0.1.4-win-x64.exe` from [GitHub Releases](https://github.com/reyanshdagoat9113/DevDesk/releases). Unsigned — SmartScreen may warn.
-- **Linux x64:** `DevDesk-0.1.4-linux-x64.deb`.
+- **Windows 10/11 x64:** `DevDesk-0.1.5-win-x64.exe` from [GitHub Releases](https://github.com/reyanshdagoat9113/DevDesk/releases). Unsigned — SmartScreen may warn.
+- **Linux x64:** `DevDesk-0.1.5-linux-x64.deb`.
 - **macOS:** not in this beta.
 
 All data stays on the machine ([docs/data-locations.md](docs/data-locations.md)).
