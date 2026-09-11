@@ -47,12 +47,14 @@ const DEFAULT_IGNORE_PATTERNS = [
 const MAX_LIST_RESULTS = 2000
 const MAX_SEARCH_RESULTS = 100
 const MAX_INDEX_SIZE = 200000
+export const INDEX_TTL_MS = 60_000
 
 // In-memory file index cache per project
 interface FileIndex {
   fileList: string[]
   lastIndexedAt: number
   projectPathKey: string
+  rootMtimeMs: number
 }
 
 const fileIndexCache = new Map<string, FileIndex>()
@@ -177,14 +179,34 @@ export async function listProjectFiles(
   return { entries: resultEntries, truncated }
 }
 
+async function getProjectRootMtimeMs(projectRoot: string): Promise<number> {
+  try {
+    const stats = await fs.stat(projectRoot)
+    return stats.mtimeMs
+  } catch {
+    return 0
+  }
+}
+
+function isFileIndexFresh(cached: FileIndex, pathKey: string, rootMtimeMs: number, now: number): boolean {
+  return (
+    cached.projectPathKey === pathKey &&
+    cached.rootMtimeMs === rootMtimeMs &&
+    now - cached.lastIndexedAt <= INDEX_TTL_MS
+  )
+}
+
 /**
- * Build or get cached file index for a project
+ * Build or get cached file index for a project.
+ * Invalidates when the project path changes, the root mtime changes, or INDEX_TTL_MS elapses.
  */
-async function getFileIndex(projectId: string, projectRoot: string): Promise<FileIndex> {
+export async function getFileIndex(projectId: string, projectRoot: string): Promise<FileIndex> {
   const pathKey = path.resolve(projectRoot).toLowerCase()
   const cached = fileIndexCache.get(projectId)
+  const rootMtimeMs = await getProjectRootMtimeMs(projectRoot)
+  const now = Date.now()
 
-  if (cached && cached.projectPathKey === pathKey) {
+  if (cached && isFileIndexFresh(cached, pathKey, rootMtimeMs, now)) {
     return cached
   }
 
@@ -216,6 +238,7 @@ async function getFileIndex(projectId: string, projectRoot: string): Promise<Fil
     fileList,
     lastIndexedAt: Date.now(),
     projectPathKey: pathKey,
+    rootMtimeMs,
   }
 
   fileIndexCache.set(projectId, index)

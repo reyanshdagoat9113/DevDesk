@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
+import { BrowserWindow, dialog, shell, type OpenDialogOptions } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
@@ -51,6 +51,7 @@ import {
   updateProjectLinkedContainers,
 } from '../data/store'
 import type { ImportMode } from '../data/store'
+import { applyCommandUpdates } from '../commands/applyCommandUpdates'
 import { spawnDetached, spawnDetachedWithShellFallback, spawnShellDetached, type SpawnDetachedOptions } from '../launchers/detachedSpawn'
 import { resolveLinuxEditorCandidates, resolveLinuxTerminalCandidates, spawnFirstSuccessfulLinuxCandidate } from '../launchers/editorTerminalCommands'
 import { detectProjectType, getProjectIcon } from '../projects/detectProjectType'
@@ -82,17 +83,25 @@ import { copyFileToAttachments, deleteAttachmentFile } from '../bugs/attachmentS
 import { listProjectFiles, searchProjectFiles, openFileInEditor, clearFileIndex, resolveProjectPath } from '../files/fileService'
 import { buildCustomCommand, formatCmdLiteral, formatPowerShellLiteral } from '../launchers/shellQuoting'
 import { startTrackedCommandRun, type StartedCommandRun } from '../commands/commandRun'
+import { runFirstRunnableHistoryCommand } from '../commands/pickRunnableHistory'
 import { assertCommandVariablesResolved, variableResolver } from '../commands/variableResolver'
 import { detectVariables } from '../commands/variableDetector'
 import { terminalManager } from '../terminal/terminalManager'
 import type { TerminalCreateOptions } from '../data/model'
 import { runSystemChecks } from '../health/systemChecks'
 import { runRuntimeChecks } from '../health/runtimeChecks'
+import {
+  formatWindowsDockerDaemonFallbackError,
+  formatWindowsDockerDaemonPrimaryError,
+  isWslUnavailableError,
+  parseWslQuietDistroList,
+} from './dockerWslFallback'
 import { captureContextSnapshot } from '../bugs/contextSnapshot'
 import { killProcessTree } from '../system/processTree'
 import { broadcast } from './broadcast'
 import { registerDockerLogSubscription, stopDockerLogSubscription } from './dockerLogStreams'
 import { registerExtractedDomainHandlers } from './handlers'
+import { handleTrusted } from './trustedIpc'
 import {
   runningChains,
   runningCommands,
@@ -760,13 +769,28 @@ function buildDockerShellCommand(args: string[]) {
   return parts.join(' ')
 }
 
-async function runWslDockerCommand(args: string[]) {
+async function probeWslAvailability(): Promise<{ available: false } | { available: true; distros: string[] }> {
+  try {
+    const listOutput = await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['-l', '-q'])
+    return { available: true, distros: parseWslQuietDistroList(listOutput) }
+  } catch (error) {
+    if (isWslUnavailableError(error)) {
+      return { available: false }
+    }
+    return { available: true, distros: [] }
+  }
+}
+
+async function runWslDockerCommand(args: string[], knownDistros?: string[]) {
   const dockerCommand = buildDockerShellCommand(args)
   let defaultWslError: unknown
 
   try {
     return await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['-e', 'bash', '-lc', dockerCommand])
   } catch (error) {
+    if (isWslUnavailableError(error)) {
+      throw error
+    }
     defaultWslError = error
     const message = error instanceof Error ? error.message : 'Docker is not available in WSL.'
     if (!isRecoverableWslDockerError(message)) {
@@ -774,22 +798,26 @@ async function runWslDockerCommand(args: string[]) {
     }
   }
 
-  let distros: string[] = []
-  try {
-    const listOutput = await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['-l', '-q'])
-    distros = listOutput
-      .replace(/\u0000/g, '')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-  } catch {
-    // If distro discovery fails, we'll surface the original WSL Docker error below.
+  let distros: string[] = knownDistros ?? []
+  if (knownDistros === undefined) {
+    try {
+      const listOutput = await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['-l', '-q'])
+      distros = parseWslQuietDistroList(listOutput)
+    } catch (listError) {
+      if (isWslUnavailableError(listError)) {
+        throw defaultWslError instanceof Error ? defaultWslError : listError
+      }
+      distros = []
+    }
   }
 
   for (const distro of distros) {
     try {
       return await runDockerCommandWith(WSL_EXECUTABLE_PATH, ['-d', distro, '-e', 'bash', '-lc', dockerCommand])
     } catch (distroError) {
+      if (isWslUnavailableError(distroError)) {
+        throw distroError
+      }
       const distroMessage = distroError instanceof Error ? distroError.message : ''
       if (!isRecoverableWslDockerError(distroMessage)) {
         throw distroError
@@ -812,37 +840,35 @@ async function runDockerCommand(args: string[]) {
   } catch (error) {
     const err = error as NodeJS.ErrnoException
     const message = error instanceof Error ? error.message : 'Failed to run Docker command.'
-    
-    // On Windows, if docker.exe is missing (ENOENT), we can try WSL.
-    // If it's a daemon error, we should probably just report it as a daemon error 
-    // unless the user explicitly wants to use WSL. 
-    // However, the current logic tries WSL for both.
-    
     const isNotFound = err?.code === 'ENOENT'
     const isDaemonError = isDockerDaemonError(message)
-    
+
     if (process.platform === 'win32') {
       if (isNotFound) {
-        // CLI missing on Windows, try WSL
+        const wslProbe = await probeWslAvailability()
+        if (!wslProbe.available) {
+          throw new Error('Docker CLI not found. Install Docker Desktop or enable Docker in WSL.')
+        }
         try {
-          return await runWslDockerCommand(args)
+          return await runWslDockerCommand(args, wslProbe.distros)
         } catch (wslError) {
-          const wslErr = wslError as NodeJS.ErrnoException
-          if (wslErr?.code === 'ENOENT') {
+          if (isWslUnavailableError(wslError)) {
             throw new Error('Docker CLI not found. Install Docker Desktop or enable Docker in WSL.')
           }
           throw new Error(wslError instanceof Error ? wslError.message : 'Docker is not available in WSL.')
         }
       }
-      
+
       if (isDaemonError) {
-        // Daemon not running on Windows. 
-        // We could try WSL here too, but the error message should be clearer if it fails.
+        const primary = formatWindowsDockerDaemonPrimaryError(message)
+        const wslProbe = await probeWslAvailability()
+        if (!wslProbe.available) {
+          throw new Error(primary)
+        }
         try {
-          return await runWslDockerCommand(args)
+          return await runWslDockerCommand(args, wslProbe.distros)
         } catch (wslError) {
-          // If WSL also fails or has no daemon, report the Windows daemon error as primary
-          throw new Error(`Docker Desktop daemon is not running. (WSL fallback also failed: ${wslError instanceof Error ? wslError.message : 'Unknown error'})`)
+          throw new Error(formatWindowsDockerDaemonFallbackError(primary, wslError))
         }
       }
     }
@@ -988,14 +1014,21 @@ async function resolveDockerStreamLaunch(args: string[]): Promise<{ command: str
     return { command: 'docker', args }
   }
 
+  let windowsDockerError: unknown
   try {
     await runDockerCommandWith('docker', ['version', '--format', '{{.Server.Version}}'])
     return { command: 'docker', args }
   } catch (error) {
+    windowsDockerError = error
     const message = error instanceof Error ? error.message : 'Docker not available.'
     if (!isRecoverableWslDockerError(message)) {
       throw error
     }
+  }
+
+  const wslProbe = await probeWslAvailability()
+  if (!wslProbe.available) {
+    throw windowsDockerError instanceof Error ? windowsDockerError : new Error('Docker not available.')
   }
 
   try {
@@ -1004,14 +1037,17 @@ async function resolveDockerStreamLaunch(args: string[]): Promise<{ command: str
       command: WSL_EXECUTABLE_PATH,
       args: getWslDockerLaunchArgs(args),
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Docker not available in WSL.'
-    if (!isRecoverableWslDockerError(message)) {
-      throw error
+  } catch (wslError) {
+    if (isWslUnavailableError(wslError)) {
+      throw windowsDockerError instanceof Error ? windowsDockerError : wslError
+    }
+    const wslMessage = wslError instanceof Error ? wslError.message : 'Docker not available in WSL.'
+    if (!isRecoverableWslDockerError(wslMessage)) {
+      throw wslError
     }
   }
 
-  const distros = await listWslDistros()
+  const distros = wslProbe.distros.length ? wslProbe.distros : await listWslDistros()
   for (const distro of distros) {
     try {
       await runDockerCommandWith(
@@ -1068,6 +1104,15 @@ const WINDOWS_TERMINAL_COMMANDS: Record<string, { command: string; args: (projec
   cmd: { command: 'cmd.exe', args: (projectPath) => ['/k', `cd /d ${formatCmdLiteral(projectPath)}`] },
 }
 
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(targetPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function getProjectPath(projectId: string): Promise<string> {
   if (!projectId) {
     throw new Error('Project not found.')
@@ -1077,7 +1122,7 @@ async function getProjectPath(projectId: string): Promise<string> {
     throw new Error('Project not found.')
   }
   const normalizedPath = normalizeProjectPath(project.path)
-  if (!fs.existsSync(normalizedPath)) {
+  if (!(await pathExists(normalizedPath))) {
     throw new Error('Project path does not exist.')
   }
   return normalizedPath
@@ -1087,7 +1132,7 @@ async function getProjectDirectories(projectId: string, relativePath?: string): 
   const projectPath = await getProjectPath(projectId)
   const targetPath = resolveProjectPath(projectPath, relativePath)
 
-  if (!fs.existsSync(targetPath)) {
+  if (!(await pathExists(targetPath))) {
     return []
   }
 
@@ -1235,7 +1280,7 @@ async function prepareCommandExecution(
   }
 
   const projectPath = normalizeProjectPath(project.path)
-  if (!fs.existsSync(projectPath)) {
+  if (!(await pathExists(projectPath))) {
     throw new Error('Project path does not exist.')
   }
 
@@ -1611,11 +1656,11 @@ export function registerIpcHandlers() {
   // Extracted domain modules (preferences, notes, history, …)
   registerExtractedDomainHandlers()
 
-  ipcMain.handle('wsl:list-distros', async () => {
+  handleTrusted('wsl:list-distros', async () => {
     return listWslDistros()
   })
 
-  ipcMain.handle('dialog:open-folder', async (_event, startPath?: string) => {
+  handleTrusted('dialog:open-folder', async (_event, startPath?: string) => {
     const focusedWindow = BrowserWindow.getFocusedWindow()
     const options: OpenDialogOptions = {
       title: 'Select Project Folder',
@@ -1637,11 +1682,11 @@ export function registerIpcHandlers() {
     return { canceled: false, path: normalizeProjectPath(result.filePaths[0]) }
   })
   // Projects
-  ipcMain.handle('projects:get', async () => {
+  handleTrusted('projects:get', async () => {
     return listProjects()
   })
 
-  ipcMain.handle('projects:add', async (_event, inputPath: string) => {
+  handleTrusted('projects:add', async (_event, inputPath: string) => {
     if (!inputPath || typeof inputPath !== 'string') {
       throw new Error('Project path is required.')
     }
@@ -1677,7 +1722,7 @@ export function registerIpcHandlers() {
     return nextProject
   })
 
-  ipcMain.handle('projects:remove', async (_event, _id: string) => {
+  handleTrusted('projects:remove', async (_event, _id: string) => {
     if (!_id) {
       return { success: false }
     }
@@ -1689,7 +1734,7 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('projects:update', async (_event, _id: string, updates: { name?: string }) => {
+  handleTrusted('projects:update', async (_event, _id: string, updates: { name?: string }) => {
     if (!_id) {
       throw new Error('Project id is required.')
     }
@@ -1711,7 +1756,7 @@ export function registerIpcHandlers() {
     return updatedProject
   })
 
-  ipcMain.handle('projects:set-linked-containers', async (_event, projectId: string, linkedContainerNames: unknown) => {
+  handleTrusted('projects:set-linked-containers', async (_event, projectId: string, linkedContainerNames: unknown) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
@@ -1730,7 +1775,7 @@ export function registerIpcHandlers() {
     return updatedProject
   })
 
-  ipcMain.handle('projects:start-dev-stack', async (_event, projectId: string) => {
+  handleTrusted('projects:start-dev-stack', async (_event, projectId: string) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
@@ -1785,7 +1830,7 @@ export function registerIpcHandlers() {
     return result
   })
 
-  ipcMain.handle('projects:stop-dev-stack', async (_event, projectId: string) => {
+  handleTrusted('projects:stop-dev-stack', async (_event, projectId: string) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
@@ -1828,7 +1873,7 @@ export function registerIpcHandlers() {
     return { success: true, stopped, alreadyStopped, missing }
   })
 
-  ipcMain.handle('projects:restart-dev-stack', async (_event, projectId: string) => {
+  handleTrusted('projects:restart-dev-stack', async (_event, projectId: string) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
@@ -1895,7 +1940,7 @@ export function registerIpcHandlers() {
     return result
   })
 
-  ipcMain.handle('projects:toggle-pin', async (_event, projectId: string) => {
+  handleTrusted('projects:toggle-pin', async (_event, projectId: string) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
@@ -1908,7 +1953,7 @@ export function registerIpcHandlers() {
     return project
   })
 
-  ipcMain.handle('project:inspect', async (_event, projectId: string): Promise<ProjectHealthReport> => {
+  handleTrusted('project:inspect', async (_event, projectId: string): Promise<ProjectHealthReport> => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
@@ -1921,7 +1966,7 @@ export function registerIpcHandlers() {
     return inspectProjectHealth(project)
   })
 
-  ipcMain.handle('projects:open-folder', async (_event, _id: string) => {
+  handleTrusted('projects:open-folder', async (_event, _id: string) => {
     const projectPath = await getProjectPath(_id)
     const result = await shell.openPath(projectPath)
     if (result) {
@@ -1930,7 +1975,7 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('projects:open-editor', async (_event, _id: string) => {
+  handleTrusted('projects:open-editor', async (_event, _id: string) => {
     const projectPath = await getProjectPath(_id)
     const wslLocation = parseWslProjectPath(projectPath)
     const preferences = await getPreferences()
@@ -1960,7 +2005,7 @@ export function registerIpcHandlers() {
     )
   })
 
-  ipcMain.handle('projects:open-terminal', async (_event, _id: string) => {
+  handleTrusted('projects:open-terminal', async (_event, _id: string) => {
     const projectPath = await getProjectPath(_id)
     const wslLocation = parseWslProjectPath(projectPath)
     const preferences = await getPreferences()
@@ -1986,11 +2031,11 @@ export function registerIpcHandlers() {
   })
 
   // Commands
-  ipcMain.handle('commands:get', async () => {
+  handleTrusted('commands:get', async () => {
     return listCommands()
   })
 
-  ipcMain.handle(
+  handleTrusted(
     'commands:add',
     async (
       _event,
@@ -2016,25 +2061,16 @@ export function registerIpcHandlers() {
     }
   )
 
-  ipcMain.handle('commands:update', async (_event, _id: string, updates: Partial<{
-    name: string
-    command: string
-    description?: string
+  handleTrusted('commands:update', async (_event, _id: string, updates: {
+    name?: string
+    command?: string
+    description?: string | null
     tags?: string[]
-    projectId?: string
-    workingDirectory?: string
-  }>) => {
+    projectId?: string | null
+    workingDirectory?: string | null
+  }) => {
     if (!_id) {
       throw new Error('Command id is required.')
-    }
-
-    const nextName = typeof updates?.name === 'string' ? updates.name.trim() : undefined
-    const nextCommand = typeof updates?.command === 'string' ? updates.command.trim() : undefined
-    if (nextName !== undefined && !nextName) {
-      throw new Error('Command name is required.')
-    }
-    if (nextCommand !== undefined && !nextCommand) {
-      throw new Error('Command is required.')
     }
 
     const current = await getCommandById(_id)
@@ -2042,21 +2078,12 @@ export function registerIpcHandlers() {
       throw new Error('Command not found.')
     }
 
-    const updatedCommand: Command = {
-      ...current,
-      name: nextName ?? current.name,
-      command: nextCommand ?? current.command,
-      description: updates?.description ?? current.description,
-      tags: Array.isArray(updates?.tags) ? updates.tags.filter(Boolean) : current.tags,
-      projectId: updates?.projectId ?? current.projectId,
-      workingDirectory: updates?.workingDirectory ?? current.workingDirectory,
-    }
-
+    const updatedCommand = applyCommandUpdates(current, updates)
     await replaceCommand(updatedCommand)
     return updatedCommand
   })
 
-  ipcMain.handle('commands:remove', async (_event, _id: string) => {
+  handleTrusted('commands:remove', async (_event, _id: string) => {
     if (!_id) {
       return { success: false }
     }
@@ -2066,11 +2093,11 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('commands:get-directories', async (_event, projectId: string, relativePath?: string) => {
+  handleTrusted('commands:get-directories', async (_event, projectId: string, relativePath?: string) => {
     return getProjectDirectories(projectId, relativePath)
   })
 
-  ipcMain.handle('commands:run', async (_event, _id: string, _projectId?: string, _variables?: Record<string, string>) => {
+  handleTrusted('commands:run', async (_event, _id: string, _projectId?: string, _variables?: Record<string, string>) => {
     const command = await getCommandById(_id)
     if (!command) {
       throw new Error('Command not found.')
@@ -2083,7 +2110,7 @@ export function registerIpcHandlers() {
     return { runId: run.runId, status: run.status, startTime: run.startTime }
   })
 
-  ipcMain.handle('commands:run-adhoc', async (_event, projectId: string, commandString: string, options?: { workingDirectory?: string }) => {
+  handleTrusted('commands:run-adhoc', async (_event, projectId: string, commandString: string, options?: { workingDirectory?: string }) => {
     const commandText = typeof commandString === 'string' ? commandString.trim() : ''
     const effectiveProjectId = typeof projectId === 'string' ? projectId.trim() : ''
     const workingDirectory =
@@ -2116,11 +2143,11 @@ export function registerIpcHandlers() {
     return { runId: run.runId, status: run.status, startTime: run.startTime }
   })
 
-  ipcMain.handle('commands:detect-variables', async (_event, commandString: string) => {
+  handleTrusted('commands:detect-variables', async (_event, commandString: string) => {
     return detectVariables(commandString)
   })
 
-  ipcMain.handle('commands:stop', async (_event, _runId: string) => {
+  handleTrusted('commands:stop', async (_event, _runId: string) => {
     const running = runningCommands.get(_runId)
     if (!running) {
       return { success: false }
@@ -2131,7 +2158,7 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('commands:toggle-pin', async (_event, commandId: string) => {
+  handleTrusted('commands:toggle-pin', async (_event, commandId: string) => {
     if (!commandId?.trim()) {
       throw new Error('Command id is required.')
     }
@@ -2144,11 +2171,11 @@ export function registerIpcHandlers() {
     return command
   })
 
-  ipcMain.handle('chains:list', async () => {
+  handleTrusted('chains:list', async () => {
     return listChains()
   })
 
-  ipcMain.handle('chains:create', async (_event, input: ChainMutationInput) => {
+  handleTrusted('chains:create', async (_event, input: ChainMutationInput) => {
     const sanitized = sanitizeChainInput(input)
     const now = new Date().toISOString()
     const nextChain: CommandChain = {
@@ -2162,7 +2189,7 @@ export function registerIpcHandlers() {
     return nextChain
   })
 
-  ipcMain.handle('chains:update', async (_event, chainId: string, input: ChainMutationInput) => {
+  handleTrusted('chains:update', async (_event, chainId: string, input: ChainMutationInput) => {
     if (!chainId?.trim()) {
       throw new Error('Chain id is required.')
     }
@@ -2183,7 +2210,7 @@ export function registerIpcHandlers() {
     return updatedChain
   })
 
-  ipcMain.handle('chains:delete', async (_event, chainId: string) => {
+  handleTrusted('chains:delete', async (_event, chainId: string) => {
     if (!chainId?.trim()) {
       return { success: false }
     }
@@ -2192,7 +2219,7 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('chains:run', async (_event, chainId: string, projectId?: string) => {
+  handleTrusted('chains:run', async (_event, chainId: string, projectId?: string) => {
     if (!chainId?.trim()) {
       throw new Error('Chain id is required.')
     }
@@ -2205,11 +2232,11 @@ export function registerIpcHandlers() {
     return executeChainRun(chain, projectId)
   })
 
-  ipcMain.handle('triggers:list', async () => {
+  handleTrusted('triggers:list', async () => {
     return listTriggers()
   })
 
-  ipcMain.handle('triggers:create', async (_event, input: TriggerMutationInput) => {
+  handleTrusted('triggers:create', async (_event, input: TriggerMutationInput) => {
     const sanitized = sanitizeTriggerInput(input)
     const chain = await getChainById(sanitized.chainId)
     if (!chain) {
@@ -2228,7 +2255,7 @@ export function registerIpcHandlers() {
     return nextTrigger
   })
 
-  ipcMain.handle('triggers:update', async (_event, triggerId: string, input: TriggerMutationInput) => {
+  handleTrusted('triggers:update', async (_event, triggerId: string, input: TriggerMutationInput) => {
     if (!triggerId?.trim()) {
       throw new Error('Trigger id is required.')
     }
@@ -2254,7 +2281,7 @@ export function registerIpcHandlers() {
     return updatedTrigger
   })
 
-  ipcMain.handle('triggers:delete', async (_event, triggerId: string) => {
+  handleTrusted('triggers:delete', async (_event, triggerId: string) => {
     if (!triggerId?.trim()) {
       return { success: false }
     }
@@ -2263,16 +2290,16 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('triggers:emit', async (_event, event: CommandTriggerEvent, context: TriggerEventContext) => {
+  handleTrusted('triggers:emit', async (_event, event: CommandTriggerEvent, context: TriggerEventContext) => {
     await emitAutomationTriggerEvent(event, context)
     return { success: true }
   })
 
-  ipcMain.handle('triggers:pending-confirmations', async () => {
+  handleTrusted('triggers:pending-confirmations', async () => {
     return getPendingTriggerConfirmationRequests()
   })
 
-  ipcMain.handle('triggers:respond-confirmation', async (_event, requestId: string, approved: boolean) => {
+  handleTrusted('triggers:respond-confirmation', async (_event, requestId: string, approved: boolean) => {
     const pending = pendingTriggerConfirmations.get(requestId)
     if (!pending) {
       return { success: false }
@@ -2285,11 +2312,11 @@ export function registerIpcHandlers() {
   })
 
   // Containers
-  ipcMain.handle('containers:get', async () => {
+  handleTrusted('containers:get', async () => {
     return listDockerContainers()
   })
 
-  ipcMain.handle('containers:start', async (_event, _id: string) => {
+  handleTrusted('containers:start', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['start', containerId])
     const containers = await listDockerContainers()
@@ -2306,13 +2333,13 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('containers:stop', async (_event, _id: string) => {
+  handleTrusted('containers:stop', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['stop', containerId])
     return { success: true }
   })
 
-  ipcMain.handle('containers:restart', async (_event, _id: string) => {
+  handleTrusted('containers:restart', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['restart', containerId])
     const containers = await listDockerContainers()
@@ -2329,19 +2356,19 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('containers:pause', async (_event, _id: string) => {
+  handleTrusted('containers:pause', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['pause', containerId])
     return { success: true }
   })
 
-  ipcMain.handle('containers:unpause', async (_event, _id: string) => {
+  handleTrusted('containers:unpause', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['unpause', containerId])
     return { success: true }
   })
 
-  ipcMain.handle('containers:remove', async (_event, _id: string, force?: boolean) => {
+  handleTrusted('containers:remove', async (_event, _id: string, force?: boolean) => {
     const containerId = requireContainerId(_id)
     const args = ['rm']
     if (force) {
@@ -2352,29 +2379,29 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('containers:logs', async (_event, _id: string) => {
+  handleTrusted('containers:logs', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     const output = await runDockerCommand(['logs', '--tail', '200', containerId])
     return output
   })
 
-  ipcMain.handle('docker:list', async () => {
+  handleTrusted('docker:list', async () => {
     return listDockerContainers()
   })
 
-  ipcMain.handle('docker:start', async (_event, _id: string) => {
+  handleTrusted('docker:start', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['start', containerId])
     return { success: true }
   })
 
-  ipcMain.handle('docker:stop', async (_event, _id: string) => {
+  handleTrusted('docker:stop', async (_event, _id: string) => {
     const containerId = requireContainerId(_id)
     await runDockerCommand(['stop', containerId])
     return { success: true }
   })
 
-  ipcMain.handle('docker:logs:subscribe', async (event, _id: string, tail?: number) => {
+  handleTrusted('docker:logs:subscribe', async (event, _id: string, tail?: number) => {
     const containerId = requireContainerId(_id)
     const subscriptionId = randomUUID()
     const tailCount = Number.isFinite(tail) ? Math.max(1, Math.min(2000, Math.floor(tail as number))) : 200
@@ -2419,7 +2446,7 @@ export function registerIpcHandlers() {
     return { subscriptionId }
   })
 
-  ipcMain.handle('docker:logs:unsubscribe', async (_event, subscriptionId: string) => {
+  handleTrusted('docker:logs:unsubscribe', async (_event, subscriptionId: string) => {
     const id = subscriptionId?.trim()
     if (!id) {
       return { success: false }
@@ -2428,7 +2455,7 @@ export function registerIpcHandlers() {
   })
 
   // File navigation
-  ipcMain.handle('files:list', async (_event, projectId: string, dir?: string) => {
+  handleTrusted('files:list', async (_event, projectId: string, dir?: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -2441,7 +2468,7 @@ export function registerIpcHandlers() {
     return listProjectFiles(project.path, dir)
   })
 
-  ipcMain.handle('files:search', async (_event, projectId: string, query: string, limit?: number) => {
+  handleTrusted('files:search', async (_event, projectId: string, query: string, limit?: number) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -2454,7 +2481,7 @@ export function registerIpcHandlers() {
     return searchProjectFiles(projectId, project.path, query, limit)
   })
 
-  ipcMain.handle('files:openInEditor', async (
+  handleTrusted('files:openInEditor', async (
     _event,
     projectId: string,
     relativePath: string,
@@ -2479,7 +2506,7 @@ export function registerIpcHandlers() {
     return openFileInEditor(project.path, relativePath, preferences, line, column)
   })
 
-  ipcMain.handle('files:revealInFolder', async (_event, projectId: string, relativePath: string) => {
+  handleTrusted('files:revealInFolder', async (_event, projectId: string, relativePath: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -2497,18 +2524,18 @@ export function registerIpcHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('files:clearIndex', async (_event, projectId: string) => {
+  handleTrusted('files:clearIndex', async (_event, projectId: string) => {
     clearFileIndex(projectId)
     return { success: true }
   })
 
   // Engine operations (devdesk-engine integration)
-  ipcMain.handle('engine:state', async () => {
+  handleTrusted('engine:state', async () => {
     const { loadEngineSnapshot } = await import('../engine/engineService')
     return loadEngineSnapshot()
   })
 
-  ipcMain.handle(
+  handleTrusted(
     'engine:index',
     async (
       _event,
@@ -2531,7 +2558,7 @@ export function registerIpcHandlers() {
     return result
   })
 
-  ipcMain.handle('engine:search', async (
+  handleTrusted('engine:search', async (
     _event,
     projectId: string,
     query: string,
@@ -2553,7 +2580,7 @@ export function registerIpcHandlers() {
     return searchProject(projectId, project.path, query, options)
   })
 
-  ipcMain.handle('engine:stats', async (_event, projectId: string) => {
+  handleTrusted('engine:stats', async (_event, projectId: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -2567,7 +2594,7 @@ export function registerIpcHandlers() {
     return getProjectStats(projectId)
   })
 
-  ipcMain.handle('engine:git-insights', async (_event, projectId: string) => {
+  handleTrusted('engine:git-insights', async (_event, projectId: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -2581,7 +2608,7 @@ export function registerIpcHandlers() {
     return getGitInsights(project.path)
   })
 
-  ipcMain.handle('engine:clear', async (_event, projectId: string) => {
+  handleTrusted('engine:clear', async (_event, projectId: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -2590,7 +2617,7 @@ export function registerIpcHandlers() {
     return clearProjectIndex(projectId)
   })
 
-  ipcMain.handle('engine:clear-search-session', async (_event, projectId: string) => {
+  handleTrusted('engine:clear-search-session', async (_event, projectId: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -2599,18 +2626,18 @@ export function registerIpcHandlers() {
     return clearProjectSearchSession(projectId)
   })
 
-  ipcMain.handle('engine:is-available', async () => {
+  handleTrusted('engine:is-available', async () => {
     const { isEngineAvailable } = await import('../engine/engineService')
     return isEngineAvailable()
   })
 
   // Terminal
-  ipcMain.handle('terminal:create', async (_event, options: TerminalCreateOptions) => {
+  handleTrusted('terminal:create', async (_event, options: TerminalCreateOptions) => {
     const session = await terminalManager.create(options)
     return { terminalId: session.id }
   })
 
-  ipcMain.handle('terminal:write', async (_event, terminalId: string, data: string) => {
+  handleTrusted('terminal:write', async (_event, terminalId: string, data: string) => {
     if (!terminalId?.trim()) {
       throw new Error('Terminal id is required.')
     }
@@ -2621,7 +2648,7 @@ export function registerIpcHandlers() {
     terminalManager.write(terminalId, data)
   })
 
-  ipcMain.handle('terminal:resize', async (_event, terminalId: string, cols: number, rows: number) => {
+  handleTrusted('terminal:resize', async (_event, terminalId: string, cols: number, rows: number) => {
     if (!terminalId?.trim()) {
       throw new Error('Terminal id is required.')
     }
@@ -2635,7 +2662,7 @@ export function registerIpcHandlers() {
     terminalManager.resize(terminalId, cols, rows)
   })
 
-  ipcMain.handle('terminal:close', async (_event, terminalId: string) => {
+  handleTrusted('terminal:close', async (_event, terminalId: string) => {
     if (!terminalId?.trim()) {
       throw new Error('Terminal id is required.')
     }
@@ -2644,7 +2671,7 @@ export function registerIpcHandlers() {
   })
 
   // Bugs
-  ipcMain.handle('bugs:create', async (_event, input: unknown): Promise<BugApiResult<BugReport>> => {
+  handleTrusted('bugs:create', async (_event, input: unknown): Promise<BugApiResult<BugReport>> => {
     try {
       const contextSnapshot = isRecord(input) && isValidContextSnapshotData(input.contextSnapshot)
         ? input.contextSnapshot
@@ -2662,7 +2689,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:update', async (_event, bugId: unknown, input: unknown): Promise<BugApiResult<BugReport>> => {
+  handleTrusted('bugs:update', async (_event, bugId: unknown, input: unknown): Promise<BugApiResult<BugReport>> => {
     try {
       const updated = await updateBugReport(
         sanitizeBugId(bugId),
@@ -2679,7 +2706,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:delete', async (_event, bugId: unknown): Promise<BugApiResult<{ success: boolean }>> => {
+  handleTrusted('bugs:delete', async (_event, bugId: unknown): Promise<BugApiResult<{ success: boolean }>> => {
     try {
       const sanitizedId = sanitizeBugId(bugId)
       const attachmentPaths = await listBugAttachmentPathsByBugId(sanitizedId)
@@ -2702,7 +2729,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:get', async (_event, bugId: unknown): Promise<BugApiResult<BugReport | null>> => {
+  handleTrusted('bugs:get', async (_event, bugId: unknown): Promise<BugApiResult<BugReport | null>> => {
     try {
       const report = await getBugReportById(sanitizeBugId(bugId))
       return bugSuccess(report)
@@ -2711,7 +2738,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:list', async (_event, filters?: unknown): Promise<BugApiResult<BugReport[]>> => {
+  handleTrusted('bugs:list', async (_event, filters?: unknown): Promise<BugApiResult<BugReport[]>> => {
     try {
       const reports = await listBugReports(sanitizeBugFilters(filters))
       return bugSuccess(reports)
@@ -2720,7 +2747,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:capture-context', async (_event, projectId: unknown): Promise<BugApiResult<BugContextSnapshotData>> => {
+  handleTrusted('bugs:capture-context', async (_event, projectId: unknown): Promise<BugApiResult<BugContextSnapshotData>> => {
     try {
       const sanitizedProjectId = sanitizeRequiredBugString(projectId, 'Bug projectId')
       const containers = await listDockerContainers()
@@ -2731,7 +2758,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:get-context-snapshot', async (_event, bugReportId: unknown): Promise<BugApiResult<BugContextSnapshot | null>> => {
+  handleTrusted('bugs:get-context-snapshot', async (_event, bugReportId: unknown): Promise<BugApiResult<BugContextSnapshot | null>> => {
     try {
       const sanitizedId = sanitizeBugId(bugReportId, 'Bug report id')
       const snapshot = await getBugContextSnapshotByBugId(sanitizedId)
@@ -2741,7 +2768,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:list-attachments', async (_event, bugReportId: unknown): Promise<BugApiResult<BugAttachment[]>> => {
+  handleTrusted('bugs:list-attachments', async (_event, bugReportId: unknown): Promise<BugApiResult<BugAttachment[]>> => {
     try {
       const sanitizedId = sanitizeBugId(bugReportId, 'Bug report id')
       const attachments = await listBugAttachments(sanitizedId)
@@ -2751,10 +2778,10 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:add-attachment', async (_event, input: unknown): Promise<BugApiResult<BugAttachment>> => {
+  handleTrusted('bugs:add-attachment', async (_event, input: unknown): Promise<BugApiResult<BugAttachment>> => {
     try {
       const sanitized = sanitizeAddAttachmentInput(input)
-      const { relativePath, fileSize } = copyFileToAttachments(sanitized.sourceFilePath)
+      const { relativePath, fileSize } = await copyFileToAttachments(sanitized.sourceFilePath)
       const attachment = await addBugAttachmentRecord({
         ...sanitized,
         storedRelativePath: relativePath,
@@ -2766,7 +2793,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:remove-attachment', async (_event, attachmentId: unknown): Promise<BugApiResult<{ success: boolean }>> => {
+  handleTrusted('bugs:remove-attachment', async (_event, attachmentId: unknown): Promise<BugApiResult<{ success: boolean }>> => {
     try {
       const sanitizedId = sanitizeBugId(attachmentId, 'Attachment id')
       const attachment = await getBugAttachmentById(sanitizedId)
@@ -2791,7 +2818,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('bugs:pick-attachment-file', async (_event, options?: unknown): Promise<BugApiResult<{ canceled: boolean; filePaths: string[] }>> => {
+  handleTrusted('bugs:pick-attachment-file', async (_event, options?: unknown): Promise<BugApiResult<{ canceled: boolean; filePaths: string[] }>> => {
     try {
       const dialogOptions: OpenDialogOptions = {
         properties: ['openFile', 'multiSelections'],
@@ -2818,7 +2845,7 @@ export function registerIpcHandlers() {
 
   // ── Health Check ──────────────────────────────────────────────────
 
-  ipcMain.handle('health:run', async (_event, projectId: string) => {
+  handleTrusted('health:run', async (_event, projectId: string) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
@@ -2851,7 +2878,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('health:get-latest', async (_event, projectId: string) => {
+  handleTrusted('health:get-latest', async (_event, projectId: string) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
@@ -2859,7 +2886,7 @@ export function registerIpcHandlers() {
     return getLatestHealthCheckForProject(projectId)
   })
 
-  ipcMain.handle('health:list-runs', async (_event, projectId: string, limit?: number) => {
+  handleTrusted('health:list-runs', async (_event, projectId: string, limit?: number) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
@@ -2868,7 +2895,7 @@ export function registerIpcHandlers() {
     return listHealthCheckRuns(projectId, cap)
   })
 
-  ipcMain.handle('health:get-run', async (_event, runId: string) => {
+  handleTrusted('health:get-run', async (_event, runId: string) => {
     if (!runId?.trim()) {
       throw new Error('Run id is required.')
     }
@@ -2876,7 +2903,7 @@ export function registerIpcHandlers() {
     return getHealthCheckRunById(runId)
   })
 
-  ipcMain.handle('config:export', async () => {
+  handleTrusted('config:export', async () => {
     try {
       return await exportAllData()
     } catch (err) {
@@ -2887,7 +2914,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('config:export-to-file', async () => {
+  handleTrusted('config:export-to-file', async () => {
     try {
       const result = await exportAllData()
       if (!result.success) {
@@ -2919,7 +2946,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('config:import-preview', async () => {
+  handleTrusted('config:import-preview', async () => {
     try {
       const focusedWindow = BrowserWindow.getFocusedWindow()
       const options: OpenDialogOptions = {
@@ -2978,7 +3005,7 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('config:import', async (_event, data: unknown, mode: ImportMode) => {
+  handleTrusted('config:import', async (_event, data: unknown, mode: ImportMode) => {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       return {
         success: false,
@@ -2992,20 +3019,14 @@ export function registerIpcHandlers() {
 
 export async function runLastCommand(): Promise<{ success: boolean; error?: string }> {
   try {
-    const history = await listRecentRunHistory(1)
-    if (!history.length) {
-      return { success: false, error: 'No command history found.' }
-    }
-    const entry = history[0]
-    const command = await getCommandById(entry.commandId)
-    if (!command) {
-      return { success: false, error: 'The last run command no longer exists.' }
-    }
-    const run = await startCommandExecution(command, entry.projectId)
-    if ('status' in run && run.status === 'needs-input') {
-      return { success: false, error: 'Last command requires input variables.' }
-    }
-    return { success: true }
+    const history = await listRecentRunHistory(20)
+    return await runFirstRunnableHistoryCommand({
+      history,
+      getCommand: getCommandById,
+      runCommand: startCommandExecution,
+      isNeedsInput: (result) =>
+        Boolean(result && typeof result === 'object' && 'status' in result && result.status === 'needs-input'),
+    })
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Failed to run last command.' }
   }

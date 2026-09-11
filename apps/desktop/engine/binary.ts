@@ -61,7 +61,10 @@ export async function getEngineStatus(): Promise<EngineStatus> {
   const enginePath = getEngineBinaryPath()
   const runnerPath = getEngineRunnerPath(enginePath)
 
-  if (!fs.existsSync(enginePath) || !fs.existsSync(runnerPath)) {
+  try {
+    await fs.promises.stat(enginePath)
+    await fs.promises.stat(runnerPath)
+  } catch {
     return {
       available: false,
       error: 'Engine binary not found',

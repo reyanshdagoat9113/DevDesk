@@ -45,9 +45,9 @@ export function assertSafeExternalUrl(url: string): string {
   return trimmed
 }
 
-export function handleTrusted(
+export function handleTrusted<Args extends unknown[]>(
   channel: IpcInvokeChannel | string,
-  listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown,
+  listener: (event: IpcMainInvokeEvent, ...args: Args) => unknown,
 ): void {
   if (registeredChannels.has(channel)) {
     throw new Error(`Duplicate IPC handler registration for channel: ${channel}`)
@@ -55,7 +55,7 @@ export function handleTrusted(
   registeredChannels.add(channel)
   ipcMain.handle(channel, async (event, ...args) => {
     assertTrustedSender(event)
-    return listener(event, ...args)
+    return listener(event, ...(args as Args))
   })
 }
 

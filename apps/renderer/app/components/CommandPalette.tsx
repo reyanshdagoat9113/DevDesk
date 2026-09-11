@@ -31,7 +31,7 @@ import {
   Bug,
 } from 'lucide-react'
 import { VariablePromptModal } from './VariablePromptModal'
-import { getContainerActionIcon, getStatusIcon } from './commandPaletteHelpers'
+import { getContainerActionIcon, getStatusIcon, shouldHandlePaletteToggle } from './commandPaletteHelpers'
 import type { TabValue } from '../lib/appShell'
 import type {
   Project,
@@ -164,18 +164,7 @@ export function CommandPalette({
   // Keyboard shortcut handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isModK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'
-      if (!isModK) return
-
-      const target = e.target as HTMLElement
-      const isEditable =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'SELECT' ||
-        target.isContentEditable
-
-      if (isEditable) return
-
+      if (!shouldHandlePaletteToggle(e)) return
       e.preventDefault()
       onOpenChange(!open)
     }

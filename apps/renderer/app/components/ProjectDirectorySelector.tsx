@@ -88,6 +88,8 @@ export function ProjectDirectorySelector({
         <div className="flex items-center border-b px-3">
           {step === 'directory' && (
             <button
+              type="button"
+              aria-label="Back to projects"
               onClick={goBack}
               className="mr-2 h-6 w-6 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground transition-colors"
             >

@@ -1,17 +1,17 @@
-import { ipcMain } from 'electron'
 import { getProjectNotesById, upsertProjectNotes } from '../../data/store'
 import type { ProjectNotes } from '../../data/model'
+import { handleTrusted } from '../trustedIpc'
 
 /** Domain registrar: project notes channels only. */
 export function registerNotesHandlers(): void {
-  ipcMain.handle('notes:get', async (_event, projectId: string) => {
+  handleTrusted('notes:get', async (_event, projectId: string) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }
     return getProjectNotesById(projectId)
   })
 
-  ipcMain.handle('notes:update', async (_event, projectId: string, updates: Partial<ProjectNotes>) => {
+  handleTrusted('notes:update', async (_event, projectId: string, updates: Partial<ProjectNotes>) => {
     if (!projectId?.trim()) {
       throw new Error('Project id is required.')
     }

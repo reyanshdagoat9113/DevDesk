@@ -15,6 +15,7 @@ import type {
   CreateCommandChainInput,
   CreateCommandTriggerInput,
   CreateCommandInput,
+  UpdateCommandInput,
   Project,
 } from '../types'
 
@@ -27,7 +28,7 @@ type AutomationSectionProps = {
   isLoading?: boolean
   error?: string | null
   onRunCommand?: (commandId: string, projectId: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }>
-  onUpdateCommand?: (commandId: string, updates: { name: string; command: string; description?: string; tags?: string[] }) => Promise<void>
+  onUpdateCommand?: (commandId: string, updates: UpdateCommandInput) => Promise<void>
   onRemoveCommand?: (commandId: string) => Promise<void>
   onToggleCommandPin?: (commandId: string) => Promise<void>
   onCreatePresetCommand?: (command: CreateCommandInput) => Promise<Command>

@@ -17,6 +17,7 @@ import type {
   CreateCommandChainInput,
   CreateCommandTriggerInput,
   CreateCommandInput,
+  UpdateCommandInput,
   ExportResult,
   ExportToFileResult,
   ImportMode,
@@ -87,7 +88,7 @@ export interface ElectronAPI {
 
   getCommands: () => Promise<Command[]>
   addCommand: (command: CreateCommandInput) => Promise<Command>
-  updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) => Promise<Command>
+  updateCommand: (id: string, updates: UpdateCommandInput) => Promise<Command>
   toggleCommandPin: (id: string) => Promise<Command>
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>

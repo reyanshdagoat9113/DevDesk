@@ -115,7 +115,7 @@ async function main() {
 
     if (rel === 'apps/desktop/ipc/registerIpc.ts') {
       const source = await fs.readFile(filePath, 'utf8')
-      const handlerCount = source.match(/ipcMain\.handle\s*\(/g)?.length ?? 0
+      const handlerCount = source.match(/(?:ipcMain\.handle|handleTrusted)\s*\(/g)?.length ?? 0
       if (handlerCount > registerIpcHandlerBaseline) {
         failures.push(
           `registerIpc.ts gained direct handlers (${handlerCount} > ${registerIpcHandlerBaseline}). Add new channels under ipc/handlers instead.`,

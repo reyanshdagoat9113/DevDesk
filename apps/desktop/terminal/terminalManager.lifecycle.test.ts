@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import os from 'node:os'
-import { beforeEach, describe, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type ExitHandler = (event: { exitCode: number; signal?: number }) => void
 
@@ -62,6 +62,26 @@ vi.mock('../data/store', () => ({
 
 const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/bash'
 
+describe('flushTerminalBuffer', () => {
+  it('broadcasts remaining data, clears the timer, and empties the buffer', async () => {
+    vi.useFakeTimers()
+    try {
+      const { flushTerminalBuffer } = await import('./terminalManager')
+      const broadcast = vi.fn()
+      const timer = setTimeout(() => undefined, 4)
+      const entry = { buffer: 'leftover', timer }
+
+      flushTerminalBuffer(entry, 'term-1', broadcast)
+
+      expect(broadcast).toHaveBeenCalledWith('terminal:data', { terminalId: 'term-1', data: 'leftover' })
+      expect(entry.buffer).toBe('')
+      expect(entry.timer).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('TerminalManager lifecycle', () => {
   beforeEach(() => {
     spawned.length = 0
@@ -93,6 +113,26 @@ describe('TerminalManager lifecycle', () => {
       assert.equal(exitEvents.length, 2, 'pty reports exit; manager forwards each report')
       assert.equal(manager.getSession(session.id), undefined, 'session must be dropped on exit')
       assert.equal(manager.get(session.id), undefined)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('flushes the coalescing buffer before broadcasting terminal:exit', async () => {
+    vi.useFakeTimers()
+    try {
+      const { TerminalManager } = await import('./terminalManager')
+      const events: Array<{ channel: string; payload: unknown }> = []
+      const manager = new TerminalManager((channel, payload) => events.push({ channel, payload }))
+
+      const session = await manager.create({ cwd: os.tmpdir(), shell })
+      spawned[0].emitData('final chunk')
+      spawned[0].emitExit(1)
+
+      assert.deepEqual(events, [
+        { channel: 'terminal:data', payload: { terminalId: session.id, data: 'final chunk' } },
+        { channel: 'terminal:exit', payload: { terminalId: session.id, code: 1 } },
+      ])
     } finally {
       vi.useRealTimers()
     }

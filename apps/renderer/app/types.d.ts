@@ -62,6 +62,14 @@ export interface CreateCommandInput {
     projectId?: string;
     workingDirectory?: string;
 }
+export interface UpdateCommandInput {
+    name?: string;
+    command?: string;
+    description?: string | null;
+    tags?: string[];
+    projectId?: string | null;
+    workingDirectory?: string | null;
+}
 export interface CommandPreset {
     id: string;
     name: string;

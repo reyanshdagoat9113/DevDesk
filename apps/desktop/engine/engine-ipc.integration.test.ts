@@ -37,7 +37,7 @@ function resetMockState() {
 
 vi.mock('electron', () => ({
   BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
+    getAllWindows: vi.fn(() => [{ webContents: { id: 1 } }]),
   },
   dialog: {
     showOpenDialog: vi.fn(),
@@ -63,6 +63,7 @@ vi.mock('electron', () => ({
       return handler(
         {
           sender: {
+            id: 1,
             send: emit,
           },
         },

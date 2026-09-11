@@ -57,7 +57,7 @@
 <div class="wrap">
 
   <h1>DevDesk — Maintenance Findings Report</h1>
-  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Groups 1, 2, 3, 4, 5, and 6 are completed</span>; remaining groups are still open.</p>
+  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Groups 1–9 are completed</span>.</p>
 
   <div class="meta">
     <div class="card"><b>Audited commit</b><code>90ec4fd</code> — "Refresh documentation for v0.1.2" (clean working tree)</div>
@@ -83,9 +83,9 @@
     <li><a href="#g4">Group 4 — WSL embedded terminal</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g5">Group 5 — Data lifecycle &amp; export/import</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g6">Group 6 — App lifecycle &amp; streaming</a> <span class="tag done">COMPLETED</span></li>
-    <li><a href="#g7">Group 7 — Security hardening</a></li>
-    <li><a href="#g8">Group 8 — Command vault UX gaps</a></li>
-    <li><a href="#g9">Group 9 — Minor batch (polish &amp; hygiene)</a></li>
+    <li><a href="#g7">Group 7 — Security hardening</a> <span class="tag done">COMPLETED</span></li>
+    <li><a href="#g8">Group 8 — Command vault UX gaps</a> <span class="tag done">COMPLETED</span></li>
+    <li><a href="#g9">Group 9 — Minor batch (polish &amp; hygiene)</a> <span class="tag done">COMPLETED</span></li>
     <li><a href="#g10">Verification log &amp; audit coverage</a></li>
     <li><a href="#g11">Already-tracked release items (not new)</a></li>
   </ol>
@@ -319,51 +319,57 @@
 
   <!-- ==================== GROUP 7 ==================== -->
   <h2 id="g7">Group 7 — Security hardening</h2>
-  <div class="group">
+  <div class="group done">
     <div class="group-head">
       <h3>Defense-in-depth gaps; no exploit chain on its own, but cheap wins</h3>
       <span class="commit">chore/security-hardening</span>
       <span class="tag low">LOW</span>
+      <span class="tag done">COMPLETED</span>
     </div>
-    <p class="note">Suggested commit message: “Tighten CSP, enable sandbox, whitelist navigation, consistent trusted-IPC”. Nothing here is a confirmed vulnerability — DevDesk is local-first with contextIsolation on, no remote content, and <code>setWindowOpenHandler</code> denied (good). These are belt-and-braces items; grouping them keeps review easy.</p>
+    <p class="note">Suggested commit message: “Tighten CSP, enable sandbox, whitelist navigation, consistent trusted-IPC”. Nothing here is a confirmed vulnerability — DevDesk is local-first with contextIsolation on, no remote content, and <code>setWindowOpenHandler</code> denied (good). These are belt-and-braces items; grouping them keeps review easy. <span class="pass">Status: completed</span> (F-18, F-19, F-20, F-21).</p>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-18</span> CSP allows <code>unsafe-eval</code>/<code>unsafe-inline</code> for scripts in production <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-18</span> CSP allows <code>unsafe-eval</code>/<code>unsafe-inline</code> for scripts in production <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/renderer/index.html</span> (meta CSP)</p>
       <p><code>script-src 'self' 'unsafe-inline' 'unsafe-eval'</code> ships in the packaged app. A production Vite/React bundle needs neither. <code>connect-src</code> also allows the dev-server origins unconditionally. Tightening removes a whole class of escalation if any injection ever lands (see also F-01's innerHTML issue). Consider dev-conditional CSP or nonce-based styles for HMR in dev only.</p>
+      <p><span class="pass">Applied:</span> production CSP is <code>script-src 'self'</code> and <code>connect-src 'self'</code> in the HTML meta plus Electron session headers when <code>!isDev</code>. Dev Vite injects a looser policy (inline/eval + HMR origins) via <span class="path">vite.config.ts</span>. Helper/tests in <span class="path">cspPolicy.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-19</span> Renderer sandbox not enabled <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-19</span> Renderer sandbox not enabled <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/app/createWindow.ts</span> (<code>webPreferences</code>)</p>
       <p><code>nodeIntegration: false</code> + <code>contextIsolation: true</code> are set (good), but <code>sandbox: true</code> is absent. The preload only uses <code>contextBridge</code>/<code>ipcRenderer</code>, which are sandbox-compatible — enabling it costs nothing and materially reduces renderer-compromise impact.</p>
+      <p><span class="pass">Applied:</span> <code>sandbox: true</code> is set on the BrowserWindow; <code>nodeIntegration</code> stays false and <code>contextIsolation</code> stays true.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-20</span> <code>will-navigate</code> permits any <code>file:</code> URL in production <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-20</span> <code>will-navigate</code> permits any <code>file:</code> URL in production <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/app/createWindow.ts</span> (navigation guard)</p>
       <p>Production allows navigation to any <code>file:</code> URL. Whitelist the app's own <code>index.html</code> (compare resolved path) instead of the whole scheme.</p>
+      <p><span class="pass">Applied:</span> <span class="path">navigationGuard.ts</span> allows only the packaged <code>index.html</code> file URL in production (normalized path compare) and the Vite origin in dev; invalid URLs are denied. Tests in <span class="path">navigationGuard.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-21</span> Trusted-sender checks applied to only one IPC channel <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-21</span> Trusted-sender checks applied to only one IPC channel <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/ipc/trustedIpc.ts</span> defines <code>assertTrustedSender</code>/<code>handleTrusted</code> (with a duplicate-registration guard), but only <code>shell:open-external</code> uses it; the ~70 channels in <span class="path">registerIpc.ts</span> and the domain handlers register with plain <code>ipcMain.handle</code>.</p>
       <p>Today there is a single trusted window and no remote content, so exposure is minimal — but the infrastructure exists and is unused; either roll it out (preferably incrementally, starting with state-mutating channels) or remove the dead abstraction. Note <code>git:create-pr</code> calls <code>shell.openExternal(result.url)</code> directly without the <code>isSafeExternalUrl</code> check its sibling uses (currently safe because the URL is built from a validated GitHub-HTTPS regex — keep it that way with an assertion).</p>
+      <p><span class="pass">Applied:</span> every invoke-channel registration now uses <code>handleTrusted</code>. <code>git:create-pr</code> runs the PR URL through <code>assertSafeExternalUrl</code> before <code>openExternal</code>. IPC contract extraction matches <code>handleTrusted(</code>.</p>
     </div>
   </div>
 
   <!-- ==================== GROUP 8 ==================== -->
-  <h2 id="g8">Group 8 — Command vault UX gaps</h2>
-  <div class="group">
+  <h2 id="g8">Group 8 — Command vault UX gaps <span class="tag done">COMPLETED</span></h2>
+  <div class="group done">
     <div class="group-head">
       <h3>Commands can't be reassigned to another project; fields can't be cleared</h3>
       <span class="commit">fix/command-edit-parity</span>
       <span class="tag med">MEDIUM</span>
+      <span class="tag done">COMPLETED</span>
     </div>
-    <p class="note">Suggested commit message: “Allow editing project/working-directory and clearing fields on commands”. Backend mostly exists; this is preload + UI + semantics alignment.</p>
+    <p class="note">Suggested commit message: “Allow editing project/working-directory and clearing fields on commands”. Backend mostly exists; this is preload + UI + semantics alignment. <span class="pass">Status: completed</span> (F-22, F-23).</p>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-22</span> A command's project and working directory are immutable after creation <span class="tag med">MEDIUM</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-22</span> A command's project and working directory are immutable after creation <span class="tag med">MEDIUM</span> <span class="tag done">COMPLETED</span></div>
       <ul>
         <li><span class="path">apps/desktop/preload.ts</span> — <code>updateCommand</code> type omits <code>projectId</code>/<code>workingDirectory</code> (main's <code>commands:update</code> actually accepts both).</li>
         <li><span class="path">apps/desktop/ipc/registerIpc.ts</span> — even when sent, <code>updates?.projectId ?? current.projectId</code> and <code>updates?.workingDirectory ?? current.workingDirectory</code> make it impossible to <em>clear</em> a value (sending <code>undefined</code> keeps the old one).</li>
@@ -372,77 +378,89 @@
       <p>Net: to move a command to a different project (or detach it to global) or change its working directory, the user must delete and recreate it — losing pin state and chain references. Same <code>??</code> pattern also makes <code>description</code> impossible to clear (F-23) — one semantics fix covers both: treat explicit <code>null</code> as "clear" or use has-flags.</p>
       <p><b>Fix direction:</b> extend preload + renderer types and edit dialog; adopt explicit-clear semantics; validate tags as string arrays while touching this code (<code>tags.filter(Boolean)</code> currently accepts non-strings).</p>
       <p><b>Tests to add:</b> registerIpc test: update with <code>projectId: undefined</code> clears; renderer test for the edit dialog fields.</p>
+      <p><span class="pass">Applied:</span> preload + renderer types accept <code>projectId</code>/<code>workingDirectory</code>/<code>description</code> as <code>string | null</code>; <span class="path">applyCommandUpdates.ts</span> treats omitted/<code>undefined</code> as keep and explicit <code>null</code> as clear (covers F-23 description clearing) and coerces tags to trimmed strings. The edit dialog mirrors create-command target location (global/project + working directory). Tests in <span class="path">applyCommandUpdates.test.ts</span> / <span class="path">CommandsSection.test.tsx</span>.</p>
     </div>
   </div>
 
   <!-- ==================== GROUP 9 ==================== -->
   <h2 id="g9">Group 9 — Minor batch (polish &amp; hygiene)</h2>
-  <div class="group">
+  <div class="group done">
     <div class="group-head">
       <h3>Small, independent items — can land as one housekeeping commit or cherry-picked</h3>
       <span class="commit">chore/maintenance-polish</span>
       <span class="tag low">LOW</span>
+      <span class="tag done">COMPLETED</span>
     </div>
-    <p class="note">Suggested commit message: “Maintenance polish: stale index, terminal flush, palette shortcut, engine downgrade guard, CRLF hygiene”.</p>
+    <p class="note">Suggested commit message: “Maintenance polish: stale index, terminal flush, palette shortcut, engine downgrade guard, CRLF hygiene”. <span class="pass">Status: completed.</span></p>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-24</span> File-search index never invalidates on filesystem changes <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-24</span> File-search index never invalidates on filesystem changes <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/files/fileService.ts</span> (<code>getFileIndex</code> cache is keyed by projectId+path only)</p>
       <p>Once built, the fuzzy-search index lives until the project is re-added or <code>files:clearIndex</code> is called. New/deleted files don't appear in results until then. Add mtime-based invalidation or a TTL, or refresh on section open.</p>
+      <p><span class="pass">Applied:</span> cache entries store <code>rootMtimeMs</code> + <code>lastIndexedAt</code> and rebuild when TTL (<code>INDEX_TTL_MS</code> = 60s) elapses or the project-root mtime changes. <code>files:clearIndex</code> is unchanged. Tests in <span class="path">fileService.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-25</span> Terminal loses the final output chunk on exit <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-25</span> Terminal loses the final output chunk on exit <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/terminal/terminalManager.ts</span> (<code>onExit</code> clears the 4 ms coalescing buffer without flushing it)</p>
       <p><code>clearTimeout</code> + <code>delete</code> discards whatever was still buffered, so the last bytes of a dying process (often the error line!) may never reach the renderer. Flush the buffer in <code>onExit</code> before broadcasting <code>terminal:exit</code>.</p>
+      <p><span class="pass">Applied:</span> <code>flushTerminalBuffer</code> broadcasts remaining data before <code>terminal:exit</code>; <code>close()</code> no longer discards the buffer. Tests in <span class="path">terminalManager.lifecycle.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-26</span> Quick Launcher (Ctrl+K) is dead while any input has focus <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-26</span> Quick Launcher (Ctrl+K) is dead while any input has focus <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/renderer/app/components/CommandPalette.tsx</span> (keydown handler skips <code>INPUT/TEXTAREA/SELECT</code>)</p>
       <p>The palette refuses to open when focus is in a text field — which is most of the time while working in forms or search boxes. The guard exists so typing <code>k</code> in a field doesn't trigger, but Ctrl+K never conflicts with typing; drop the editable-target check for the modifier combination (keep it for plain-key shortcuts).</p>
+      <p><span class="pass">Applied:</span> extracted <code>shouldHandlePaletteToggle</code>; Ctrl/Cmd+K toggles the palette even when an editable is focused. Tests in <span class="path">commandPaletteHelpers.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-27</span> Engine DB schema downgrades are silently tolerated <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-27</span> Engine DB schema downgrades are silently tolerated <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">packages/engine/src/db/manager.ts</span> (<code>initialize()</code> only handles <code>version &lt; SCHEMA_VERSION</code>)</p>
       <p>If a user rolls back to an older DevDesk, the engine opens a newer-schema index DB and proceeds; queries against unknown columns will fail at runtime with raw SQLite errors. Detect <code>version &gt; SCHEMA_VERSION</code> and either rebuild the index or surface "index created by a newer version — please re-index after update".</p>
+      <p><span class="pass">Applied:</span> opening a newer <code>schema_version</code> fails closed with a clear re-index error and closes the DB. Test in <span class="path">packages/engine/src/db/manager.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-28</span> Docker/WSL fallback error surface is confusing and can be slow <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-28</span> Docker/WSL fallback error surface is confusing and can be slow <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> (<code>runDockerCommand</code> win32 daemon-error path; <code>runWslDockerCommand</code> per-distro retry; <code>resolveDockerStreamLaunch</code>)</p>
       <p>When Docker Desktop's daemon is down on Windows, the code silently probes WSL (per-distro, each a full <code>wsl -e bash -lc</code> round-trip) and then reports "Docker Desktop daemon is not running. (WSL fallback also failed: …)". Latency stacks up (seconds) and the message names a product the user may not use. Consider a fast pre-flight (<code>wsl --status</code>) and keep the primary error verbatim in a details line.</p>
+      <p><span class="pass">Applied:</span> Windows daemon-error path pre-flights <code>wsl -l -q</code>; if WSL is missing, the original daemon error is thrown with no WSL mention. Fallback details stay in a suffix. Helpers/tests in <span class="path">dockerWslFallback.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-29</span> Tray "Run Last Command" fails silently for needs-input commands <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-29</span> Tray "Run Last Command" fails silently for needs-input commands <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/ipc/registerIpc.ts</span> (<code>runLastCommand</code> returns <code>{success:false,error}</code>); <span class="path">apps/desktop/tray/trayManager.ts</span> logs to console only</p>
       <p>If the last command needs variables, the tray action reports nothing visible (error only in main-process console). Surface a renderer toast on focus, or skip needs-input entries and pick the most recent runnable one.</p>
+      <p><span class="pass">Applied:</span> walks the last 20 history entries, skipping missing/needs-input commands. Failures focus the window and show an Electron <code>Notification</code>. Tests in <span class="path">pickRunnableHistory.test.ts</span>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-30</span> Synchronous fs calls on the main thread in warm paths <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-30</span> Synchronous fs calls on the main thread in warm paths <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><code>fs.existsSync</code> in <code>getProjectPath</code>/<code>prepareCommandExecution</code> (<span class="path">registerIpc.ts</span>), <code>statSync/copyFileSync/existsSync</code> in <span class="path">attachmentService.ts</span>, <code>fs.existsSync</code> in engine binary resolution.</p>
       <p>Individually negligible; on network drives (UNC project paths are first-class here) these block the main process for seconds. Migrate to <code>fs.promises</code> opportunistically, prioritizing the project-path checks that run on every command execution.</p>
+      <p><span class="pass">Applied:</span> command-execution project path checks use <code>fs.promises.stat</code>; attachment copy and engine status existence checks also moved to promises. Startup WSL-exe resolution still uses sync <code>existsSync</code>.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-31</span> PTY always uses legacy winpty (<code>useConpty: false</code>) <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-31</span> PTY always uses legacy winpty (<code>useConpty: false</code>) <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/desktop/terminal/terminalManager.ts</span> (both spawn branches)</p>
       <p>ConPTY is the modern Windows console host (better resize/VT support); winpty is in maintenance mode. If the flag was a workaround for a specific issue, document it; otherwise make it platform/version-conditional.</p>
+      <p><span class="pass">Applied:</span> <code>useConpty: process.platform === 'win32'</code> on both spawn branches, with a comment that ConPTY is the supported Windows console host.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-32</span> CRLF churn warnings from the engine workspace <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-32</span> CRLF churn warnings from the engine workspace <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><code>npm run test:engine</code> prints "LF will be replaced by CRLF" for <code>packages/engine/src/*.ts</code>.</p>
       <p>Add a root <span class="path">.gitattributes</span> (<code>* text=auto eol=lf</code> for sources or explicit per-type rules) to stop line-ending churn on Windows checkouts — cheap hygiene, prevents noisy diffs.</p>
+      <p><span class="pass">Applied:</span> root <span class="path">.gitattributes</span> with <code>* text=auto eol=lf</code> and binary exceptions. History was not force-normalized.</p>
     </div>
 
-    <div class="finding">
-      <div class="finding-title"><span class="fid">F-33</span> Post-unmount state updates in two big sections <span class="tag low">LOW</span></div>
+    <div class="finding done">
+      <div class="finding-title"><span class="fid">F-33</span> Post-unmount state updates in two big sections <span class="tag low">LOW</span> <span class="tag done">COMPLETED</span></div>
       <p><span class="path">apps/renderer/app/sections/ContainersSection.tsx</span>, <span class="path">HistorySection.tsx</span> — several effects run async IPC without cancellation guards (<code>ProjectsSection</code> and <code>ExportImportDialog</code> already use <code>cancelled</code> flags — copy that pattern).</p>
       <p>Harmless in React 18 (no more warning) but can surface as flicker/no-op updates when switching tabs quickly. Low-priority consistency cleanup.</p>
+      <p><span class="pass">Applied:</span> both sections use a <code>cancelled</code> flag / ref and skip <code>setState</code> after await when unmounted. History output loading also cancels in-flight requests on selection change.</p>
     </div>
   </div>
 
@@ -489,7 +507,7 @@
     </table>
   </div>
 
-  <p class="note" style="margin-top:36px">Generated by the maintenance sweep on 2026-08-27 · base commit <code>90ec4fd</code> · 32 findings across 9 fix-commit groups · <span class="pass">17 completed</span> (F-01–F-17, Groups 1–6) · 15 still open · all baseline gates green at time of audit.</p>
+  <p class="note" style="margin-top:36px">Generated by the maintenance sweep on 2026-08-27 · base commit <code>90ec4fd</code> · 32 findings across 9 fix-commit groups · <span class="pass">32 completed</span> (F-01–F-22, F-24–F-33, Groups 1–9) · 0 still open · all baseline gates green at time of audit.</p>
 </div>
 </body>
 </html>

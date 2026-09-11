@@ -16,8 +16,8 @@ function extractInvokeChannels(source: string): string[] {
 }
 
 function extractHandleChannels(source: string): string[] {
-  const quoted = [...source.matchAll(/ipcMain\.handle\(\s*'([^']+)'/g)].map((m) => m[1])
-  const constRefs = [...source.matchAll(/ipcMain\.handle\(\s*IpcChannels\.(\w+)/g)].map((m) => {
+  const quoted = [...source.matchAll(/(?:ipcMain\.handle|handleTrusted)\(\s*'([^']+)'/g)].map((m) => m[1])
+  const constRefs = [...source.matchAll(/(?:ipcMain\.handle|handleTrusted)\(\s*IpcChannels\.(\w+)/g)].map((m) => {
     const key = m[1] as keyof typeof IpcChannels
     return IpcChannels[key] as string
   })

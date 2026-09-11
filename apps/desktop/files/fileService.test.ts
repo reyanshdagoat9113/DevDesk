@@ -121,3 +121,60 @@ describe('listProjectFiles', () => {
     expect(names).not.toContain('debug.log')
   })
 })
+
+describe('getFileIndex cache invalidation', () => {
+  let tempDir = ''
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'devdesk-index-'))
+    fs.writeFileSync(path.join(tempDir, 'readme.md'), '# hi')
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it('reuses the cached index within INDEX_TTL_MS when root mtime is unchanged', async () => {
+    const { getFileIndex, INDEX_TTL_MS, clearFileIndex } = await import('./fileService')
+    clearFileIndex('proj-cache')
+    vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+
+    const first = await getFileIndex('proj-cache', tempDir)
+    const second = await getFileIndex('proj-cache', tempDir)
+
+    expect(INDEX_TTL_MS).toBe(60_000)
+    expect(second).toBe(first)
+    expect(second.fileList).toBe(first.fileList)
+    expect(second.lastIndexedAt).toBe(first.lastIndexedAt)
+  })
+
+  it('rebuilds the index after INDEX_TTL_MS even if root mtime is unchanged', async () => {
+    const { getFileIndex, INDEX_TTL_MS, clearFileIndex } = await import('./fileService')
+    clearFileIndex('proj-ttl')
+    const now = vi.spyOn(Date, 'now')
+    now.mockReturnValue(2_000_000)
+
+    const first = await getFileIndex('proj-ttl', tempDir)
+    now.mockReturnValue(2_000_000 + INDEX_TTL_MS + 1)
+    const second = await getFileIndex('proj-ttl', tempDir)
+
+    expect(second).not.toBe(first)
+    expect(second.lastIndexedAt).toBe(2_000_000 + INDEX_TTL_MS + 1)
+  })
+
+  it('rebuilds the index when the project root mtime changes', async () => {
+    const { getFileIndex, clearFileIndex } = await import('./fileService')
+    clearFileIndex('proj-mtime')
+    vi.spyOn(Date, 'now').mockReturnValue(3_000_000)
+
+    const first = await getFileIndex('proj-mtime', tempDir)
+    const later = Math.floor(first.rootMtimeMs / 1000) + 5
+    fs.utimesSync(tempDir, later, later)
+    fs.writeFileSync(path.join(tempDir, 'new-file.ts'), 'export {}')
+
+    const second = await getFileIndex('proj-mtime', tempDir)
+    expect(second).not.toBe(first)
+    expect(second.fileList.some((entry) => entry.includes('new-file.ts'))).toBe(true)
+  })
+})

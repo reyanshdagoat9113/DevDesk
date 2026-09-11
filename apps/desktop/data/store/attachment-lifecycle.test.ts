@@ -58,7 +58,7 @@ async function createProjectAttachment(projectId: string) {
 
   const sourceFilePath = path.join(tempRoot, `${projectId}.log`)
   fs.writeFileSync(sourceFilePath, 'attachment contents')
-  const copied = copyFileToAttachments(sourceFilePath)
+  const copied = await copyFileToAttachments(sourceFilePath)
   const report = await createBugReport({ projectId, title: 'Attached bug' })
   await addBugAttachmentRecord({
     bugReportId: report.id,

@@ -9,6 +9,26 @@ import type { TerminalCreateOptions, TerminalSession } from '../data/model'
 
 type BroadcastFn = (channel: string, payload: unknown) => void
 
+type TerminalDataBuffer = { buffer: string; timer: ReturnType<typeof setTimeout> | null }
+
+export function flushTerminalBuffer(
+  entry: TerminalDataBuffer | undefined,
+  terminalId: string,
+  broadcast: BroadcastFn,
+): void {
+  if (!entry) {
+    return
+  }
+  if (entry.timer) {
+    clearTimeout(entry.timer)
+    entry.timer = null
+  }
+  if (entry.buffer) {
+    broadcast('terminal:data', { terminalId, data: entry.buffer })
+    entry.buffer = ''
+  }
+}
+
 function getCleanEnv(): Record<string, string> {
   return Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
@@ -150,7 +170,7 @@ export class TerminalManager {
   private sessions = new Map<string, pty.IPty>()
   private sessionMeta = new Map<string, TerminalSession>()
   private broadcast: BroadcastFn
-  private dataBuffers = new Map<string, { buffer: string; timer: ReturnType<typeof setTimeout> | null }>()
+  private dataBuffers = new Map<string, TerminalDataBuffer>()
 
   constructor(broadcast: BroadcastFn) {
     this.broadcast = broadcast
@@ -191,7 +211,8 @@ export class TerminalManager {
           cols,
           rows,
           env: getCleanEnv(),
-          useConpty: false,
+          // ConPTY is the supported Windows console host; winpty is maintenance-mode.
+          useConpty: process.platform === 'win32',
         })
       } else {
         ptyProcess = pty.spawn(shell, [], {
@@ -200,7 +221,8 @@ export class TerminalManager {
           rows,
           cwd,
           env: getCleanEnv(),
-          useConpty: false,
+          // ConPTY is the supported Windows console host; winpty is maintenance-mode.
+          useConpty: process.platform === 'win32',
         })
       }
     } catch (error) {
@@ -244,10 +266,7 @@ export class TerminalManager {
     })
 
     ptyProcess.onExit(({ exitCode }) => {
-      const buffered = this.dataBuffers.get(terminalId)
-      if (buffered?.timer) {
-        clearTimeout(buffered.timer)
-      }
+      flushTerminalBuffer(this.dataBuffers.get(terminalId), terminalId, this.broadcast)
       this.dataBuffers.delete(terminalId)
       this.sessions.delete(terminalId)
       this.sessionMeta.delete(terminalId)
@@ -288,12 +307,6 @@ export class TerminalManager {
     const session = this.sessions.get(terminalId)
     if (!session) {
       return
-    }
-
-    const buffered = this.dataBuffers.get(terminalId)
-    if (buffered?.timer) {
-      clearTimeout(buffered.timer)
-      this.dataBuffers.delete(terminalId)
     }
 
     session.kill()

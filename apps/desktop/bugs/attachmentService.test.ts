@@ -35,10 +35,10 @@ describe('attachmentService confinement', () => {
     tempRoot = ''
   })
 
-  it('copies files under attachments and resolves them', () => {
+  it('copies files under attachments and resolves them', async () => {
     const source = path.join(tempRoot, 'source.txt')
     fs.writeFileSync(source, 'hello')
-    const { relativePath, fileSize } = copyFileToAttachments(source)
+    const { relativePath, fileSize } = await copyFileToAttachments(source)
     assert.equal(fileSize, 5)
     assert.match(relativePath.replace(/\\/g, '/'), /^attachments\//)
     const resolved = resolveAttachmentPath(relativePath)

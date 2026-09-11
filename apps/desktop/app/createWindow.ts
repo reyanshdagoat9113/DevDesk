@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { attachDockerLogReaper } from '../ipc/dockerLogStreams'
 import { registerTrustedWebContents, unregisterTrustedWebContents } from '../ipc/trustedIpc'
+import { buildContentSecurityPolicy } from './cspPolicy'
+import { isAllowedNavigation } from './navigationGuard'
 
 function resolveWindowIcon(): string | undefined {
   // Windows renders the crisp multi-resolution .ico for the taskbar/title bar;
@@ -35,6 +37,7 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
       preload: path.join(__dirname, '../preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
     },
   })
 
@@ -42,6 +45,20 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
     Menu.setApplicationMenu(null)
     mainWindow.setMenuBarVisibility(false)
     mainWindow.removeMenu()
+  }
+
+  const indexHtmlPath = path.join(__dirname, '../../renderer/index.html')
+
+  if (!isDev) {
+    const productionCsp = buildContentSecurityPolicy(false)
+    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [productionCsp],
+        },
+      })
+    })
   }
 
   // Load the app
@@ -69,7 +86,7 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
 
     mainWindow.loadURL('http://127.0.0.1:5180')
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'))
+    mainWindow.loadFile(indexHtmlPath)
   }
 
   mainWindow.once('ready-to-show', () => {
@@ -87,14 +104,9 @@ export function createMainWindow(isDev: boolean): BrowserWindow {
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (isDev) {
-      if (url.startsWith('http://127.0.0.1:5180') || url.startsWith('http://localhost:5180')) {
-        return
-      }
-    } else if (url.startsWith('file:')) {
-      return
+    if (!isAllowedNavigation(url, { isDev, indexHtmlPath })) {
+      event.preventDefault()
     }
-    event.preventDefault()
   })
 
   return mainWindow

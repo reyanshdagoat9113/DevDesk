@@ -90,6 +90,11 @@ export class DatabaseManager {
       db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
     } else if (versionRow.version < SCHEMA_VERSION) {
       db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
+    } else if (versionRow.version > SCHEMA_VERSION) {
+      db.close();
+      throw new Error(
+        `Index was created by a newer DevDesk version (schema ${versionRow.version}; this app supports ${SCHEMA_VERSION}). Re-index this project after updating, or clear the engine index.`
+      );
     }
 
     return db;

@@ -98,7 +98,7 @@ interface ElectronAPI {
 
   getCommands: () => Promise<unknown[]>
   addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) => Promise<{ id: string }>
-  updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) => Promise<{ id: string }>
+  updateCommand: (id: string, updates: { name?: string; command?: string; description?: string | null; tags?: string[]; projectId?: string | null; workingDirectory?: string | null }) => Promise<{ id: string }>
   toggleCommandPin: (id: string) => Promise<unknown>
   removeCommand: (id: string) => Promise<{ success: boolean }>
   getProjectDirectories: (projectId: string, relativePath?: string) => Promise<string[]>
@@ -412,7 +412,7 @@ const electronAPI: ElectronAPI = {
   getCommands: () => ipcRenderer.invoke('commands:get'),
   addCommand: (command: { name: string; command: string; description?: string; tags?: string[]; projectId?: string; workingDirectory?: string }) =>
     ipcRenderer.invoke('commands:add', command),
-  updateCommand: (id: string, updates: { name?: string; command?: string; description?: string; tags?: string[] }) =>
+  updateCommand: (id: string, updates: { name?: string; command?: string; description?: string | null; tags?: string[]; projectId?: string | null; workingDirectory?: string | null }) =>
     ipcRenderer.invoke('commands:update', id, updates),
   toggleCommandPin: (id: string) => ipcRenderer.invoke('commands:toggle-pin', id),
   removeCommand: (id: string) => ipcRenderer.invoke('commands:remove', id),

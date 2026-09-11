@@ -49,4 +49,12 @@ describe('trusted IPC registration', () => {
     const result = await listener({ sender: { id: 42 } })
     assert.deepEqual(result, { ok: true })
   })
+
+  it('rejects unsafe external URLs before they can be opened', async () => {
+    const { assertSafeExternalUrl } = await import('./trustedIpc')
+    assert.equal(assertSafeExternalUrl('https://github.com/org/repo/pull/1'), 'https://github.com/org/repo/pull/1')
+    assert.throws(() => assertSafeExternalUrl('file:///etc/passwd'), /not allowed/)
+    assert.throws(() => assertSafeExternalUrl('javascript:alert(1)'), /not allowed/)
+    assert.throws(() => assertSafeExternalUrl('http://evil.example'), /not allowed/)
+  })
 })

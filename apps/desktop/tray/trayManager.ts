@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron'
+import { app, BrowserWindow, Menu, Notification, Tray, nativeImage } from 'electron'
 import { terminalManager } from '../terminal/terminalManager'
 import { getPreferencesFromStore } from '../data/store'
 
@@ -162,6 +162,7 @@ export class TrayManager {
             const result = await this.callbacks.runLastCommand()
             if (!result.success) {
               console.error('Tray: run last command failed:', result.error)
+              this.notifyRunLastCommandFailure(result.error)
             } else {
               this.showWindow()
             }
@@ -178,6 +179,18 @@ export class TrayManager {
         },
       },
     ])
+  }
+
+  private notifyRunLastCommandFailure(error?: string) {
+    const body = error?.trim() || 'Failed to run last command.'
+    this.showWindow()
+    try {
+      if (Notification.isSupported()) {
+        new Notification({ title: 'DevDesk', body }).show()
+      }
+    } catch {
+      // Notification can throw outside a ready app; the window is still focused.
+    }
   }
 
   showWindow() {

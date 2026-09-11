@@ -128,6 +128,11 @@ export function ContainersSection({
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsError, setLogsError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const cancelledRef = useRef(false)
+  useEffect(() => {
+    cancelledRef.current = false
+    return () => { cancelledRef.current = true }
+  }, [])
 
   const normalizedQuery = query.trim().toLowerCase()
 
@@ -262,14 +267,16 @@ export function ContainersSection({
       for (const id of removeTargetIds) {
         await onRemoveContainer(id, force)
       }
+      if (cancelledRef.current) return
       setSelectedIds((prev) => prev.filter((id) => !removeTargetIds.includes(id)))
       setRemoveDialogOpen(false)
       setRemoveTargetIds([])
       setRemoveMessage(`Removed ${removeTargets.length} container${removeTargets.length === 1 ? '' : 's'} from Docker.`)
     } catch (error) {
+      if (cancelledRef.current) return
       setRemoveError(error instanceof Error ? error.message : 'Failed to remove containers.')
     } finally {
-      setRemoveLoading(false)
+      if (!cancelledRef.current) setRemoveLoading(false)
     }
   }
 
@@ -289,11 +296,13 @@ export function ContainersSection({
     setActionError(null)
     try {
       await onRefreshContainers()
+      if (cancelledRef.current) return
       setActionMessage('Container list refreshed.')
     } catch (error) {
+      if (cancelledRef.current) return
       setActionError(error instanceof Error ? error.message : 'Failed to refresh containers.')
     } finally {
-      setRefreshing(false)
+      if (!cancelledRef.current) setRefreshing(false)
     }
   }
 
@@ -308,11 +317,13 @@ export function ContainersSection({
     setActionMessage(null)
     try {
       await handler(containerId)
+      if (cancelledRef.current) return
       setActionMessage(`${action[0].toUpperCase()}${action.slice(1)} completed for ${containers.find((container) => container.id === containerId)?.name ?? 'container'}.`)
     } catch (error) {
+      if (cancelledRef.current) return
       setActionError(error instanceof Error ? error.message : `Failed to ${action} container.`)
     } finally {
-      setActionLoading(null)
+      if (!cancelledRef.current) setActionLoading(null)
     }
   }
 
@@ -335,13 +346,6 @@ export function ContainersSection({
       if (action === 'unpause') return container.state === 'paused'
       return true
     })
-      .filter((container) => {
-        if (action === 'start') return container.state === 'stopped'
-        if (action === 'stop') return container.state !== 'stopped'
-        if (action === 'pause') return container.state === 'running'
-        if (action === 'unpause') return container.state === 'paused'
-      return true
-    })
     if (!targetIds.length) return false
     setBulkActionLoading(true)
     setActionError(null)
@@ -350,14 +354,16 @@ export function ContainersSection({
       for (const container of targetIds) {
         await handler(container.id)
       }
+      if (cancelledRef.current) return false
       setSelectedIds([])
       setActionMessage(`${action[0].toUpperCase()}${action.slice(1)} completed for ${targetIds.length} selected container${targetIds.length === 1 ? '' : 's'}.`)
       return true
     } catch (error) {
+      if (cancelledRef.current) return false
       setActionError(error instanceof Error ? error.message : `Failed to ${action} selected containers.`)
       return false
     } finally {
-      setBulkActionLoading(false)
+      if (!cancelledRef.current) setBulkActionLoading(false)
     }
   }
 
@@ -365,27 +371,12 @@ export function ContainersSection({
     if (stopLoading || !stopTargetIds.length) return
     setStopLoading(true)
     const completed = await runBulkAction('stop', stopTargetIds)
+    if (cancelledRef.current) return
     if (completed) {
       setStopDialogOpen(false)
       setStopTargetIds([])
     }
     setStopLoading(false)
-  }
-
-  const handleViewLogs = async () => {
-    if (!selectedContainer || !onViewLogs) return
-    setLogsOpen(true)
-    setLogsLoading(true)
-    setLogsError(null)
-    try {
-      const output = await onViewLogs(selectedContainer.id)
-      setLogsText(output ?? '')
-    } catch (error) {
-      setLogsError(error instanceof Error ? error.message : 'Failed to load logs.')
-      setLogsText('')
-    } finally {
-      setLogsLoading(false)
-    }
   }
 
   const handleViewLogsFor = async (containerId: string) => {
@@ -396,23 +387,32 @@ export function ContainersSection({
     setLogsError(null)
     try {
       const output = await onViewLogs(containerId)
+      if (cancelledRef.current) return
       setLogsText(output ?? '')
     } catch (error) {
+      if (cancelledRef.current) return
       setLogsError(error instanceof Error ? error.message : 'Failed to load logs.')
       setLogsText('')
     } finally {
-      setLogsLoading(false)
+      if (!cancelledRef.current) setLogsLoading(false)
     }
+  }
+
+  const handleViewLogs = async () => {
+    if (selectedContainer) await handleViewLogsFor(selectedContainer.id)
   }
 
   const handleCopyLogs = async () => {
     if (!logsText) return
     try {
       await navigator.clipboard.writeText(logsText)
+      if (cancelledRef.current) return
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      setTimeout(() => {
+        if (!cancelledRef.current) setCopied(false)
+      }, 1500)
     } catch {
-      setCopied(false)
+      if (!cancelledRef.current) setCopied(false)
     }
   }
 

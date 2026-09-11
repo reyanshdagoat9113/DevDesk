@@ -1,9 +1,10 @@
-import { ipcMain, shell } from 'electron'
+import { shell } from 'electron'
 import { getProjectById } from '../../data/store'
+import { assertSafeExternalUrl, handleTrusted } from '../trustedIpc'
 
 /** Domain registrar: git workflow channels. */
 export function registerGitHandlers(): void {
-  ipcMain.handle('git:get-state', async (_event, projectId: string) => {
+  handleTrusted('git:get-state', async (_event, projectId: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -17,7 +18,7 @@ export function registerGitHandlers(): void {
     return getGitWorkflowState(project.path)
   })
 
-  ipcMain.handle('git:commit', async (_event, projectId: string, message: string) => {
+  handleTrusted('git:commit', async (_event, projectId: string, message: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -31,7 +32,7 @@ export function registerGitHandlers(): void {
     return commitAllChanges(project.path, message)
   })
 
-  ipcMain.handle('git:push', async (_event, projectId: string) => {
+  handleTrusted('git:push', async (_event, projectId: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }
@@ -45,7 +46,7 @@ export function registerGitHandlers(): void {
     return pushCurrentBranch(project.path)
   })
 
-  ipcMain.handle('git:create-pr', async (
+  handleTrusted('git:create-pr', async (
     _event,
     projectId: string,
     input: {
@@ -67,12 +68,12 @@ export function registerGitHandlers(): void {
     const { createPullRequest } = await import('../../git/service')
     const result = await createPullRequest(project.path, input)
     if (result.ok && result.url) {
-      await shell.openExternal(result.url)
+      await shell.openExternal(assertSafeExternalUrl(result.url))
     }
     return result
   })
 
-  ipcMain.handle('git:diff', async (_event, projectId: string, relativePath: string) => {
+  handleTrusted('git:diff', async (_event, projectId: string, relativePath: string) => {
     if (!projectId) {
       throw new Error('Project id is required.')
     }

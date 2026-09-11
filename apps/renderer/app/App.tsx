@@ -37,6 +37,7 @@ import type {
   CreateCommandChainInput,
   CreateCommandTriggerInput,
   CreateCommandInput,
+  UpdateCommandInput,
   EngineGitInsights,
   EngineIndexCompletedPayload,
   EngineIndexLifecyclePayload,
@@ -759,7 +760,7 @@ function App() {
 
   const handleUpdateCommand = async (
     commandId: string,
-    updates: { name: string; command: string; description?: string; tags?: string[] }
+    updates: UpdateCommandInput
   ) => {
     setLoadError(null)
     try {

@@ -20,14 +20,14 @@ import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
 import { Badge } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
-import { Textarea } from '../components/ui/Textarea'
 import { SectionLayout } from '../layout/SectionLayout'
 import { VariablePromptModal } from '../components/VariablePromptModal'
 import { CommandPresetPickerDialog } from '../components/CommandPresetPickerDialog'
 import { getCommandPresetsForProjectType } from '../lib/commandPresets'
 import { cn } from '../../lib/utils'
 import { selectClass } from './projectsSectionConfig'
-import type { Command, CommandVariable, CreateCommandInput, Project } from '../types'
+import { CommandEditDialog } from './CommandEditDialog'
+import type { Command, CommandVariable, CreateCommandInput, Project, UpdateCommandInput } from '../types'
 
 const UNTAGGED_FILTER_KEY = '__untagged__'
 
@@ -54,7 +54,7 @@ export function CommandsSection({
   isLoading?: boolean
   error?: string | null
   onRunCommand?: (commandId: string, projectId: string, variables?: Record<string, string>) => Promise<{ runId: string; status: string } | { status: 'needs-input'; inputs: { name: string; default?: string; required: boolean; description?: string }[]; preview: string }>
-  onUpdateCommand?: (commandId: string, updates: { name: string; command: string; description?: string; tags?: string[] }) => Promise<void>
+  onUpdateCommand?: (commandId: string, updates: UpdateCommandInput) => Promise<void>
   onToggleCommandPin?: (commandId: string) => Promise<void>
   onRemoveCommand?: (commandId: string) => Promise<void>
   onCreatePresetCommand?: (command: CreateCommandInput) => Promise<Command>
@@ -72,13 +72,7 @@ export function CommandsSection({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [query, setQuery] = useState('')
-  const [editName, setEditName] = useState('')
-  const [editCommand, setEditCommand] = useState('')
-  const [editDescription, setEditDescription] = useState('')
-  const [editTags, setEditTags] = useState('')
-  const [editError, setEditError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [presetDialogOpen, setPresetDialogOpen] = useState(false)
   const [tagUpdateError, setTagUpdateError] = useState<string | null>(null)
@@ -206,18 +200,10 @@ export function CommandsSection({
 
   useEffect(() => {
     if (!selectedCommand) {
-      setEditName('')
-      setEditCommand('')
-      setEditDescription('')
-      setEditTags('')
       setDetectedVariables([])
       setTagUpdateError(null)
       return
     }
-    setEditName(selectedCommand.name)
-    setEditCommand(selectedCommand.command)
-    setEditDescription(selectedCommand.description ?? '')
-    setEditTags(selectedCommand.tags?.join(', ') ?? '')
     let cancelled = false
 
     const detect = async () => {
@@ -295,35 +281,6 @@ export function CommandsSection({
         : 'border-border/50 bg-background/80 text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
     )
   }, [maxTagCount])
-
-  // Detect variables as user types in edit mode
-  useEffect(() => {
-    let cancelled = false
-
-    const detect = async () => {
-      if (!editCommand.trim()) {
-        if (!cancelled) {
-          setDetectedVariables([])
-        }
-        return
-      }
-      try {
-        const vars = await window.electronAPI.detectCommandVariables(editCommand)
-        if (!cancelled) {
-          setDetectedVariables(vars)
-        }
-      } catch {
-        if (!cancelled) {
-          setDetectedVariables([])
-        }
-      }
-    }
-    void detect()
-
-    return () => {
-      cancelled = true
-    }
-  }, [editCommand])
 
   // Get the project associated with this command
   const commandProject = useMemo(() => {
@@ -426,38 +383,6 @@ export function CommandsSection({
     setPendingVariables([])
     setCommandPreview('')
   }, [])
-
-  const handleSaveEdit = async () => {
-    if (!selectedCommand || !onUpdateCommand || isSavingEdit) return
-    const trimmedName = editName.trim()
-    const trimmedCommand = editCommand.trim()
-    if (!trimmedName || !trimmedCommand) {
-      setEditError('Command name and command are required.')
-      return
-    }
-    setEditError(null)
-    setIsSavingEdit(true)
-    try {
-      const trimmedTags = editTags.trim()
-      const tags = trimmedTags
-        ? trimmedTags
-            .split(',')
-            .map((tag) => tag.trim())
-            .filter(Boolean)
-        : []
-      await onUpdateCommand(selectedCommand.id, {
-        name: trimmedName,
-        command: trimmedCommand,
-        description: editDescription.trim(),
-        tags,
-      })
-      setEditDialogOpen(false)
-    } catch (error) {
-      setEditError(error instanceof Error ? error.message : 'Failed to update command.')
-    } finally {
-      setIsSavingEdit(false)
-    }
-  }
 
   const handleRemoveCommand = async () => {
     if (!selectedCommand || !onRemoveCommand || isDeleting) return
@@ -1002,105 +927,13 @@ export function CommandsSection({
         )
       }
       />
-      <Dialog
+      <CommandEditDialog
         open={editDialogOpen}
-        onOpenChange={(open) => {
-          setEditDialogOpen(open)
-          if (open && selectedCommand) {
-            setEditName(selectedCommand.name)
-            setEditCommand(selectedCommand.command)
-            setEditDescription(selectedCommand.description ?? '')
-            setEditTags(selectedCommand.tags?.join(', ') ?? '')
-          }
-          if (!open) {
-            setEditError(null)
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit command</DialogTitle>
-            <DialogDescription>Update the name, command, and metadata.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="edit-command-name">Name</Label>
-              <Input
-                id="edit-command-name"
-                value={editName}
-                onChange={(event) => setEditName(event.target.value)}
-                placeholder="Run tests"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-command-value">Command</Label>
-              <Textarea
-                id="edit-command-value"
-                value={editCommand}
-                onChange={(event) => setEditCommand(event.target.value)}
-                placeholder="npm test -- --watch"
-                rows={3}
-                className="font-mono text-xs"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-command-description">Description (optional)</Label>
-              <Input
-                id="edit-command-description"
-                value={editDescription}
-                onChange={(event) => setEditDescription(event.target.value)}
-                placeholder="Run tests in watch mode"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-command-tags">Tags (comma separated)</Label>
-              <Input
-                id="edit-command-tags"
-                value={editTags}
-                onChange={(event) => setEditTags(event.target.value)}
-                placeholder="test, watch"
-              />
-            </div>
-
-            {/* Detected Variables */}
-            {detectedVariables.length > 0 && (
-              <div className="space-y-2 rounded-md bg-muted/30 p-3">
-                <div className="flex items-center gap-2">
-                  <Variable className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-xs font-medium">Detected Variables</Label>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {detectedVariables.map((variable) => (
-                    <Badge
-                      key={variable.name}
-                      variant="secondary"
-                      className="text-[10px] font-normal"
-                    >
-                      {variable.name}
-                      {variable.required && (
-                        <span className="ml-0.5 text-destructive">*</span>
-                      )}
-                    </Badge>
-                  ))}
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  Users will be prompted to enter values when running this command.
-                </p>
-              </div>
-            )}
-
-            {editError ? <p className="text-xs text-destructive">{editError}</p> : null}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={isSavingEdit}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveEdit} disabled={isSavingEdit || !onUpdateCommand}>
-              {isSavingEdit ? 'Saving...' : 'Save changes'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        command={selectedCommand}
+        projects={projects}
+        onOpenChange={setEditDialogOpen}
+        onUpdateCommand={onUpdateCommand}
+      />
       <Dialog
         open={deleteDialogOpen}
         onOpenChange={(open) => {

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
+import { buildContentSecurityPolicy } from './apps/desktop/app/cspPolicy'
 
 function getVendorChunkName(id: string) {
   if (!id.includes('node_modules')) {
@@ -31,8 +32,21 @@ function getVendorChunkName(id: string) {
   return 'vendor-misc'
 }
 
+function devCspPlugin() {
+  return {
+    name: 'devdesk-dev-csp',
+    apply: 'serve' as const,
+    transformIndexHtml(html: string) {
+      return html.replace(
+        /(<meta\s+http-equiv="Content-Security-Policy"\s+content=")([^"]*)(")/,
+        `$1${buildContentSecurityPolicy(true)}$3`,
+      )
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), devCspPlugin()],
   root: 'apps/renderer',
   base: './',
   build: {

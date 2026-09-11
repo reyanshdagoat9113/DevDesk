@@ -1,11 +1,10 @@
-import { ipcMain, shell } from 'electron'
+import { shell } from 'electron'
 import { IpcChannels, isSafeExternalUrl } from '@devdesk/ipc-contracts'
-import { assertSafeExternalUrl, assertTrustedSender } from '../trustedIpc'
+import { assertSafeExternalUrl, handleTrusted } from '../trustedIpc'
 
 /** Domain registrar: shell / external URL channels. */
 export function registerShellHandlers(): void {
-  ipcMain.handle(IpcChannels.ShellOpenExternal, async (event, url: string) => {
-    assertTrustedSender(event)
+  handleTrusted(IpcChannels.ShellOpenExternal, async (_event, url: string) => {
     if (!url?.trim()) {
       return { success: false }
     }

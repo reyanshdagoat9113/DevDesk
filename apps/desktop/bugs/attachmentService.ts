@@ -13,23 +13,23 @@ const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 
 export { deleteAttachmentFile, getAttachmentsDir, resolveAttachmentPath }
 
-function ensureAttachmentsDir(): string {
+async function ensureAttachmentsDir(): Promise<string> {
   const dir = getAttachmentsDir()
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-  }
+  await fs.promises.mkdir(dir, { recursive: true })
   return dir
 }
 
-export function copyFileToAttachments(sourceFilePath: string): { relativePath: string; fileSize: number } {
+export async function copyFileToAttachments(sourceFilePath: string): Promise<{ relativePath: string; fileSize: number }> {
   if (!sourceFilePath || typeof sourceFilePath !== 'string') {
     throw new Error('Source file path is required.')
   }
-  if (!fs.existsSync(sourceFilePath)) {
+
+  let stat: fs.Stats
+  try {
+    stat = await fs.promises.stat(sourceFilePath)
+  } catch {
     throw new Error(`Source file does not exist: ${sourceFilePath}`)
   }
-
-  const stat = fs.statSync(sourceFilePath)
   if (!stat.isFile()) {
     throw new Error(`Source path is not a file: ${sourceFilePath}`)
   }
@@ -37,12 +37,12 @@ export function copyFileToAttachments(sourceFilePath: string): { relativePath: s
     throw new Error(`Attachment exceeds maximum size of ${MAX_ATTACHMENT_BYTES} bytes.`)
   }
 
-  ensureAttachmentsDir()
+  await ensureAttachmentsDir()
   const ext = path.extname(sourceFilePath).slice(0, 32)
   const storedName = `${randomUUID()}${ext}`
   const destPath = resolveAttachmentPath(path.join(ATTACHMENTS_DIR, storedName))
 
-  fs.copyFileSync(sourceFilePath, destPath)
+  await fs.promises.copyFile(sourceFilePath, destPath)
 
   return {
     relativePath: path.join(ATTACHMENTS_DIR, storedName),

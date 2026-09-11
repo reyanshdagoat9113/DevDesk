@@ -102,6 +102,16 @@ export function HistorySection({
   const [loadingMore, setLoadingMore] = useState(false)
   const appliedInitialRunId = useRef<string | null>(null)
   const outputRequestRef = useRef(0)
+  const cancelledRef = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+    cancelledRef.current = false
+    return () => {
+      cancelled = true
+      cancelledRef.current = cancelled
+    }
+  }, [])
 
   useEffect(() => {
     if (initialRunId && initialRunId !== appliedInitialRunId.current && history.some((entry) => entry.id === initialRunId)) {
@@ -179,12 +189,14 @@ export function HistorySection({
     setClearing(true)
     try {
       await onClearHistory()
+      if (cancelledRef.current) return
       setClearDialogOpen(false)
       setClearMessage(`Cleared ${history.length} saved run${history.length === 1 ? '' : 's'} and captured output.`)
     } catch (error) {
+      if (cancelledRef.current) return
       setClearError(error instanceof Error ? error.message : 'Failed to clear history.')
     } finally {
-      setClearing(false)
+      if (!cancelledRef.current) setClearing(false)
     }
   }
 
@@ -194,57 +206,69 @@ export function HistorySection({
     setRemoving(true)
     try {
       await onRemoveEntry(selectedEntryId)
+      if (cancelledRef.current) return
       setRemoveDialogOpen(false)
       setRemoveMessage(`Removed the ${getCommandName(selectedEntry?.commandId ?? '')} run.`)
     } catch (error) {
+      if (cancelledRef.current) return
       setRemoveError(error instanceof Error ? error.message : 'Failed to remove history entry.')
     } finally {
-      setRemoving(false)
+      if (!cancelledRef.current) setRemoving(false)
     }
   }
 
-  const loadOutput = useCallback(async (runId: string) => {
+  const loadOutput = useCallback(async (runId: string, isCancelled?: () => boolean) => {
     if (!onLoadOutput) return
     const requestId = ++outputRequestRef.current
     setOutputLoading(true)
     setOutputError(null)
     try {
       const output = await onLoadOutput(runId)
-      if (requestId !== outputRequestRef.current) return
+      if (isCancelled?.() || requestId !== outputRequestRef.current) return
       setOutputText(output ?? '')
     } catch (loadError) {
-      if (requestId !== outputRequestRef.current) return
+      if (isCancelled?.() || requestId !== outputRequestRef.current) return
       setOutputError(loadError instanceof Error ? loadError.message : 'Failed to load output.')
     } finally {
-      if (requestId === outputRequestRef.current) setOutputLoading(false)
+      if (!isCancelled?.() && requestId === outputRequestRef.current) setOutputLoading(false)
     }
   }, [onLoadOutput])
 
   useEffect(() => {
+    let cancelled = false
     outputRequestRef.current += 1
     if (!selectedEntryId) {
       setOutputText('')
       setOutputError(null)
       setOutputLoading(false)
-      return
+      return () => {
+        cancelled = true
+      }
     }
 
     if (selectedEntryOutput) {
       setOutputText(selectedEntryOutput)
       setOutputError(null)
       setOutputLoading(false)
-      return
+      return () => {
+        cancelled = true
+      }
     }
 
     if (!onLoadOutput || selectedEntryStatus === 'running') {
       setOutputText(selectedEntryOutput)
       setOutputError(null)
       setOutputLoading(false)
-      return
+      return () => {
+        cancelled = true
+      }
     }
 
-    void loadOutput(selectedEntryId)
+    void loadOutput(selectedEntryId, () => cancelled || cancelledRef.current)
 
+    return () => {
+      cancelled = true
+    }
   }, [loadOutput, onLoadOutput, selectedEntryId, selectedEntryOutput, selectedEntryStatus])
 
   const handleStopSelected = async () => {
@@ -254,11 +278,13 @@ export function HistorySection({
     setStopMessage(null)
     try {
       await onStopRun(selectedEntryId)
+      if (cancelledRef.current) return
       setStopMessage(`Termination requested for ${getCommandName(selectedEntry?.commandId ?? '')}.`)
     } catch (stopFailure) {
+      if (cancelledRef.current) return
       setStopError(stopFailure instanceof Error ? stopFailure.message : 'Failed to terminate the run.')
     } finally {
-      setStopping(false)
+      if (!cancelledRef.current) setStopping(false)
     }
   }
 
@@ -268,7 +294,7 @@ export function HistorySection({
     try {
       await onLoadMore()
     } finally {
-      setLoadingMore(false)
+      if (!cancelledRef.current) setLoadingMore(false)
     }
   }
 
@@ -276,10 +302,13 @@ export function HistorySection({
     if (!outputText) return
     try {
       await navigator.clipboard.writeText(outputText)
+      if (cancelledRef.current) return
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      setTimeout(() => {
+        if (!cancelledRef.current) setCopied(false)
+      }, 1500)
     } catch {
-      setCopied(false)
+      if (!cancelledRef.current) setCopied(false)
     }
   }
 

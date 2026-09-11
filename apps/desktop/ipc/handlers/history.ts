@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { handleTrusted } from '../trustedIpc'
 import {
   clearRunHistoryInStore,
   countRunHistory,
@@ -31,7 +31,7 @@ function sanitizeHistoryPageOptions(options?: { limit?: number; offset?: number 
 
 /** Domain registrar: run-history channels only. */
 export function registerHistoryHandlers(): void {
-  ipcMain.handle('history:get', async (_event, options?: { limit?: number; offset?: number }) => {
+  handleTrusted('history:get', async (_event, options?: { limit?: number; offset?: number }) => {
     const { limit, offset } = sanitizeHistoryPageOptions(options)
     const [entries, total] = await Promise.all([
       listRunHistory({ limit, offset }),
@@ -40,17 +40,17 @@ export function registerHistoryHandlers(): void {
     return { entries, total, limit, offset }
   })
 
-  ipcMain.handle('history:listRecent', async (_event, limit?: number) => {
+  handleTrusted('history:listRecent', async (_event, limit?: number) => {
     const cap = Math.min(Math.max(1, limit ?? 20), 100)
     return listRecentRunHistory(cap)
   })
 
-  ipcMain.handle('history:clear', async () => {
+  handleTrusted('history:clear', async () => {
     await clearRunHistoryInStore()
     return { success: true }
   })
 
-  ipcMain.handle('history:remove', async (_event, runId: string) => {
+  handleTrusted('history:remove', async (_event, runId: string) => {
     const id = runId?.trim()
     if (!id) {
       return { success: false }
@@ -64,7 +64,7 @@ export function registerHistoryHandlers(): void {
     return { success: true }
   })
 
-  ipcMain.handle('history:output', async (_event, _runId: string) => {
+  handleTrusted('history:output', async (_event, _runId: string) => {
     const running = runningCommands.get(_runId)
     if (running) {
       return serializeRunOutput(running.output)

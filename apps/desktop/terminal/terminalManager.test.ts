@@ -117,7 +117,7 @@ describe('TerminalManager', () => {
         cols: 80,
         rows: 24,
         name: 'xterm-256color',
-        useConpty: false,
+        useConpty: true,
       })
     )
     expect(ptySpawn.mock.calls[0]?.[2]).not.toHaveProperty('cwd')
