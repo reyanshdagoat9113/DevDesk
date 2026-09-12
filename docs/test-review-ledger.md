@@ -131,6 +131,6 @@ Risk tiers: **critical** / **high** / **medium** / **low**.
 | Lane | Matrix | Purpose |
 | --- | --- | --- |
 | Static and coverage | Ubuntu, Node 22 | typecheck, lint, architecture, V8 coverage + thresholds |
-| Native and integration | Win+Ubuntu × Node 22+24 | desktop/renderer/engine/engine-ipc |
-| Rust | Win+Ubuntu | `cargo test --locked` + `cargo build --release --locked` |
-| Package verification | Win+Ubuntu, Node 22 | engine smoke + unpacked verify (sqlite functional) |
+| Native and integration | Win+Ubuntu × Node 22+24 | desktop + engine; engine IPC on Node 22 |
+| Rust | Win+Ubuntu | `cargo test --locked` |
+| Package verification | Win+Ubuntu, Node 22 | one unpacked build, then engine smoke + unpacked verify (sqlite functional) |

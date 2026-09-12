@@ -59,7 +59,7 @@ jobs:
           - name: Windows x64
             os: windows-latest
             package_command: npm run package:win
-            verify_command: npm run verify:win-package
+            verify_command: npm run verify:win-package:prepared
             artifact_glob: release/DevDesk-*-win-x64.exe
             checksum_command: Get-FileHash release/DevDesk-*-win-x64.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Name)" } | Set-Content release/SHA256SUMS-win.txt
             checksum_file: release/SHA256SUMS-win.txt
@@ -67,7 +67,7 @@ jobs:
           - name: Linux x64
             os: ubuntu-latest
             package_command: npm run package:linux
-            verify_command: xvfb-run --auto-servernum npm run verify:linux-package
+            verify_command: xvfb-run --auto-servernum npm run verify:linux-package:prepared
             artifact_glob: release/DevDesk-*-linux-x64.deb
             checksum_command: sha256sum release/DevDesk-*-linux-x64.deb > release/SHA256SUMS-linux.txt
             checksum_file: release/SHA256SUMS-linux.txt
@@ -85,8 +85,36 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Cache electron-builder tooling
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron-builder
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-builder-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies and build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/engine/rust/target
+          key: cargo-release-${{ runner.os }}-${{ hashFiles('packages/engine/rust/Cargo.lock') }}-${{ hashFiles('packages/engine/rust/Cargo.toml', 'packages/engine/rust/src/**') }}
+          restore-keys: |
+            cargo-release-${{ runner.os }}-${{ hashFiles('packages/engine/rust/Cargo.lock') }}-
+            cargo-release-${{ runner.os }}-
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'

@@ -23,7 +23,7 @@ Examples: `DevDesk-0.1.6-win-x64.exe`, `DevDesk-0.1.6-linux-x64.deb`.
 Pushing a version tag (for example `v0.1.6`) runs `.github/workflows/publish-release.yml`. The workflow:
 
 1. Checks the tag matches `package.json` `version`
-2. Builds and verifies Windows and Linux packages on native runners
+2. Builds each Windows and Linux package once, then verifies its retained unpacked output on the same runner
 3. Writes SHA-256 checksum files
 4. Publishes a **prerelease** with both installers
 
@@ -64,9 +64,9 @@ npm run test:coverage
 | Lane | Matrix | Purpose |
 |------|--------|---------|
 | Static and coverage | Ubuntu, Node 22 | typecheck, lint, architecture, V8 coverage |
-| Native and integration | Windows + Ubuntu × Node 22 + 24 | clean install, Node natives, desktop/renderer/engine/engine-ipc |
+| Native and integration | Windows + Ubuntu × Node 22 + 24 | clean install, Node natives, desktop + engine tests; engine IPC on Node 22 |
 | Rust | Windows + Ubuntu | `cargo test --locked` |
-| Package verification | Windows + Ubuntu, Node 22 | packaged engine smoke + unpack verify |
+| Package verification | Windows + Ubuntu, Node 22 | one unpacked build, then packaged-engine smoke + unpack verify |
 
 Host Node for development and packaging: **22.12–24** (default **22**). Ledger: [test-review-ledger.md](./test-review-ledger.md).
 
@@ -101,6 +101,8 @@ npm run verify:linux-package
 - `dist/` main, preload, renderer
 - Electron-native `better-sqlite3` and `node-pty` (asar-unpacked)
 - Performance engine from `packages/engine/dist` → `resources/engine/`, plus Electron-built `better-sqlite3` and `commander` under `resources/engine/node_modules/`
+
+The workspace `node_modules/devdesk-engine` copy is excluded from the application archive; production uses the curated `resources/engine` copy instead.
 
 The landing site is **not** inside the desktop app.
 

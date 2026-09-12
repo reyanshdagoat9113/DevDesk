@@ -68,5 +68,6 @@ If rebuild fails:
 - Node-targeted ensure before Vitest that loads `better-sqlite3` under Node
 - Electron-targeted rebuild before packaged smoke or Electron launch
 - Jobs that do not exercise terminals should use `rebuild:native` so a `node-pty` compile failure does not block engine smoke
-- Native/integration CI: Windows + Linux, Node 22 and 24; packaging jobs: Node 22 only
+- Native/integration CI: desktop + engine tests on Windows + Linux under Node 22 and 24; engine IPC runs under Node 22; packaging jobs use Node 22 only
 - Rust: `npm run test:rust` (`cargo test --locked` in `packages/engine/rust`)
+- Package CI rebuilds Electron natives once, then reuses the prepared unpacked output for both package verifiers

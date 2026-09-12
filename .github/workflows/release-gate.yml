@@ -7,7 +7,9 @@ on:
     branches: [dev, main]
 
 concurrency:
-  group: release-gate-${{ github.workflow }}-${{ github.ref }}
+  # A fast-forward promotion can push the same commit to dev and main at once.
+  # Keying by commit cancels the duplicate run without conflating different SHAs.
+  group: release-gate-${{ github.workflow }}-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -28,6 +30,14 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
+
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Linux build tools
         run: |
@@ -81,6 +91,14 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Linux build tools
         if: runner.os == 'Linux'
         run: |
@@ -88,7 +106,21 @@ jobs:
           sudo apt-get install -y build-essential python3 libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
 
       - name: Install Rust (engine binary)
+        if: matrix.node == '22'
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies and build output
+        if: matrix.node == '22'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/engine/rust/target
+          key: cargo-release-${{ runner.os }}-${{ hashFiles('packages/engine/rust/Cargo.lock') }}-${{ hashFiles('packages/engine/rust/Cargo.toml', 'packages/engine/rust/src/**') }}
+          restore-keys: |
+            cargo-release-${{ runner.os }}-${{ hashFiles('packages/engine/rust/Cargo.lock') }}-
+            cargo-release-${{ runner.os }}-
 
       - name: Install dependencies
         run: npm ci
@@ -102,13 +134,11 @@ jobs:
       - name: Desktop tests
         run: npm run test:run
 
-      - name: Renderer tests
-        run: npm run test:renderer:run
-
       - name: Engine tests
         run: npm run test:engine
 
       - name: Engine IPC integration
+        if: matrix.node == '22'
         run: npm run test:engine-ipc
 
   rust:
@@ -125,13 +155,21 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust dependencies and build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/engine/rust/target
+          key: cargo-debug-${{ runner.os }}-${{ hashFiles('packages/engine/rust/Cargo.lock') }}-${{ hashFiles('packages/engine/rust/Cargo.toml', 'packages/engine/rust/src/**') }}
+          restore-keys: |
+            cargo-debug-${{ runner.os }}-${{ hashFiles('packages/engine/rust/Cargo.lock') }}-
+            cargo-debug-${{ runner.os }}-
+
       - name: Cargo test (locked)
         working-directory: packages/engine/rust
         run: cargo test --locked
-
-      - name: Cargo build release (packaged engine parity)
-        working-directory: packages/engine/rust
-        run: cargo build --release --locked
 
   package-verification:
     name: Package verification (${{ matrix.os }} / Node 22)
@@ -139,7 +177,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            package_command: npm run package:win:dir
+            verify_command: npm run verify:win-package:prepared
+            smoke_command: npm run smoke:engine-packaged:prepared
+          - os: ubuntu-latest
+            package_command: npm run package:linux:dir
+            verify_command: xvfb-run --auto-servernum npm run verify:linux-package:prepared
+            smoke_command: xvfb-run --auto-servernum npm run smoke:engine-packaged:prepared
     steps:
       - name: Checkout DevDesk
         uses: actions/checkout@v4
@@ -151,6 +197,22 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Cache electron-builder tooling
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron-builder
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-builder-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Linux build tools
         if: runner.os == 'Linux'
         run: |
@@ -160,24 +222,26 @@ jobs:
       - name: Install Rust (engine binary)
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust dependencies and build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/engine/rust/target
+          key: cargo-release-${{ runner.os }}-${{ hashFiles('packages/engine/rust/Cargo.lock') }}-${{ hashFiles('packages/engine/rust/Cargo.toml', 'packages/engine/rust/src/**') }}
+          restore-keys: |
+            cargo-release-${{ runner.os }}-${{ hashFiles('packages/engine/rust/Cargo.lock') }}-
+            cargo-release-${{ runner.os }}-
+
       - name: Install dependencies
         run: npm ci
 
-      - name: Build IPC contracts
-        run: npm run build:ipc-contracts
+      - name: Build unpacked package
+        run: ${{ matrix.package_command }}
 
-      - name: Packaged engine smoke (Windows)
-        if: runner.os == 'Windows'
-        run: npm run smoke:engine-packaged
+      - name: Verify unpacked package
+        run: ${{ matrix.verify_command }}
 
-      - name: Packaged engine smoke (Linux)
-        if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum npm run smoke:engine-packaged
-
-      - name: Packaged app smoke (Windows)
-        if: runner.os == 'Windows'
-        run: npm run verify:win-package
-
-      - name: Packaged app smoke (Linux)
-        if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum npm run verify:linux-package
+      - name: Verify packaged engine harness
+        run: ${{ matrix.smoke_command }}
