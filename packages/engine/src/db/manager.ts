@@ -74,27 +74,41 @@ export class DatabaseManager {
     this.db = this.initialize();
   }
 
+  private readSchemaVersion(db: Database.Database): number | null {
+    const table = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'")
+      .get() as { name: string } | undefined;
+    if (!table) {
+      return null;
+    }
+
+    const versionRow = db.prepare('SELECT version FROM schema_version LIMIT 1').get() as
+      | { version: number }
+      | undefined;
+    return typeof versionRow?.version === 'number' ? versionRow.version : null;
+  }
+
   private initialize(): Database.Database {
     ensureDir(path.dirname(this.dbPath));
 
     const db = new Database(this.dbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
-    db.exec(SCHEMA);
 
-    const versionRow = db.prepare('SELECT version FROM schema_version LIMIT 1').get() as
-      | { version: number }
-      | undefined;
-
-    if (!versionRow) {
-      db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
-    } else if (versionRow.version < SCHEMA_VERSION) {
-      db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
-    } else if (versionRow.version > SCHEMA_VERSION) {
+    const existingVersion = this.readSchemaVersion(db);
+    if (existingVersion !== null && existingVersion > SCHEMA_VERSION) {
       db.close();
       throw new Error(
-        `Index was created by a newer DevDesk version (schema ${versionRow.version}; this app supports ${SCHEMA_VERSION}). Re-index this project after updating, or clear the engine index.`
+        `Index was created by a newer DevDesk version (schema ${existingVersion}; this app supports ${SCHEMA_VERSION}). Re-index this project after updating, or clear the engine index.`
       );
+    }
+
+    db.exec(SCHEMA);
+
+    if (existingVersion === null) {
+      db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
+    } else if (existingVersion < SCHEMA_VERSION) {
+      db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
     }
 
     return db;

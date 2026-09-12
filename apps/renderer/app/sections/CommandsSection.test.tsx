@@ -147,6 +147,31 @@ describe('CommandsSection', () => {
     })
   })
 
+  it('saves a reassigned project when Save is clicked before a directory is chosen', async () => {
+    installCommandElectronApi()
+    const onUpdateCommand = vi.fn(async () => {})
+
+    render(
+      <CommandsSection
+        commands={[command]}
+        projects={projects}
+        onUpdateCommand={onUpdateCommand}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit command' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Back to projects' }))
+    await userEvent.click(screen.getByText('Other App'))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(onUpdateCommand).toHaveBeenCalledWith('build', expect.objectContaining({
+        projectId: 'other',
+        workingDirectory: null,
+      }))
+    })
+  })
+
   it('saves a reassigned project and working directory from the edit dialog', async () => {
     installCommandElectronApi()
     const onUpdateCommand = vi.fn(async () => {})

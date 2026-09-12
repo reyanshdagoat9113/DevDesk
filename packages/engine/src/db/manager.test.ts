@@ -31,4 +31,18 @@ describe('DatabaseManager schema version', () => {
       `Index was created by a newer DevDesk version (schema ${SCHEMA_VERSION + 1}; this app supports ${SCHEMA_VERSION}). Re-index this project after updating, or clear the engine index.`
     )
   })
+
+  it('rejects a newer schema before applying current schema SQL', () => {
+    const sqlite = new Database(dbPath)
+    sqlite.exec(`
+      CREATE TABLE schema_version (version INTEGER PRIMARY KEY);
+      INSERT INTO schema_version (version) VALUES (${SCHEMA_VERSION + 1});
+      CREATE TABLE files (id INTEGER PRIMARY KEY, file_path TEXT NOT NULL UNIQUE);
+    `)
+    sqlite.close()
+
+    expect(() => new DatabaseManager(dbPath)).toThrow(
+      `Index was created by a newer DevDesk version (schema ${SCHEMA_VERSION + 1}; this app supports ${SCHEMA_VERSION}). Re-index this project after updating, or clear the engine index.`
+    )
+  })
 })

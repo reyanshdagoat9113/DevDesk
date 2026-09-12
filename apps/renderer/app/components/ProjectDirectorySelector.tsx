@@ -61,15 +61,18 @@ export function ProjectDirectorySelector({
 
   const handleProjectSelect = (projectId: string | undefined) => {
     if (!projectId) {
-      // Global
       setCurrentProjectId(undefined)
       onSelect(undefined, undefined)
       setSearch('')
-    } else {
-      setCurrentProjectId(projectId)
-      setStep('directory')
-      setSearch('')
+      return
     }
+
+    setCurrentProjectId(projectId)
+    setStep('directory')
+    setSearch('')
+    // Commit the project immediately so Save does not keep the previous projectId
+    // when the user never picks a subdirectory (project root is the default).
+    onSelect(projectId, undefined)
   }
 
   const handleDirectorySelect = (dir: string | undefined) => {
