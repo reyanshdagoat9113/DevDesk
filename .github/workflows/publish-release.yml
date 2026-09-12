@@ -29,7 +29,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -74,19 +74,19 @@ jobs:
             artifact_name: devdesk-linux-${{ needs.validate-release.outputs.version }}
     steps:
       - name: Checkout tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Cache Electron downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/electron
@@ -94,7 +94,7 @@ jobs:
           key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Cache electron-builder tooling
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/electron-builder
@@ -105,7 +105,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust dependencies and build output
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -142,7 +142,7 @@ jobs:
         run: ${{ matrix.checksum_command }}
 
       - name: Upload release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
           path: |
@@ -156,18 +156,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Download Windows assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: devdesk-windows-${{ needs.validate-release.outputs.version }}
           path: release-assets/windows
 
       - name: Download Linux assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: devdesk-linux-${{ needs.validate-release.outputs.version }}
           path: release-assets/linux
