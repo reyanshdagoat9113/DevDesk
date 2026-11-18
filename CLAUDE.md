@@ -34,7 +34,7 @@ Implementation notes:
 - Engine indexes live under `userData/engine/*.sqlite`.
 - `reconcileRunHistory()` marks any "running" entries as "stopped" on startup.
 
-## Current Feature Coverage (v0.1.2 — feature complete)
+## Current Feature Coverage (v0.1.6 — feature complete)
 
 - Projects: add/edit/remove/pin, open folder/editor/terminal, type detection.
 - Preferences: editor/terminal selection with custom command support (`{path}`).

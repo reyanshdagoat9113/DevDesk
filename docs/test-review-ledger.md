@@ -117,14 +117,9 @@ Risk tiers: **critical** / **high** / **medium** / **low**.
 | Engine hang / malformed JSON | `binary.process.test.ts` + `runEngineCommand` bounds | timeout, kill, parse guard | desktop tests |
 | Regex path list overflows argv (E2BIG / Windows 32 KiB) | `search-regex.test.ts` argv bounding | batch `--files` per platform budget in `workers/client.ts` | `npm run test:engine` |
 
-## Known follow-ups (recorded, not in this initiative)
+## Follow-ups
 
-| Item | Risk | Note |
-| --- | --- | --- |
-| `handleTrusted` wrapper not yet adopted by `registerIpc.ts` | high | Only `shell:open-external` asserts the trusted sender; migrating ~all channels is a separate pass. `getRegisteredIpcChannels()` therefore reports nothing in production. |
-| `ipc-contracts.test.ts` is one-directional | medium | Asserts source ⊆ authority. Stale/extra authority entries cannot fail the suite yet. |
-| `scanRepository` buffers stdout instead of streaming NDJSON | medium | Bounded at 32 MB; very large `--content` scans could now fail where streaming previously succeeded. |
-| `scripts/gen-ipc-channels.mjs` derives contracts from `preload.ts`/`registerIpc.ts` | low | Bootstrap tool only; the contract package is now the hand-maintained authority. Re-running it would overwrite `isSafeExternalUrl`. |
+All remaining open follow-ups from this ledger (bidirectional `ipc-contracts.test.ts` checks, NDJSON streaming in `scanRepository`, and retiring/updating `scripts/gen-ipc-channels.mjs`) have been moved to [../TODO.md](../TODO.md). The prior `handleTrusted` adoption item shipped in v0.1.6 across `registerIpc.ts` and `apps/desktop/ipc/handlers/*`.
 
 ## CI topology
 

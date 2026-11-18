@@ -33,7 +33,7 @@ Current product version: **0.1.6**. Docs index: [README.md](./README.md).
 - [ ] All private beta items complete on **every** supported platform
 - [ ] Signed Windows installer (and macOS notarization if macOS is claimed)
 - [x] Public install page + support path (`packages/landing`; GitHub issues)
-- [ ] Security review of IPC and shell execution paths
+- [ ] Independent external security review of IPC and shell execution paths (internal hardening shipped in v0.1.6)
 - [ ] Backup/export attachment story improved or clearly documented (today: metadata only — see [data-locations.md](./data-locations.md))
 - [ ] Auto-update strategy decided (or “manual updates only” kept explicit)
 

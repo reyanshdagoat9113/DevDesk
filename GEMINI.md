@@ -86,7 +86,7 @@ npm run typecheck     # Run TypeScript type checking
 3. **Deterministic:** Predictable UI behavior and command execution.
 4. **Performance:** Ensure the UI remains responsive, especially during long-running commands.
 
-## Current Release State (v0.1.2 private beta)
+## Current Release State (v0.1.6 private beta)
 Product features are complete, including:
 - Projects, Command Vault (variables/presets/chains/triggers), run history, notes
 - Embedded terminals, health checks, git workspace, Docker/compose awareness

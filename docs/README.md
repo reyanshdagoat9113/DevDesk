@@ -3,7 +3,7 @@
 Start here. Docs are split by audience so you can skip what you do not need.
 
 **Product version:** 0.1.6 (private beta)
-**Last reviewed:** 2026-09-11
+**Last reviewed:** 2026-11-18
 
 ## If you want to use DevDesk
 
@@ -46,7 +46,7 @@ Start here. Docs are split by audience so you can skip what you do not need.
 | [../ROADMAP.md](../ROADMAP.md) | Shipped surface and remaining work |
 | [../TODO.md](../TODO.md) | Open launch and maintenance items |
 
-Historical feature specs and HTML milestone plans live under [planning/](./planning/) and in the repo-root files `New-features.md` and `Plans-for-features.md`. They are **not** the current task queue.
+Historical feature specs, pre-beta readiness snapshots, completed sweeps, and HTML milestone plans live under [planning/](./planning/), in [launch-readiness-checklist.html](./launch-readiness-checklist.html) and [maintenance-findings.html](./maintenance-findings.html), and in the repo-root files `New-features.md` and `Plans-for-features.md`. They are **not** the current task queue.
 
 ## Conventions
 
