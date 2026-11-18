@@ -24,7 +24,7 @@ Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is o
    ```
    `qa:clean-install:win` builds a fresh NSIS/unpacked artifact before testing it and rejects artifacts older than 30 minutes.
 2. Report path: `release/clean-install-qa-report.json`.
-3. For manual sign-off, install the NSIS artifact or launch with a new profile and perform every row in the interactive table:
+3. For manual sign-off, install the NSIS artifact or launch with a new profile and perform every row in the interactive table. Step-by-step checklist for 0.1.6: [qa-evidence/interactive-qa-windows-0.1.6.md](./qa-evidence/interactive-qa-windows-0.1.6.md).
    ```powershell
    $qaUser = Join-Path $env:TEMP "devdesk-qa-$(Get-Date -Format yyyyMMddHHmmss)"
    & .\release\win-unpacked\DevDesk.exe --user-data-dir=$qaUser
