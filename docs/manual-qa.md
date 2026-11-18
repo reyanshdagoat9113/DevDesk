@@ -117,7 +117,7 @@ The Linux interactive workflow uses the same 12 manual actions listed in the Win
 5. **Attachment binaries** — export stores metadata only; the harness records the import warning.
 6. **Auto-update not enabled.**
 7. **Docker coverage is partial** — this host had the client installed but daemon unavailable.
-8. **Public-launch bar** — task 15 still requires installer/upgrade/uninstall, interactive platform matrices, provenance, and no pending rows.
+8. **Public-launch bar** — still requires installer/upgrade/uninstall verification, interactive platform matrices, provenance, an independent external security review, and no pending rows (see [beta-release-checklist.md](./beta-release-checklist.md)).
 
 ### Failures found in the corrected automated session
 
@@ -132,6 +132,6 @@ None when the final evidence report records 11/11 and the command exits successf
 | Engineering automated harness + packaged startup | Windows x64 | **Automated evidence complete; interactive pending** | 2026-07-13 |
 | Engineering interactive Windows | Windows x64 | **Pending** | — |
 | Engineering interactive Linux | Linux x64 | **Pending** | — |
-| Public launch | All | **Not yet** (see task 15 and security tasks 7–14) | — |
+| Public launch | All | **Not yet** (see [beta-release-checklist.md](./beta-release-checklist.md); internal security hardening shipped in v0.1.6, independent external review pending) | — |
 
 **Label:** private beta / internal hardening — automated Windows backend and startup evidence recorded; full packaged UI and Linux manual QA remain open.

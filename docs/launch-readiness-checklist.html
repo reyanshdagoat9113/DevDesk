@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DevDesk — Launch Readiness Checklist</title>
+  <title>DevDesk — Launch Readiness Checklist (Historical Pre-v0.1.0 Snapshot)</title>
   <style>
     :root {
       --bg-primary: #0b0f14;
@@ -174,6 +174,26 @@
     }
     .goal-box p,
     .status-box p { color: var(--text-secondary); }
+    .historical-banner {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), var(--bg-secondary));
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-bottom: 28px;
+    }
+    .historical-banner h2 {
+      font-size: 18px;
+      margin-bottom: 8px;
+      color: #c6e2ff;
+    }
+    .historical-banner p { color: var(--text-secondary); }
+    .historical-banner code {
+      font-family: var(--font-mono);
+      color: #c6e2ff;
+      background: rgba(59, 130, 246, 0.12);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
 
     .status-pill {
       display: inline-flex;
@@ -373,28 +393,33 @@
     <div class="header-grid">
       <div class="logo">D</div>
       <div class="header-content">
-        <h1>Launch Readiness Checklist</h1>
-        <p class="subtitle">A go / no-go plan for deciding whether DevDesk is actually ready for launch after milestones 1–4. This document separates feature completion from release readiness and focuses on validation, packaging, quality, and launch operations.</p>
+        <h1>Launch Readiness Checklist (Historical Snapshot)</h1>
+        <p class="subtitle">Historical pre-v0.1.0 go / no-go review captured immediately after milestones 1–4. Superseded by shipped releases through v0.1.6 and live release tracking in <code>docs/beta-release-checklist.md</code>, <code>docs/manual-qa.md</code>, and <code>TODO.md</code>.</p>
         <div class="header-meta">
-          <span class="meta-badge"><span class="dot"></span> Current Verdict: Not Launch Ready</span>
+          <span class="meta-badge"><span class="dot"></span> Status: Historical (Pre-v0.1.0)</span>
           <span class="meta-badge">Post Milestones 1–4 Review</span>
-          <span class="meta-badge">Electron + Vite + TS</span>
-          <span class="meta-badge">Release Gate Checklist</span>
+          <span class="meta-badge">Superseded by v0.1.6</span>
+          <span class="meta-badge">Archived Release Snapshot</span>
         </div>
       </div>
     </div>
   </header>
 
   <main class="container">
+    <div class="historical-banner">
+      <h2>Historical Document Notice</h2>
+      <p>This report is a point-in-time snapshot taken right after Milestones 1–4, before the <code>v0.1.0</code>–<code>v0.1.6</code> releases, release-gate CI, and native ABI rebuild scripts were in place. The blockers listed below (<code>better-sqlite3</code> test mismatch, uncommitted <code>milestone4-plan.html</code>, pre-release docs) are resolved. For live release status, use <code>docs/beta-release-checklist.md</code>, <code>docs/manual-qa.md</code>, <code>ROADMAP.md</code>, and <code>TODO.md</code>.</p>
+    </div>
+
     <div class="goal-box">
       <h2>Document Goal</h2>
       <p>Give DevDesk a practical launch decision framework. A launch should only be approved when the app is stable, test results are green, packaging is verified on the release target, documentation matches reality, and the repo is in a clean releasable state.</p>
     </div>
 
     <div class="status-box">
-      <div class="status-pill">No-Go Right Now</div>
-      <h2>Current Assessment</h2>
-      <p>Milestones 1–4 being complete is a strong feature-progress signal, but it is not enough by itself to declare DevDesk finished. The current repo still shows failing desktop tests, a non-clean git state, and README / roadmap signals that more release work remains.</p>
+      <div class="status-pill">Historical No-Go Snapshot (Superseded)</div>
+      <h2>Assessment at Time of Snapshot</h2>
+      <p>Milestones 1–4 being complete is a strong feature-progress signal, but it is not enough by itself to declare DevDesk finished. At the time of this pre-v0.1.0 review, the repo showed failing desktop tests, a non-clean git state, and README / roadmap signals that more release work remained.</p>
     </div>
 
     <div class="section-title">Evidence Snapshot</div>
@@ -624,7 +649,7 @@
 
   <footer class="footer">
     <div class="footer-brand">DevDesk</div>
-    <div>Launch readiness checklist and release gate plan</div>
+    <div>Historical launch readiness checklist (pre-v0.1.0 Milestone 4 snapshot — superseded by v0.1.6 and live release docs)</div>
   </footer>
 </body>
 </html>

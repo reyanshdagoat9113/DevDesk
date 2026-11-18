@@ -1,7 +1,7 @@
 # DevDesk roadmap
 
-**Last updated:** 2026-08-22  
-**Current line:** v0.1.2 private beta — feature-complete for the shipped workspace; launch QA still open
+**Last updated:** 2026-11-18  
+**Current line:** v0.1.6 private beta — feature-complete for the shipped workspace; launch QA still open
 
 This file is the **live** plan. Historical implementation specs (phases 0–10 as originally written) are in `New-features.md`, `Plans-for-features.md`, and `docs/planning/`. Do not treat those as the task queue.
 
@@ -26,6 +26,7 @@ This file is the **live** plan. Historical implementation specs (phases 0–10 a
 Tracked in [TODO.md](TODO.md) and [docs/beta-release-checklist.md](docs/beta-release-checklist.md):
 
 - Interactive packaged-app QA rows on Windows and Linux ([docs/manual-qa.md](docs/manual-qa.md))
+- Independent external security review of IPC and shell execution paths (public launch bar; internal hardening shipped in v0.1.6)
 - Optional: Windows Authenticode signing
 - Optional: auto-update channel (or keep “manual downloads only”)
 - macOS packaging and notarization — **deferred**, not a 0.1 claim

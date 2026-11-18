@@ -49,7 +49,7 @@
 - Local-first: avoid cloud services, analytics, or background daemons.
 - Renderer build output is `dist/renderer`; main process loads `../../renderer/index.html` in production.
 
-## Current Status (v0.1.2 private beta)
+## Current Status (v0.1.6 private beta)
 - Product features are complete; the release gate, CI, and Windows/Linux package targets are in place.
 - Remaining launch work is release-process: interactive packaged-app QA on Windows + Linux (`docs/manual-qa.md`), optional Windows code signing, macOS deferred.
 

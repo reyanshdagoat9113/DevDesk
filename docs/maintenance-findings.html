@@ -56,11 +56,12 @@
 <body>
 <div class="wrap">
 
-  <h1>DevDesk — Maintenance Findings Report</h1>
-  <p class="sub">Active-maintenance bug sweep for the published v0.1.2 build. This document is the work queue. Findings are grouped into <b>fix-commit bundles</b> — each group is intended to be solved, tested, committed, pushed, and packaged together. <span class="pass">Groups 1–9 are completed</span>.</p>
+  <h1>DevDesk — Maintenance Findings Report <span class="tag done">COMPLETED</span></h1>
+  <p class="sub"><b>Historical / completed</b> maintenance bug sweep originally audited against the v0.1.2 build (<code>90ec4fd</code>). All <span class="pass">Groups 1–9 are completed</span> and shipped by v0.1.6; this document is no longer the active work queue. Open follow-ups live in <code>TODO.md</code>.</p>
 
   <div class="meta">
     <div class="card"><b>Audited commit</b><code>90ec4fd</code> — "Refresh documentation for v0.1.2" (clean working tree)</div>
+    <div class="card"><b>Status</b><span class="pass">Completed</span> (Groups 1–9 shipped across v0.1.2–v0.1.6; archived 2026-11-18)</div>
     <div class="card"><b>Audit date</b>2026-08-27</div>
     <div class="card"><b>Audit scope</b>Electron main, preload, IPC layer, data store, git service, engine bridge, engine package (TS+Rust), renderer app, release scripts, docs</div>
     <div class="card"><b>Baseline health</b><span class="pass">All gates green</span> — typecheck ✓ · eslint ✓ · arch-lint ✓ · desktop 186 ✓ · renderer 78 ✓ · engine 34 ✓ · engine-ipc 1 ✓ · rust 18 ✓</div>
@@ -486,28 +487,28 @@
       <li><b>Read line-by-line:</b> <span class="path">registerIpc.ts</span> (all 3,145 lines), <span class="path">preload.ts</span>, <span class="path">fileService.ts</span>, <span class="path">terminalManager.ts</span>, <span class="path">git/service.ts</span>, <span class="path">git/runtime.ts</span>, <span class="path">engineService.ts</span>, <span class="path">engine/binary.ts</span>, <span class="path">data/store/core.ts</span>, <span class="path">export.ts</span>, <span class="path">history.ts</span>, <span class="path">settings.ts</span>, <span class="path">automation.ts</span>, <span class="path">projects.ts</span> (deletion), <span class="path">variableResolver.ts</span>, <span class="path">trayManager.ts</span>, <span class="path">index.ts</span>, <span class="path">createWindow.ts</span>, <span class="path">trustedIpc.ts</span>, all IPC domain handlers, <span class="path">attachmentService.ts</span>, <span class="path">contextSnapshot.ts</span>, <span class="path">main.tsx</span>, <span class="path">App.tsx</span> (core flows), <span class="path">Terminal.tsx</span>, <span class="path">AppShell.tsx</span>, <span class="path">useAutoRefresh.ts</span>, <span class="path">CommandPalette.tsx</span> (shortcut/search wiring), <span class="path">engine/db/manager.ts</span>, <span class="path">engine/rust/scanner.rs</span>, <span class="path">TODO.md</span>/<span class="path">ROADMAP.md</span>/<span class="path">docs/README.md</span>.</li>
       <li><b>Spot-checked / pattern-scanned:</b> ProjectsSection, ContainersSection, HistorySection, BugRecorderPanel, ExportImportDialog (effects, cancel guards, API usage), llm/bundler.ts (path &amp; pattern handling).</li>
       <li><b>Not verifiable on this machine:</b> live Docker daemon paths (daemon not running) — <code>parseDockerContainers</code> field handling relies on documented Docker formatter behavior; WSL terminal behavior (F-09) is code-confirmed as inconsistent but needs a manual repro; macOS-specific branches reviewed by reading only (macOS is a deferred platform).</li>
-      <li><b>Not re-audited:</b> <span class="path">packages/landing</span> (marketing site), CI workflow files beyond a passing-gate sanity check, and the QA/release scripts (<span class="path">scripts/</span>) beyond their entry points — candidates for the next maintenance cycle.</li>
+      <li><b>Not re-audited:</b> <span class="path">packages/landing</span> (marketing site), CI workflow files beyond a passing-gate sanity check, and the QA/release scripts (<span class="path">scripts/</span>) beyond their entry points — moved to <span class="path">TODO.md</span> for the next maintenance cycle.</li>
     </ul>
   </div>
 
   <!-- ==================== TRACKED ITEMS ==================== -->
-  <h2 id="g11">Already-tracked release items (not new findings)</h2>
+  <h2 id="g11">Already-tracked release items (historical snapshot)</h2>
   <div class="group">
-    <p class="note">For completeness: these are known open items from <span class="path">TODO.md</span> / <span class="path">ROADMAP.md</span> and are release-process or roadmap work, not code bugs from this sweep. They should stay on the maintenance board alongside the groups above.</p>
+    <p class="note">Historical snapshot from the 2026-08-27 sweep. Fixed follow-ups (such as adding the WSL-terminal row to <span class="path">docs/manual-qa.md</span>) have been removed, and active open follow-ups (including GHE <code>parseGitRemote</code> support and next-cycle audit targets) now live in <span class="path">TODO.md</span>.</p>
     <table>
       <tr><th>Item</th><th>Source</th><th>Type</th></tr>
-      <tr><td>Interactive packaged-app QA rows on Windows + Linux</td><td>docs/manual-qa.md</td><td>Release QA (add a WSL-terminal row per F-09)</td></tr>
+      <tr><td>Interactive packaged-app QA rows on Windows + Linux</td><td>docs/manual-qa.md</td><td>Release QA</td></tr>
       <tr><td>Windows Authenticode signing (optional)</td><td>TODO.md</td><td>Release process</td></tr>
       <tr><td>Auto-update channel decision (or manual downloads)</td><td>TODO.md</td><td>Release process</td></tr>
       <tr><td>macOS packaging / notarization (deferred)</td><td>ROADMAP.md</td><td>Platform</td></tr>
       <tr><td>Git commits use <code>add -A</code> (no selective staging)</td><td>ROADMAP.md "Later"</td><td>Design gap</td></tr>
       <tr><td>Chains are sequential (<code>parallel</code> field stored but ignored; UI always sends <code>false</code> — dead field today)</td><td>ROADMAP.md "Later" + this audit</td><td>Design gap</td></tr>
       <tr><td>Manual index / reindex only (no watch mode)</td><td>ROADMAP.md "Later"</td><td>Design gap</td></tr>
-      <tr><td>GitHub-Enterprise remotes not recognized by <code>parseGitRemote</code> (PR creation disabled for GHE)</td><td>this audit (observation)</td><td>Feature gap</td></tr>
+      <tr><td>GitHub-Enterprise remotes not recognized by <code>parseGitRemote</code> (PR creation disabled for GHE)</td><td>TODO.md (moved from this audit)</td><td>Feature gap</td></tr>
     </table>
   </div>
 
-  <p class="note" style="margin-top:36px">Generated by the maintenance sweep on 2026-08-27 · base commit <code>90ec4fd</code> · 32 findings across 9 fix-commit groups · <span class="pass">32 completed</span> (F-01–F-22, F-24–F-33, Groups 1–9) · 0 still open · all baseline gates green at time of audit.</p>
+  <p class="note" style="margin-top:36px">Generated by the maintenance sweep on 2026-08-27 · base commit <code>90ec4fd</code> · 32 findings across 9 fix-commit groups · <span class="pass">32 completed</span> (F-01–F-22, F-24–F-33, Groups 1–9 shipped by v0.1.6) · archived.</p>
 </div>
 </body>
 </html>
