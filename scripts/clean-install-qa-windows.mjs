@@ -216,7 +216,8 @@ async function main() {
   report.meta.gitHead = gitHead.trim()
   report.meta.gitDirty = gitStatus.trim().length > 0
 
-  const installer = path.join(repoRoot, 'release', 'DevDesk-0.1.0-win-x64.exe')
+  const { version: appVersion } = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
+  const installer = path.join(repoRoot, 'release', `DevDesk-${appVersion}-win-x64.exe`)
   const unpacked = path.join(repoRoot, 'release', 'win-unpacked', 'DevDesk.exe')
   for (const artifact of [installer, unpacked]) {
     if (!fs.existsSync(artifact)) throw new Error(`missing freshly packaged artifact: ${artifact}`)
@@ -512,7 +513,7 @@ async function main() {
       severity: 'low',
       notes: 'created by clean-install-qa-windows.mjs',
     })
-    const copied = copyFileToAttachments(sample)
+    const copied = await copyFileToAttachments(sample)
     const att = await store.addBugAttachmentRecord({
       bugReportId: bug.id,
       sourceFilePath: sample,
