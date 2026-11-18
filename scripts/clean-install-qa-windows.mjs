@@ -513,7 +513,7 @@ async function main() {
       severity: 'low',
       notes: 'created by clean-install-qa-windows.mjs',
     })
-    const copied = copyFileToAttachments(sample)
+    const copied = await copyFileToAttachments(sample)
     const att = await store.addBugAttachmentRecord({
       bugReportId: bug.id,
       sourceFilePath: sample,
