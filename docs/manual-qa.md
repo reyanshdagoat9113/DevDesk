@@ -1,7 +1,7 @@
 # Manual clean-install QA
 
 **Current product version:** `0.1.6`
-**Last Windows automated session logged below:** `0.1.0` (2026-07-13) — re-run the harness against a fresh `0.1.6` artifact before calling that version signed off.
+**Last Windows automated session logged below:** `0.1.6` (2026-11-18, 11/11). Interactive Windows and Linux rows are still pending.
 **Related:** [release.md](./release.md) · [beta-release-checklist.md](./beta-release-checklist.md) · [install.md](./install.md)
 
 This checklist separates automated clean-profile integration evidence from manual actions in the packaged UI.
@@ -39,27 +39,33 @@ Supported platforms for private beta: **Windows x64**, **Linux x64**. macOS is o
 
 ### Automated companions
 
-| Check | Command | Windows (2026-07-13) | Linux |
-|-------|---------|----------------------|-------|
+| Check | Command | Windows 0.1.6 (2026-11-18) | Linux |
+|-------|---------|----------------------------|-------|
 | Unpacked package + engine + natives | `verify:win-package` / `verify:linux-package` | **Automated pass** | Pending host |
 | Packaged engine index/search/stats | `smoke:engine-packaged` | **Automated pass** | Pending host |
 | Clean-profile backend workflow harness | `qa:clean-install:win` | **Automated pass** (11/11) | N/A (Windows script) |
-| Full automated gate | `release:gate` | **Automated pass** | CI matrix |
+| Full automated gate | `release:gate` | Not re-run locally this session (CI on the release commit) | CI matrix |
 
 ---
 
-## Automated session log — Windows x64 (2026-07-13)
+## Automated session log — Windows x64, v0.1.6 (2026-11-18)
 
 | Field | Value |
 |-------|--------|
-| Host | Windows 11 (`win32` x64) |
-| Installer | `release/DevDesk-0.1.0-win-x64.exe` |
-| Installer SHA-256 | `b26c68913161c626a1e2249de6367f7bfd9b8a4457f521bb76621924c405c5be` |
+| Host | Windows 11 (`win32` x64), Node v24.12.0 |
+| Commit | `78751f7` (clean tree). App source identical to tag `v0.1.6`; only the QA harness and packaging config differ (the later CI change excludes a duplicate `node_modules/devdesk-engine`; the engine still ships in `resources/engine`) |
+| Installer | `release/DevDesk-0.1.6-win-x64.exe` (locally rebuilt, not the published download) |
+| Installer SHA-256 | `f12550309520c7e905657ca91ef26d257e0e5fbbb37d6cb332216f4d3878131c` |
 | Unpacked exe | `release/win-unpacked/DevDesk.exe` |
-| Unpacked SHA-256 | `e494ddee8ffd0b40e9a5d43db0894ccdae862fda547842624d3ea11e878111ce` |
+| Unpacked SHA-256 | `2594ca27cdd7fe5ed940f300c93b042940965caab1c890ad5c3593f58d374ecb` |
 | Clean userData | Temporary backend profile plus a separate `--user-data-dir` packaged launch |
-| Evidence report | `release/clean-install-qa-report.json` and committed `docs/qa-evidence/clean-install-qa-windows-2026-07-13.json` |
+| Evidence report | `docs/qa-evidence/clean-install-qa-windows-2026-11-18.json` |
+| Companions | `verify:win-package` pass, `smoke:engine-packaged` pass |
 | Harness summary | **11 passed, 0 failed, 0 skipped** |
+
+Harness fixes needed for this run: the installer name was hardcoded to `0.1.0`, and step 06 did not await the now-async attachment copy. Neither affected the app.
+
+The previous session (v0.1.0, 2026-07-13) is kept in `docs/qa-evidence/clean-install-qa-windows-2026-07-13.json`.
 
 ### Automated harness results
 
@@ -129,7 +135,7 @@ None when the final evidence report records 11/11 and the command exits successf
 
 | Role | Platform | Decision | Date |
 |------|----------|----------|------|
-| Engineering automated harness + packaged startup | Windows x64 | **Automated evidence complete; interactive pending** | 2026-07-13 |
+| Engineering automated harness + packaged startup | Windows x64 | **Automated evidence complete (0.1.6); interactive pending** | 2026-11-18 |
 | Engineering interactive Windows | Windows x64 | **Pending** | — |
 | Engineering interactive Linux | Linux x64 | **Pending** | — |
 | Public launch | All | **Not yet** (see [beta-release-checklist.md](./beta-release-checklist.md); internal security hardening shipped in v0.1.6, independent external review pending) | — |
